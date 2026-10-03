@@ -20,16 +20,16 @@ export async function startSupervisor(dataDir = DATA_HOME) {
     try {
       await promisify(execFile)('/bin/launchctl', ['kickstart', domain + '/' + config.label], { timeout: 10000 });
     } catch {
-      throw new Error('macOS LaunchAgent 未能启动，请运行“安装 Mac 自动跟随.command”修复');
+      throw new Error('macOS LaunchAgent 未能启动，请运行“launchers/安装 Mac 自动跟随.command”修复');
     }
     return;
   }
-  if (config.taskName !== 'Codex API Balance Whale') throw new Error('请运行“安装自动跟随.cmd”以修复独立启动任务');
+  if (config.taskName !== 'Codex API Balance Whale') throw new Error('请运行“launchers/安装自动跟随.cmd”以修复独立启动任务');
   const pause = path.join(dataDir, 'pause-until-host-exit.json');
   if (fs.existsSync(pause)) fs.unlinkSync(pause);
   const scheduler = path.join(process.env.WINDIR || 'C:\\Windows', 'System32', 'schtasks.exe');
   try { await promisify(execFile)(scheduler, ['/Run', '/TN', config.taskName], { windowsHide: true, timeout: 10000 }); }
-  catch { throw new Error('Windows 自动跟随任务未能启动，请运行“安装自动跟随.cmd”修复'); }
+  catch { throw new Error('Windows 自动跟随任务未能启动，请运行“launchers/安装自动跟随.cmd”修复'); }
 }
 export async function ensureService({ dataDir = DATA_HOME } = {}) {
   let running = await runningService(dataDir);

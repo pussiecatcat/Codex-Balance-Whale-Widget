@@ -1,6 +1,6 @@
 #!/bin/zsh
 set -e
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 NODE_BIN=""
 for candidate in /opt/homebrew/bin/node /usr/local/bin/node; do
   if [[ -x "$candidate" ]]; then NODE_BIN="$candidate"; break; fi
