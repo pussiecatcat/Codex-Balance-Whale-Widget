@@ -34,6 +34,6 @@
 - `api-balance-whale-v0.3(fixed)-source.zip`：源码、测试、README 和 GitHub 准备材料。
 - 两份 `.sha256` 与 `release-manifest.json`：文件校验、隐私扫描和构建摘要。
 
-Windows 完整解压后运行“安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
+Windows 完整解压后运行“launchers/安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
 公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.3` 对应本次整理后的发行版本。
