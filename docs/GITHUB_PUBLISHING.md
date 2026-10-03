@@ -6,9 +6,9 @@
 
 - 默认分支：`main`
 - 本地开发分支：`For-Codex`
-- 发行标签：`codex-v0.3.0-fixed.3`
+- 发行标签：`codex-v0.3.0-fixed.4`
 - Release 标题：`Codex 额度小鲸鱼 v0.3(fixed)`
-- 插件构建标识：`0.3.0+codex.20261003-quota-tide`
+- 插件构建标识：`0.3.0+codex.20261004-menu-sound`
 
 首次发布时将整理后的 `For-Codex` 提交推送为个人仓库的 `main`。保留本地 `origin` 指向上游，个人仓库使用单独的 `personal` 远端，避免以后误推上游。
 
@@ -41,7 +41,7 @@
 在仓库根目录使用 Python 3.10+：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.3
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.4
 ```
 
 构建器会：

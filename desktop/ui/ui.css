@@ -220,21 +220,45 @@ html.desktop .settings-content{overflow:auto;min-height:0;padding-right:5px;scro
 html.desktop #settings-form>.dialog-actions{position:static;margin-top:12px;padding-top:12px}
 html.desktop .icon-button:focus-visible{outline:2px solid #8497d3;border-radius:6px}
 
-/* Keep the added sound controls at the same compact density as the upstream menu. */
+/* Original-style prompt and sound cards, with the current controls kept intact. */
 html.desktop .whale-sound-entry{justify-content:space-between}
-html.desktop .whale-sound-mask{z-index:25000}
-html.desktop .whale-sound-card{width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;scrollbar-width:thin;padding:14px 16px}
-html.desktop .whale-sound-section{border-top:1px solid rgba(32,49,112,.12);padding:9px 0 5px}
-html.desktop .whale-sound-section h3{margin:0 0 7px;color:#203170;font-size:12px;text-align:left}
-html.desktop .whale-sound-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;color:#203170;font-size:12px}
-html.desktop .whale-sound-row select{max-width:170px}
-html.desktop .whale-sound-row .dshwv-range{max-width:130px}
-html.desktop .whale-sound-section>.dshwv-roleimport{margin:3px 0 4px auto;display:block}
-html.desktop .whale-sound-error{color:#b83e49;font-size:12px;line-height:1.5}
-html.desktop .whale-sound-advanced{margin:8px 0;border:1px solid rgba(32,49,112,.14);border-radius:8px;padding:0 9px 5px}
-html.desktop .whale-sound-advanced>summary{padding:8px 0;color:#203170;font-size:12px;font-weight:700;cursor:pointer}
-html.desktop .whale-sound-advanced .whale-sound-section{padding-left:2px;padding-right:2px}
-html.desktop .whale-sound-advanced .whale-sound-row>.dshwv-roleimport{flex:0 0 auto;padding:3px 8px}
+html.desktop .whale-utility-row{display:flex;align-items:center;gap:6px;margin-top:3px}
+html.desktop .whale-utility-row>.dshwv-sound{flex:1 1 0;min-width:0;padding:4px 5px;font-size:11px;line-height:1.25;white-space:nowrap}
+html.desktop .whale-sound-mask{z-index:25000;padding:12px}
+html.desktop .whale-sound-card{width:min(620px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;scrollbar-width:thin;padding:18px 24px 14px;text-align:left;border:1px solid rgba(32,49,112,.12);border-radius:14px;box-shadow:0 7px 24px rgba(23,34,71,.22)}
+html.desktop .whale-sound-title{margin:0 0 12px;text-align:center;font-size:18px;font-weight:750;color:#203170;letter-spacing:.02em}
+html.desktop .whale-sound-error{margin:0 0 8px;color:#b83e49;font-size:12px;line-height:1.5}
+html.desktop .whale-sound-block{margin:10px 0;padding:0;border:0;background:transparent}
+html.desktop .whale-sound-block>summary{list-style:none;display:flex;align-items:center;gap:10px;min-height:42px;padding:8px 12px;border:0;border-radius:8px;background:#f4f4f8;color:#203170;font-size:13px;cursor:pointer;user-select:none}
+html.desktop .whale-sound-block>summary::-webkit-details-marker{display:none}
+html.desktop .whale-sound-block>summary::after{content:"";flex:0 0 auto;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid #8490ad;transition:transform .16s ease}
+html.desktop .whale-sound-block[open]>summary::after{transform:rotate(180deg)}
+html.desktop .whale-sound-block-head>.dshwv-check{flex:0 0 auto;width:18px;height:18px;margin:0;accent-color:#263c82}
+html.desktop .whale-sound-block-title{flex:0 0 auto;font-weight:600}
+html.desktop .whale-sound-block-summary{flex:1 1 auto;min-width:0;overflow:hidden;color:#68779e;text-align:right;text-overflow:ellipsis;white-space:nowrap;font:12px/1.2 Consolas,"Microsoft YaHei UI",sans-serif}
+html.desktop .whale-sound-block-body{padding:6px 14px 4px}
+html.desktop .whale-sound-row{display:flex;align-items:center;gap:9px;min-height:34px;margin:2px 0;color:#203170;font-size:12px;white-space:nowrap}
+html.desktop .whale-sound-row>.dshwv-check{flex:0 0 auto;width:17px;height:17px;margin:0;accent-color:#263c82}
+html.desktop .whale-sound-row select{flex:1 1 auto;min-width:0;max-width:none;height:30px;padding:3px 8px}
+html.desktop .whale-sound-row .dshwv-range{flex:1 1 auto;min-width:80px;max-width:none;padding:0;border:0;accent-color:#263c82}
+html.desktop .whale-sound-row .dshwv-volpct{flex:0 0 42px;text-align:right;font:12px/1 Consolas,monospace}
+html.desktop .whale-sound-group-row select{margin-left:auto}
+html.desktop .whale-sound-inline-button{flex:0 0 auto;padding:5px 9px;white-space:nowrap}
+html.desktop .whale-sound-wide-action{flex:1 1 auto;min-width:130px;margin-left:auto;padding:5px 10px}
+html.desktop .whale-sound-close-row .dshwv-number{flex:0 0 54px;width:54px;margin-left:2px;padding:4px 7px;color:#4059b3}
+html.desktop .whale-sound-unit{flex:0 0 auto}
+html.desktop .whale-sound-task-row select{margin-left:auto}
+html.desktop .whale-sound-play{flex:0 0 27px;width:27px;height:27px;padding:0;border:0;background:transparent;color:#7f8eb4;font-size:17px;line-height:27px;text-align:center;cursor:pointer}
+html.desktop .whale-sound-play:hover{color:#263c82}
+html.desktop .whale-sound-play:disabled{cursor:default;opacity:.35}
+html.desktop .whale-sound-advanced .whale-sound-block-body{display:grid;grid-template-columns:1fr 1fr;gap:7px 9px;padding-top:9px}
+html.desktop .whale-sound-event{min-width:0;padding:7px 9px;border:1px solid rgba(32,49,112,.1);border-radius:8px;background:#fafafe}
+html.desktop .whale-sound-event h3{margin:0 0 3px;color:#405078;font-size:11px;font-weight:700;text-align:left}
+html.desktop .whale-sound-event .whale-sound-row{min-height:29px;margin:0;font-size:11px}
+html.desktop .whale-sound-event .whale-sound-row select{height:26px;padding:2px 5px}
+html.desktop .whale-sound-event .whale-sound-row .dshwv-volpct{flex-basis:35px;font-size:11px}
+html.desktop .whale-sound-actions{position:sticky;bottom:-14px;margin:12px -24px -14px;padding:11px 24px 14px;border-top:1px solid rgba(32,49,112,.12);background:#fff;z-index:2}
+@media(max-width:520px){html.desktop .whale-sound-card{padding-left:16px;padding-right:16px}html.desktop .whale-sound-advanced .whale-sound-block-body{grid-template-columns:1fr}html.desktop .whale-sound-actions{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}}
 #api-models-root{padding:8px 0}.api-model-list{display:grid;gap:6px;margin-bottom:10px}.api-model-row{display:flex;align-items:center;gap:6px;padding:7px 8px;border:1px solid #d5e2e7;border-radius:9px;background:#f8fbfc}.api-model-meta{display:flex;flex:1;min-width:0;flex-direction:column}.api-model-meta strong,.api-model-meta small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.api-model-meta small{color:#667981}.api-model-mask{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:12px;background:#142d3b55;pointer-events:auto}.api-model-card{width:min(410px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-sizing:border-box;padding:15px;border:1px solid #b9ced7;border-radius:14px;background:#fbfeff;color:#173d48;box-shadow:0 18px 46px #173d4855;font:13px/1.4 system-ui}.api-model-card h3{margin:0 0 10px}.api-model-card>label{display:grid;gap:4px;margin:8px 0}.api-model-card input,.api-model-card select{box-sizing:border-box;width:100%;padding:7px;border:1px solid #b9cdd5;border-radius:7px;background:#fff;color:#173d48}
 
 html.desktop dialog.api-model-card{width:min(410px,calc(100vw - 24px));padding:16px;background:#fff;color:#203170;font:13px/1.5 'Segoe UI','Microsoft YaHei',sans-serif}.api-model-card .api-model-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.api-model-card .api-model-fields>label:first-child,.api-model-card .api-model-fields>label:nth-child(2){grid-column:1/-1}.api-model-card input[type=checkbox]{width:16px;justify-self:start}.api-model-card .dialog-actions{bottom:-16px}.api-model-card label{overflow-wrap:anywhere}

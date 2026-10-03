@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261003-quota-tide`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261004-menu-sound`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -57,7 +57,7 @@
 ### 紧凑设置与音效
 
 - 设置页沿用原版小尺寸平铺布局，包含角色、大小、气泡开关、滚动条避让、吸附、翻转、菜单按钮、资源管理和模式切换。
-- “音效与提示”统一管理按压/松开手感、音效组、全局音量、每轮消耗气泡、自动关闭时间、完成提示音和独立音量。
+- “提示与音效设置”按原版风格拆成可折叠卡片，统一管理按压手感、音效组、按压音量、每轮消耗气泡、自动关闭时间、任务结束音和独立事件音量。
 - 设置先在草稿中编辑；只有保存才生效，取消、Esc 或点击遮罩会放弃本次改动。
 - 支持内置音效组、自定义音效组、静音片段、事件音色、试听和 WAV 片段裁剪。
 
@@ -72,7 +72,7 @@
 ### 跟随 Codex 与独立桌面
 
 - 默认跟随 Codex 窗口移动、缩放、最小化和恢复。
-- 一个状态按钮在“进入独立桌面”和“改为跟随 Codex”之间切换。
+- 一个状态按钮在“固定在桌面”和“跟随 Codex”之间切换，并与素材包入口紧凑排在同一行。
 - 独立桌面模式不依赖 Codex 窗口存活，位置、缩放、翻转和显示模式分别保存。
 - Windows 提供 `Ctrl+Alt+W` 恢复显示，以及 `Ctrl+Alt+Shift+F10` 静默保存窗口诊断。
 - 显示恢复不会抢焦点、移动 Codex 或截取聊天内容。
@@ -166,7 +166,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 ## 验证状态
 
-- 256 项 Node 单元测试通过。
+- 260 项 Node 单元测试通过。
 - Windows Electron 紧凑菜单界面审查通过。
 - Windows 原生区域、透明穿透和焦点专项验证通过。
 - 完整桌面烟测通过，包括宿主遮挡以及 72 次跟随移动/缩放。
@@ -199,7 +199,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.3
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.4
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。

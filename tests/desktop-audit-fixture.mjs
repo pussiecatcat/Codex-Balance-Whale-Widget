@@ -93,8 +93,13 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     checks.push('combined sound panel saves independent event volume and discards Cancel and Escape drafts');
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
     await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings opens for screenshot');
+    assert.equal(await ev("document.querySelectorAll('.whale-sound-card>.whale-sound-block').length"), 3);
+    assert.equal(await ev("document.querySelector('.whale-sound-turn-block .whale-sound-wide-action').textContent"), '编辑提示内容');
     fs.writeFileSync(path.join(output, 'feedback-v3.png'), (await window.webContents.capturePage()).toPNG());
-    await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='取消').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
+    await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='新建音效组').click()");
+    await wait("[...document.querySelectorAll('.dshwv-audiomask')].some(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组')", 'sound panel opens the functional audio-group editor');
+    assert.equal(await ev("[...document.querySelectorAll('.dshwv-audiomask')].filter(m=>m.style.display==='flex').map(m=>m.querySelector('.dshwv-audiotitle')?.textContent).includes('新建音效组')"), true);
+    await ev("[...document.querySelectorAll('.dshwv-audiomask')].find(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组').querySelector('.dshwv-cropbtn-no').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].some(b=>b.textContent==='会员额度详情')"), false);
     await ev(`(async()=>{const original=window.fetch;window.fetch=async input=>{
       const url=String(input);
@@ -127,9 +132,9 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("WhaleAccountView.setMode('api')");
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='素材包导入/导出').click()"); await delay(100);
     fs.writeFileSync(path.join(output, 'workshop-v3.png'), (await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('.whale-v3-dialog[open]').close(); [...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='进入独立桌面').click()"); await delay(150);
+    await ev("document.querySelector('.whale-v3-dialog[open]').close(); [...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='固定在桌面').click()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'standalone');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='改为跟随 Codex').click()"); await delay(150);
+    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='跟随 Codex').click()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'follow-codex');
     checks.push('feedback and material-package panels render; redundant member details are absent and one mode button toggles both directions');
     assert.equal(await ev("whaleDesktop.command('desktop')"), true);
@@ -208,7 +213,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent.includes('返回控制面板')).click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
-    for(const label of ['数据显示','角色','大小','音效与提示','自定义泡泡','币种','刷新汇率','吸附与翻转','资源管理','API 设置','进入独立桌面','素材包导入/导出'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of ['数据显示','角色','大小','音效与提示','自定义泡泡','币种','刷新汇率','吸附与翻转','资源管理','API 设置','固定在桌面','素材包导入/导出'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,{...dip,width:360,height:320})});await delay(250);
