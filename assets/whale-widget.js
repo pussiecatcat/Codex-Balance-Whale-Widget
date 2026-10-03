@@ -1,4 +1,27 @@
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
+// ────────────────────────────────────────────────────────────────────────────
+//  分段索引  SECTION INDEX
+//
+//  本文件是单体 IIFE：全部逻辑都在 dshwInit() 的闭包内，共享同一份状态。
+//  各区段以方括号横幅（==== 加区段名）标记。取实时行号：
+//
+//      grep -n "==== \[" assets/whale-widget.js
+//
+//  1 素材与媒体工具            11 快速编辑器与调色板
+//  2 菜单行与下拉选择          12 气泡预览与样式
+//  3 任务结束音效              13 模块编辑器
+//  4 汇率显示                  14 GIF 角色确认
+//  5 用量面板与设置            15 音频裁剪与气泡测量
+//  6 资源管理器                16 气泡渲染与行模板
+//  7 用量图表与记录窗口        17 刷新与配置保存
+//  8 快照预览                  18 角色面板与裁图确认
+//  9 气泡默认内容              19 音频组与槽面板
+// 10 气泡编辑器                20 拖拽与锚点定位
+//
+//  对外契约：与其他 desktop/ui/*.js 插件通过 window.* 通信
+//  （WhaleFeedback / WhaleAccountView / WhaleGesture / WhaleQuota /
+//    WhaleMoney / WhaleApiModels / WhaleDashboard）。改动前先确认调用方。
+// ────────────────────────────────────────────────────────────────────────────
 (function () {
   if (window.__dshWhaleWidget) return;
   window.__dshWhaleWidget = true;
@@ -22,6 +45,8 @@
     var GIF_URL = '/dsh-whale/rua.gif';
     var BUBBLE_URL = '/dsh-whale/bubble.json';
     var assetWarnings = Object.create(null);
+
+    // ==== [素材与媒体工具] ====
     function assetNotice(message) {
       if (window.whaleToast) window.whaleToast(String(message || '素材操作未完成，请重试'));
     }
@@ -81,6 +106,8 @@
     menuBox.addEventListener('scroll', function () {
       dshwCustSelClose(); closeRolePanel(); closeAudioGroupPanel(); closeFxInfo();
     });
+
+    // ==== [菜单行与下拉选择] ====
     function menuLabel(text) {
       var s = document.createElement('span');
       s.textContent = text;
@@ -354,6 +381,8 @@
         taskEnd: usageSet.taskEnd
       });
     });
+
+    // ==== [任务结束音效] ====
     function fillTaskEndOptions(pref) {
       var prefSel = usageSet && usageSet.taskEnd && usageSet.taskEnd.sel || pref && pref.sel || '';
       var cur = taskEndSel.value || prefSel || '';
@@ -734,6 +763,8 @@
     fxInfoBtn.setAttribute('aria-label', '查看参考汇率说明');
     fxInfoBtn.setAttribute('aria-controls', currencyNote.id); fxInfoBtn.setAttribute('aria-expanded', 'false');
     fxRefreshRow.appendChild(fxInfoBtn); menuBox.appendChild(fxRefreshRow);
+
+    // ==== [汇率显示] ====
     function closeFxInfo(restoreFocus) {
       if (!currencyNote || currencyNote.hidden) return;
       currencyNote.hidden = true; fxInfoBtn.setAttribute('aria-expanded', 'false');
@@ -849,6 +880,8 @@
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
     var usageSet = null;
     var USAGE_SET_URL = '/dsh-whale/usage-settings.json';
+
+    // ==== [用量面板与设置] ====
     function loadUsageSettings(cb) {
       try {
         fetch(USAGE_SET_URL, {
@@ -1706,6 +1739,8 @@
     }
     var resMaskEl = null;
     var resCardEl = null;
+
+    // ==== [资源管理器（角色 / 气泡图 / 音频）] ====
     function resMaskOpen() {
       try {
         if (!resMaskEl) {
@@ -2070,6 +2105,8 @@
     }
     var usageAlertBelowFired = false;
     var usageBudgetFiredKey = null;
+
+    // ==== [用量图表、提醒与记录窗口] ====
     function usageTodayKeyStr() {
       var d = new Date();
       var p = function (n) {
@@ -2922,6 +2959,8 @@
       } catch (err) {}
       return f;
     }
+
+    // ==== [快照预览] ====
     function renderSnapPreview() {
       try {
         if (!snapEdit || !snapPreview) return;
@@ -3365,6 +3404,8 @@
           quotaTemplates === ['5 小时', '每周', '距离重置 {quota_reset_short}', '距离重置 {quota_reset_short}', '{quota_left_round}', '{quota_left_round}'].sort().join('|');
       } catch (err) { return false; }
     }
+
+    // ==== [气泡默认内容] ====
     function bubbleDefaultRandomLines() {
       return [{
         t: "好模型...↓",
@@ -4284,6 +4325,8 @@
       bubbleFirstChipEl.textContent = '首次点击 · 编辑内容';
       bubbleFirstChipEl.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(it) + ')';
     }
+
+    // ==== [气泡编辑器] ====
     function renderBubbleMore() {
       bubbleMoreListEl.innerHTML = '';
       for (var i = 1; i < bubbleEditItems.length; i++) {
@@ -4889,6 +4932,8 @@
         box.style.top = Math.round(top) + 'px';
       } catch (err) {}
     }
+
+    // ==== [快速编辑器与调色板] ====
     function qColorSelectBuild(current, onPick, opts) {
       opts = opts || ({});
       var allowNone = !!opts.allowNone;
@@ -5929,6 +5974,8 @@
       var mult = bubbleModuleFontU(level);
       return Math.max(10, Math.round(mult * 0.42));
     }
+
+    // ==== [气泡预览与样式] ====
     function renderBubblePv() {
       bubblePvEl.innerHTML = '';
       var it = bubbleEditTarget();
@@ -6705,6 +6752,8 @@
       if (t === 'random') return '随机语句模块';
       return '文本模块';
     }
+
+    // ==== [模块编辑器] ====
     function renderModuleEditor() {
       var m = moduleEditRef;
       if (moduleEditNew && m.type === 'text' && m.bold === undefined) m.bold = true;
@@ -7631,6 +7680,8 @@
       gifRoleAnimType = 'gif';
       gifPreviewImg.src = '';
     }
+
+    // ==== [GIF 角色确认] ====
     function confirmGifRole() {
       try {
         var name = (gifNameInput.value || '').trim().slice(0, 16) || '新角色';
@@ -7901,6 +7952,8 @@
     audioCropName.style.cssText = 'width:min(60%,240px);flex:0 1 auto;margin:0;text-align:center;border:1px solid rgba(32,49,112,.4);border-radius:6px;padding:2px 6px;font-size:12px;color:#203170;background:#fff;box-sizing:border-box';
     audioCropNameRow.appendChild(audioCropName);
     audioCropNameRow.style.marginBottom = '12px';
+
+    // ==== [音频裁剪与气泡测量] ====
     function updateAudioCropOkState() {
       try {
         audioCropOk.disabled = false;
@@ -8295,6 +8348,8 @@
         return x.id !== id;
       });
     }
+
+    // ==== [气泡渲染与行模板] ====
     function applyBubbleCfgSeq() {
       try {
         var configured = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
@@ -9399,6 +9454,8 @@
         cy: cy
       };
     }
+
+    // ==== [刷新与配置保存] ====
     function refresh(manual) {
       if (window.WhaleAccountView?.mode === 'subscription') { window.WhaleAccountView.refresh(); return; }
       if (busy) return;
@@ -9970,6 +10027,8 @@
       rolePanel.classList.remove('dshwv-rolelist-open');
       rolePanel.style.display = 'none';
     }
+
+    // ==== [角色面板与裁图确认] ====
     function renderRolePanel() {
       try {
         rolePanel.innerHTML = '';
@@ -10416,6 +10475,8 @@
       audioGroupPanel.style.display = 'none';
       audioGroupPanelOpen = false;
     }
+
+    // ==== [音频组与槽面板] ====
     function renderAudioGroupPanel() {
       try {
         audioGroupPanel.innerHTML = '';
@@ -11392,6 +11453,8 @@
     function isWhaleHit(e) {
       return !!e && WhaleRendering.hitCache.hit(img, e.clientX, e.clientY, WhaleRendering.mirrorScale(root) < 0);
     }
+
+    // ==== [拖拽与锚点定位] ====
     function onDocPointerDown(e) {
       if (e.target && e.target.closest) {
         if (e.target.closest('.dshwv-fx-info')) return;
