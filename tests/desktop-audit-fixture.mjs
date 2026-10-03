@@ -96,6 +96,34 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output, 'feedback-v3.png'), (await window.webContents.capturePage()).toPNG());
     await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='取消').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].some(b=>b.textContent==='会员额度详情')"), false);
+    await ev(`(async()=>{const original=window.fetch;window.fetch=async input=>{
+      const url=String(input);
+      if(url==='/api/insights')return new Response(JSON.stringify({subscription:{source:'codex-app-server',planType:'plus',observedAt:Date.now(),windows:[
+        {windowDurationMins:300,usedPercent:36,resetsAt:Date.now()+4876000},
+        {windowDurationMins:10080,usedPercent:21,resetsAt:Date.now()+392876000}
+      ]}}),{status:200,headers:{'Content-Type':'application/json'}});
+      if(url==='/api/pricing')return new Response(JSON.stringify({visible:false}),{status:200,headers:{'Content-Type':'application/json'}});
+      return original(input);
+    };await WhaleQuota.refresh(true);window.fetch=original;
+    if(document.querySelector('.dshwv-menu')?.classList.contains('dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click();
+    document.querySelectorAll('#toast,.whale-toast,.toast').forEach(element=>element.remove());
+    window.__whaleRenderTest.place(140,140,false);
+    window.__whaleRenderTest.scene([
+      {type:'plan',quotaStyle:'header',tpl:'{plan_name}'},
+      {type:'quota',quotaStyle:'meter',windowDurationMins:300,row:1},
+      {type:'quota',quotaStyle:'meter',windowDurationMins:10080,row:2}
+    ],0);})()`);
+    await wait("document.querySelectorAll('.dshwv-quota-meter').length===2&&[...document.querySelectorAll('.dshwv-quota-meter-number')].map(e=>e.textContent).join(',')==='64,79'", 'tide quota meters render live percentages');
+    const tideMeters = await ev("[...document.querySelectorAll('.dshwv-quota-meter')].map(e=>({tone:e.dataset.quotaTone,label:e.querySelector('.dshwv-quota-meter-label').textContent,reset:e.querySelector('.dshwv-quota-meter-reset').textContent,aria:e.getAttribute('aria-label'),fill:e.querySelector('.dshwv-quota-meter-fill').style.width}))");
+    assert.deepEqual(tideMeters.map(value => ({ tone:value.tone, label:value.label, fill:value.fill })), [
+      {tone:'steady',label:'5 小时',fill:'64%'},
+      {tone:'steady',label:'每周',fill:'79%'}
+    ]);
+    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.reset.includes(':')));
+    await delay(500);
+    fs.writeFileSync(path.join(output, 'quota-tide.png'), (await window.webContents.capturePage()).toPNG());
+    checks.push('Codex five-hour and weekly quota render as compact tide gauges with live percentages, reset countdowns and accessible labels');
+    await ev("window.__whaleRenderTest.close()"); await delay(320);
     await ev("WhaleAccountView.setMode('api')");
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='素材包导入/导出').click()"); await delay(100);
     fs.writeFileSync(path.join(output, 'workshop-v3.png'), (await window.webContents.capturePage()).toPNG());

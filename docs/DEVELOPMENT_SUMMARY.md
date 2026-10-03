@@ -1,6 +1,6 @@
 # v0.3(fixed) 开发摘要
 
-本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停。显示名称为 **v0.3(fixed)**，当前插件构建标识为 `0.3.0+codex.20261003-menu-streamline`。源码、测试、发布包和远程 Release 分开验证。
+本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停，同时新增 Codex 额度潮汐卡片。显示名称为 **v0.3(fixed)**，当前插件构建标识为 `0.3.0+codex.20261003-quota-tide`。源码、测试、发布包和远程 Release 分开验证。
 
 ## 基础功能与来源
 
@@ -38,4 +38,4 @@
 
 本构建已有 256 项单元测试、真实 Windows 原生区域与穿透专项验证、适配紧凑菜单的 Electron 界面审计，以及包含宿主遮挡、原生焦点和 72 步跟随移动/缩放的完整桌面烟测。当前 Plus 账号的 5 小时/周额度直读也已验证。证据范围和待验证项目见 [验证记录](VERIFICATION-0.3.md)。Mac 实机、跨重置点额度变化及长期显示稳定性仍需验收。
 
-发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。独立个人仓库使用标签 `codex-v0.3.0-fixed.2` 和 Release 名称 `Codex 额度小鲸鱼 v0.3(fixed)`，不会改写上游仓库的分支、标签或 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。
+发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。独立个人仓库使用标签 `codex-v0.3.0-fixed.3` 和 Release 名称 `Codex 额度小鲸鱼 v0.3(fixed)`，不会改写上游仓库的分支、标签或 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。

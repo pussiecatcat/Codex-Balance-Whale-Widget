@@ -3346,19 +3346,23 @@
     }
     function bubbleDefaultSubscriptionQueue() {
       return [{ kind: 'custom', modules: [
-        { type: 'text', text: 'CODEX · PLUS', size: 5, bold: true, color: '#64729a' },
-        { type: 'quota', windowDurationMins: 300, size: 4, bold: true, color: '#67759d', tpl: '5 小时', row: 1 },
-        { type: 'quota', windowDurationMins: 300, size: 11, bold: true, color: '#4059b3', bg: '#eef2ff', tpl: '{quota_left_round}', row: 1 },
-        { type: 'quota', windowDurationMins: 300, size: 3, color: '#8791aa', tpl: '距离重置 {quota_reset_short}' },
-        { type: 'quota', windowDurationMins: 10080, size: 4, bold: true, color: '#67759d', tpl: '每周', row: 2 },
-        { type: 'quota', windowDurationMins: 10080, size: 11, bold: true, color: '#357c75', bg: '#eaf6f3', tpl: '{quota_left_round}', row: 2 },
-        { type: 'quota', windowDurationMins: 10080, size: 3, color: '#8791aa', tpl: '距离重置 {quota_reset_short}' }
+        { type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
+        { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
+        { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 2 }
       ] }];
     }
     function bubbleLegacySubscriptionDefault(items) {
       try {
         if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
-        return items[0].modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; });
+        var modules = items[0].modules;
+        if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;
+        if (modules.length !== 7) return false;
+        var quotaModules = modules.filter(function (m) { return m && m.type === 'quota'; });
+        var quotaTemplates = quotaModules.map(function (m) { return String(m.tpl || ''); }).sort().join('|');
+        return quotaModules.length === 6 &&
+          quotaModules.filter(function (m) { return m.windowDurationMins === 300; }).length === 3 &&
+          quotaModules.filter(function (m) { return m.windowDurationMins === 10080; }).length === 3 &&
+          quotaTemplates === ['5 小时', '每周', '距离重置 {quota_reset_short}', '距离重置 {quota_reset_short}', '{quota_left_round}', '{quota_left_round}'].sort().join('|');
       } catch (err) { return false; }
     }
     function bubbleDefaultRandomLines() {
@@ -5248,7 +5252,11 @@
         var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));
         var apiModelSelect = document.createElement('select'); apiModelSelect.className = 'dshwv-sound';
         apiModelRow.appendChild(apiModelSelect); box.appendChild(apiModelRow);
-        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) { m.apiModelId = value || ''; changed(); qeditClose(); openQuickModuleEditor(m); });
+        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) {
+          m.apiModelId = value || '';
+          if (m.apiModelId && m.type === 'quota') delete m.quotaStyle;
+          changed(); qeditClose(); openQuickModuleEditor(m);
+        });
       }
       if (m.type === 'quota') {
         var windowRow = qRow();
@@ -5263,11 +5271,22 @@
         windowRow.appendChild(windowSelect); box.appendChild(windowRow);
         var presetRow = qRow(); presetRow.appendChild(qLabel('内容样式'));
         var preset = document.createElement('select'); preset.className = 'dshwv-sound';
-        [['', '自定义'], ['{quota_left_round}', '仅剩余百分比'], ['{quota_label} 剩余 {quota_left_round}', '窗口 + 剩余'], ['距离重置 {quota_reset_short}', '重置倒计时'], ['{quota_bar} {quota_left_round}', '进度条 + 剩余'], ['{quota_label} · {quota_left_round} · {quota_reset_short}', '完整信息']].forEach(function (entry) {
+        var quotaPresets = m.apiModelId ? [['', '自定义']] : [['__meter__', '潮汐卡片']];
+        quotaPresets = quotaPresets.concat([['{quota_left_round}', '仅剩余百分比'], ['{quota_label} 剩余 {quota_left_round}', '窗口 + 剩余'], ['距离重置 {quota_reset_short}', '重置倒计时'], ['{quota_bar} {quota_left_round}', '进度条 + 剩余'], ['{quota_label} · {quota_left_round} · {quota_reset_short}', '完整信息']]);
+        if (!quotaPresets.some(function (entry) { return entry[0] === ''; })) quotaPresets.unshift(['', '自定义']);
+        quotaPresets.forEach(function (entry) {
           var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; preset.appendChild(option);
         });
-        preset.value = Array.from(preset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
-        preset.addEventListener('change', function () { if (preset.value) m.tpl = preset.value; changed(); qeditClose(); openQuickModuleEditor(m); });
+        preset.value = !m.apiModelId && m.quotaStyle === 'meter' ? '__meter__' : Array.from(preset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
+        preset.addEventListener('change', function () {
+          if (preset.value === '__meter__') {
+            m.quotaStyle = 'meter';
+          } else {
+            delete m.quotaStyle;
+            if (preset.value) m.tpl = preset.value;
+          }
+          changed(); qeditClose(); openQuickModuleEditor(m);
+        });
         presetRow.appendChild(preset); box.appendChild(presetRow);
       } else if (m.type === 'turn') {
         var turnPresetRow = qRow(); turnPresetRow.appendChild(qLabel('内容样式'));
@@ -5879,9 +5898,9 @@
       };
       if (key === 'quota5' || key === 'quotaWeek') return {
         type: 'quota',
+        quotaStyle: 'meter',
         windowDurationMins: key === 'quotaWeek' ? 10080 : 300,
-        size: 5,
-        tpl: key === 'quotaWeek' ? '每周剩余 {quota_left_round} · {quota_reset_short}' : '5 小时剩余 {quota_left_round} · {quota_reset_short}'
+        size: 5
       };
       if (key === 'turn') return {
         type: 'turn',
@@ -8828,6 +8847,8 @@
         var needBg = !!(effBgRgb || effBg);
         var row = document.createElement('div');
         row.className = 'dshwv-trow';
+        if (m.type === 'quota' && m.quotaStyle === 'meter' && !m.apiModelId) row.classList.add('dshwv-quota-shell');
+        if (m.type === 'plan' && m.quotaStyle === 'header') row.classList.add('dshwv-quota-heading');
         var tx = row;
         if (needBg) {
           row.style.padding = '1px 6px';

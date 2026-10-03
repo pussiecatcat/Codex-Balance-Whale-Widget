@@ -40,7 +40,7 @@
   function fill(template, map) {
     return String(template).replace(/\{([a-z0-9_]+)\}/gi, (all, key) => Object.hasOwn(map, key) ? map[key] : all);
   }
-  function quotaText(module, subscription, now = Date.now()) {
+  function quotaState(module, subscription, now = Date.now()) {
     const minutes = module?.windowDurationMins === 10080 ? 10080 : 300;
     const item = subscription?.windows?.find(value => value.windowDurationMins === minutes);
     const resetExpired = item && Number.isFinite(item.resetsAt) && timeValue(item.resetsAt) <= now;
@@ -56,8 +56,13 @@
       quota_reset_at: item ? resetAt(item.resetsAt) : '等待同步', quota_bar: quotaBar(left),
       quota_source: subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : subscription?.source === 'local-session' ? '本机会话记录' : '正在读取额度',
     };
-    const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', map);
-    return result + (expired ? '（数据已过期）' : '');
+    const tone = !valid ? 'unknown' : left <= 15 ? 'critical' : left <= 35 ? 'caution' : 'steady';
+    return { minutes, item, expired, valid, left, map, tone };
+  }
+  function quotaText(module, subscription, now = Date.now()) {
+    const state = quotaState(module, subscription, now);
+    const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
+    return result + (state.expired ? '（数据已过期）' : '');
   }
   function planName(type) {
     const key = String(type || '').toLowerCase();
@@ -83,14 +88,68 @@
     if (module?.type === 'peak' || module?.type === 'nextpeak') return peakText(module, pricing, now);
     return quotaText(module, subscription, now);
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, quotaBar, quotaText, planText, peakText, moduleText, planName };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null;
   const bindings = new Map();
+  function ensureQuotaMeter(element) {
+    if (element.querySelector('.dshwv-quota-meter-head')) return;
+    element.textContent = '';
+    element.classList.add('dshwv-quota-meter');
+    element.setAttribute('role', 'img');
+    const head = document.createElement('span');
+    head.className = 'dshwv-quota-meter-head';
+    const label = document.createElement('span');
+    label.className = 'dshwv-quota-meter-label';
+    const value = document.createElement('span');
+    value.className = 'dshwv-quota-meter-value';
+    const number = document.createElement('strong');
+    number.className = 'dshwv-quota-meter-number';
+    const unit = document.createElement('span');
+    unit.className = 'dshwv-quota-meter-unit';
+    unit.textContent = '%';
+    value.append(number, unit);
+    head.append(label, value);
+    const track = document.createElement('span');
+    track.className = 'dshwv-quota-meter-track';
+    const fill = document.createElement('span');
+    fill.className = 'dshwv-quota-meter-fill';
+    track.appendChild(fill);
+    const foot = document.createElement('span');
+    foot.className = 'dshwv-quota-meter-foot';
+    const resetLabel = document.createElement('span');
+    resetLabel.className = 'dshwv-quota-meter-reset-label';
+    resetLabel.textContent = '重置';
+    const reset = document.createElement('span');
+    reset.className = 'dshwv-quota-meter-reset';
+    foot.append(resetLabel, reset);
+    element.append(head, track, foot);
+  }
+  function paintQuotaMeter(element, module) {
+    const state = quotaState(module, subscription);
+    ensureQuotaMeter(element);
+    element.classList.toggle('dshwv-quota-meter-weekly', state.minutes === 10080);
+    element.dataset.quotaTone = state.tone;
+    const label = element.querySelector('.dshwv-quota-meter-label');
+    const number = element.querySelector('.dshwv-quota-meter-number');
+    const unit = element.querySelector('.dshwv-quota-meter-unit');
+    const fill = element.querySelector('.dshwv-quota-meter-fill');
+    const resetLabel = element.querySelector('.dshwv-quota-meter-reset-label');
+    const reset = element.querySelector('.dshwv-quota-meter-reset');
+    label.textContent = labels[state.minutes];
+    number.textContent = state.valid ? String(Math.round(state.left)) : '—';
+    unit.hidden = !state.valid;
+    fill.style.width = state.valid ? Math.max(0, Math.min(100, state.left)) + '%' : '0%';
+    resetLabel.textContent = state.expired ? '状态' : '重置';
+    reset.textContent = state.expired ? '额度待刷新' : state.item ? countdown(state.item.resetsAt) : '等待同步';
+    const spokenValue = state.valid ? Math.round(state.left) + '%' : '未观测';
+    element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + reset.textContent);
+  }
   function paint() {
     for (const [element, module] of bindings) {
       if (!element.isConnected) { bindings.delete(element); continue; }
-      element.textContent = moduleText(module, subscription, pricing);
+      if (module?.type === 'quota' && module?.quotaStyle === 'meter' && !module?.apiModelId) paintQuotaMeter(element, module);
+      else element.textContent = moduleText(module, subscription, pricing);
       if (module?.type === 'peak' || module?.type === 'nextpeak') applyPeakStyle(element, module, pricing);
       element.title = module?.type === 'peak' || module?.type === 'nextpeak' ? (pricing?.note || 'DeepSeek 峰谷时段') :
         subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : '本机会话额度记录';
@@ -131,7 +190,9 @@
     return pending;
   }
   function bind(element, module) {
-    bindings.set(element, module); element.textContent = moduleText(module, subscription, pricing);
+    bindings.set(element, module);
+    if (module?.type === 'quota' && module?.quotaStyle === 'meter' && !module?.apiModelId) paintQuotaMeter(element, module);
+    else element.textContent = moduleText(module, subscription, pricing);
     if (!ticker) ticker = setInterval(() => { paint(); if (bindings.size) refresh(); }, 1000);
     refresh();
   }

@@ -9,7 +9,7 @@ import { quotaFromAppServer, readCodexRateLimits } from '../runtime/codex-rate-l
 const source = await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8');
 const context = { module: { exports: {} } };
 vm.runInNewContext(source, context);
-const { countdown, countdownShort, resetAt, quotaBar, quotaText, planText, peakText } = context.module.exports;
+const { countdown, countdownShort, resetAt, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
 
 test('plan and all original peak styles resolve legacy and new placeholders', () => {
   const now=Date.parse('2026-10-02T10:00:00Z'),pricing={visible:true,phase:'peak',nextChangeAt:now+3600000};
@@ -60,6 +60,19 @@ test('DIY quota module counts down independently and labels missing or stale dat
     source: 'codex-app-server', observedAt: now - 3 * 60000,
     windows: [{ windowDurationMins: 300, usedPercent: 40, resetsAt: now + 10000 }],
   }, now), /未观测.*数据已过期/);
+});
+
+test('quota tide state exposes remaining percentage and urgency tone', () => {
+  const now = Date.UTC(2026, 9, 3, 4, 0, 0);
+  const subscription = usedPercent => ({
+    source: 'codex-app-server',
+    windows: [{ windowDurationMins: 300, usedPercent, resetsAt: now + 60_000 }],
+  });
+  const steady = quotaState({ windowDurationMins: 300 }, subscription(36), now);
+  assert.deepEqual({ left: steady.left, tone: steady.tone }, { left: 64, tone: 'steady' });
+  assert.equal(quotaState({ windowDurationMins: 300 }, subscription(65), now).tone, 'caution');
+  assert.equal(quotaState({ windowDurationMins: 300 }, subscription(85), now).tone, 'critical');
+  assert.equal(quotaState({ windowDurationMins: 300 }, subscription(85), now + 120_000).tone, 'unknown');
 });
 
 test('direct Codex reader initializes app-server and requests rate limits without a login flow', async () => {

@@ -1,6 +1,6 @@
 # v0.3(fixed) 用户测试清单
 
-本清单对应插件构建 `0.3.0+codex.20261003-menu-streamline`。本清单用于真实账号和日常使用验收，未勾选项目不视为已由用户验收。
+本清单对应插件构建 `0.3.0+codex.20261003-quota-tide`。本清单用于真实账号和日常使用验收，未勾选项目不视为已由用户验收。
 
 安装包为 `api-balance-whale-v0.3(fixed).zip`，源码包为 `api-balance-whale-v0.3(fixed)-source.zip`。使用前完整解压，并核对随包 SHA-256。
 
@@ -66,7 +66,7 @@ Mac 用户另验首次点击、Cmd+Option+W、自动启停、Spaces、多屏、�
 
 ## 本次结论
 
-- 测试构建号：`0.3.0+codex.20261003-menu-streamline`
+- 测试构建号：`0.3.0+codex.20261003-quota-tide`
 - 测试日期 / 平台：待填写
 - 已通过：待填写
 - 未通过 / 待验证：待填写

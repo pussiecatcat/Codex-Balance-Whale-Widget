@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261003-menu-streamline`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261003-quota-tide`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -13,7 +13,7 @@
 ### Codex 订阅额度
 
 - 通过本机 `codex app-server` 的 `account/rateLimits/read` 读取当前登录账号提供的额度窗口。
-- 自动识别五小时与每周额度，显示剩余百分比、已用百分比和逐秒更新的重置倒计时。
+- 自动识别五小时与每周额度，用双色“潮汐卡片”显示剩余百分比、水位进度珠和逐秒更新的重置倒计时。
 - 额度读取失败时回退到本机会话里的 `rate_limits` 事件；两种来源都不可用时明确显示“未观测”。
 - 数据过期、重置时间异常或扫描不完整时给出状态说明，不用 token 数虚构官方剩余额度。
 - 当前 Plus 登录已在 Windows 实机验证；额度数值会实时变化，因此仓库不保存个人额度快照。
@@ -31,7 +31,7 @@
 - Codex 订阅与 API 余额各自保存独立的气泡序列。
 - 每个序列支持最多 6 行、每行最多 6 个模块，可拖放排序并从模块库复用。
 - 内置模块包括文本、余额、今日用量、峰谷、下次峰谷、额度、套餐、随机文本、随机图片、固定图片、链接、本轮用量和会话标签。
-- Codex 专用模块提供“5 小时额度”和“每周额度”；支持 `{quota_label}`、`{quota_left}`、`{quota_used}`、`{quota_reset}`、`{quota_source}` 等变量。
+- Codex 专用模块提供“5 小时额度”和“每周额度”；可选新的“潮汐卡片”，也保留纯文字、进度条、自定义颜色与 `{quota_*}` 变量。
 - 每行可调字号、字重、斜体、下划线、文字颜色、底色和折行；图片支持独占行、缩放和权重随机。
 - 保留 15 种跑马灯颜色方案、五种峰谷显示样式，以及跨峰谷切换点的原地文字和配色更新。
 - 链接模块只在真实气泡中打开，编辑预览不会跳转；外部地址会经过桌面桥校验。
@@ -199,7 +199,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.2
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.3
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。
