@@ -15,7 +15,7 @@ parser.add_argument('--output', type=Path, default=ROOT / 'dist')
 args = parser.parse_args()
 output = args.output.resolve()
 allowed = {'.codex-plugin', '.github', 'assets', 'desktop', 'docs', 'lib', 'runtime', 'scripts', 'skills', 'tests', 'vendor'}
-root_files = {'.mcp.json', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'RELEASE_NOTES.md', 'PROVENANCE.md', 'SECURITY.md'}
+root_files = {'.mcp.json', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'CLAUDE.md', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'RELEASE_NOTES.md', 'PROVENANCE.md', 'SECURITY.md'}
 blocked = {'node_modules', '.git', 'dist', 'qa', 'qa-output', 'outputs', 'backups', 'desktop-profile', 'desktop-runtime', '__pycache__', 'archive', 'packages'}
 private_names = {'auth.json', 'config.toml', 'api-settings.json', 'usage-settings.json', 'runtime.json', 'service.lock', 'installation.json', 'ui-state.json', 'follow-state.json', 'last-turn.json'}
 private_ext = {'.log', '.jsonl', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.pfx', '.bak', '.tmp', '.mp4', '.exe', '.dll'}
