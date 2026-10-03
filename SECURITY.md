@@ -46,6 +46,26 @@
 - 原生窗口跟随依赖 Win32 窗口句柄或 macOS `CGWindowList` 与用户态权限，不设提权；
 - 金额为**观测估算**，不是服务商正式账单。
 
+## 密钥绑定：凭据只会发往哪个域名
+
+上游 DSH Web 版在 v0.3.15 修过一类「凭据外带」问题：让宿主动用真实 API 密钥去请求攻击者可控的 URL。本插件对同一类问题有**三层独立防护**，改动这段代码前请先读本节。
+
+**第一层 · 本地 IPC 白名单。** `runtime/bridge.mjs` 的 `ALLOWED` 只放行只读或停止类路由（`/api/status`、两份 `dsh-whale/*.json`、`/api/show`、`/api/stop`）。**写入设置（`/api/config` PUT）与写入 API 模型（`/api/models` PUT/POST/DELETE）不在其中**，因此同机其他进程即使读到 `runtime.json` 里的 IPC token，也改不了端点或凭据。注意 token 面向当前用户会话，**它本身不是安全边界，白名单才是**。
+
+**第二层 · 设置写入校验。** `runtime/config.mjs` 的 `cleanUrl` 拒绝 URL 内嵌凭据、查询串与片段；非本机地址强制 HTTPS；并封堵云元数据与链路本地地址（`metadata.google.internal`、`100.100.100.200`、`169.254.*`、`0.*`、`fe80::/10`），以免被用作 SSRF 跳板。`keyEnv` 只接受环境变量名，`save()` 拒绝任何形如 secret / token / api_key / password 的字段 —— **本插件不落盘密钥**。`balancePath` 必须是当前域名下的绝对路径，不能是绝对 URL。
+
+**第三层 · 密钥与域名绑定。** 当「默认或全局」凭据会被发往与原服务不同的域名时，以下位置**直接抛错**，不会转发：
+
+| 位置 | 规则 |
+|---|---|
+| `runtime/config.mjs` | 项目内 `.codex/config.toml` 更换 API 域名 —— 该文件可能来自下载的仓库 |
+| `runtime/config.mjs` | 设置里的 API 地址更换域名 |
+| `runtime/api-models.mjs` | 自定义余额地址跨源，且仍使用模板默认密钥 |
+
+绕过这三处的唯一方式是**显式指定另一个密钥环境变量名** —— 那是设计意图（自定义端点须使用专用凭据），不是漏洞。另外所有出网请求都带 `redirect: 'error'`，服务商被 302 到陌生主机也不会跟随。
+
+这套规则由测试钉住（`tests/transport.test.mjs`、`tests/security.test.mjs`、`tests/core.test.mjs`、`tests/api-models.test.mjs`）。**放宽其中任何一条都会让测试失败** —— 不要为了通过测试而删断言。
+
 ## 加固建议（使用者）
 
 - 只从本仓库或可信来源获取插件；升级前备份插件目录与 `~/.codex/whale-widget`（Windows 为 `%USERPROFILE%\.codex\whale-widget`）；

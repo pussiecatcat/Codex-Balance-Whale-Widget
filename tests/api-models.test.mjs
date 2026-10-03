@@ -30,6 +30,12 @@ test('cloud metadata and link-local destinations are rejected while local model 
   assert.equal(cleanUrl('http://127.0.0.1:11434/v1'),'http://127.0.0.1:11434/v1');
 });
 
+test('remote endpoints must use HTTPS while loopback and private hosts may stay on HTTP', () => {
+  for(const url of ['http://example.test/v1','http://8.8.8.8/v1','http://api.example.test/balance'])assert.throws(()=>cleanUrl(url),/HTTPS/);
+  for(const url of ['http://localhost:8080/v1','http://10.0.0.5:8000/v1','http://192.168.1.2:8000/v1','http://172.20.3.4:1234/v1'])assert.equal(cleanUrl(url),url);
+  assert.equal(cleanUrl('https://example.test/v1'),'https://example.test/v1');
+});
+
 test('optimistic reconciliation rejects stale revisions and keeps a bounded correction log', async t => {
   const {UsageLedger}=await import('../runtime/ledger.mjs');const dir=fixture(t),ledger=new UsageLedger(dir),scope='a'.repeat(24)+'-CNY',now=Date.parse('2026-10-02T02:00:00Z');
   ledger.observe(scope,{totalBalance:90,totalUsed:null},now);
