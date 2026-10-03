@@ -97,7 +97,7 @@
 ### Windows
 
 1. 下载 Release 中的 `api-balance-whale-v0.3(fixed).zip` 并完整解压到固定目录。
-2. 不要直接从 ZIP 内运行脚本；双击 `安装插件.cmd`。
+2. 不要直接从 ZIP 内运行脚本；双击 `launchers/安装插件.cmd`。
 3. 安装完成后新建一个 Codex 聊天，让 Codex 加载新版插件工具。
 
 也可以在 PowerShell 中先检查再安装：
@@ -119,7 +119,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-packag
 
 ### macOS
 
-保留旧版本目录后运行 `安装 Mac 自动跟随.command`。安装需要 Xcode Command Line Tools 提供 Swift 编译器。macOS 脚本会安装桌面组件和 LaunchAgent，但目前不自动完成 Codex 插件市场注册；Apple Silicon/Intel、Spaces、多屏和睡眠唤醒仍需实机验证。详见 [macOS 说明](docs/MACOS.md)。
+保留旧版本目录后运行 `launchers/安装 Mac 自动跟随.command`。安装需要 Xcode Command Line Tools 提供 Swift 编译器。macOS 脚本会安装桌面组件和 LaunchAgent，但目前不自动完成 Codex 插件市场注册；Apple Silicon/Intel、Spaces、多屏和睡眠唤醒仍需实机验证。详见 [macOS 说明](docs/MACOS.md)。
 
 ## 日常使用
 
@@ -134,14 +134,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-packag
 
 ## 回滚
 
-Windows 双击 `回滚本次安装.cmd`，或运行：
+Windows 双击 `launchers/回滚本次安装.cmd`，或运行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-package.ps1 -CheckOnly
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-package.ps1
 ```
 
-回滚使用安装时生成的私有回执恢复旧代码和启动任务，同时保留最新设置、素材与账本。没有有效回执时脚本不会猜测备份位置。macOS 可运行 `回滚 Mac 更新.command`。
+回滚使用安装时生成的私有回执恢复旧代码和启动任务，同时保留最新设置、素材与账本。没有有效回执时脚本不会猜测备份位置。macOS 可运行 `launchers/回滚 Mac 更新.command`。
 
 ## 数据位置与隐私边界
 

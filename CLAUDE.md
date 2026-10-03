@@ -22,6 +22,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - `desktop/main.cjs` — Electron 主进程：窗口、透明度、点击穿透、跟随
 - `desktop/ui/*` — 渲染进程页面与模块
 - `assets/whale-widget.js` — 挂件前端单体，经 `/dsh-whale/widget.js` 提供
+- `launchers/*.cmd`、`launchers/*.command` — 终端用户双击入口（安装/启动/跟随/回滚）；内部用 `%~dp0..\scripts\` 定位仓库根，挪动脚本必须同步改这个上跳路径
 
 ## 改哪里
 
@@ -34,7 +35,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 | 角色、音效、气泡、素材上传 | `lib/widget-host.mjs`、`lib/resource-store.mjs`、`lib/media-validation.mjs`、`desktop/ui/audio-engine.js` |
 | 挂件外观、样式 | `desktop/ui/whale-widget.css`（经 `widget.html` 的 `<link>` 加载） |
 | 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
-| 安装、回滚、发布 | `scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
+| 安装、回滚、发布 | `launchers/*.cmd`、`launchers/*.command`（用户双击入口）、`scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
 
 ## 文档
 
@@ -53,5 +54,5 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
 - **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。没有 CI 跑这个脚本，只有手工打包时才暴露。
-- `vendor/`（smol-toml）、`packages/`（历史发布包）、`archive/`（0.2.x 归档）是第三方或历史产物，一般不动；`archive/` 与 `packages/` 不进发布包。
+- `vendor/`（smol-toml，运行时依赖，进发布包）与 `archive/`（0.2.x 归档，不进发布包）是第三方或历史产物，一般不动。历史发布包只放 Release 页，已不再提交进仓库（`.gitignore` 含 `/packages/`）。
 - 提交前跑 `npm test` 与 `python scripts/build-release.py`；`main` 已放开 PR 强制（仍禁强推与删除分支）。
