@@ -127,6 +127,7 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';
+      uiFiles['/whale-widget.css']='whale-widget.css';
       let file;
       if (Object.hasOwn(uiFiles, url.pathname)) file = path.join(ROOT, 'desktop', 'ui', uiFiles[url.pathname]);
       else if (url.pathname.startsWith('/assets/')) {

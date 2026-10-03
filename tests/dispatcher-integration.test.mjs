@@ -44,6 +44,21 @@ test('media policy and the guarded script are served locally before widget start
   assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
 });
 
+test('widget stylesheet is served as its own file, not inlined in the bundle', async t => {
+  const { server } = await setup(t);
+  const css = await server.dispatch('/whale-widget.css');
+  assert.equal(css.status, 200);
+  assert.match(css.headers['content-type'], /text\/css/);
+  const cssText = css.body.toString();
+  assert.match(cssText, /\.dshwv-root\{/);
+  assert.match(cssText, /\.dshwv-menu\{max-height:calc\(100vh - 16px\)/, 'the rule appended after the main block must survive the move');
+  const html = (await server.dispatch('/widget.html')).body.toString();
+  assert.match(html, /href="\/whale-widget\.css"/);
+  const js = (await server.dispatch('/dsh-whale/widget.js')).body.toString();
+  assert.doesNotMatch(js, /\.dshwv-root\{position:fixed/, 'widget CSS must not be inlined back into the bundle');
+  assert.doesNotMatch(js, /styleEl/, 'the inline <style> injection is gone; the stylesheet loads via <link>');
+});
+
 test('FX refresh=1 performs one deliberate fetch beyond a valid cache and preserves cooldown', async t => {
   let calls = 0;
   const { request } = await setup(t, { fxFetchImpl: async () => fxResponse(6 + ++calls / 10) });
