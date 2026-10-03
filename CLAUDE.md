@@ -36,12 +36,22 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 | 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
 | 安装、回滚、发布 | `scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
 
+## 文档
+
+改代码不需要通读 `docs/`。要弄清某项行为为什么是这样，查 [`docs/README.md`](docs/README.md) 的分组索引。最常需要的是：
+
+- `docs/V0.3-PLAN-AND-PROVENANCE.md` —— 数据口径的权威定义（订阅额度 / API 余额 / 本机观测 token 的语义与边界）。
+- `docs/DASHBOARD-B.md`、`docs/OUTSIDE-CLICK-DECISION.md` —— 菜单布局与「不做空白点击关闭」的产品决定，动了会踩。
+
+`docs/` 里另有 v0.3 的过程记录，属历史，除追溯外不必读。
+
 ## 注意
 
 - **口径必须分开**：ChatGPT 订阅额度、API 余额、本机观测 token 是三个不同来源，代码刻意分开显示。不要把观测值当官方账单，也不要为了显示好看删掉小额精度。
 - **`assets/whale-widget.js` 是单体文件**（约 458 KB / 11,899 行），比其余全部源码加起来还大。顶部有分段索引，先 `grep -n "==== \[" assets/whale-widget.js` 取区段行号再定点读，不要整文件读。
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
-- **API 模型模板前后端各有一份**：`runtime/api-models.mjs` ↔ `desktop/ui/api-models.js`。改一处必须同步另一处。
+- **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
-- `vendor/`（smol-toml）、`packages/`（历史发布包）、`archive/`（0.2.x 归档）是第三方或历史产物，一般不动。
-- 提交前跑 `npm test`；`main` 有分支保护，改动走 PR。
+- **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。没有 CI 跑这个脚本，只有手工打包时才暴露。
+- `vendor/`（smol-toml）、`packages/`（历史发布包）、`archive/`（0.2.x 归档）是第三方或历史产物，一般不动；`archive/` 与 `packages/` 不进发布包。
+- 提交前跑 `npm test` 与 `python scripts/build-release.py`；`main` 已放开 PR 强制（仍禁强推与删除分支）。
