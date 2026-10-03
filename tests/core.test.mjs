@@ -127,6 +127,18 @@ test('balance-only ledger retains consumption after a top-up', t => {
   assert.equal(ledger.records(scope).today.total, 3);
 });
 
+test('an observation sharing a millisecond with the previous one is not stale', t => {
+  const ledger = new UsageLedger(temp(t)), scope = 'd'.repeat(24) + '-USD', now = new Date(2026, 8, 14, 10).getTime();
+  ledger.observe(scope, { totalBalance: 10 }, now);
+  ledger.observe(scope, { totalBalance: 8 }, now);
+  assert.equal(ledger.records(scope, now).today.total, 2);
+  ledger.observe(scope, { totalBalance: 6 }, now - 1);
+  assert.equal(ledger.records(scope, now).today.total, 2);
+  assert.equal(ledger.load(scope).lastObservation.balance, 8);
+  ledger.observe(scope, { totalBalance: 5 }, now + 1);
+  assert.equal(ledger.records(scope, now).today.total, 5);
+});
+
 const event = (type, extra = {}) => ({ type: 'event_msg', timestamp: '2026-09-14T10:00:00Z', payload: { type, ...extra } });
 const usage = (input, cached, output, reasoning = 0) => ({ input_tokens: input, cached_input_tokens: cached, output_tokens: output, reasoning_output_tokens: reasoning });
 test('Codex cumulative token counters deduplicate repeated events and isolate turns', () => {
