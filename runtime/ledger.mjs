@@ -40,7 +40,10 @@ export class UsageLedger {
   }
   observe(scope, sample, now = Date.now()) {
     const loaded = this.load(scope);
-    if (loaded.lastObservation && now <= loaded.lastObservation.at) return loaded;
+    // Only a strictly older reading is stale. Two callers can poll within the
+    // same millisecond, and such a reading is new: dropping it would silently
+    // lose consumption on fast machines while a duplicate contributes zero.
+    if (loaded.lastObservation && now < loaded.lastObservation.at) return loaded;
     const led = this.rollover(loaded, now);
     const balance = Number.isFinite(sample.totalBalance) ? sample.totalBalance : null;
     const used = Number.isFinite(sample.totalUsed) ? sample.totalUsed : null;

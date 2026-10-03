@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import vm from 'node:vm';
@@ -198,10 +199,15 @@ function Register-ScheduledTask { [CmdletBinding()]param($TaskName,$InputObject,
 });
 
 test('task identity accepts a verified old cache but rejects outside installations and different data directories', { skip: process.platform !== 'win32' }, async t => {
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-desktop-audit-identity-'));
+  // os.tmpdir() may be an 8.3 short path (GitHub's windows-latest runner returns
+  // C:\Users\RUNNER~1\...). PowerShell canonicalises whatever it reads back
+  // through Get-ChildItem, so a short-form fixture never string-compares equal to
+  // the trust list below. Canonicalise once and both sides agree.
+  const tmpRoot = realpathSync.native(os.tmpdir());
+  const temporary = await fs.mkdtemp(path.join(tmpRoot, 'whale-desktop-audit-identity-'));
   t.after(async () => {
     const resolved = path.resolve(temporary);
-    assert.ok(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith('whale-desktop-audit-identity-'));
+    assert.ok(resolved.startsWith(tmpRoot + path.sep) && path.basename(resolved).startsWith('whale-desktop-audit-identity-'));
     await fs.rm(resolved, { recursive: true, force: true });
   });
   const codex = path.join(temporary, 'codex'), data = path.join(temporary, 'data');
