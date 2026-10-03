@@ -52,5 +52,6 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
 - **API 模型模板前后端各有一份**：`runtime/api-models.mjs` ↔ `desktop/ui/api-models.js`。改一处必须同步另一处。
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
-- `vendor/`（smol-toml）、`packages/`（历史发布包）、`archive/`（0.2.x 归档）是第三方或历史产物，一般不动。
-- 提交前跑 `npm test`；`main` 有分支保护，改动走 PR。
+- **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。没有 CI 跑这个脚本，只有手工打包时才暴露。
+- `vendor/`（smol-toml）、`packages/`（历史发布包）、`archive/`（0.2.x 归档）是第三方或历史产物，一般不动；`archive/` 与 `packages/` 不进发布包。
+- 提交前跑 `npm test` 与 `python scripts/build-release.py`；`main` 已放开 PR 强制（仍禁强推与删除分支）。
