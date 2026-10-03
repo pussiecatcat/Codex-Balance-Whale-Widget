@@ -23,7 +23,7 @@
 
 ## 验证和限制
 
-256 项单元测试通过；Windows 原生区域采样覆盖关闭与快速重开、慢/快悬停和原生点击穿透，紧凑菜单 Electron 界面审计及包含 72 次跟随移动/缩放的完整桌面烟测通过。当前 Plus 登录的五小时和每周额度直读已经验证。最新成品解压验证和哈希见随附 `verification-report.json`、`release-manifest.json`。
+256 项单元测试通过；Windows 原生区域采样覆盖关闭与快速重开、慢/快悬停和原生点击穿透，紧凑菜单 Electron 界面审计及包含 72 次跟随移动/缩放的完整桌面烟测通过。当前 Plus 登录的五小时和每周额度直读已经验证。最新成品文件清单、隐私扫描结论和哈希见随附 `release-manifest.json`。
 
 长期偶发显示稳定性、其他设备、Mac 实机及跨额度重置点刷新仍待验证；发布不等于这些场景已全部验收。具体范围见 [验证记录](docs/VERIFICATION-0.3.md)。
 
@@ -31,7 +31,7 @@
 
 - `api-balance-whale-v0.3(fixed).zip`：完整解压后安装的插件包。
 - `api-balance-whale-v0.3(fixed)-source.zip`：源码、测试、README 和 GitHub 准备材料。
-- 两份 `.sha256`、`release-manifest.json`、`verification-report.json`：校验及验证摘要。
+- 两份 `.sha256` 与 `release-manifest.json`：文件校验、隐私扫描和构建摘要。
 
 Windows 完整解压后运行“安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
