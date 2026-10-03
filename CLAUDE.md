@@ -36,6 +36,15 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 | 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
 | 安装、回滚、发布 | `scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
 
+## 文档
+
+改代码不需要通读 `docs/`。要弄清某项行为为什么是这样，查 [`docs/README.md`](docs/README.md) 的分组索引。最常需要的是：
+
+- `docs/V0.3-PLAN-AND-PROVENANCE.md` —— 数据口径的权威定义（订阅额度 / API 余额 / 本机观测 token 的语义与边界）。
+- `docs/DASHBOARD-B.md`、`docs/OUTSIDE-CLICK-DECISION.md` —— 菜单布局与「不做空白点击关闭」的产品决定，动了会踩。
+
+`docs/` 里另有 v0.3 的过程记录，属历史，除追溯外不必读。
+
 ## 注意
 
 - **口径必须分开**：ChatGPT 订阅额度、API 余额、本机观测 token 是三个不同来源，代码刻意分开显示。不要把观测值当官方账单，也不要为了显示好看删掉小额精度。
