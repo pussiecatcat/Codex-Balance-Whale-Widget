@@ -9,7 +9,7 @@ test('display mode is persisted separately and rejects invalid values without ch
  const config=new ConfigStore({dataDir:dir,codexHome:dir,env:{}});
  const api=createDispatcher({dataDir:dir,service:new WhaleService({config}),monitor:false,autoRefresh:false});t.after(()=>api.close());
  const get=async()=>JSON.parse((await api.dispatch('/api/display-mode')).body);
- assert.equal((await get()).mode,'api');
+ assert.equal((await get()).mode,'subscription');
  assert.equal((await api.dispatch('/api/display-mode',{method:'POST',body:{mode:'subscription'}})).status,200);
  assert.equal((await get()).mode,'subscription');
  assert.equal((await api.dispatch('/api/display-mode',{method:'POST',body:{mode:'other'}})).status,400);

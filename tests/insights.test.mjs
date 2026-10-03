@@ -16,6 +16,10 @@ test('quota windows use real duration and stale reset, never invent token total'
   assert.equal(r[0].remainingPercent,80);assert.equal(r[1].stale,true);assert.equal(r[0].totalTokens,undefined);
   assert.deepEqual(quotaWindows({primary:{used_percent:101,window_minutes:300}},now,now),[]);
 });
+test('local quota fallback supports relative and ISO reset times across field versions',()=>{
+  const windows=quotaWindows({primary:{usedPercent:25,windowDurationMins:300,resetsInSeconds:60},secondary:{used_percent:50,window_minutes:10080,resets_at:new Date(now+86400000).toISOString()}},now,now);
+  assert.equal(windows[0].resetsAt,now+60000);assert.equal(windows[1].resetsAt,now+86400000);
+});
 test('counter differences dedupe, reset uses last usage, cached/reasoning not added twice',()=>{
   const p=new InsightAccumulator(now);
   const add=(input,output,last)=>p.accept({type:'event_msg',timestamp:new Date(now).toISOString(),payload:{type:'token_count',info:{total_token_usage:{input_tokens:input,output_tokens:output,cached_input_tokens:20,reasoning_output_tokens:3},last_token_usage:last}}});

@@ -129,8 +129,19 @@ export async function verifyHostOcclusion({ window, ev, wait, clickAt, hitPoint,
     // Input emulation runs after the occlusion measurements, so attaching a
     // debugger cannot affect their scheduling. It targets only this fixture.
     move(5,5); await delay(120);
-    await request('focus'); await delay(120); setTestCursor?.(null);
-    await promisify(execFile)(process.env.WHALE_TEST_PYTHON || 'python', [path.join(ROOT, 'tests', 'native-click.py'), fixture.handle, String(fixture.pid), String(Math.round(hostPoint.x)), String(Math.round(hostPoint.y))], { windowsHide: true, timeout: 10000 });
+    setTestCursor?.(null);
+    details.hostInputClicks = [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await request('focus'); await delay(160);
+      const click = await promisify(execFile)(process.env.WHALE_TEST_PYTHON || 'python', [path.join(ROOT, 'tests', 'native-click.py'), fixture.handle, String(fixture.pid), String(Math.round(hostPoint.x)), String(Math.round(hostPoint.y))], { windowsHide: true, timeout: 10000 });
+      const snapshot = await request('snapshot');
+      details.hostInputClicks.push({ attempt: attempt + 1, native: JSON.parse(click.stdout), active: snapshot.active, lastPointer: snapshot.lastPointer });
+      if (snapshot.active === 'editor') break;
+      // Windows can use the first click only to reactivate a window after the
+      // overlay owned focus. A second guarded click must then reach the input.
+      await delay(120);
+    }
+    assert.equal(details.hostInputClicks.at(-1)?.active, 'editor', 'a guarded native click must focus the host editor');
     const typed = await request('type'); details.input = { ...typed.observed, focusEmulation: true };
     assert.equal(typed.observed.active, 'editor'); assert.equal(typed.observed.value, 'fixture-input-ok');
     checks.push('native click reaches the isolated host input and scoped text emulation updates the focused editor');
@@ -147,7 +158,7 @@ export async function verifyHostOcclusion({ window, ev, wait, clickAt, hitPoint,
         try { const latest = await request('bounds'); await setHost({ ...nativeHost, bounds: latest.bounds, serial: ++serial }); details.sizeTrace.push({ serial, requested: latest.bounds, actual: window.getBounds() }); } catch (error) { details.sizeTrace.push({ error: error.message }); } finally { sizing = false; }
       }, 100);
       try {
-        const follow = await promisify(execFile)(process.env.WHALE_TEST_POWERSHELL, ['-NoProfile', '-NonInteractive', '-File', path.join(ROOT, 'tests', 'native-follow.ps1'),
+        const follow = await promisify(execFile)(process.env.WHALE_TEST_POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'tests', 'native-follow.ps1'),
           '-Overlay', window.getNativeWindowHandle().readBigUInt64LE().toString(), '-OverlayPid', String(process.pid), '-FixtureHost', fixture.handle, '-FixturePid', String(fixture.pid)], { windowsHide: true, timeout: 20000 });
         details.nativeFollow = JSON.parse(follow.stdout.replace(/^\uFEFF/, '').trim());
         assert.equal(details.nativeFollow.ok, true);

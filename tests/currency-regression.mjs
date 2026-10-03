@@ -33,7 +33,7 @@ export async function verifyCurrency({ window, ev, wait, clickAt, hitPoint, move
     const point = await hitPoint(); move(point.x, point.y);
     await wait("document.querySelector('.dshwv-menu-btn').checkVisibility({opacityProperty:true})", 'currency menu hover affordance');
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
-    await buttonByText('- = 小鲸鱼记账 = -');
+    await buttonByText('查看 API 消费记录');
     await wait("document.querySelector('[data-money-role=alert]')?.textContent.includes('$5.12')", 'usage settings loaded');
     const appearance = await ev("(() => {const img=document.querySelector('.dshwv-img'),root=document.querySelector('.dshwv-root');return{src:img.currentSrc,width:root.offsetWidth,height:root.offsetHeight,transition:getComputedStyle(root).transitionDuration}})()");
     await ev(`${api}.scene([{type:'text',text:'当前 API 余额'},{type:'balance',tpl:'余额 {balance_api}'},{type:'today'}],0)`); await stable(); await delay(450);

@@ -36,6 +36,17 @@ test('a queued notice captures currency, money, text and tokens once', () => {
   assert.equal(draws, 0); assert.equal(notice.label, '挤不进去...'); assert.ok(Object.isFrozen(notice));
 });
 
+test('turn snapshots retain model token breakdown for the subscription completion bubble', () => {
+  const notice = notices.snapshot(record({ byModel: {
+    'gpt-a': { input_tokens: 100, output_tokens: 40, cached_input_tokens: 25, reasoning_output_tokens: 9 },
+    'gpt-b': { input_tokens: 20, output_tokens: 5, cached_input_tokens: 0, reasoning_output_tokens: 2 },
+  } }));
+  assert.equal(notice.inputTokens, 120);
+  assert.equal(notice.outputTokens, 45);
+  assert.equal(notice.cachedInputTokens, 25);
+  assert.equal(notice.reasoningOutputTokens, 11);
+});
+
 test('unknown charges never become a zero-price success and known zero estimates remain valid', () => {
   for (const value of [null, undefined, NaN, Infinity]) assert.equal(notices.snapshot(record({ amount: value })).amount, null);
   assert.equal(notices.snapshot(record({ amount: 0, costState: 'pending' })).amount, null);

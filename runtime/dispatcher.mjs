@@ -11,6 +11,7 @@ import { MEDIA_POLICY } from '../lib/media-validation.mjs';
 import { createInsightsService } from './insights.mjs';
 import { pricingSchedule } from './pricing-schedule.mjs';
 import { importWorkshop, exportWorkshop } from '../lib/workshop.mjs';
+import { ApiModelRegistry } from './api-models.mjs';
 
 export const UI_ORIGIN = 'whale://widget';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.gif': 'image/gif', '.mp3': 'audio/mpeg' };
@@ -24,8 +25,9 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
   const whale = service || new WhaleService({ dataDir, ...(fetchImpl ? { fetchImpl } : {}) });
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
+  const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
   const displayModeFile = path.join(dataDir, 'display-mode.json');
-  const displayMode = () => readJson(displayModeFile, {}).mode === 'subscription' ? 'subscription' : 'api';
+  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
   const routes = new Map(), effects = [];
   createWidgetHost(dataDir).apply({ whale, webServer: { register: r => { routes.set(r.path, r.handler); return () => routes.delete(r.path); }, tapIndex: () => () => {} }, effect: f => effects.push(f()) });
   const watcher = monitor ? new SessionMonitor(whale) : null;
@@ -64,6 +66,27 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       }
       if (url.pathname === '/api/insights' && method === 'GET') return jsonResult(200, await insights.get());
       if (url.pathname === '/api/pricing' && method === 'GET') return jsonResult(200, {ok:true,...pricingSchedule(whale.config.resolve())});
+      if (url.pathname === '/api/reconcile') {
+        if (method === 'GET') return jsonResult(200, whale.usageRecords());
+        if (method !== 'POST') return jsonResult(405, { ok: false });
+        try { return jsonResult(200, whale.reconcileUsage(parsed())); }
+        catch (error) { return jsonResult(error?.status === 409 ? 409 : 400, { ok: false, error: error?.message || '余额校正失败' }); }
+      }
+      if (url.pathname === '/api/models') {
+        if (method === 'GET') return jsonResult(200, apiModels.list());
+        if (method === 'PUT' || method === 'POST') return jsonResult(200, apiModels.save(parsed()));
+        if (method === 'DELETE') return jsonResult(200, apiModels.delete(url.searchParams.get('id') || parsed().id));
+        return jsonResult(405, { ok: false });
+      }
+      if (url.pathname === '/api/models/value' && method === 'GET') {
+        const id = url.searchParams.get('id'), model = apiModels.model(id), template = model && apiModels.list().templates.find(item => item.id === model.template);
+        const matches = (model?.matchIds?.length ? model.matchIds : template?.matchIds || []).map(value => String(value).toLowerCase());
+        const usage = whale.apiModelUsage(matches);
+        const quotaUsage = model?.manualQuota ? whale.apiModelUsage(matches, Date.now(), apiModels.quotaStart(model)) : null;
+        const result = await apiModels.read(id, { usage: quotaUsage });
+        return jsonResult(200, { ...usage, ...result, usageSource: usage.source, todayEstimate: apiModels.estimate(model, usage) });
+      }
+      if (url.pathname === '/api/models/probe' && method === 'POST') return jsonResult(200, await apiModels.read(parsed().id, { probe: true }));
       if (url.pathname === '/api/workshop/export' && method === 'GET') return jsonResult(200, exportWorkshop(dataDir));
       if (url.pathname === '/api/workshop/import' && method === 'POST') return jsonResult(200, importWorkshop(dataDir, parsed()));
       if (url.pathname === '/api/status' && method === 'GET') return jsonResult(200, { ok: true, version: VERSION, buildVersion, transport: 'local-ipc', webpage: false, provider: whale.config.publicInfo(), monitor: watcher?.status() || { watching: 0, activeTurns: 0 }, dataDir, ...statusInfo() });
@@ -100,7 +123,7 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       }
       if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
-      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js' };
+      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js' };
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';

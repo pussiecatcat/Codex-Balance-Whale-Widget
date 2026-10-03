@@ -32,8 +32,9 @@ function runtime(fetch) {
   return { api: context.window.WhaleAccountView, storage, events, window:context.window };
 }
 test('subscription completion and cancellation report tokens without an open card or API money',async()=>{
-  const r=runtime(async()=>({ok:true,json:async()=>({mode:'subscription'})}));
+  const r=runtime(async(_url,options)=>({ok:true,json:async()=>JSON.parse(options.body)}));
   const messages=[];r.window.whaleToast=message=>messages.push(message);
+  await r.api.setMode('api');
   r.api.notice({completionKind:'success',tokens:12,amount:100});assert.equal(messages.length,0);
   await r.api.setMode('subscription');
   r.api.notice({completionKind:'success',tokens:12480,amount:100,currency:'USD'});
@@ -43,21 +44,21 @@ test('subscription completion and cancellation report tokens without an open car
   assert.ok(messages.every(m=>!/[\$¥]|USD|API/.test(m)));
 });
 test('a rejected save preserves mode and does not emit false switch events', async () => {
-  for (const fetch of [async () => ({ ok: false }), async () => ({ ok: true, json: async () => ({ mode: 'api' }) }), async () => { throw Error('offline'); }]) {
+  for (const fetch of [async () => ({ ok: false }), async () => ({ ok: true, json: async () => ({ mode: 'subscription' }) }), async () => { throw Error('offline'); }]) {
     const { api, storage, events } = runtime(fetch);
-    assert.equal(await api.setMode('subscription'), false);
-    assert.equal(api.mode, 'api'); assert.equal(storage.size, 0); assert.equal(events.length, 0);
+    assert.equal(await api.setMode('api'), false);
+    assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0); assert.equal(events.length, 0);
   }
 });
 test('successful switches persist display mode only after server acknowledgement', async () => {
   let resolve; let request;
   const { api, storage, events } = runtime((url, options) => { request = { url, options }; return new Promise(r => { resolve = r; }); });
-  const pending = api.setMode('subscription');
-  assert.equal(api.mode, 'api'); assert.equal(storage.size, 0);
-  assert.equal(await api.setMode('api'), false);
-  resolve({ ok: true, json: async () => ({ mode: 'subscription' }) });
-  assert.equal(await pending, true); assert.equal(api.mode, 'subscription');
-  assert.equal(storage.get('dshw-account-view'), 'subscription');
-  assert.equal(request.url, '/api/display-mode'); assert.equal(request.options.body, '{"mode":"subscription"}');
-  assert.equal(events[0].type, 'whale-account-view'); assert.equal(events[0].detail.mode, 'subscription');
+  const pending = api.setMode('api');
+  assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0);
+  assert.equal(await api.setMode('subscription'), false);
+  resolve({ ok: true, json: async () => ({ mode: 'api' }) });
+  assert.equal(await pending, true); assert.equal(api.mode, 'api');
+  assert.equal(storage.get('dshw-account-view'), 'api');
+  assert.equal(request.url, '/api/display-mode'); assert.equal(request.options.body, '{"mode":"api"}');
+  assert.equal(events[0].type, 'whale-account-view'); assert.equal(events[0].detail.mode, 'api');
 });

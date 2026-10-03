@@ -22,6 +22,16 @@
     const known = record.amount !== null && record.amount !== undefined && Number.isFinite(Number(record.amount)) &&
       !['pending', 'unknown'].includes(record.costState);
     const failureKind = completionKind === 'failed' && record.failureKind === 'high-demand' ? 'high-demand' : null;
+    const tokenParts = { input: 0, output: 0, cachedInput: 0, reasoningOutput: 0 };
+    let hasParts = false;
+    for (const usage of Object.values(record.byModel || {})) {
+      if (!usage || typeof usage !== 'object') continue;
+      tokenParts.input += Number(usage.input_tokens) || 0;
+      tokenParts.output += Number(usage.output_tokens) || 0;
+      tokenParts.cachedInput += Number(usage.cached_input_tokens) || 0;
+      tokenParts.reasoningOutput += Number(usage.reasoning_output_tokens) || 0;
+      hasParts = true;
+    }
     return Object.freeze({
       id: String(record.id || ''), completionKind,
       failureKind,
@@ -30,6 +40,11 @@
       currency: record.currency || nativeCurrency,
       costState: known ? record.costState || 'observed' : record.costState === 'pending' ? 'pending' : 'unknown',
       tokens: Number.isFinite(record.tokens) && record.tokens >= 0 ? Math.floor(record.tokens) : null,
+      inputTokens: hasParts ? Math.floor(tokenParts.input) : null,
+      outputTokens: hasParts ? Math.floor(tokenParts.output) : null,
+      cachedInputTokens: hasParts ? Math.floor(tokenParts.cachedInput) : null,
+      reasoningOutputTokens: hasParts ? Math.floor(tokenParts.reasoningOutput) : null,
+      sessionLabel: String(record.sessionLabel || '').slice(0, 120),
       note: String(record.note || ''),
     });
   }

@@ -32,15 +32,27 @@ def send(flags):
     event = Input(0, Payload(mouse=Mouse(0, 0, 0, flags, 0, 0)))
     if api.SendInput(1, ctypes.byref(event), ctypes.sizeof(event)) != 1:
         raise RuntimeError('Windows input delivery failed')
+def send_click():
+    # Submit down/up as one Windows input batch. A physical mouse move between
+    # two separate SendInput calls would turn this guarded click into a drag and
+    # make the integration test depend on whether the user touched the mouse.
+    events = (Input * 2)(
+        Input(0, Payload(mouse=Mouse(0, 0, 0, 2, 0, 0))),
+        Input(0, Payload(mouse=Mouse(0, 0, 0, 4, 0, 0))),
+    )
+    sent = api.SendInput(2, events, ctypes.sizeof(Input))
+    if sent != 2:
+        if sent == 1:
+            send(4)
+        raise RuntimeError('Windows click delivery failed')
 try:
     api.SetCursorPos(x, y)
     time.sleep(.18)
     hit = api.WindowFromPoint(wintypes.POINT(x, y))
     if api.GetAncestor(hit, 2) != handle:
         raise RuntimeError('Fixture does not own this pixel: no click sent; target=%s hit=%s root=%s at=%s,%s' % (handle,hit,api.GetAncestor(hit,2),x,y))
-    send(2); pressed = True
-    time.sleep(.05)
-    send(4); pressed = False
+    api.SetCursorPos(x, y)
+    send_click()
     time.sleep(.12)
     print(json.dumps(dict(foregroundBefore=str(before), foregroundAfter=str(api.GetForegroundWindow() or 0), target=str(handle))))
 finally:

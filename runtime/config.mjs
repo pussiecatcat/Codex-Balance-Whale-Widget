@@ -16,12 +16,17 @@ export const DEFAULT_CONFIG = {
 // presence flags and submits a value only when the user explicitly changes it.
 export const PRIVATE_SETTING_FIELDS = Object.freeze(['baseUrl', 'keyEnv', 'profile', 'projectDir', 'dashboardUrl', 'balancePath', 'balanceField', 'usedField', 'models']);
 
-function cleanUrl(value, { allowEmpty = false } = {}) {
+export function cleanUrl(value, { allowEmpty = false } = {}) {
   if (!value && allowEmpty) return '';
   let u;
   try { u = new URL(value); } catch { throw new Error('API 地址无效'); }
   if (u.username || u.password || u.search || u.hash) throw new Error('API 地址不能包含密钥、查询参数或片段');
-  const local = ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
+  const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const local = ['localhost', '::1'].includes(host) || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host) || /^f[cd][0-9a-f]{2}:/i.test(host);
+  if (host === 'metadata.google.internal' || host === 'metadata.goog' || host === '100.100.100.200' ||
+      /^169\.254\./.test(host) || /^0\./.test(host) || /^fe[89ab][0-9a-f]:/i.test(host) || /^::ffff:(?:a9fe:|6464:64c8|0:)/i.test(host)) {
+    throw new Error('API 地址不能指向云元数据或链路本地服务');
+  }
   if (u.protocol !== 'https:' && !(local && u.protocol === 'http:')) throw new Error('API 地址须使用 HTTPS（本机服务除外）');
   return u.toString().replace(/\/$/, '');
 }

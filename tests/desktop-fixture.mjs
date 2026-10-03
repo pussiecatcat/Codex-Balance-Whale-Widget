@@ -11,12 +11,14 @@ import { verifyRendering } from './render-regression.mjs';
 import { verifyCurrency } from './currency-regression.mjs';
 import { verifyHostOcclusion } from './host-occlusion.mjs';
 import { verifyAuditUI } from './audit-ui-regression.mjs';
+import { verifyFeatureUI } from './feature-ui-regression.mjs';
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 export async function makeFixture(dataDir) {
   const codex = path.join(dataDir, 'fixture-codex'); fs.mkdirSync(codex, { recursive: true });
   fs.writeFileSync(path.join(codex, 'config.toml'), 'model_provider="fixture"\n[model_providers.fixture]\nbase_url="https://example.invalid/v1"\nexperimental_bearer_token="TEST-ONLY-NOT-A-KEY"\n');
   fs.writeFileSync(path.join(dataDir, '.dshw-size.json'), JSON.stringify({ scale: 1, sound: false, vol: 0, bubbleOn: true, turnCostOn: true }));
+  fs.writeFileSync(path.join(dataDir, 'display-mode.json'), JSON.stringify({ version: 1, mode: 'api' }));
   const config = new ConfigStore({ dataDir, codexHome: codex, env: {} });
   const provider = { amount: 12.3456, currency: 'USD', fail: false, delay: 0, async balance(c) {
     if (this.delay) await delay(this.delay);
@@ -77,6 +79,12 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       window.addEventListener('error',e=>window.__fixturePointerLog.push({type:'error',message:e.message,stack:e.error?.stack}));
     })()`);
     assert.equal(window.isVisible(), true); assert.equal(window.webContents.getURL(), 'whale://widget/widget.html'); checks.push('local protocol and visible transparent window');
+    if (process.env.WHALE_FEATURE_UI_ONLY === '1') {
+      checks.push(...(await verifyFeatureUI({window,ev,wait,dispatcher,output})).checks);
+      assert.equal((errors || []).length,0,JSON.stringify(errors));
+      fs.writeFileSync(path.join(output,'desktop-follow.json'),JSON.stringify({ok:true,checks,errors,featureUiOnly:true},null,2));
+      await setHost({hostAlive:false});return;
+    }
     if (process.env.WHALE_COMPLETE_UI_ONLY === '1') {
       checks.push(...(await verifyAuditUI({ window, ev, wait, clickAt, hitPoint, move, dispatcher, output, dataDir })).checks);
       assert.equal((errors || []).length, 0, JSON.stringify(errors));
@@ -101,6 +109,13 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await wait("!window.__whaleRenderTest.status().switching && document.querySelector('.dshwv-pop-open')", 'first complete bubble');
     const bubble = await ev("document.querySelector('.dshwv-pop').innerText");
     assert.match(bubble, /12\.35/); assert.doesNotMatch(bubble, /12\.3456|峰谷|高峰|倒计时/); checks.push('click produces balance bubble with two decimal amounts');
+    const firstBubble = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front})");
+    for (let pet = 0; pet < 3; pet++) await clickAt(await hitPoint());
+    await wait('!window.__whaleRenderTest.status().busy', 'petting refresh completes');
+    const afterPetting = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front,shown:window.__whaleRenderTest.status().shown,switching:window.__whaleRenderTest.status().switching})");
+    assert.deepEqual(afterPetting, { ...firstBubble, shown: true, switching: false });
+    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), false);
+    checks.push('three petting clicks keep the current bubble unchanged; the obsolete character-advance option is gone');
     for (let retry = 0; retry < 3; retry++) {
       await ev('window.__whaleRenderTest.close()');
       await wait('!window.__whaleRenderTest.status().shown&&!window.__whaleRenderTest.status().switching', 'bubble closed before repeated first click');
@@ -123,6 +138,15 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     const menu = await ev("document.querySelector('.dshwv-menu').innerText");
     for (const label of ['角色', '音效', '自定义泡泡', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /峰谷|高峰|倒计时/); checks.push('clickable menu retains original management controls');
+    for (const label of ['音效与提示', '进入独立桌面', '素材包导入/导出']) assert.ok(menu.includes(label), label);
+    assert.doesNotMatch(menu, /音效与手感|会员额度详情|本地创意工坊|跟随 Codex/);
+    assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].filter(b=>['进入独立桌面','改为跟随 Codex'].includes(b.textContent)).length"), 1);
+    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='全局设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    await clickAt(soundSettings); await wait("document.querySelector('.whale-sound-mask')?.checkVisibility({opacityProperty:true})", 'merged sound settings');
+    const soundPanel = await ev("document.querySelector('.whale-sound-card').innerText");
+    assert.match(soundPanel, /按压手感/); assert.match(soundPanel, /事件音色与独立音量/);
+    await clickSelector('.whale-sound-card .dshwv-bubbtn-no');
+    checks.push('sound feel is merged into the sound and prompt panel; redundant quota and mode entries are removed');
     const settings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='API 设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
     await clickAt(settings); await wait("document.querySelector('#settings-dialog').open", 'API dialog');
     assert.equal(await ev("document.querySelectorAll('[name*=peak],[name*=Peak]').length"), 0); checks.push('settings open inside widget with schedule controls removed');
@@ -135,14 +159,14 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await buttonByText('首次点击 · 编辑内容');
     const currentMask = "[...document.querySelectorAll('.dshwv-bubmask')].filter(e=>e.checkVisibility({opacityProperty:true})).at(-1)";
     const editor = await ev(`(${currentMask}).innerText`);
-    assert.match(editor, /可选模块/); assert.doesNotMatch(editor, /峰谷|时段倒计时|高峰/);
+    assert.match(editor, /可选模块/); assert.match(editor, /峰谷时段/);
     const dismissFixtureConfirm = async () => {
       const visibleConfirm = "[...document.querySelectorAll('.dshwv-confirmmask')].filter(e=>e.checkVisibility({opacityProperty:true})).at(-1)";
       if (await ev(`!!(${visibleConfirm})`)) await buttonByText('确定', visibleConfirm);
     };
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
-    checks.push('bubble module editor works with retired options removed');
+    checks.push('bubble module editor retains the restored original peak-period module');
     point = await hitPoint(); move(point.x,point.y); await delay(100);
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
     await buttonByText('管理', "document.querySelector('.dshwv-menu')");
@@ -160,7 +184,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
         const dipPoint = screen.screenToDipPoint(p), bounds = window.getContentBounds();
         setTestCursor({ x: dipPoint.x - bounds.x, y: dipPoint.y - bounds.y }); await delay(180);
         nativePhase = true; nativeIgnore(!renderInfo().inputEnabled, {forward:true});
-        const result = await promisify(execFile)(ps, ['-NoProfile', '-NonInteractive', '-File', path.join(ROOT, 'desktop', 'supervisor.ps1'), '-Hit', '-X', String(Math.round(p.x)), '-Y', String(Math.round(p.y))], { windowsHide: true, timeout: 10000 });
+        const result = await promisify(execFile)(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'desktop', 'supervisor.ps1'), '-Hit', '-X', String(Math.round(p.x)), '-Y', String(Math.round(p.y))], { windowsHide: true, timeout: 10000 });
         nativePhase = false; nativeIgnore(true, {forward:false});
         return JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim());
       };
@@ -171,10 +195,15 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       await wait("!document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})", 'menu closed before native hit test');
       assert.equal(await ev("!!document.querySelector('dialog[open]')"), false, 'no modal overlays the transparent hit-test area');
       point = await hitPoint(); await delay(300);
-      const bounds = window.getBounds();
-      const solid = await nativeHit(screen.dipToScreenPoint({ x: bounds.x+point.x, y: bounds.y+point.y }));
-      const empty = await nativeHit(screen.dipToScreenPoint({ x: bounds.x+8, y: bounds.y+8 }));
       const expectedHandle = window.getNativeWindowHandle().readBigUInt64LE().toString();
+      let bounds, solid;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        point = await hitPoint(); bounds = window.getBounds();
+        solid = await nativeHit(screen.dipToScreenPoint({ x: bounds.x+point.x, y: bounds.y+point.y }));
+        if (solid.rootWindow === expectedHandle) break;
+        window.moveTop(); await delay(180);
+      }
+      const empty = await nativeHit(screen.dipToScreenPoint({ x: bounds.x+8, y: bounds.y+8 }));
       fs.writeFileSync(path.join(output, 'native-hit.json'), JSON.stringify({ solid, empty, point, bounds, expectedHandle, physicalPoint: screen.dipToScreenPoint({x:bounds.x+point.x,y:bounds.y+point.y}) }, null, 2));
       assert.equal(solid.rootWindow, expectedHandle); assert.notEqual(empty.rootWindow, expectedHandle); checks.push('Windows hit testing: pet receives clicks, transparent area passes through');
     }

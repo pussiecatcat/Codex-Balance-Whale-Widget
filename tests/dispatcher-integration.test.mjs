@@ -10,15 +10,17 @@ import { FX_POLICY } from '../runtime/fx.mjs';
 const fxResponse = rate => new Response(JSON.stringify({ amount: 1, base: 'USD', date: '2026-09-15', rates: { CNY: rate } }));
 async function setup(t, options = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-dispatcher-'));
+  const { initialMode, ...serverOptions } = options;
+  if (initialMode) await fs.writeFile(path.join(root, 'display-mode.json'), JSON.stringify({ version: 1, mode: initialMode }));
   const state = { balances: 0, closes: 0 };
   const service = {
     config: { codexHome: path.join(root, 'codex'), publicInfo: () => ({ settings: { monitorSessions: false } }), resolve: () => ({ model: 'test', setting: { monitorSessions: false } }) },
     turns: new Map(),
     getBalance: async () => { state.balances++; return { ok: true, totalBalance: 20 }; },
     close: async args => { state.closes++; assert.equal(args.timeoutMs, 3000); },
-    ...options.service,
+    ...serverOptions.service,
   };
-  const server = createDispatcher({ dataDir: root, monitor: false, autoRefresh: false, fxFetchImpl: async () => fxResponse(6.7), ...options, service });
+  const server = createDispatcher({ dataDir: root, monitor: false, autoRefresh: false, fxFetchImpl: async () => fxResponse(6.7), ...serverOptions, service });
   t.after(async () => {
     await server.close().catch(() => {});
     const resolved = path.resolve(root);
@@ -38,6 +40,8 @@ test('media policy and the guarded script are served locally before widget start
   const html = (await server.dispatch('/widget.html')).body.toString();
   assert.ok(html.indexOf('src="/media-guard.js"') >= 0 && html.indexOf('src="/media-guard.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
   assert.ok(html.indexOf('src="/turn-notice.js"') >= 0 && html.indexOf('src="/turn-notice.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
+  assert.match(html, /src="\/sound-settings\.js"/);
+  assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
 });
 
 test('FX refresh=1 performs one deliberate fetch beyond a valid cache and preserves cooldown', async t => {
@@ -65,6 +69,7 @@ test('automatic FX starts in the background and close aborts it before stopping 
   const calls = []; let began;
   const started = new Promise(resolve => { began = resolve; });
   const { server, state } = await setup(t, {
+    initialMode: 'api',
     monitor: true, autoRefresh: true,
     fxFetchImpl: async (_url, { signal }) => { signal.addEventListener('abort', () => calls.push('fx-abort'), { once: true }); began(); return new Promise(() => {}); },
     service: { close: async options => { assert.equal(options.timeoutMs, 3000); calls.push('service'); } },
@@ -87,7 +92,7 @@ test('close continues to settle the service after a monitor cleanup error', asyn
 
 test('close removes the periodic balance refresh instead of starting more jobs after shutdown', async t => {
   t.mock.timers.enable({ apis: ['setInterval'] });
-  const { server, state } = await setup(t, { autoRefresh: true });
+  const { server, state } = await setup(t, { autoRefresh: true, initialMode: 'api' });
   assert.equal(state.balances, 1); t.mock.timers.tick(60000); assert.equal(state.balances, 2);
   await server.close(); t.mock.timers.tick(60000); assert.equal(state.balances, 2);
   t.mock.timers.reset();

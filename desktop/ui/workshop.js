@@ -4,7 +4,7 @@
   function element(tag, text) { const el = document.createElement(tag); if (text) el.textContent = text; return el; }
   function open() {
     const dialog = document.createElement('dialog'); dialog.className = 'whale-v3-dialog';
-    dialog.append(element('h2', '本地创意工坊'), element('p', '把自己搭配的角色、气泡图片和音效打包分享，或使用别人分享的素材包。这是本地素材交换，不是在线商店。'));
+    dialog.append(element('h2', '素材包导入/导出'), element('p', '备份或分享你导入的角色、气泡图片和音效，也可以导入别人分享的小鲸鱼素材包。全部操作只在本机完成。'));
     const steps=element('ol');
     for(const line of ['制作自己的包：先在菜单的角色、音效或资源管理中导入素材，再点“导出本地素材”。','使用分享包：选择别人导出的 whale-workshop.json，确认下方清单，再点“导入所选包”。','导入完成后点“重新加载素材列表”，到菜单的角色/音效下拉或自定义气泡图库中选择。导入不会自动替换正在使用的角色。'])steps.append(element('li',line));
     dialog.append(steps,element('p','仅支持小鲸鱼工坊 JSON 包（最大 24 MiB），不是 DSH 插件 ZIP 或安装程序。不会导入 API 配置、账本或聊天；重名素材使用新编号保存。'));
@@ -22,5 +22,5 @@
     const reload = element('button', '重新加载素材列表'); reload.hidden = true; reload.onclick = () => location.reload();
     const close = element('button', '关闭'); close.onclick = () => dialog.close(); const actions = element('div'); actions.className = 'dialog-actions'; actions.append(exportButton, importButton, reload, close); dialog.append(file, status, actions); dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
   }
-  const menu = document.querySelector('.dshwv-menuview'); if (menu) { const row = element('div'); row.className = 'dshwv-menu-row'; const button = element('button', '本地创意工坊'); button.className = 'dshwv-sound'; button.onclick = open; row.append(button); menu.append(row); }
+  const menu = document.querySelector('.dshwv-menuview'); if (menu) { const row = element('div'); row.className = 'dshwv-menu-row'; const button = element('button', '素材包导入/导出'); button.className = 'dshwv-sound'; button.title = '备份、分享或导入角色、气泡图和音效素材'; button.onclick = open; row.append(button); menu.append(row); }
 })();

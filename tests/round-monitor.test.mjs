@@ -175,4 +175,9 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
   assert.equal(sounds, 2); assert.equal(bubbles, 4);
   sandbox.pollLastTurn(); await respond(notice(13, 'busy', { outcome: 'failed', completionKind: 'failed', failureKind: 'high-demand' }));
   assert.equal(sounds, 2); assert.equal(bubbles, 5);
+  let subscriptionNotices = 0;
+  sandbox.window.WhaleAccountView = { mode: 'subscription', notice: () => subscriptionNotices++ };
+  sandbox.pollLastTurn(); await respond(notice(14, 'subscription-success', { tokens: 4321 }));
+  assert.equal(sounds, 3); assert.equal(bubbles, 6); assert.equal(subscriptionNotices, 1);
+  assert.equal(sandbox.lastTurnNotice.tokens, 4321);
 });

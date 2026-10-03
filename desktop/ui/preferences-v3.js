@@ -2,6 +2,7 @@
   'use strict';
   const key = 'dshw-v3-feedback', events = { press: '按下', release: '松开', success: '完成提示', cancelled: '取消提示', failed: '拥挤失败提示' };
   const defaults = () => ({ feel: 'balanced', events: Object.fromEntries(Object.keys(events).map(k => [k, { preset: k === 'press' || k === 'release' || k === 'success' ? 'original' : 'silent', volume: .8 }])) });
+  const clone = value => JSON.parse(JSON.stringify(value));
   let settings = defaults();
   try { const saved = JSON.parse(localStorage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
   function play(event, url, master = 1, override) {
@@ -9,6 +10,13 @@
     if (!cfg) return false;
     window.WhaleAudio.play({ channel: event === 'press' || event === 'release' ? 'gesture' : 'notice', url, preset: cfg.preset, volume: cfg.preset === 'silent' ? 0 : cfg.volume * master });
     return true;
+  }
+  function saveSettings(value) {
+    const next = clone(value || defaults());
+    localStorage.setItem(key, JSON.stringify(next));
+    settings = next;
+    window.dispatchEvent(new CustomEvent('whale-feedback-applied', { detail: clone(settings) }));
+    return clone(settings);
   }
   function open() {
     const draft = JSON.parse(JSON.stringify(settings)), dialog = document.createElement('dialog'); dialog.className = 'whale-v3-dialog';
@@ -30,8 +38,8 @@
     }
     const actions = document.createElement('div'); actions.className = 'dialog-actions';
     const cancel = document.createElement('button'); cancel.textContent = '取消'; cancel.onclick = () => dialog.close();
-    const save = document.createElement('button'); save.textContent = '保存'; save.className = 'primary'; save.onclick = () => { try { localStorage.setItem(key, JSON.stringify(draft)); settings = draft; dialog.close(); } catch { window.whaleToast?.('设置未能保存，请检查存储空间。'); } };
+    const save = document.createElement('button'); save.textContent = '保存'; save.className = 'primary'; save.onclick = () => { try { saveSettings(draft); dialog.close(); } catch { window.whaleToast?.('设置未能保存，请检查存储空间。'); } };
     actions.append(cancel, save); dialog.append(actions); dialog.addEventListener('close', () => { window.WhaleAudio.stop(); dialog.remove(); }); document.body.append(dialog); dialog.showModal();
   }
-  window.WhaleFeedback = { play, open, get feel() { return settings.feel; } };
+  window.WhaleFeedback = { play, open, save: saveSettings, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
 })();

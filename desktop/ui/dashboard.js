@@ -19,6 +19,22 @@
     const usage=el(scroll,'section','','whale-usage-page');usage.append(usageArea);
     const tokenUsage=el(usage,'section','','whale-token-usage');
     scroll.append(settings);settings.classList.add('whale-settings-page');
+    const settingsSections={};
+    for(const [key,title] of [['appearance','外观与位置'],['sound','提示与音效'],['bubble','泡泡'],['resources','资源管理'],['api','API 与计费']]){
+      const section=el(settings,'section','','whale-settings-section');section.dataset.section=key;
+      el(section,'h3',title);settingsSections[key]=el(section,'div','','whale-settings-section-body');
+    }
+    for(const control of [...settings.children]){
+      if(control.classList?.contains('whale-settings-section'))continue;
+      const label=control.textContent.trim();
+      const key=/^(角色|大小|避让滚动条|吸附与翻转|隐藏菜单按钮|位置重置)/.test(label)?'appearance':
+        /^(提示与音效|音效与提示|音效|音量|任务结束音效|每轮消耗提示)/.test(label)?'sound':
+        /^(气泡全局开关|自定义泡泡)/.test(label)?'bubble':
+        /^(资源管理|素材包导入\/导出)/.test(label)?'resources':
+        control.dataset?.accountApi==='true'||/^API 设置/.test(label)?'api':'appearance';
+      if(control.classList?.contains('dshwv-menu-sep')){control.remove();continue;}
+      settingsSections[key].append(control);
+    }
     // The legacy navigation button remains available from the API overview.
     const legacyNav=[...menu.children].find(e=>e.matches('[data-account-api]'));
     if(legacyNav)overview.append(legacyNav);
@@ -54,14 +70,13 @@
         }
         if(!sub.available)el(overviewData,'p',sub.reason||'正在读取订阅额度…','whale-dashboard-note');
         metric(overviewData,'本轮已观测消耗',token(lastNotice?.tokens));
-        el(overviewData,'p','额度来自官方快照；token 来自本机记录，两者分别统计。','whale-dashboard-note');
+        el(overviewData,'p',(sub.source==='codex-app-server'?'额度来自 Codex 当前查询':'额度来自本机会话记录')+'；token 来自本机记录，两者分别统计。','whale-dashboard-note');
         el(tokenUsage,'h3','本机 token 用量');
         const totals=sub.tokens||insights?.tokens||{};
         metric(tokenUsage,'滚动 5 小时',token(totals.last5Hours));metric(tokenUsage,'近 7 天',token(totals.total));
         for(const [key,label] of [['input','输入'],['output','输出'],['cachedInput','缓存输入'],['reasoningOutput','推理输出']])metric(tokenUsage,label,token(totals[key]));
         el(tokenUsage,'p','缓存与推理可能是输入、输出的子集，请勿重复相加。其他设备不计入本机记录。','whale-dashboard-note');
         if(totals.complete===false)el(tokenUsage,'p','扫描尚不完整，仅显示部分记录。','whale-dashboard-note');
-        const details=el(tokenUsage,'button','查看订阅额度详情');details.onclick=()=>window.dispatchEvent(new Event('whale-open-insights'));
       }else{
         el(overviewData,'span','当前 API 可用余额','whale-dashboard-label');
         el(overviewData,'strong',balance?.unlimited?'不限额':money(balance?.totalBalance),'whale-balance-number');
@@ -86,6 +101,7 @@
       if(!panels[next])return;page=next;
       for(const [key,panel] of Object.entries(panels)){panel.hidden=key!==page;tabs[key].setAttribute('aria-selected',String(key===page));tabs[key].tabIndex=key===page?0:-1;}
       const api=account.mode==='api';usageArea.hidden=!api;tokenUsage.hidden=api;
+      settingsSections.api.parentElement.hidden=!api;
       window.WhaleLegacyUsage.stop();
       if(page==='usage'&&api&&menu.classList.contains('dshwv-menu-open'))window.WhaleLegacyUsage.start();
       scroll.scrollTop=0;render();window.WhaleRendering?.presentFor(100);

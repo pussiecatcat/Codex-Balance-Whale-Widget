@@ -1,12 +1,12 @@
 # v0.3(fixed) 开发摘要
 
-本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停。显示名称为 **v0.3(fixed)**，插件构建标识仍为 `0.3.0+codex.20260929173027`。先完成本地交付准备后，用户已明确授权本次上传 `For-Codex` 分支、新 tag 和 Release；授权不代表用户测试清单已全部通过。
+本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停。显示名称为 **v0.3(fixed)**，当前插件构建标识为 `0.3.0+codex.20261003-menu-streamline`。源码、测试、发布包和远程 Release 分开验证。
 
 ## 基础功能与来源
 
-从 fixed 基线继续维护，保留 B 版“概览 / 用量 / 设置”、角色与声音、气泡、资源管理、预警、预算、图表、高级接口、本地 JSON 工坊，以及跟随 Codex / 独立桌面模式。API 展示金额，订阅展示 token 与分开的 5 小时、每周额度窗口；切换展示模式不修改 Codex 登录或密钥。详细功能见 [B 版对照](DASHBOARD-B.md)。
+从 fixed 基线继续维护角色与声音、气泡、资源管理、预警、预算、图表、高级接口、JSON 素材包导入导出，以及跟随 Codex / 独立桌面模式。曾实现的 B 版“概览 / 用量 / 设置”大面板已经撤下，当前恢复为原版紧凑菜单；相关功能仍通过原入口和合并后的「音效与提示」面板提供。API 展示金额，订阅气泡展示分开的 5 小时、每周额度窗口和本轮 token；切换展示模式不修改 Codex 登录或密钥。界面取舍见 [紧凑菜单对照](DASHBOARD-B.md)。
 
-保留 [macOS PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128) 的平台实现、来源链接及贡献者 [1llysviel](https://github.com/1llysviel) 署名。Codex 适配维护者为 [Yang-huai406](https://github.com/Yang-huai406)，仓库所有者仍为 [MeteorNOX](https://github.com/MeteorNOX)。Windows 原生窗口区域逻辑继续独立，不向 macOS 调用不支持的接口。
+保留 [macOS PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128) 的平台实现、来源链接及贡献者 [1llysviel](https://github.com/1llysviel) 署名。原始上游由 [MeteorNOX](https://github.com/MeteorNOX) 维护，Codex 适配历史维护者为 [Yang-huai406](https://github.com/Yang-huai406)；个人适配仓库不改变双方贡献归属。Windows 原生窗口区域逻辑继续独立，不向 macOS 调用不支持的接口。
 
 ## 显示、层级与诊断
 
@@ -36,6 +36,6 @@
 
 ## 验证与交付
 
-本构建已有 238 项单元测试、真实 Windows 原生区域与穿透专项验证，以及适配 B 版的 Electron 界面审计。证据范围、旧 smoke 的已知布局不适配和待验证项目见 [验证记录](VERIFICATION-0.3.md)。Mac 实机、真实订阅账号及长期显示稳定性仍需验收。
+本构建已有 256 项单元测试、真实 Windows 原生区域与穿透专项验证、适配紧凑菜单的 Electron 界面审计，以及包含宿主遮挡、原生焦点和 72 步跟随移动/缩放的完整桌面烟测。当前 Plus 账号的 5 小时/周额度直读也已验证。证据范围和待验证项目见 [验证记录](VERIFICATION-0.3.md)。Mac 实机、跨重置点额度变化及长期显示稳定性仍需验收。
 
-发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。本次 `For-Codex` 发布使用新标签 `codex-v0.3.0-fixed.2`、Release 名称 `Codex-v0.3(fixed)`，保留旧标签和主线 `v0.3.17` 的 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。
+发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。独立个人仓库使用标签 `codex-v0.3.0-fixed.2` 和 Release 名称 `Codex 额度小鲸鱼 v0.3(fixed)`，不会改写上游仓库的分支、标签或 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。

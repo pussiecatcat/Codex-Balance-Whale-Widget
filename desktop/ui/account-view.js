@@ -16,8 +16,8 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = { validMode, windowText, tokenText, noticeText, quotaLabel };
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   const key = 'dshw-account-view';
-  let mode = 'api', card = null, content = null, root = null, generation = 0, switching = false, latestNotice = null;
-  let modeButtons = [], status = null, modeRevision = 0;
+  let mode = 'subscription', card = null, content = null, root = null, generation = 0, switching = false, latestNotice = null;
+  let modeButtons = [], modeSelect = null, status = null, modeRevision = 0;
   try { const saved = localStorage.getItem(key); if (validMode(saved)) mode = saved; } catch {}
   function text(parent, tag, value) { const el = document.createElement(tag); el.textContent = value; parent.append(el); return el; }
   function date(value) { if (!value) return '未知'; const d = new Date(typeof value === 'number' && value < 1e12 ? value * 1000 : value); return Number.isFinite(d.getTime()) ? d.toLocaleString() : '未知'; }
@@ -32,7 +32,9 @@
     if(card.style.left!==left)card.style.left=left;
     if(card.style.top!==top)card.style.top=top;
   }
-  function updateButtons() { for (const button of modeButtons) { button.disabled = switching; button.setAttribute('aria-pressed', String(button.dataset.mode === mode)); } for(const el of document.querySelectorAll('[data-account-api]'))el.hidden=mode==='subscription';
+  function updateButtons() { for (const button of modeButtons) { button.disabled = switching; button.setAttribute('aria-pressed', String(button.dataset.mode === mode)); }
+    if (modeSelect) { modeSelect.disabled = switching; modeSelect.value = mode; }
+    for(const el of document.querySelectorAll('[data-account-api]'))el.hidden=mode==='subscription';
     document.documentElement.dataset.accountMode = mode;
     for (const el of document.querySelectorAll('.whale-mode-description')) el.textContent = mode === 'subscription' ? '查看 5 小时 / 周额度与本机 token 用量' : '查看当前 API 余额与消费记录';
     for (const el of document.querySelectorAll('.whale-mode-open')) el.textContent = mode === 'subscription' ? '查看订阅额度 →' : '配置 API 余额 →';
@@ -100,29 +102,17 @@
     if (card) refresh();
   }
   function init() {
-    const style = document.createElement('style'); style.textContent = `.whale-account-card{position:fixed;z-index:2147483646;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;box-sizing:border-box;padding:14px;border:1px solid #9fcbd5;border-radius:16px;background:#f6fdff;color:#173d48;box-shadow:0 8px 26px #163f4433;font:13px/1.5 system-ui;pointer-events:auto}.whale-account-card p{margin:8px 0}.whale-account-card small{display:block;color:#496873}.whale-account-card progress{width:100%;accent-color:#258b9c}.whale-account-header{display:flex;justify-content:space-between;align-items:center}.whale-account-card button,.whale-account-menu button{cursor:pointer;border:1px solid #9fcbd5;border-radius:8px;padding:5px 9px;background:#fff;color:#173d48}.whale-account-menu{font:12px/1.5 system-ui;padding:5px}.whale-account-menu summary{cursor:pointer}.whale-account-menu button[aria-pressed=true]{background:#237f91;color:white}.whale-account-menu small{display:block;max-width:230px;margin-top:5px}`; document.head.append(style);
+    const style = document.createElement('style'); style.textContent = `.whale-account-card{position:fixed;z-index:2147483646;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;box-sizing:border-box;padding:14px;border:1px solid #9fcbd5;border-radius:12px;background:#f6fdff;color:#173d48;box-shadow:0 8px 26px #163f4433;font:13px/1.5 system-ui;pointer-events:auto}.whale-account-card p{margin:8px 0}.whale-account-card small{display:block;color:#496873}.whale-account-card progress{width:100%;accent-color:#258b9c}.whale-account-header{display:flex;justify-content:space-between;align-items:center}.whale-account-switch{border-top:1px solid rgba(32,49,112,.2);padding-top:6px;margin-top:6px!important}.whale-account-switch>span{color:#203170;font-size:12px;flex:0 0 auto}.whale-account-switch select{flex:1;min-width:0;margin:0;padding:3px 4px}`; document.head.append(style);
     const menu = document.querySelector('.dshwv-menu');
     if (menu) {
-      const details = text(menu, 'section', ''); details.className = 'whale-account-menu'; text(details, 'strong', '小鲸鱼 · 控制面板'); menu.prepend(details);
-      const row = text(details, 'div', ''); row.setAttribute('role', 'group'); row.setAttribute('aria-label', '额度展示模式');
-      for (const [value, label] of [['api', 'API 余额'], ['subscription', 'Codex 订阅']]) { const button = text(row, 'button', label); button.dataset.mode = value; button.onclick = () => setMode(value); modeButtons.push(button); }
-      text(details, 'p', '').className = 'whale-mode-description';
-      const open = text(details, 'button', ''); open.className = 'whale-mode-open'; open.onclick = () => window.dispatchEvent(new Event(mode === 'subscription' ? 'whale-open-insights' : 'whale-open-settings'));
-      status = text(details, 'small', '切换展示模式，不修改登录账号。'); status.setAttribute('role', 'status'); updateButtons();
       const view = menu.querySelector('.dshwv-menuview');
       if (view) {
-        const rows = [...view.children];
-        const groups = ['外观与位置', '声音与气泡', '用量与资源'].map(label => {
-          const group = document.createElement('details'); group.className = 'whale-menu-group';
-          text(group, 'summary', label); view.append(group); return group;
-        });
-        groups[0].open = true;
-        for (const child of rows) {
-          if (child.classList.contains('dshwv-menu-sep')) { child.remove(); continue; }
-          const label = child.textContent;
-          const index = /音效|音量|气泡|消耗提示|声音/.test(label) ? 1 : /币种|汇率|资源|工坊|API|额度|峰谷/.test(label) ? 2 : 0;
-          groups[index].append(child);
-        }
+        const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch';
+        text(row, 'span', '数据显示');
+        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '数据显示');
+        for (const [value, label] of [['subscription', 'Codex 额度'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }
+        modeSelect.addEventListener('change', () => setMode(modeSelect.value)); row.append(modeSelect);
+        status = document.createElement('span'); status.hidden = true; status.setAttribute('role', 'status'); row.append(status); updateButtons();
       }
     }
     const initialRevision = modeRevision;

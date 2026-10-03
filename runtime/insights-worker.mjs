@@ -9,12 +9,16 @@ export function quotaWindows(value, at, now) {
   const result = [];
   for (const key of ['primary','secondary']) {
     const w = value[key];
-    if (!w || !Number.isFinite(w.used_percent) || w.used_percent < 0 || w.used_percent > 100) continue;
-    const mins = w.window_minutes ?? w.window_duration_mins;
+    const used = w?.used_percent ?? w?.usedPercent;
+    if (!w || !Number.isFinite(used) || used < 0 || used > 100) continue;
+    const mins = w.window_minutes ?? w.window_duration_mins ?? w.windowDurationMins;
     if (mins !== 300 && mins !== 10080) continue;
-    const reset = Number.isFinite(w.resets_at) ? w.resets_at * 1000 : null;
+    const raw = w.resets_at ?? w.resetsAt;
+    const absolute = typeof raw === 'number' ? raw < 1e12 ? raw * 1000 : raw : typeof raw === 'string' ? Date.parse(raw) : NaN;
+    const relative = w.resets_in_seconds ?? w.resetsInSeconds;
+    const reset = Number.isFinite(absolute) ? absolute : Number.isFinite(relative) && relative >= 0 ? at + relative * 1000 : null;
     result.push({ label:mins === 300 ? '5 小时' : '周', windowDurationMins:mins,
-      usedPercent:w.used_percent, remainingPercent:100-w.used_percent, resetsAt:reset,
+      usedPercent:used, remainingPercent:100-used, resetsAt:reset,
       stale:now-at > 15*60000 || reset === null || reset <= now, observedAt:at });
   }
   return result;
@@ -49,7 +53,7 @@ export class InsightAccumulator {
   }
 }
 
-export function collectInsights({codexHome,now=Date.now(),maxFiles=256,maxBytes=128*1024*1024}) {
+export function collectInsights({codexHome,now=Date.now(),maxFiles=400,maxBytes=96*1024*1024}) {
   const files=[]; let visited=0, complete=true, scannedBytes=0;
   const walk=(dir,depth=0)=>{
     if(depth>5 || visited>12000){complete=false;return;}
@@ -57,7 +61,7 @@ export function collectInsights({codexHome,now=Date.now(),maxFiles=256,maxBytes=
     for(const e of entries){visited++;if(visited>12000){complete=false;break;}const f=path.join(dir,e.name);
       if(e.isSymbolicLink())continue;
       if(e.isDirectory())walk(f,depth+1);
-      else if(e.isFile() && /^rollout-.*\.jsonl$/.test(e.name)) {const s=fs.statSync(f);if(s.mtimeMs>=now-8*86400000)files.push({f,mtime:s.mtimeMs});}
+      else if(e.isFile() && /^rollout-.*\.jsonl$/.test(e.name)) {const s=fs.statSync(f);if(s.size>32*1024*1024){complete=false;continue;}if(s.mtimeMs>=now-8*86400000)files.push({f,mtime:s.mtimeMs});}
     }
   };
   walk(path.join(codexHome,'sessions'));walk(path.join(codexHome,'archived_sessions'));

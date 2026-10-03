@@ -40,8 +40,7 @@ export function writeJson(file, data, { fs: fileSystem = fs } = {}) {
 }
 
 export function dayKey(ts = Date.now()) {
-  const d = new Date(ts);
-  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  return new Date(Number(ts) + 8 * 3600000).toISOString().slice(0, 10);
 }
 
 export const rounded = n => Math.round((Number(n) + Number.EPSILON) * 1e8) / 1e8;

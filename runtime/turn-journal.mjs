@@ -24,6 +24,7 @@ export function safeSample(value) {
 export function safeTurn(meta) {
   return { id: text(meta.id), sessionId: text(meta.sessionId), turnId: text(meta.turnId),
     rootTurnId: text(meta.rootTurnId || meta.turnId), parentThreadId: text(meta.parentThreadId),
+    sessionLabel: text(meta.sessionLabel).slice(0, 120),
     isSubagent: meta.isSubagent === true, partial: meta.partial === true, historical: meta.historical === true,
     startedAt: finite(meta.startedAt), ts: finite(meta.ts), byModel: safeUsage(meta.byModel),
     outcome: ['completed', 'failed', 'aborted', 'superseded', 'interrupted'].includes(meta.outcome) ? meta.outcome : null,

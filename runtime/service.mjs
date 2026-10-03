@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { ConfigStore } from './config.mjs';
 import { BalanceProvider } from './providers.mjs';
 import { UsageLedger, usageDefaults } from './ledger.mjs';
-import { readJson, writeJson, rounded } from './paths.mjs';
+import { readJson, writeJson, rounded, dayKey } from './paths.mjs';
 import { TurnJournal, safeSample, safeTurn, safeUsage } from './turn-journal.mjs';
 
 export class WhaleService {
@@ -111,6 +111,30 @@ export class WhaleService {
     const c = this.config.resolve();
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return { ...this.ledger.records(scope), currency: scope.slice(-3), settings: this.readUsageSettings() };
+  }
+  reconcileUsage(input) {
+    const c = this.config.resolve();
+    const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
+    return this.ledger.reconcile(scope, input);
+  }
+  apiModelUsage(matches, now = Date.now(), since = null) {
+    const c = this.config.resolve();
+    const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
+    const byModel = {};
+    const events = this.ledger.load(scope).events || [];
+    const aggregateRoots = new Set(events.filter(event => !event.isSubagent && !event.ownByModel).map(event => event.rootTurnId).filter(Boolean));
+    for (const event of events) {
+      if (since === null ? event.day !== dayKey(now) : event.ts < since) continue;
+      // Parent rows contain aggregate usage; use their own part alongside child rows.
+      const counts = event.ownByModel || event.byModel;
+      if (event.isSubagent && aggregateRoots.has(event.rootTurnId)) continue;
+      for (const [name, usage] of Object.entries(counts || {})) {
+        if (!matches.some(match => name.toLowerCase().includes(match.toLowerCase()))) continue;
+        const target = byModel[name] ||= { input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 };
+        for (const key of Object.keys(target)) target[key] += Number(usage[key]) || 0;
+      }
+    }
+    return { todayTokens: Object.values(byModel).reduce((n, row) => n + row.input_tokens + row.output_tokens, 0), byModel, date: dayKey(now), source: 'local-session-tokens' };
   }
   readUsageSettings() {
     const saved = readJson(this.usageSettingsFile, {});
@@ -223,6 +247,7 @@ export class WhaleService {
     let outcome = meta.outcome || 'completed';
     const ownUsage = safeUsage(meta.byModel || turn.byModel);
     const base = { id: meta.id, sessionId: meta.sessionId || turn.sessionId, turnId: meta.turnId,
+      sessionLabel: String(meta.sessionLabel || turn.sessionLabel || '').slice(0, 120),
       rootTurnId: meta.rootTurnId || turn.rootTurnId || meta.turnId, ts: meta.ts || Date.now(), outcome,
       partial: !!turn.partial, historical: !!meta.historical, accountId: context.accountId,
       failureKind: outcome === 'failed' && meta.failureKind === 'high-demand' ? 'high-demand' : null };

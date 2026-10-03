@@ -73,24 +73,32 @@ export async function verifyRendering({ window, ev, wait, clickAt, hitPoint, mov
       assert.equal(await ev('window.__randomCalls'), calls);
       checks.push('random bubble retains its nodes and sentence through balance, usage and error callbacks');
       dispatcher.whale.provider.fail = false;
-      // Send the actual mouse down/up, including the refresh dispatched by endDrag.
+      // Send the actual mouse down/up. Petting the character must keep the
+      // current bubble; only a click on the bubble may advance the sequence.
       const whalePoint = await hitPoint();
+      const petText = await text(), petEpoch = await ev(`${api}.status().epoch`);
+      await holdNodes();
       const frames = await watch(() => clickAt(whalePoint));
-      await stable();
+      await wait(`!${api}.status().busy`, 'petting background refresh');
       for (const frame of frames) {
         assert.ok(frame.layers.reduce((sum, layer) => sum + layer.opacity, 0) >= 0.98, 'no empty content buffer frame');
-        for (const layer of frame.layers) if (layer.opacity > 0.001) assert.doesNotMatch(layer.text, /随机 B/, 'no reroll during return');
+        for (const layer of frame.layers) if (layer.opacity > 0.001) assert.equal(layer.text, petText, 'petting keeps the current bubble content');
       }
-      assert.ok(frames.some(frame => frame.switching), 'trace includes the actual transition');
-      assert.ok(frames.some(frame => frame.layers.some(layer => layer.opacity > 0.9 && /8\.77/.test(layer.text))), 'trace includes the new complete frame');
-      assert.doesNotMatch(await text(), /随机/); assert.match(await text(), /8\.77/);
+      assert.ok(frames.every(frame => !frame.switching), 'petting never starts a bubble transition');
+      assert.equal(await text(), petText); assert.equal(await nodesUnchanged(), true);
+      assert.equal(await ev(`${api}.status().epoch`), petEpoch);
       assert.equal(await ev('window.__randomCalls'), calls);
-      details.returnFrames = frames;
-      checks.push('actual whale release returns directly to first bubble without a random flash or empty frame');
-      await ev('window.__randomValue = 0.99'); await clickBubble();
+      details.petFrames = frames;
+      checks.push('actual whale presses keep the current bubble and nodes while retaining press/release interaction');
+      await clickBubble();
+      await wait(`!${api}.status().shown`, 'last bubble pops only when the bubble is clicked');
+      await ev('window.__randomValue = 0.99');
+      await clickAt(await hitPoint()); await stable();
+      assert.doesNotMatch(await text(), /随机/); assert.match(await text(), /8\.77/);
+      await clickBubble();
       assert.match(await text(), /随机 B/); assert.equal(await ev('window.__randomCalls'), calls + 1);
       await ev('Math.random = window.__savedRandom; true');
-      checks.push('random selection occurs once on re-entry and still respects weights');
+      checks.push('bubble clicks alone advance and pop the queue; reopening starts from the first bubble and rerolls once on re-entry');
 
       // Delay image readiness while keeping the existing complete buffer on screen.
       const beforeImage = await text();
@@ -126,7 +134,7 @@ export async function verifyRendering({ window, ev, wait, clickAt, hitPoint, mov
       checks.push('animated bubble images decode and render through the back buffer');
       await ev(`${api}.scene([{type:'text',text:'被打断的内容'}],0); ${api}.showCost(0.2468)`);
       await wait(`${api}.status().scene === 'cost' && !${api}.status().switching`, 'priority cost scene');
-      assert.match(await text(), /上一轮期间 API 扣费:/);
+      assert.match(await text(), /本轮 API 消耗/);
       assert.doesNotMatch(await text(), /被打断的内容/);
       await clickBubble();
       assert.equal(await ev(`${api}.status().shown`), false);

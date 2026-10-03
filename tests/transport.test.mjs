@@ -60,11 +60,11 @@ test('local IPC authenticates requests and restricts operations without a TCP po
   const content = await ui.text(); assert.equal(content.includes('whale-shell'), false);
 });
 
-test('legacy scheduling modules are removed without changing money or custom content', () => {
+test('legacy scheduling caches are removed while live peak modules and custom content survive', () => {
   const old = { pricingSchedule: { enabled: true }, peakMode: 'default', amount: 0.00123456, items: [{ modules: [{ type: 'text', text: 'preserve me' }, { type: 'peak' }, { type: 'today' }, { type: 'nextpeak' }, { type: 'image', imgId: 'custom' }] }] };
   const result = stripRetiredModules(old);
   assert.equal(result.amount, old.amount);
-  assert.deepEqual(result.items[0].modules, [{ type: 'text', text: 'preserve me' }, { type: 'today' }, { type: 'image', imgId: 'custom' }]);
+  assert.deepEqual(result.items[0].modules, old.items[0].modules);
   assert.equal('pricingSchedule' in result, false); assert.equal('peakMode' in result, false);
 });
 
@@ -107,6 +107,19 @@ test('original widget settings and bubble sequences survive save and reload', as
   const bubble = { v: 1, items: [{ kind: 'custom', modules: [{ type: 'text', text: '测试气泡' }, { type: 'balance', tpl: '{balance_api}' }] }], lib: [] };
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', bubble)).json()).ok, true);
   assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config, bubble);
+  const quotaItems = [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300, tpl: '{quota_left}' }] }];
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, subscriptionItems: quotaItems })).json()).ok, true);
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, editingMode: 'subscription',
+    items: [{ kind: 'custom', modules: [{ type: 'text', text: '不应覆盖 API' }] }], subscriptionItems: quotaItems })).json()).ok, true);
+  assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config.items, bubble.items);
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', bubble)).json()).ok, true);
+  assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config.subscriptionItems, quotaItems);
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, tapAdvance: true })).json()).config.tapAdvance, true);
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, editingMode: 'subscription', subscriptionItems: quotaItems,
+    subscriptionTapAdvance: false })).json()).config.subscriptionTapAdvance, false);
+  const clickConfig = (await (await request('/dsh-whale/bubble.json')).json()).config;
+  assert.equal(clickConfig.tapAdvance, true);
+  assert.equal(clickConfig.subscriptionTapAdvance, false);
   const usage = await (await request('/dsh-whale/usage-settings.json', 'PUT', { alert: { on: true, below: 2 }, budget: { on: true, amount: 3 } })).json();
   assert.equal(usage.settings.alert.below, 2); assert.equal(usage.settings.budget.amount, 3);
 });

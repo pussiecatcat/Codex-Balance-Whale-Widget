@@ -23,8 +23,10 @@ export class SessionParser {
     // Only the first header identifies this file; session_id may be inherited.
     if (this.identity || !meta || !(meta.id || meta.session_id)) return;
     this.id = String(meta.id || meta.session_id);
+    const cwd = typeof meta.cwd === 'string' ? meta.cwd : '';
     this.identity = { sessionId: this.id, parentThreadId: meta.parent_thread_id || meta.source?.subagent?.thread_spawn?.parent_thread_id || null,
       isSubagent: meta.thread_source === 'subagent' || !!meta.source?.subagent,
+      sessionLabel: cwd ? path.basename(path.resolve(cwd)).slice(0, 120) : '',
       createdAt: timestamp(meta.timestamp), forked: !!meta.forked_from_id };
     this.skipHistory = Number.isSafeInteger(meta.subagent_history_start_ordinal) ? Math.max(0, meta.subagent_history_start_ordinal) : 0;
   }
@@ -72,6 +74,7 @@ export class SessionParser {
       if (this.active) this.end(timestamp(d.timestamp) || Date.now(), 'superseded');
       this.active = { id: this.id + ':' + turnId, sessionId: this.id, turnId, rootTurnId: p.root_turn_id || turnId,
         isSubagent: this.identity?.isSubagent || false, parentThreadId: this.identity?.parentThreadId || null,
+        sessionLabel: this.identity?.sessionLabel || '',
         byModel: {}, startedAt: startedAt || timestamp(d.timestamp) || Date.now(), ts: timestamp(d.timestamp) || Date.now(), partial: false };
       this.active.recoverable = this.recoverIds.has(this.active.id);
       if (this.active.recoverable) this.recoverySeen.add(this.active.id);
@@ -257,4 +260,3 @@ export class SessionMonitor {
   status() { return { ...this.snapshot, activeTurns: [...this.service.turns.values()].filter(x => !x.isSubagent).length,
     recovery: { pending: this.service.journal?.entries.size || 0, error: this.service.journal?.error || this.service.recoveryError || '' }, worker: true }; }
 }
-

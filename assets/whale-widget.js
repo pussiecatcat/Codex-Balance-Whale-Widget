@@ -444,10 +444,12 @@
       try {
         if (!usageSet || !usageSet.taskEnd || !usageSet.taskEnd.on || soundOn === false) return;
         var sel = usageSet.taskEnd.sel || taskEndSel.value || '';
+        var taskVolume = usageSet.taskEnd.volSet === true && isFinite(Number(usageSet.taskEnd.vol))
+          ? Math.max(0, Math.min(1, Number(usageSet.taskEnd.vol))) : soundVol;
         var url = '';
         if (sel.indexOf('grp:') === 0) {
-          if (window.WhaleFeedback) { window.WhaleFeedback.play('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(sel.slice(4)), soundOn ? soundVol : 0); return; }
-          playTaskEndGroupClick(sel.slice(4));
+          if (window.WhaleFeedback) { window.WhaleFeedback.play('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(sel.slice(4)), taskVolume); return; }
+          playTaskEndGroupClick(sel.slice(4), taskVolume);
           return;
         }
         if (sel.indexOf('frag:') === 0) url = '/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(sel.slice(5)); else if (sel.indexOf('preset:') === 0) {
@@ -455,15 +457,15 @@
           url = '/dsh-whale/sound/' + (parts[2] === 'release' ? 'release' : 'press') + '.mp3?set=' + parts[1];
         }
         if (!url) return;
-        if (window.WhaleFeedback) { window.WhaleFeedbackSources = window.WhaleFeedbackSources || {}; window.WhaleFeedbackSources.success = url; window.WhaleFeedback.play('success', url, soundOn ? soundVol : 0); return; }
+        if (window.WhaleFeedback) { window.WhaleFeedbackSources = window.WhaleFeedbackSources || {}; window.WhaleFeedbackSources.success = url; window.WhaleFeedback.play('success', url, taskVolume); return; }
         var a = new Audio(url);
         try {
-          a.volume = (Number.isFinite(Number(soundVol)) ? Number(soundVol) : 0.9);
+          a.volume = taskVolume;
         } catch (err) {}
         a.play().catch(function () {});
       } catch (err) {}
     }
-    function playTaskEndGroupClick(groupId) {
+    function playTaskEndGroupClick(groupId, volume) {
       try {
         if (!groupId) return;
         var g = null;
@@ -474,7 +476,7 @@
         var pressEmpty = !!(g && g.press === '');
         var releaseEmpty = !!(g && g.release === '');
         if (pressEmpty && releaseEmpty) return;
-        var vol = (Number.isFinite(Number(soundVol)) ? Number(soundVol) : 0.9);
+        var vol = Number.isFinite(Number(volume)) ? Number(volume) : soundVol;
         if (pressEmpty) {
           if (!releaseEmpty) {
             var relOnly = new Audio('/dsh-whale/sound/release.mp3?set=' + encodeURIComponent(groupId));
@@ -618,6 +620,20 @@
     row7.appendChild(menuLabel('自动关闭'));
     row7.appendChild(turnCostCloseInput);
     row7.appendChild(menuLabel('秒'));
+    var turnCostEditBtn = document.createElement('button');
+    turnCostEditBtn.type = 'button';
+    turnCostEditBtn.className = 'dshwv-roleimport';
+    turnCostEditBtn.textContent = '自定义';
+    turnCostEditBtn.title = '编辑每轮结束后显示的泡泡内容和样式';
+    turnCostEditBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      usageAlertBudgetEditor('turnCost', function (o) {
+        usageSet = usageSet || ({}); usageSet.turnCost = { lines: o.lines };
+        setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
+        saveUsageSettings({ turnCost: usageSet.turnCost });
+      });
+    });
+    row7.appendChild(turnCostEditBtn);
     var row9 = menuRow();
     row9.appendChild(menuLabel('避让滚动条'));
     row9.appendChild(scrollGapToggle);
@@ -877,10 +893,11 @@
     });
     menuBox.appendChild(apiSettingsBtn);
     var resetPositionBtn = document.createElement('button');
-    resetPositionBtn.type = 'button'; resetPositionBtn.className = 'dshwv-sound';
-    resetPositionBtn.textContent = '位置重置到右下角';
+    resetPositionBtn.type = 'button'; resetPositionBtn.className = 'dshwv-roleimport';
+    resetPositionBtn.textContent = '复位';
+    resetPositionBtn.title = '位置重置到右下角';
     resetPositionBtn.addEventListener('click', function () { window.dispatchEvent(new Event('whale-reset-position')); });
-    menuBox.appendChild(resetPositionBtn);
+    rowSnap.appendChild(resetPositionBtn);
     var menuRootView = document.createElement('div');
     menuRootView.className = 'dshwv-menuview';
     while (menuBox.firstChild) menuRootView.appendChild(menuBox.firstChild);
@@ -1153,17 +1170,18 @@
       usageMainEl.className = 'dshwv-usagebody';
       usagePanel.appendChild(usageMainEl);
     }
-    function usageAlertBudgetEditor(key, onSave) {
+    function usageAlertBudgetEditor(key, onSave, customConfig) {
       try {
+        var isCost = key === 'turnCost';
         var isAlert = key === 'alert';
-        var cfg = (usageSet || ({}))[isAlert ? 'alert' : 'budget'] || ({});
+        var cfg = customConfig || (usageSet || ({}))[isCost ? 'turnCost' : isAlert ? 'alert' : 'budget'] || ({});
         var numDef = isAlert ? 50 : 20;
         var numInit = isAlert ? cfg.below != null ? cfg.below : numDef : cfg.amount != null ? cfg.amount : numDef;
-        var nativeCurrency = state.currency || 'USD';
+        var nativeCurrency = cfg.currency || state.currency || 'USD';
         var nativeDraft = Number(numInit);
         var step = {
           kind: 'custom',
-          modules: JSON.parse(JSON.stringify(usageRemindLinesOf(cfg, isAlert)))
+          modules: JSON.parse(JSON.stringify(isCost ? usageTurnCostLines() : usageRemindLinesOf(cfg, isAlert)))
         };
         var bkEditItems = bubbleEditItems;
         var bkEditorSnap = bubbleEditorSnap;
@@ -1190,16 +1208,16 @@
         card.style.overflow = 'hidden auto';
         var title = document.createElement('div');
         title.className = 'dshwv-bubtitle';
-        title.textContent = '编辑 ' + (isAlert ? '余额预警' : '今日预算') + '提醒内容(可拖动下方模块入框)';
+        title.textContent = '编辑 ' + (isCost ? '每轮消耗' : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
         card.appendChild(title);
         var secCond = document.createElement('div');
         secCond.className = 'dshwv-bubsec dshwv-bubsec-first';
-        secCond.textContent = isAlert ? '触发条件(余额低于该值时提醒)' : '触发条件(今日已观测达到该值时提醒)';
+        secCond.textContent = isCost ? '显示条件与关闭时间' : isAlert ? '触发条件(余额低于该值时提醒)' : '触发条件(今日已观测达到该值时提醒)';
         card.appendChild(secCond);
         var chk = document.createElement('input');
         chk.type = 'checkbox';
         chk.className = 'dshwv-check';
-        chk.checked = !!cfg.on;
+        chk.checked = isCost ? turnCostOn : !!cfg.on;
         var numInp = document.createElement('input');
         numInp.type = 'number';
         numInp.min = '0';
@@ -1227,15 +1245,17 @@
         }
         var gOn = segCond();
         gOn.appendChild(chk);
-        gOn.appendChild(qLabel('启用提醒'));
+        gOn.appendChild(qLabel(isCost ? '启用每轮提示' : '启用提醒'));
         condBox.appendChild(gOn);
         var gNum = segCond();
-        gNum.appendChild(qLabel(isAlert ? '余额 ≤ ' : '今日已观测 ≥ '));
-        gNum.appendChild(numInp);
-        var currencyUnit = qLabel('');
-        WhaleMoney.bind(currencyUnit, function () { return ' ' + WhaleMoney.unit() + '时提醒'; });
-        gNum.appendChild(currencyUnit);
-        condBox.appendChild(gNum);
+        if (!isCost) {
+          gNum.appendChild(qLabel(isAlert ? '余额 ≤ ' : '今日已观测 ≥ '));
+          gNum.appendChild(numInp);
+          var currencyUnit = qLabel('');
+          WhaleMoney.bind(currencyUnit, function () { return ' ' + WhaleMoney.unit() + '时提醒'; });
+          gNum.appendChild(currencyUnit);
+          condBox.appendChild(gNum);
+        }
         var condBrk = document.createElement('span');
         condBrk.style.flex = '1 0 100%';
         condBrk.style.height = '0';
@@ -1244,9 +1264,10 @@
         var acChk = document.createElement('input');
         acChk.type = 'checkbox';
         acChk.className = 'dshwv-check';
-        acChk.checked = cfg.autoClose !== false;
+        acChk.checked = isCost ? turnCostCloseMs > 0 : cfg.autoClose !== false;
         var defSec = Number(cfg.ttlSec);
-        if (!isFinite(defSec) || defSec <= 0) defSec = 6;
+        if (isCost) defSec = Math.max(0, Math.round(turnCostCloseMs / 1000));
+        else if (!isFinite(defSec) || defSec <= 0) defSec = 6;
         var secInp = document.createElement('input');
         secInp.type = 'number';
         secInp.min = '0';
@@ -1266,6 +1287,7 @@
         gSec.appendChild(lSec);
         condBox.appendChild(gSec);
         card.appendChild(condBox);
+        if (customConfig && customConfig.layoutOnly) { condBox.style.display = 'none'; secCond.style.display = 'none'; }
         var secPal = document.createElement('div');
         secPal.className = 'dshwv-bubsec dshwv-bubsec-first';
         secPal.textContent = '可选模块(点击或拖入下方内容框)';
@@ -1275,7 +1297,7 @@
         card.appendChild(bubblePalEl);
         var secPv = document.createElement('div');
         secPv.className = 'dshwv-bubsec';
-        secPv.textContent = '提醒内容(同一行模块并排 ≤6;拖模块到行边缘=并排、上/下=拆行、拖 ⠿ 整行排序;{below} / {amount} 触发时替换)';
+        secPv.textContent = isCost ? '提示内容(支持 {turn_title} {turn_primary} {turn_detail} {cost} 和 token 占位符)' : '提醒内容(同一行模块并排 ≤6;拖模块到行边缘=并排、上/下=拆行、拖 ⠿ 整行排序;{below} / {amount} 触发时替换)';
         card.appendChild(secPv);
         bubblePvEl = document.createElement('div');
         bubblePvEl.className = 'dshwv-bubpvbox';
@@ -1357,7 +1379,7 @@
         resBtn.textContent = '恢复默认';
         resBtn.title = '恢复为默认提醒内容(触发条件保持不变)';
         resBtn.addEventListener('click', function () {
-          step.modules = JSON.parse(JSON.stringify(usageRemindDefaultLines(isAlert)));
+          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines() : usageRemindDefaultLines(isAlert)));
           renderBubblePv();
         });
         btns.appendChild(resBtn);
@@ -1366,17 +1388,17 @@
         okBtn.className = 'dshwv-bubbtn dshwv-bubbtn-ok';
         okBtn.textContent = '保存';
         okBtn.addEventListener('click', function () {
-          if (!numInp.reportValidity()) return;
+          if (!isCost && !numInp.reportValidity()) return;
           try {
             bubbleRowsCanon(step.modules);
           } catch (err) {}
           var o = {
             on: chk.checked,
             lines: JSON.parse(JSON.stringify(step.modules)),
-            autoClose: acChk.checked,
-            ttlSec: Math.max(0, Number(secInp.value) || 0)
+            autoClose: isCost ? Number(secInp.value) > 0 : acChk.checked,
+            ttlSec: isCost && !acChk.checked ? 0 : Math.max(0, Number(secInp.value) || 0)
           };
-          if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft;
+          if (!isCost) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
           cleanup();
           if (onSave) onSave(o);
         });
@@ -1408,8 +1430,10 @@
           try {
             var it = bubbleEditTarget();
             var below = isAlert ? nativeDraft : null;
-            var amount = isAlert ? null : nativeDraft;
-            if (it && Array.isArray(it.modules) && bubblePvPrevEl) bubblePreviewInto(bubblePvPrevEl, usageAlertModsResolved(it.modules, below, amount));
+            var amount = isAlert || isCost ? null : nativeDraft;
+            var previewNotice = WhaleTurnNotice.snapshot({ ok: true, amount: 0.08, costState: 'estimated', tokens: 12840, byModel: { preview: { input_tokens: 10240, output_tokens: 2600, cached_input_tokens: 6000, reasoning_output_tokens: 800 } } }, state.currency);
+            if (customConfig && customConfig.previewNotice) previewNotice = customConfig.previewNotice;
+            if (it && Array.isArray(it.modules) && bubblePvPrevEl) bubblePreviewInto(bubblePvPrevEl, usageAlertModsResolved(it.modules, below, amount, isCost || customConfig ? previewNotice : null));
           } catch (err) {}
         };
         function editNativeAmount() {
@@ -1420,7 +1444,7 @@
             numInp.setCustomValidity(''); renderBubblePv();
           } catch (err) { numInp.setCustomValidity(err.message); }
         }
-        numInp.addEventListener('input', editNativeAmount);
+        if (!isCost) numInp.addEventListener('input', editNativeAmount);
         chk.addEventListener('change', renderBubblePv);
         mask.appendChild(card);
         mask.addEventListener('click', function (e) {
@@ -1514,6 +1538,40 @@
           budget: usageSet.budget
         });
       });
+      var reconcileRow = menuRow();
+      var reconcileLabel = menuLabel('余额对账'); reconcileLabel.style.flex = '1'; reconcileRow.appendChild(reconcileLabel);
+      var reconcileBtn = document.createElement('button'); reconcileBtn.type = 'button'; reconcileBtn.className = 'dshwv-roleimport';
+      reconcileBtn.textContent = '校正'; reconcileBtn.title = '用期初、充值、其他支出和期末余额校正今日已用';
+      reconcileBtn.addEventListener('click', usageReconcileEditor); reconcileRow.appendChild(reconcileBtn); usagePanel.appendChild(reconcileRow);
+    }
+    function usageReconcileEditor() {
+      fetch('/api/reconcile', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (data) {
+        if (!data || data.ok === false) throw new Error(data && data.error || '账本读取失败');
+        var mask = document.createElement('div'); mask.className = 'dshwv-bubmask'; mask.style.zIndex = '28000';
+        var card = document.createElement('div'); card.className = 'dshwv-bubcard'; mask.appendChild(card);
+        var title = document.createElement('div'); title.className = 'dshwv-bubtitle'; title.textContent = '校正今日 API 消耗'; card.appendChild(title);
+        var tip = document.createElement('p'); tip.className = 'dshwv-usage-hint'; tip.textContent = '期初 + 充值 − 其他支出 − 期末 = 今日消耗。保存时会检查账本版本，避免覆盖另一处修改。'; card.appendChild(tip);
+        var fields = {}, current = typeof state.balance === 'number' ? state.balance : 0, today = Number(data.today && data.today.total) || 0;
+        [['opening','期初余额',current + today],['credits','今日充值',0],['otherDebits','其他支出',0],['last','期末余额',current]].forEach(function (spec) {
+          var row = document.createElement('label'); row.className = 'whale-sound-row'; row.textContent = spec[1];
+          var input = document.createElement('input'); input.type = 'number'; input.min = '0'; input.step = '0.00000001'; input.className = 'dshwv-number'; input.value = String(Math.max(0, spec[2]));
+          row.appendChild(input); card.appendChild(row); fields[spec[0]] = input;
+        });
+        var status = document.createElement('p'); status.className = 'whale-sound-error'; status.hidden = true; card.appendChild(status);
+        var actions = document.createElement('div'); actions.className = 'dshwv-bubbtns'; card.appendChild(actions);
+        function button(label, cls, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'dshwv-bubbtn ' + cls; b.textContent = label; b.addEventListener('click', fn); actions.appendChild(b); return b; }
+        button('取消', 'dshwv-bubbtn-no', function () { mask.remove(); });
+        var save = button('保存校正', 'dshwv-bubbtn-ok', function () {
+          var payload = { revision: Number(data.revision || 0), date: usageTodayKeyStr() };
+          for (var key in fields) { payload[key] = Number(fields[key].value); if (!isFinite(payload[key]) || payload[key] < 0) { fields[key].focus(); return; } }
+          save.disabled = true; status.hidden = true;
+          fetch('/api/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (result) {
+            if (!result.ok || result.body.ok === false) throw new Error(result.body.error || '余额校正失败');
+            mask.remove(); refreshUsageMain(); refresh(true);
+          }).catch(function (error) { status.textContent = error.message || '余额校正失败'; status.hidden = false; save.disabled = false; });
+        });
+        mask.addEventListener('click', function (event) { if (event.target === mask) mask.remove(); }); document.body.appendChild(mask);
+      }).catch(function (error) { assetFailure(error); });
     }
     function refreshUsageMain() {
       if (!usageMainEl) return;
@@ -2027,6 +2085,17 @@
         bold: true
       }];
     }
+    function usageTurnCostDefaultLines() {
+      return [
+        { type: 'text', text: '{turn_title}', size: 6, bold: true },
+        { type: 'text', text: '{turn_primary}', size: 16, bold: true, color: '#4059b3' },
+        { type: 'text', text: '{turn_detail}', size: 2, color: '#63719a' }
+      ];
+    }
+    function usageTurnCostLines() {
+      var cfg = usageSet && usageSet.turnCost || ({});
+      return Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageTurnCostDefaultLines();
+    }
     function usageRemindTtlMs(cfg) {
       cfg = cfg || ({});
       if (cfg.autoClose === false) return 0;
@@ -2039,8 +2108,24 @@
       if (Array.isArray(cfg.lines) && cfg.lines.length) return cfg.lines;
       return usageRemindDefaultLines(isAlert);
     }
-    function usageFillText(txt, below, amount, currency) {
-      return String(txt || '').replace(/\{currency\}/g, whaleCurrencySymbol()).replace(/\{below\}/g, below != null ? WhaleMoney.formatNumber(below, currency) : '').replace(/\{amount\}/g, amount != null ? WhaleMoney.formatNumber(amount, currency) : '');
+    function usageTurnValues(notice) {
+      notice = notice || lastTurnNotice || ({});
+      var subscription = typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription';
+      var title = subscription ? (notice.failureKind === 'high-demand' ? '本轮未完成' : notice.completionKind === 'cancelled' ? '本轮已取消' : notice.completionKind === 'failed' ? '本轮失败' : '本轮已完成') : (notice.label === '上一轮期间 API 扣费:' ? '本轮 API 消耗' : notice.label || '本轮已观测消耗');
+      var cost = notice.amount == null ? (notice.costState === 'pending' ? '待记账' : '金额未知') : fmt(notice.amount, notice.currency || state.currency);
+      var primary = subscription ? (notice.tokens == null ? '用量待更新' : bubbleTokenValue(notice.tokens) + ' tokens') : cost;
+      var detail = subscription ? (notice.inputTokens != null || notice.outputTokens != null ? '输入 ' + bubbleTokenValue(notice.inputTokens) + ' · 输出 ' + bubbleTokenValue(notice.outputTokens) + (notice.cachedInputTokens ? ' · 缓存 ' + bubbleTokenValue(notice.cachedInputTokens) : '') : '已计入本机统计') :
+        (notice.tokens == null ? '' : bubbleTokenValue(notice.tokens) + ' tokens · ') + (notice.costState === 'estimated' ? '配置价格估算' : notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' : '同密钥区间观测');
+      return { turn_title: title, turn_primary: primary, turn_detail: detail, cost: cost,
+        turn_tokens: bubbleTokenValue(notice.tokens), turn_input: bubbleTokenValue(notice.inputTokens), turn_output: bubbleTokenValue(notice.outputTokens),
+        turn_cached: bubbleTokenValue(notice.cachedInputTokens), turn_reasoning: bubbleTokenValue(notice.reasoningOutputTokens), session_name: notice.sessionLabel || '当前会话',
+        api_name: notice.apiName || 'API 模型', api_balance: notice.apiBalance || '12.00', api_cost: notice.apiCost || '0.08', api_quota_left: notice.apiQuotaLeft || '75%' };
+    }
+    function usageFillText(txt, below, amount, currency, notice) {
+      var text = String(txt || '').replace(/\{currency\}/g, whaleCurrencySymbol()).replace(/\{below\}/g, below != null ? WhaleMoney.formatNumber(below, currency) : '').replace(/\{amount\}/g, amount != null ? WhaleMoney.formatNumber(amount, currency) : '');
+      var map = usageTurnValues(notice), keys = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
+      for (var i = 0; i < keys.length; i++) text = text.split('{' + keys[i] + '}').join(String(map[keys[i]]));
+      return text;
     }
     function usageLineFontPx(level) {
       var n = Math.max(1, Math.min(50, Math.round(Number(level) || 7)));
@@ -2111,15 +2196,15 @@
         }
       } catch (err) {}
     }
-    function usageAlertModsResolved(mods, below, amount) {
+    function usageAlertModsResolved(mods, below, amount, notice) {
       var out = [];
       try {
         for (var i = 0; i < mods.length; i++) {
           var m0 = mods[i] || ({});
           var cp = JSON.parse(JSON.stringify(m0));
           var raw = String(m0.text != null ? m0.text : '');
-          whaleMoneyTemplates.set(cp, { template: raw, below: below, amount: amount, currency: state.currency || 'USD' });
-          cp.text = raw.length ? usageFillText(raw, below, amount, state.currency || 'USD') : raw;
+          whaleMoneyTemplates.set(cp, { template: raw, below: below, amount: amount, currency: state.currency || 'USD', notice: notice || null });
+          cp.text = raw.length ? usageFillText(raw, below, amount, state.currency || 'USD', notice) : raw;
           out.push(cp);
         }
       } catch (err) {}
@@ -3259,6 +3344,23 @@
         tpl: "今日已观测 {expense_api}"
       }];
     }
+    function bubbleDefaultSubscriptionQueue() {
+      return [{ kind: 'custom', modules: [
+        { type: 'text', text: 'CODEX · PLUS', size: 5, bold: true, color: '#64729a' },
+        { type: 'quota', windowDurationMins: 300, size: 4, bold: true, color: '#67759d', tpl: '5 小时', row: 1 },
+        { type: 'quota', windowDurationMins: 300, size: 11, bold: true, color: '#4059b3', bg: '#eef2ff', tpl: '{quota_left_round}', row: 1 },
+        { type: 'quota', windowDurationMins: 300, size: 3, color: '#8791aa', tpl: '距离重置 {quota_reset_short}' },
+        { type: 'quota', windowDurationMins: 10080, size: 4, bold: true, color: '#67759d', tpl: '每周', row: 2 },
+        { type: 'quota', windowDurationMins: 10080, size: 11, bold: true, color: '#357c75', bg: '#eaf6f3', tpl: '{quota_left_round}', row: 2 },
+        { type: 'quota', windowDurationMins: 10080, size: 3, color: '#8791aa', tpl: '距离重置 {quota_reset_short}' }
+      ] }];
+    }
+    function bubbleLegacySubscriptionDefault(items) {
+      try {
+        if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
+        return items[0].modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; });
+      } catch (err) { return false; }
+    }
     function bubbleDefaultRandomLines() {
       return [{
         t: "好模型...↓",
@@ -3887,6 +3989,7 @@
       }
     }
     function bubbleDefaultQueue() {
+      if (window.WhaleAccountView?.mode === 'subscription') return bubbleDefaultSubscriptionQueue();
       return bubbleParseDefaultItems();
       return [{
         kind: 'custom',
@@ -4103,21 +4206,33 @@
     }
     function bubbleModuleSummary(m) {
       m = m || ({});
+      if (m.type === 'quota') return m.windowDurationMins === 10080 ? '每周额度' : '5 小时额度';
+      if (m.type === 'turn') return '上轮 token 用量';
+      if (m.type === 'plan') return 'Codex 套餐';
+      if (m.type === 'session') return '当前会话';
+      if (m.type === 'peak' || m.type === 'nextpeak') return 'DeepSeek 峰谷时段';
       if (m.type === 'balance') return '余额数值';
       if (m.type === 'today') return '今日已观测';
       if (m.type === 'image') return '图片/动图';
+      if (m.type === 'randimg') return '随机图片' + (m.imgs && m.imgs.length ? '(' + m.imgs.length + '张)' : '(空)');
       if (m.type === 'random') return '随机语句' + (m.lines && m.lines.length ? '(' + m.lines.length + '条)' : '(空)');
       if (m.type === 'link') return '超链接: ' + (String(m.text || '').slice(0, 14) || '打开链接');
       return '文本: ' + String(m.text || '').slice(0, 14);
     }
     function bubbleModuleListLabel(m) {
       m = m || ({});
+      if (m.type === 'quota') return m.windowDurationMins === 10080 ? '每周额度' : '5 小时额度';
+      if (m.type === 'turn') return '上轮 token 用量';
+      if (m.type === 'plan') return 'Codex 套餐';
+      if (m.type === 'session') return '当前会话';
+      if (m.type === 'peak' || m.type === 'nextpeak') return 'DeepSeek 峰谷时段';
       if (m.type === 'text') return '文本: ' + (String(m.text || '').slice(0, 24) || '(空)');
       if (m.type === 'link') return '超链接: ' + (String(m.text || '').slice(0, 24) || '打开链接');
       if (m.type === 'random') return m.name || '随机语句';
       if (m.type === 'balance') return '余额数值';
       if (m.type === 'today') return '今日已观测';
       if (m.type === 'image') return '图片/动图';
+      if (m.type === 'randimg') return '随机图片' + (m.imgs && m.imgs.length ? '(' + m.imgs.length + '张)' : '(空)');
       return '模块';
     }
     function bubbleEditEnsureModules(item) {
@@ -4526,12 +4641,20 @@
     }
     function openBubbleEditor() {
       try {
+        if (!bubbleCfgLoaded) {
+          loadBubbleCfg().then(function (ok) {
+            if (ok) openBubbleEditor(); else assetFailure(new Error('自定义泡泡配置读取失败'));
+          });
+          return;
+        }
         closeRolePanel();
         closeAudioGroupPanel();
         bubbleLib = bubbleCfg && bubbleCfg.lib && Array.isArray(bubbleCfg.lib) ? JSON.parse(JSON.stringify(bubbleCfg.lib)) : [];
         var list = [];
-        if (bubbleCfg && Array.isArray(bubbleCfg.items) && bubbleCfg.items.length) {
-          list = bubbleCfg.items.slice();
+        var savedItems = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
+        if (window.WhaleAccountView?.mode === 'subscription' && bubbleLegacySubscriptionDefault(savedItems)) savedItems = bubbleDefaultSubscriptionQueue();
+        if (Array.isArray(savedItems) && savedItems.length) {
+          list = savedItems.slice();
         } else {
           list = bubbleDefaultQueue();
         }
@@ -4579,7 +4702,7 @@
       bubbleEditorSnap = null;
     }
     function bubbleEditorReset() {
-      showConfirm('恢复为默认序列(首次=余额内容,再次=随机语句)?', function () {
+      showConfirm(window.WhaleAccountView?.mode === 'subscription' ? '恢复为默认 Codex 额度气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', function () {
         bubbleEditItems = bubbleDefaultQueue();
         renderBubbleEditor();
       });
@@ -4589,9 +4712,14 @@
         var doSave = function () {
           var items = [];
           for (var i = 0; i < bubbleEditItems.length; i++) items.push(bubbleStepToSaved(bubbleEditItems[i]));
+          var subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
           saveBubbleCfg({
             v: 1,
-            items: items,
+            editingMode: subscriptionMode ? 'subscription' : 'api',
+            items: subscriptionMode ? bubbleCfg && bubbleCfg.items || bubbleParseDefaultItems() : items,
+            subscriptionItems: subscriptionMode ? items : bubbleCfg && bubbleCfg.subscriptionItems || [],
+            tapAdvance: bubbleCfg?.tapAdvance === true,
+            subscriptionTapAdvance: bubbleCfg?.subscriptionTapAdvance !== false,
             lib: bubbleLib
           }, function (ok) {
             if (ok !== false) closeBubbleEditor();
@@ -5096,8 +5224,8 @@
         inp.type = 'text';
         inp.className = 'dshwv-qedit-content';
         inp.value = m.tpl || '';
-        inp.placeholder = m.type === 'balance' ? '例: {balance_api}' : m.type === 'today' ? '例: 今日已观测 {expense_api}' : '例: 当前 {status}';
-        inp.title = '可用占位符(英文): ' + (m.type === 'balance' ? '{balance_api}' : '{expense_api}');
+        inp.placeholder = m.type === 'balance' ? '例: {balance_api}' : m.type === 'today' ? '例: 今日已观测 {expense_api}' : m.type === 'quota' ? '例: 剩余 {quota_left_round} · {quota_reset_short}' : m.type === 'turn' ? '例: 上轮使用 {turn_tokens} tokens' : m.type === 'session' ? '例: 当前会话 {session_name}' : m.type === 'plan' ? '例: {plan_name}' : m.type === 'peak' || m.type === 'nextpeak' ? '例: {peak_phase} · {peak_countdown}' : '自定义内容';
+        inp.title = '可用占位符(英文): ' + (m.type === 'balance' ? '{balance_api}' : m.type === 'today' ? '{expense_api}' : m.type === 'turn' ? '{turn_tokens} {turn_input} {turn_output} {turn_cached} {turn_reasoning}' : m.type === 'session' ? '{session_name}' : m.type === 'plan' ? '{plan_name} {plan_type}' : m.type === 'peak' || m.type === 'nextpeak' ? '{peak_phase} {peak_countdown} {peak_switch_at} {peak_note}' : '{quota_left} {quota_left_round} {quota_used} {quota_reset} {quota_reset_short} {quota_reset_at} {quota_bar}');
         inp.addEventListener('input', function () {
           m.tpl = inp.value;
           changed();
@@ -5115,6 +5243,66 @@
         });
         r.appendChild(qb2);
         box.appendChild(r);
+      }
+      if (m.type === 'balance' || m.type === 'today' || m.type === 'quota') {
+        var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));
+        var apiModelSelect = document.createElement('select'); apiModelSelect.className = 'dshwv-sound';
+        apiModelRow.appendChild(apiModelSelect); box.appendChild(apiModelRow);
+        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) { m.apiModelId = value || ''; changed(); qeditClose(); openQuickModuleEditor(m); });
+      }
+      if (m.type === 'quota') {
+        var windowRow = qRow();
+        windowRow.appendChild(qLabel('额度窗口'));
+        var windowSelect = document.createElement('select');
+        windowSelect.className = 'dshwv-sound';
+        (m.apiModelId ? [['primary','当前周期'],['rolling','滚动窗口'],['weekly','每周'],['monthly','每月']] : [['300', '5 小时'], ['10080', '每周']]).forEach(function (entry) {
+          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; windowSelect.appendChild(option);
+        });
+        windowSelect.value = m.apiModelId ? m.quotaKey || 'primary' : String(m.windowDurationMins === 10080 ? 10080 : 300);
+        windowSelect.addEventListener('change', function () { if(m.apiModelId)m.quotaKey=windowSelect.value;else m.windowDurationMins = Number(windowSelect.value); changed(); });
+        windowRow.appendChild(windowSelect); box.appendChild(windowRow);
+        var presetRow = qRow(); presetRow.appendChild(qLabel('内容样式'));
+        var preset = document.createElement('select'); preset.className = 'dshwv-sound';
+        [['', '自定义'], ['{quota_left_round}', '仅剩余百分比'], ['{quota_label} 剩余 {quota_left_round}', '窗口 + 剩余'], ['距离重置 {quota_reset_short}', '重置倒计时'], ['{quota_bar} {quota_left_round}', '进度条 + 剩余'], ['{quota_label} · {quota_left_round} · {quota_reset_short}', '完整信息']].forEach(function (entry) {
+          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; preset.appendChild(option);
+        });
+        preset.value = Array.from(preset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
+        preset.addEventListener('change', function () { if (preset.value) m.tpl = preset.value; changed(); qeditClose(); openQuickModuleEditor(m); });
+        presetRow.appendChild(preset); box.appendChild(presetRow);
+      } else if (m.type === 'turn') {
+        var turnPresetRow = qRow(); turnPresetRow.appendChild(qLabel('内容样式'));
+        var turnPreset = document.createElement('select'); turnPreset.className = 'dshwv-sound';
+        [['', '自定义'], ['上轮使用 {turn_tokens} tokens', '总 token'], ['输入 {turn_input} · 输出 {turn_output}', '输入/输出'], ['缓存 {turn_cached} · 推理 {turn_reasoning}', '缓存/推理'], ['上轮 {turn_tokens} tokens · 输入 {turn_input} / 输出 {turn_output}', '完整信息']].forEach(function (entry) {
+          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; turnPreset.appendChild(option);
+        });
+        turnPreset.value = Array.from(turnPreset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
+        turnPreset.addEventListener('change', function () { if (turnPreset.value) m.tpl = turnPreset.value; changed(); qeditClose(); openQuickModuleEditor(m); });
+        turnPresetRow.appendChild(turnPreset); box.appendChild(turnPresetRow);
+      } else if (m.type === 'peak' || m.type === 'nextpeak') {
+        var peakPresetRow = qRow(); peakPresetRow.appendChild(qLabel('显示样式'));
+        var peakPreset = document.createElement('select'); peakPreset.className = 'dshwv-sound';
+        [['default','默认'],['liangwen','梁文峰谷'],['qiangqiang','!?强强?!'],['count','倒计时'],['mini','简洁(峰/谷)']].forEach(function(entry){
+          var option=document.createElement('option');option.value=entry[0];option.textContent=entry[1];peakPreset.appendChild(option);
+        });
+        peakPreset.value=m.type==='nextpeak'?'count':m.peakStyle||'default';
+        peakPreset.addEventListener('change',function(){m.peakStyle=peakPreset.value;m.tpl=peakPreset.value==='count'?'{peak_countdown}':'{peak_phase}';changed();qeditClose();openQuickModuleEditor(m);});
+        peakPresetRow.appendChild(peakPreset);box.appendChild(peakPresetRow);
+        [['peak','高峰','#e0433f','#fbe7e6'],['off','空闲','#2fa24c','#e4f3e7']].forEach(function(entry){
+          var prefix=entry[0],group=document.createElement('div');group.className='dshwv-peakrow';
+          var colorKey=prefix+'Color',rgbKey=prefix+'Rgb',bgKey=prefix+'Bg',bgRgbKey=prefix+'BgRgb';
+          var color=qColorSelectBuild(m[rgbKey]||'solid',function(value){
+            m[rgbKey]=value==='solid'?'':value;m[colorKey]=value==='solid'?m[colorKey]||entry[2]:'';
+            color.sync(value,m[colorKey],function(hex){m[colorKey]=hex;changed();});changed();
+          },{label:entry[1]+'色',defaultHex:entry[2]});
+          group.appendChild(color.row);
+          var bg=qColorSelectBuild(m[bgRgbKey]||(m[bgKey]?'solid':'none'),function(value){
+            m[bgRgbKey]=value==='none'||value==='solid'?'':value;m[bgKey]=value==='solid'?m[bgKey]||entry[3]:'';
+            bg.sync(value,m[bgKey]||entry[3],function(hex){m[bgKey]=hex;changed();});changed();
+          },{label:'底色',defaultHex:entry[3],allowNone:true});
+          group.appendChild(bg.row);box.appendChild(group);
+          color.sync(m[rgbKey]||'solid',m[colorKey]||entry[2],function(hex){m[colorKey]=hex;changed();});
+          bg.sync(m[bgRgbKey]||(m[bgKey]?'solid':'none'),m[bgKey]||entry[3],function(hex){m[bgKey]=hex;changed();});
+        });
       }
       tplRow();
       {
@@ -5343,6 +5531,30 @@
           });
         }
       }, {
+        key: 'quota5',
+        label: '5 小时额度',
+        pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('quota5')); }
+      }, {
+        key: 'quotaWeek',
+        label: '每周额度',
+        pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('quotaWeek')); }
+      }, {
+        key: 'turn',
+        label: '上轮 token',
+        pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('turn')); }
+      }, {
+        key: 'plan', label: 'Codex 套餐', pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('plan')); }
+      }, {
+        key: 'session', label: '当前会话', pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('session')); }
+      }, {
+        key: 'peak', label: '峰谷时段', pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('peak')); }
+      }, {
         key: 'random',
         label: '随机语句',
         cb: function () {
@@ -5360,13 +5572,19 @@
         cb: function () {
           bubblePickImageToAdd();
         }
+      }, {
+        key: 'randimg',
+        label: '随机图片',
+        cb: function () {
+          bubbleModuleNew({ type: 'randimg', imgs: [], imgScale: 1 });
+        }
       }];
       for (var i = 0; i < defs.length; i++) {
         (function (d) {
           var chip = document.createElement('div');
           chip.className = 'dshwv-palchip';
           chip.textContent = d.label;
-          chip.title = d.pin ? '内置数值模块(内容锁定)' : '点击加入泡泡';
+          chip.title = d.pin ? '自动数据模块（模板和样式均可自定义）' : '点击加入泡泡';
           chip.draggable = true;
           chip.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -5420,7 +5638,7 @@
       var newChip = document.createElement('div');
       newChip.className = 'dshwv-paladd';
       newChip.textContent = '+ 新建模块';
-      newChip.title = '新建模块(先选类型:文本/随机语句/图片动图)';
+      newChip.title = '新建模块(先选类型:文本/随机语句/图片动图/随机图片)';
       newChip.draggable = true;
       newChip.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -5447,11 +5665,12 @@
       return null;
     }
     var bubbleDragKey = null;
+    function bubbleIsImgMod(m) { return !!m && (m.type === 'image' || m.type === 'randimg'); }
     function bubbleItemHasImage() {
       try {
         var it = bubbleEditTarget();
         if (!it || !it.modules) return false;
-        for (var i = 0; i < it.modules.length; i++) if (it.modules[i] && it.modules[i].type === 'image') return true;
+        for (var i = 0; i < it.modules.length; i++) if (bubbleIsImgMod(it.modules[i])) return true;
       } catch (err) {}
       return false;
     }
@@ -5463,7 +5682,7 @@
         var it = bubbleEditTarget();
         if (!it) return;
         if (!it.modules) it.modules = [];
-        if (m && m.type === 'image' && bubbleItemHasImage()) {
+        if (bubbleIsImgMod(m) && bubbleItemHasImage()) {
           bubbleWarnOneImage();
           return;
         }
@@ -5515,7 +5734,7 @@
           openQuickTextEditor(m);
           return;
         }
-        if (m && (m.type === 'balance' || m.type === 'today')) {
+        if (m && (m.type === 'balance' || m.type === 'today' || m.type === 'quota' || m.type === 'turn')) {
           openQuickModuleEditor(m);
           return;
         }
@@ -5552,7 +5771,7 @@
         var m = rows[riFrom][miFrom];
         if (!m || typeof m !== 'object') return;
         var tRow = rows[riTarget];
-        var imageInvolved = m.type === 'image' || tRow[0] && tRow[0].type === 'image';
+        var imageInvolved = bubbleIsImgMod(m) || bubbleIsImgMod(tRow[0]);
         if (imageInvolved && (zone === 'pairL' || zone === 'pairR')) zone = 'before';
         rows[riFrom].splice(miFrom, 1);
         if (!rows[riFrom].length) rows.splice(riFrom, 1);
@@ -5563,7 +5782,7 @@
         }
         if (tIdx >= 0 && (zone === 'pairL' || zone === 'pairR')) {
           var tgt = rows[tIdx];
-          if (m.type !== 'image' && !(tgt[0] && tgt[0].type === 'image')) {
+          if (!bubbleIsImgMod(m) && !bubbleIsImgMod(tgt[0])) {
             if (tgt.length >= BUBBLE_PV_MOD_MAX) {
               bubblePvWarn('同一行最多 ' + BUBBLE_PV_MOD_MAX + ' 个模块,无法再并入');
               return;
@@ -5622,11 +5841,11 @@
         var rows = bubblePvRowModel();
         if (!rows[ri]) return;
         var tgt = rows[ri];
-        if (tgt[0] && tgt[0].type === 'image') {
+        if (bubbleIsImgMod(tgt[0])) {
           bubblePvWarn('该行是图片(独占一行):请拖到下方空白区另起一行');
           return;
         }
-        if (key === 'image') {
+        if (key === 'image' || key === 'randimg') {
           bubblePvWarn('图片模块必须独占一整行:请拖到下方空白区新增');
           return;
         }
@@ -5658,6 +5877,20 @@
         size: 1,
         tpl: '今日已观测 {expense_api}'
       };
+      if (key === 'quota5' || key === 'quotaWeek') return {
+        type: 'quota',
+        windowDurationMins: key === 'quotaWeek' ? 10080 : 300,
+        size: 5,
+        tpl: key === 'quotaWeek' ? '每周剩余 {quota_left_round} · {quota_reset_short}' : '5 小时剩余 {quota_left_round} · {quota_reset_short}'
+      };
+      if (key === 'turn') return {
+        type: 'turn',
+        size: 5,
+        tpl: '上轮使用 {turn_tokens} tokens'
+      };
+      if (key === 'plan') return { type: 'plan', size: 5, bold: true, tpl: '{plan_name}' };
+      if (key === 'session') return { type: 'session', size: 4, tpl: '当前会话 · {session_name}' };
+      if (key === 'peak') return { type: 'peak', size: 5, bold: true, tpl: '{peak_phase} · {peak_countdown}' };
       if (key === 'link') return {
         type: 'link',
         text: '打开链接',
@@ -5665,6 +5898,7 @@
         size: 6,
         color: '#2f4488'
       };
+      if (key === 'randimg') return { type: 'randimg', imgs: [], imgScale: 1 };
       if (key === 'random') return bubbleCloneModule(bubbleDefaultSecondModules()[0]);
       if (typeof key === 'string' && key.indexOf('lib:') === 0) {
         var lb = bubbleLibById(key.slice(4));
@@ -5683,7 +5917,7 @@
       var rows = bubbleRowsOf(it.modules || []);
       for (var r = 0; r < rows.length; r++) {
         (function (ri, rowMods) {
-          var isImgRow = !!(rowMods[0] && rowMods[0].type === 'image');
+          var isImgRow = bubbleIsImgMod(rowMods[0]);
           var bar = document.createElement('div');
           bar.className = 'dshwv-pvrow dshwv-pvrowline';
           bar.title = isImgRow ? '图片独占一行:拖 ⠿ 可整行排序' : '同一行模块并排(≤6):拖 ⠿ 整行排序;拖模块块到某行左/右边缘=并入该行,上/下=另起一行';
@@ -5709,7 +5943,7 @@
           for (var mi = 0; mi < rowMods.length; mi++) {
             (function (m, mIdx) {
               var blk = document.createElement('div');
-              blk.className = 'dshwv-pvmod' + (m.type === 'image' ? ' dshwv-pvimg' : '');
+              blk.className = 'dshwv-pvmod' + (bubbleIsImgMod(m) ? ' dshwv-pvimg' : '');
               blk.draggable = true;
               blk.title = isImgRow ? '图片/动图(独占一行,可整行排序)' : '拖动到某行:左/右边缘=并入该行首/尾,上/下=另起一行';
               blk.addEventListener('dragstart', function (e) {
@@ -5896,7 +6130,7 @@
     bubbleCard.appendChild(bubbleTitle);
     var bubbleSecFirst = document.createElement('div');
     bubbleSecFirst.className = 'dshwv-bubsec dshwv-bubsec-first';
-    bubbleSecFirst.textContent = '首次点击弹出内容';
+    bubbleSecFirst.textContent = '首次点击桌宠弹出内容';
     bubbleCard.appendChild(bubbleSecFirst);
     var bubbleFirstRow = document.createElement('div');
     bubbleFirstRow.className = 'dshwv-bubrow';
@@ -5911,7 +6145,7 @@
     bubbleCard.appendChild(bubbleFirstRow);
     var bubbleSecMore = document.createElement('div');
     bubbleSecMore.className = 'dshwv-bubsec';
-    bubbleSecMore.textContent = '再次点击弹出内容';
+    bubbleSecMore.textContent = '点击泡泡后的内容';
     bubbleCard.appendChild(bubbleSecMore);
     bubbleMoreListEl = document.createElement('div');
     bubbleMoreListEl.addEventListener('dragover', function (e) {
@@ -5934,6 +6168,11 @@
     bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
+    var bubbleInteractionHint = document.createElement('div');
+    bubbleInteractionHint.className = 'dshwv-bubsec';
+    bubbleInteractionHint.textContent = '点桌宠只互动；点泡泡切换，最后一泡再点收起';
+    bubbleInteractionHint.title = '第一次点桌宠打开泡泡。泡泡打开后可继续按压桌宠，当前内容不会切换或消失。';
+    bubbleCard.appendChild(bubbleInteractionHint);
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -6438,9 +6677,12 @@
       return row;
     }
     function moduleTypeName(t, m) {
+      if (t === 'quota') return m?.windowDurationMins === 10080 ? '每周额度' : '5 小时额度';
+      if (t === 'turn') return '上轮 token 用量';
       if (t === 'balance') return '余额数值';
       if (t === 'today') return '今日已观测';
       if (t === 'image') return '图片/动图';
+      if (t === 'randimg') return '随机图片';
       if (t === 'random') return '随机语句模块';
       return '文本模块';
     }
@@ -6473,6 +6715,8 @@
         function hintOf() {
           if (m.type === 'balance') return '例: {balance_api}';
           if (m.type === 'today') return '例: 今日已观测 {expense_api}';
+          if (m.type === 'quota') return '例: 剩余 {quota_left_round} · {quota_reset_short}';
+          if (m.type === 'turn') return '例: 上轮使用 {turn_tokens} tokens';
           return '例: 当前 {status}';
         }
         var hp = hintOf();
@@ -6502,7 +6746,7 @@
         tr.appendChild(tl);
         var tsel = document.createElement('select');
         tsel.className = 'dshwv-sound';
-        var topts = [['text', '文本'], ['random', '随机语句模块'], ['image', '图片/动图']];
+        var topts = [['text', '文本'], ['random', '随机语句模块'], ['image', '图片/动图'], ['randimg', '随机图片']];
         for (var ti2 = 0; ti2 < topts.length; ti2++) {
           var o2 = document.createElement('option');
           o2.value = topts[ti2][0];
@@ -6516,6 +6760,7 @@
           if (m.type === 'random' && m.bold === undefined) m.bold = true;
           if (m.type === 'text' && m.bold === undefined) m.bold = true;
           if (m.type === 'image' && !m.imgId) m.imgId = '';
+          if (m.type === 'randimg' && !Array.isArray(m.imgs)) m.imgs = [];
           renderModuleEditor();
         });
         tr.appendChild(tsel);
@@ -6775,6 +7020,38 @@
           renderLines();
         });
         moduleBodyEl.appendChild(addL);
+      } else if (m.type === 'randimg') {
+        if (!Array.isArray(m.imgs)) m.imgs = [];
+        var randomImageHint = document.createElement('div'); randomImageHint.className = 'dshwv-bubhint';
+        randomImageHint.textContent = '每次打开泡泡时按权重随机抽取一张图片。图片可先在资源管理中导入。'; moduleBodyEl.appendChild(randomImageHint);
+        var randomImageList = document.createElement('div'); randomImageList.className = 'dshwv-listbox';
+        randomImageList.style.maxHeight = '230px'; randomImageList.style.overflowY = 'auto'; moduleBodyEl.appendChild(randomImageList);
+        function renderRandomImages() {
+          randomImageList.innerHTML = '';
+          for (var ri = 0; ri < m.imgs.length; ri++) (function (index) {
+            var item = m.imgs[index] || (m.imgs[index] = { imgId: '', w: 1 });
+            var row = document.createElement('div'); row.className = 'dshwv-audiorow';
+            var weight = document.createElement('input'); weight.type = 'number'; weight.min = '1'; weight.max = '99';
+            weight.className = 'dshwv-linew'; weight.value = String(item.w || 1); weight.title = '抽取权重';
+            weight.addEventListener('input', function () { item.w = Math.max(1, Math.round(Number(weight.value) || 1)); }); row.appendChild(weight);
+            var select = document.createElement('select'); select.className = 'dshwv-sound'; select.style.minWidth = '0';
+            var empty = document.createElement('option'); empty.value = ''; empty.textContent = '— 选择图片 —'; select.appendChild(empty);
+            for (var bi = 0; bi < bubbleImgList.length; bi++) { var option = document.createElement('option'); option.value = bubbleImgList[bi].id; option.textContent = bubbleImgList[bi].name; select.appendChild(option); }
+            select.value = item.imgId || ''; select.addEventListener('change', function () { item.imgId = select.value; }); row.appendChild(select); dshwCustSel(select);
+            var del = document.createElement('button'); del.type = 'button'; del.className = 'dshwv-linedel'; del.textContent = '✕'; del.title = '移除这张图片';
+            del.addEventListener('click', function () { m.imgs.splice(index, 1); renderRandomImages(); }); row.appendChild(del);
+            randomImageList.appendChild(row);
+          })(ri);
+        }
+        var addRandomImage = document.createElement('button'); addRandomImage.type = 'button'; addRandomImage.className = 'dshwv-addline'; addRandomImage.textContent = '+ 添加图片';
+        addRandomImage.addEventListener('click', function () { m.imgs.push({ imgId: bubbleImgList[0] && bubbleImgList[0].id || '', w: 1 }); renderRandomImages(); }); moduleBodyEl.appendChild(addRandomImage);
+        var randomScaleRow = document.createElement('div'); randomScaleRow.className = 'dshwv-audiorow';
+        var randomScaleLabel = document.createElement('span'); randomScaleLabel.textContent = '显示大小'; randomScaleRow.appendChild(randomScaleLabel);
+        var randomScale = document.createElement('input'); randomScale.type = 'range'; randomScale.min = '10'; randomScale.max = '100'; randomScale.step = '5'; randomScale.className = 'dshwv-cropzoom';
+        randomScale.value = String(Math.round(Math.max(.1, Math.min(1, Number(m.imgScale) || 1)) * 100)); randomScaleRow.appendChild(randomScale);
+        var randomScaleValue = document.createElement('span'); randomScaleValue.className = 'dshwv-volpct'; randomScaleValue.textContent = randomScale.value + '%'; randomScaleRow.appendChild(randomScaleValue);
+        randomScale.addEventListener('input', function () { m.imgScale = Number(randomScale.value) / 100; randomScaleValue.textContent = randomScale.value + '%'; }); moduleBodyEl.appendChild(randomScaleRow);
+        if (!bubbleImgList.length) loadBubbleImgs(renderRandomImages); else renderRandomImages();
       } else if (m.type === 'image') {
         moduleImgSelect = document.createElement('select');
         moduleImgSelect.className = 'dshwv-sound';
@@ -6869,7 +7146,7 @@
           moduleTplRow();
         }
       }
-      if (m.type !== 'image' && m.type !== 'random') {
+      if (m.type !== 'image' && m.type !== 'randimg' && m.type !== 'random') {
         var sec = document.createElement('div');
         sec.className = 'dshwv-bubsec';
         sec.textContent = '样式';
@@ -7017,6 +7294,10 @@
           if (moduleSizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleSizeEl.value) || 6)));
           if (moduleEditRef.type === 'image' && !moduleEditRef.imgId) {
             showConfirm('请先选择或上传一张图片', function () {});
+            return;
+          }
+          if (moduleEditRef.type === 'randimg' && !(moduleEditRef.imgs || []).some(function (item) { return item && item.imgId; })) {
+            showConfirm('请至少选择一张随机图片', function () {});
             return;
           }
           if (moduleOnSave) moduleOnSave(moduleEditRef);
@@ -7966,7 +8247,10 @@
     var bubbleSeqIdx = 0;
     var bubbleRoundOn = false;
     var bubbleCfg = null;
+    var bubbleCfgLoaded = false;
+    var bubbleCfgLoad = null;
     var bubbleLib = [];
+    var lastTurnNotice = null;
     function bubbleCloneModule(m) {
       var copy = JSON.parse(JSON.stringify(m || ({})));
       if (m && whaleMoneyTemplates.has(m)) whaleMoneyTemplates.set(copy, whaleMoneyTemplates.get(m));
@@ -7994,10 +8278,12 @@
     }
     function applyBubbleCfgSeq() {
       try {
-        if (!bubbleCfg || !Array.isArray(bubbleCfg.items) || !bubbleCfg.items.length) return;
+        var configured = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
+        if (window.WhaleAccountView?.mode === 'subscription' && bubbleLegacySubscriptionDefault(configured)) configured = bubbleDefaultSubscriptionQueue();
+        if (!Array.isArray(configured) || !configured.length) { bubbleSeq = bubbleDefaultQueue(); return; }
         var seq = [];
-        for (var i = 0; i < bubbleCfg.items.length; i++) {
-          var it = bubbleCfg.items[i];
+        for (var i = 0; i < configured.length; i++) {
+          var it = configured[i];
           if (it && it.kind === 'choice' && Array.isArray(it.options)) {
             var opts = [];
             for (var ci = 0; ci < it.options.length && ci < 2; ci++) {
@@ -8038,19 +8324,18 @@
       } catch (err) {}
     }
     function loadBubbleCfg() {
-      try {
-        fetch(BUBBLE_URL, {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (d && d.ok && d.config) {
-            bubbleCfg = d.config;
-            bubbleLib = d.config.lib && Array.isArray(d.config.lib) ? JSON.parse(JSON.stringify(d.config.lib)) : [];
-            applyBubbleCfgSeq();
-          }
-        }).catch(function () {});
-      } catch (err) {}
+      if (bubbleCfgLoad) return bubbleCfgLoad;
+      bubbleCfgLoad = fetch(BUBBLE_URL, { cache: 'no-store' }).then(function (r) {
+        return r.json();
+      }).then(function (d) {
+        if (!d || !d.ok) return false;
+        bubbleCfg = d.config || null;
+        bubbleLib = bubbleCfg && Array.isArray(bubbleCfg.lib) ? JSON.parse(JSON.stringify(bubbleCfg.lib)) : [];
+        bubbleCfgLoaded = true;
+        applyBubbleCfgSeq();
+        return true;
+      }).catch(function () { return false; }).finally(function () { bubbleCfgLoad = null; });
+      return bubbleCfgLoad;
     }
     function saveBubbleCfg(cfg, okFn) {
       try {
@@ -8066,6 +8351,7 @@
           requireSaved(d);
           if (d && d.ok && d.config) {
             bubbleCfg = d.config;
+            bubbleCfgLoaded = true;
             applyBubbleCfgSeq();
             if (okFn) okFn();
           } else if (okFn) okFn(false);
@@ -8091,7 +8377,7 @@
       var cur = null;
       for (var i = 0; i < mods.length; i++) {
         var m = mods[i] || ({});
-        if (m.type === 'image') {
+        if (bubbleIsImgMod(m)) {
           out.push([m]);
           cur = null;
           continue;
@@ -8214,9 +8500,17 @@
     }
     function bubbleRenderCost(amount, notice) {
       notice = notice || WhaleTurnNotice.snapshot({ amount: amount }, state.currency);
+      var configured = usageTurnCostLines();
+      if (configured && configured.length) {
+        bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
+        return;
+      }
+      var subscriptionTurn = typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription';
       labelEl.style.display = '';
       labelEl.className = 'dshwv-label';
-      labelEl.textContent = notice.label;
+      labelEl.textContent = subscriptionTurn
+        ? (notice.failureKind === 'high-demand' ? '本轮未完成' : notice.completionKind === 'cancelled' ? '本轮已取消' : notice.completionKind === 'failed' ? '本轮失败' : '本轮已完成')
+        : notice.label;
       labelEl.style.color = '';
       labelEl.style.width = '100%';
       labelEl.style.maxWidth = '100%';
@@ -8227,16 +8521,25 @@
       labelEl.style.letterSpacing = '.02em';
       amountEl.style.display = '';
       amountEl.className = 'dshwv-amount';
-      if (notice.amount === null) amountEl.textContent = notice.costState === 'pending' ? '待记账' : '金额未知';
+      if (subscriptionTurn) {
+        try { WhaleMoney.clearBindings(amountEl); } catch (err) {}
+        amountEl.textContent = notice.tokens === null ? '用量待更新' : notice.tokens.toLocaleString('en-US') + ' tokens';
+      }
+      else if (notice.amount === null) amountEl.textContent = notice.costState === 'pending' ? '待记账' : '金额未知';
       else {
         WhaleMoney.bind(amountEl, function () { return fmt(notice.amount, notice.currency); });
       }
       amountEl.title = notice.note;
-      amountEl.style.color = '#e0433f';
+      amountEl.style.color = subscriptionTurn ? '#4059b3' : '#e0433f';
       hintEl.style.display = '';
-      hintEl.textContent = (notice.tokens === null ? '' : notice.tokens.toLocaleString('en-US') + ' tokens · ') +
-        (notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' :
-          notice.costState === 'estimated' ? '配置价格估算' : '同密钥区间观测');
+      hintEl.textContent = subscriptionTurn
+        ? (notice.inputTokens !== null || notice.outputTokens !== null
+          ? '输入 ' + bubbleTokenValue(notice.inputTokens) + ' · 输出 ' + bubbleTokenValue(notice.outputTokens) +
+            (notice.cachedInputTokens ? ' · 缓存 ' + bubbleTokenValue(notice.cachedInputTokens) : '')
+          : '已计入本机统计 · 官方额度窗口持续刷新')
+        : (notice.tokens === null ? '' : notice.tokens.toLocaleString('en-US') + ' tokens · ') +
+          (notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' :
+            notice.costState === 'estimated' ? '配置价格估算' : '同密钥区间观测');
       hintEl.title = notice.note;
       hintEl.style.color = '';
       hintEl.style.width = '100%';
@@ -8278,13 +8581,13 @@
         bubbleRandomLines = lines;
         sceneOpen('random', function () {
           bubbleRenderRandom(lines);
-        }, BUBBLE_MS);
+        }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else if (item.kind === 'custom') {
         sceneOpen('custom', function () {
           bubbleRenderModules(item.modules || []);
-        }, BUBBLE_MS);
+        }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else {
-        sceneOpen('normal', bubbleRenderDefault, BUBBLE_MS);
+        sceneOpen('normal', bubbleRenderDefault, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       }
     }
     function bubbleModuleFontU(level) {
@@ -8297,6 +8600,9 @@
     }
     function bubbleTodayText() {
       return '今日已观测 ' + (state.todayUsage !== null && state.todayUsage !== undefined ? fmt(state.todayUsage, state.currency) : '--');
+    }
+    function bubbleTokenValue(value) {
+      return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value).toLocaleString('en-US') : '暂无';
     }
     function bubbleContentTokenMap(m, snapshot) {
       m = m || ({});
@@ -8311,6 +8617,14 @@
         v = values.todayUsage !== null && values.todayUsage !== undefined ? fmt(values.todayUsage, values.currency) : '--';
         map['expense_ds'] = v;
         map['expense_api'] = v;
+      } else if (m.type === 'turn') {
+        map['turn_tokens'] = bubbleTokenValue(values && values.tokens);
+        map['turn_input'] = bubbleTokenValue(values && values.inputTokens);
+        map['turn_output'] = bubbleTokenValue(values && values.outputTokens);
+        map['turn_cached'] = bubbleTokenValue(values && values.cachedInputTokens);
+        map['turn_reasoning'] = bubbleTokenValue(values && values.reasoningOutputTokens);
+      } else if (m.type === 'session') {
+        map['session_name'] = values && values.sessionLabel ? String(values.sessionLabel) : '当前会话';
       }
       return map;
     }
@@ -8324,6 +8638,19 @@
         });
       }
       if (m.type === 'balance') add('balance_ds', '余额数值'); else if (m.type === 'today') add('expense_ds', '今日已观测金额');
+      else if (m.type === 'quota') {
+        add('quota_left', '剩余百分比（1 位小数）'); add('quota_left_round', '剩余百分比（整数）'); add('quota_used', '已用百分比');
+        add('quota_reset', '精确重置倒计时'); add('quota_reset_short', '简洁重置倒计时'); add('quota_reset_at', '重置时间');
+        add('quota_bar', '剩余额度条'); add('quota_label', '额度窗口名称');
+        add('quota_source', '额度数据来源');
+      } else if (m.type === 'turn') {
+        add('turn_tokens', '上轮总 token'); add('turn_input', '输入 token'); add('turn_output', '输出 token');
+        add('turn_cached', '缓存输入 token'); add('turn_reasoning', '推理输出 token');
+      } else if (m.type === 'session') add('session_name', '当前 Codex 项目或工作区名称');
+      else if (m.type === 'plan') { add('plan_name', 'Codex 套餐名称'); add('plan_type', '套餐原始标识'); }
+      else if (m.type === 'peak' || m.type === 'nextpeak') {
+        add('peak_phase', '当前峰谷状态'); add('peak_countdown', '距离下次切换'); add('peak_switch_at', '下次切换时间'); add('peak_note', '峰谷规则说明');
+      }
       return arr;
     }
     var dshwvTplHelpEl = null;
@@ -8409,6 +8736,22 @@
     
     function bubbleRowContentOf(mod) {
       mod = mod || ({});
+      if (mod.apiModelId && (mod.type === 'balance' || mod.type === 'today' || mod.type === 'quota' || mod.type === 'plan')) {
+        var apiModelText = function () { return window.WhaleApiModels?.text(mod) || 'API 模型加载中…'; };
+        return { txt: apiModelText(), line: null, apiModelText: apiModelText };
+      }
+      if (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak') {
+        var quotaText = function () { return window.WhaleQuota?.text(mod) || '额度加载中…'; };
+        return { txt: quotaText(), line: null, quotaText: quotaText };
+      }
+      if (mod.type === 'turn') {
+        var defaultTurnText = lastTurnNotice && lastTurnNotice.tokens != null ? '上轮使用 ' + bubbleTokenValue(lastTurnNotice.tokens) + ' tokens' : '暂无上轮用量';
+        return { txt: bubbleContentText(mod, defaultTurnText, lastTurnNotice || {}), line: null };
+      }
+      if (mod.type === 'session') {
+        var defaultSessionText = lastTurnNotice && lastTurnNotice.sessionLabel ? '当前会话 · ' + lastTurnNotice.sessionLabel : '当前会话';
+        return { txt: bubbleContentText(mod, defaultSessionText, lastTurnNotice || {}), line: null };
+      }
       if (mod.type === 'balance' || mod.type === 'today') {
         var captured = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD' };
         var moneyText = function () {
@@ -8420,7 +8763,7 @@
       }
       var reminder = whaleMoneyTemplates.get(mod);
       function reminderText(template) {
-        return function () { return usageFillText(template, reminder.below, reminder.amount, reminder.currency); };
+        return function () { return usageFillText(template, reminder.below, reminder.amount, reminder.currency, reminder.notice); };
       }
       if (mod.type === 'random' && Array.isArray(mod.lines)) {
         var pi = bubblePickLine(mod.lines, mod._lastPick);
@@ -8449,6 +8792,8 @@
       for (var i = 0; i < old.length; i++) {
         try {
           WhaleMoney.clearBindings(old[i]);
+          window.WhaleQuota?.clearBindings(old[i]);
+          window.WhaleApiModels?.clearBindings(old[i]);
           parentEl.removeChild(old[i]);
         } catch (err) {}
       }
@@ -8494,7 +8839,10 @@
         }
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
+        if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
+        if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
         row.style.fontSize = 'calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + ')';
+        if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
         if (fItalic) row.style.fontStyle = 'italic';
         if (fUl) row.style.textDecoration = 'underline';
@@ -8578,7 +8926,7 @@
       for (var g = 0; g < groups.length; g++) {
         var grp = groups[g];
         if (!grp || !grp.length) continue;
-        if (grp[0].type === 'image') {
+        if (bubbleIsImgMod(grp[0])) {
           var md = grp[0];
           if (imgDone || !md.imgId) continue;
           var im = document.createElement('img');
@@ -8659,11 +9007,19 @@
       bubbleRowsTo(bubbleTarget, snapshot.modules, snapshot.rows);
     }
     var bubblePreviousPicks = new WeakMap();
+    var bubblePreviousImagePicks = new WeakMap();
     function bubbleSnapshot(mods, remember) {
       var rows = new Map();
       var copies = (Array.isArray(mods) ? mods : []).map(function (original) {
         var copy = bubbleCloneModule(original);
         if (copy.type === 'random') copy._lastPick = remember && original && typeof original === 'object' ? bubblePreviousPicks.get(original) : undefined;
+        if (copy.type === 'randimg') {
+          var pool = (Array.isArray(copy.imgs) ? copy.imgs : []).filter(function (item) { return item && item.imgId; });
+          var lastImage = remember && original && typeof original === 'object' ? bubblePreviousImagePicks.get(original) : undefined;
+          var pickedImage = bubblePickLine(pool, lastImage);
+          copy.imgId = pickedImage != null && pool[pickedImage] ? pool[pickedImage].imgId : '';
+          if (remember && original && typeof original === 'object' && pickedImage != null) bubblePreviousImagePicks.set(original, pickedImage);
+        }
         var content = bubbleRowContentOf(copy);
         if (remember && copy.type === 'random' && original && typeof original === 'object') bubblePreviousPicks.set(original, copy._lastPick);
         rows.set(copy, Object.freeze(content));
@@ -8724,19 +9080,12 @@
     function whaleClick() {
       try {
         if (!bubbleOn) return;
-        if (window.WhaleAccountView?.mode === 'subscription') { window.WhaleAccountView.toggleBubble(root); return; }
         if (bubbleScene && (bubbleScene.kind === 'cost' || bubbleScene.kind === 'alert')) return;
-        if (!bubbleShown) {
-          bubbleRoundOn = true;
-          bubbleSeqIdx = 0;
-          bubbleShowSeqNext();
-          return;
-        }
-        if (!bubbleRoundOn) return;
-        if (bubbleSeqIdx <= 1) {
-          bubbleResetTtl();
-          return;
-        }
+        // Match the original petting interaction: once a bubble is visible,
+        // presses on the character only play the press/release feedback. The
+        // bubble itself is the sole control that advances or pops the queue.
+        if (bubbleShown) return;
+        bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
       } catch (err) {}
@@ -8760,7 +9109,6 @@
       } catch (err) {}
     }
     function showBubble() {
-      if (window.WhaleAccountView?.mode === 'subscription') return;
       if (!bubbleOn) return;
       if (costBubbleActive) return;
       bubbleRoundOn = true;
@@ -8769,6 +9117,8 @@
     }
     function hideBubble() {
       bubbleClearAll();
+      window.WhaleQuota?.clearBindings(bubbleBox);
+      window.WhaleApiModels?.clearBindings(bubbleBox);
       costBubbleActive = false;
       whaleSysQueue = [];
       whaleSysItem = null;
@@ -9218,7 +9568,6 @@
     function setVol(v) {
       var next = Math.round(Math.min(1, Math.max(0, Number(v))) * 100) / 100;
       soundVol = next;
-      soundOn = next > 0;
       volInput.value = String(next);
       volPct.textContent = Math.round(next * 100) + '%';
       try {
@@ -11175,7 +11524,7 @@
     window.addEventListener('whale-desktop-mode', function () { endDrag(null,false); closeMenu(); resetMenuButtonHover(); hideBubble(); settle(); window.getSelection()?.removeAllRanges(); setWidgetCursor(''); });
     window.addEventListener('whale-account-view', function () {
       // A display-mode switch updates this menu in place, retaining its open state.
-      hideBubble(); refresh(true);
+      hideBubble(); applyBubbleCfgSeq(); refresh(true);
       requestAnimationFrame(function () { if (menuOpen) positionMenu(); });
     });
     function endDrag(e, clickAllowed) {
@@ -11269,6 +11618,39 @@
       localStorage.setItem('dshw-pos', JSON.stringify({v:2,hAnchor:'right',hDist:12,vAnchor:'bottom',vDist:12}));
       applyAnchorPos(); settle();
     });
+    window.addEventListener('whale-sound-settings-applied', function (event) {
+      var saved = event.detail || {};
+      soundOn = saved.sound !== false;
+      soundVol = Math.max(0, Math.min(1, Number(saved.vol) || 0));
+      soundSet = saved.soundSet || 'duck';
+      turnCostOn = saved.turnCostOn !== false;
+      turnCostCloseMs = Math.max(0, Number(saved.turnCostCloseMs) || 0);
+      volInput.value = String(soundVol); volPct.textContent = Math.round(soundVol * 100) + '%';
+      setAudioBtnText(audioGroupName(soundSet)); applySoundSet();
+      turnCostToggle.checked = turnCostOn;turnCostCloseInput.disabled = !turnCostOn;
+      turnCostCloseInput.value = String(Math.round(turnCostCloseMs / 1000));
+      usageSet = usageSet || {};
+      usageSet.taskEnd = saved.taskEnd || usageSet.taskEnd || {};
+      taskEndToggle.checked = usageSet.taskEnd.on === true;
+      taskEndSel.disabled = !taskEndToggle.checked;
+      fillTaskEndOptions(usageSet.taskEnd);
+      if (!turnCostOn) hideCostBubble();
+    });
+    window.addEventListener('whale-edit-turn-cost', function () {
+      usageAlertBudgetEditor('turnCost', function (o) {
+        usageSet = usageSet || ({}); usageSet.turnCost = { lines: o.lines };
+        setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
+        saveUsageSettings({ turnCost: usageSet.turnCost });
+      });
+    });
+    window.addEventListener('whale-api-model-alert', function (event) {
+      var detail = event.detail || ({});
+      showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 });
+    });
+    window.addEventListener('whale-edit-api-reminder', function (event) {
+      var detail=event.detail || {};
+      usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
+    });
     applySoundSet();
     setupHitTest(initRoleUrl);
     loadRoles();
@@ -11316,7 +11698,7 @@
       }
       if (d && typeof d.vol === 'number') {
         soundVol = d.vol;
-        soundOn = soundVol > 0;
+        soundOn = d.sound !== false;
         volInput.value = String(soundVol);
         volPct.textContent = Math.round(soundVol * 100) + '%';
         try {
@@ -11418,12 +11800,13 @@
             localStorage.setItem('dshw-last-seq', String(lastCostSeq));
             localStorage.setItem('dshw-last-turn-id', lastCostId);
           } catch (err) {}
-          if (!fresh) return;
           var notice = WhaleTurnNotice.snapshot(d, state.currency);
+          lastTurnNotice = notice;
+          if (!fresh) return;
           window.dispatchEvent(new CustomEvent('whale-turn-notice', {detail:notice}));
-          if (typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription') { if(turnCostOn)window.WhaleAccountView.notice(notice); return; }
           if (notice.completionKind === 'success') playTaskEndSound();
           else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && typeof window !== 'undefined' && window.WhaleFeedback) window.WhaleFeedback.play(notice.completionKind, '', soundOn ? soundVol : 0);
+          if (typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription') window.WhaleAccountView.notice(notice);
           showCostBubble(notice.amount, notice);
         }).catch(function () {}).finally(function () { lastCostPending = false; });
       } catch (err) { lastCostPending = false; }

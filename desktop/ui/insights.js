@@ -14,8 +14,9 @@
     });
   }
   function open() {
+    if (window.WhaleAccountView?.mode === 'subscription') return;
     const dialog = document.createElement('dialog'); dialog.className = 'whale-v3-dialog';
-    text(dialog, 'h2', window.WhaleAccountView?.mode==='subscription'?'会员额度详情':'DeepSeek 峰谷'); const content = document.createElement('div'); dialog.append(content);
+    text(dialog, 'h2', 'DeepSeek 峰谷'); const content = document.createElement('div'); dialog.append(content);
     const actions = document.createElement('div'); actions.className = 'dialog-actions'; const refresh = text(actions, 'button', '刷新'), close = text(actions, 'button', '关闭'); dialog.append(actions);
     let generation = 0;
     async function load() {
@@ -23,28 +24,9 @@
       try {
         const response = await fetch('/api/insights', { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取额度'); const data = await response.json();
         if (own !== generation || !dialog.isConnected) return; content.replaceChildren(); const sub = data.subscription || {};
-        if(window.WhaleAccountView?.mode!=='subscription') {
-          const p=data.pricing||{};
-          if(p.visible){text(content,'p',p.phase==='peak'?'当前为高峰期':p.phase==='off-peak'?'当前为谷期':'规则待更新');text(content,'p','下次切换：'+time(p.nextChangeAt));text(content,'p',p.note||'');}
-          else text(content,'p','当前 API 没有适用的峰谷时段。');
-          return;
-        }
-        text(content, 'h3', 'Codex 订阅');
-        if (!sub.available) text(content, 'p', sub.reason || '暂无可用订阅额度记录。使用订阅账号完成一次 Codex 请求后刷新。');
-        for (const item of sub.windows || []) {
-          const box = document.createElement('section'); content.append(box);
-          const valid = item.usedPercent !== null && item.usedPercent !== undefined && Number.isFinite(Number(item.usedPercent));
-          text(box, 'strong', window.WhaleAccountView.quotaLabel(item));
-          text(box, 'p', valid ? `已用 ${Number(item.usedPercent).toFixed(1)}% · 剩余 ${Math.max(0, 100 - Number(item.usedPercent)).toFixed(1)}%${item.stale ? '（数据已过期）' : ''}` : '额度比例未知');
-          if (valid) { const progress = document.createElement('progress'); progress.max = 100; progress.value = Math.max(0, Math.min(100, item.usedPercent)); progress.setAttribute('aria-label', item.label || '额度'); box.append(progress); }
-          text(box, 'p', '重置时间：' + time(item.resetsAt));
-        }
-        text(content, 'h3', '本机已观测 token（近 7 天）'); const tokens = sub.tokens || data.tokens || {};
-        for (const [key, label] of Object.entries({ total: '总量', input: '输入', output: '输出', cachedInput: '缓存输入', reasoningOutput: '推理输出' })) text(content, 'p', `${label}：${Number.isFinite(tokens[key]) ? tokens[key].toLocaleString() : '暂无记录'}`);
-        if (Number.isFinite(tokens.last5Hours)) text(content, 'p', '滚动 5 小时：' + tokens.last5Hours.toLocaleString() + ' token');
-        if (tokens.complete === false) text(content, 'p', '扫描结果不完整，目前显示部分已观测记录。' + (tokens.note || ''));
-        text(content, 'small', '本机观测不包含其他设备的全部用量。缓存输入、推理输出可能为输入/输出的子集；不要重复相加。官方百分比不能换算为固定的剩余 token。');
-        const pricing = data.pricing || {};
+        const p=data.pricing||{};
+        if(p.visible){text(content,'p',p.phase==='peak'?'当前为高峰期':p.phase==='off-peak'?'当前为谷期':'规则待更新');text(content,'p','下次切换：'+time(p.nextChangeAt));text(content,'p',p.note||'');}
+        else text(content,'p','当前 API 没有适用的峰谷时段。');
       } catch (error) { if (own === generation) { content.replaceChildren(); text(content, 'p', error.message || '读取失败，请稍后重试'); } }
       finally { if (own === generation) refresh.disabled = false; }
     }
@@ -54,19 +36,21 @@
   if (menu) {
     const container = menu.querySelector('.dshwv-menu-root') || menu.firstElementChild || menu;
     const row = document.createElement('div'); row.className = 'dshwv-menu-row';
-    const feedback = text(row, 'button', '音效与手感'), insights = text(row, 'button', '会员额度详情'); feedback.className = insights.className = 'dshwv-sound';
-    feedback.onclick = () => window.WhaleFeedback.open(); insights.onclick = open; container.append(row);
+    const insights = text(row, 'button', '峰谷时段'); insights.className = 'dshwv-sound';
+    insights.onclick = open; container.append(row);
     const accountModeChanged=async()=>{
-      const member=window.WhaleAccountView?.mode==='subscription';insights.textContent=member?'会员额度详情':'峰谷时段';insights.hidden=!member;
-      if(!member){try{const p=await fetch('/api/pricing').then(r=>r.json());if(window.WhaleAccountView?.mode!=='subscription')insights.hidden=!p.visible;}catch{}}
+      const member=window.WhaleAccountView?.mode==='subscription';insights.hidden=true;row.hidden=true;
+      if(!member){try{const p=await fetch('/api/pricing').then(r=>r.json());if(window.WhaleAccountView?.mode!=='subscription'){insights.hidden=!p.visible;row.hidden=!p.visible;}}catch{}}
     };
     accountModeChanged(); window.addEventListener('whale-account-view',accountModeChanged);setInterval(accountModeChanged,60000);
     if (window.whaleDesktop?.command) {
       const modeRow = document.createElement('div'); modeRow.className = 'dshwv-menu-row';
-      for (const [command, label] of [['desktop', '进入桌面'], ['follow', '跟随 Codex']]) {
-        const button = text(modeRow, 'button', label); button.className = 'dshwv-sound';
-        button.onclick = async () => { button.disabled=true; try { await switchDesktop(command); window.whaleToast?.(command === 'desktop' ? '已切换为独立桌面模式' : '已切换为跟随 Codex'); } catch (e) { window.whaleToast?.(e.message); } finally {button.disabled=false;} };
-      }
+      const button = text(modeRow, 'button', '进入独立桌面'); button.className = 'dshwv-sound';
+      let currentMode = 'follow-codex';
+      const paintMode = mode => {currentMode=mode==='standalone'?'standalone':'follow-codex';button.textContent=currentMode==='standalone'?'改为跟随 Codex':'进入独立桌面';button.title=currentMode==='standalone'?'让桌宠重新随 Codex 显示和隐藏':'让桌宠脱离 Codex，单独留在桌面';};
+      button.onclick = async () => {const command=currentMode==='standalone'?'follow':'desktop';button.disabled=true;try{await switchDesktop(command);window.whaleToast?.(command==='desktop'?'已切换为独立桌面模式':'已切换为跟随 Codex');}catch(e){window.whaleToast?.(e.message);}finally{button.disabled=false;}};
+      window.addEventListener('whale-desktop-mode',event=>paintMode(event.detail));
+      Promise.resolve(window.whaleDesktop.command('mode')).then(paintMode).catch(()=>{});
       container.append(modeRow);
     }
   }

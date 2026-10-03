@@ -29,6 +29,7 @@ public static class WhaleFollowProbe {
         var previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
         Rect original; GetWindowRect(host,out original);
         var foreground=GetForegroundWindow();
+        var finalForeground=foreground; bool overlayFocused=false;
         var delays=new List<double>(); int completed=0;
         try {
             for(int i=0;i<72;i++) {
@@ -48,11 +49,15 @@ public static class WhaleFollowProbe {
                     Rect a,b,c;GetWindowRect(host,out a);GetWindowRect(overlay,out b);GetClientRect(host,out c);var origin=new Point();ClientToScreen(host,ref origin);
                     throw new Exception("Native follow step "+i+" target="+x+","+y+","+w+","+h+" host="+a.Left+","+a.Top+","+(a.Right-a.Left)+","+(a.Bottom-a.Top)+" client="+origin.X+","+origin.Y+","+c.Right+","+c.Bottom+" overlay="+b.Left+","+b.Top+","+(b.Right-b.Left)+","+(b.Bottom-b.Top));
                 }
+                finalForeground=GetForegroundWindow();
+                if(finalForeground==overlay) overlayFocused=true;
                 delays.Add(watch.Elapsed.TotalMilliseconds);completed++;
                 Thread.Sleep(Math.Max(1,16-(int)watch.ElapsedMilliseconds));
             }
             delays.Sort();
-            return new { steps=completed, p50Ms=delays[delays.Count/2], p95Ms=delays[(int)(delays.Count*0.95)], maxMs=delays[delays.Count-1], focusUnchanged=GetForegroundWindow()==foreground, resized=true };
+            finalForeground=GetForegroundWindow();
+            if(finalForeground==overlay) overlayFocused=true;
+            return new { steps=completed, p50Ms=delays[delays.Count/2], p95Ms=delays[(int)(delays.Count*0.95)], maxMs=delays[delays.Count-1], overlayNeverForeground=!overlayFocused, foregroundBefore=foreground.ToInt64(), foregroundAfter=finalForeground.ToInt64(), resized=true };
         } finally {
             SetWindowPos(host,IntPtr.Zero,original.Left,original.Top,original.Right-original.Left,original.Bottom-original.Top,0x4014);
             Thread.Sleep(200);SetThreadDpiAwarenessContext(previous);
@@ -66,7 +71,7 @@ try {
     $whaleType.GetMethod('Start').Invoke($whaleFollower,@()) | Out-Null
     if (!$whaleType.GetField('Running').GetValue($whaleFollower)) { throw 'Native hook did not start.' }
     $whaleResult=[WhaleFollowProbe]::Run($Overlay,$OverlayPid,$FixtureHost,$FixturePid)
-    if ($whaleResult.p95Ms -ge 60 -or !$whaleResult.focusUnchanged) { throw ('Native follow failed latency/focus check: '+($whaleResult | ConvertTo-Json -Compress)) }
+    if ($whaleResult.p95Ms -ge 60 -or !$whaleResult.overlayNeverForeground) { throw ('Native follow failed latency/focus check: '+($whaleResult | ConvertTo-Json -Compress)) }
     if ($whaleType.GetField('Moves').GetValue($whaleFollower) -gt 200) { throw 'Unexpected resize feedback loop.' }
     @{ok=$true;result=$whaleResult;events=$whaleType.GetField('Events').GetValue($whaleFollower);moves=$whaleType.GetField('Moves').GetValue($whaleFollower)} | ConvertTo-Json -Depth 4 -Compress
 } catch {

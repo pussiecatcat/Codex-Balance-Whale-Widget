@@ -22,13 +22,27 @@ $marketplaceInfo = $marketplaceInfo | ConvertFrom-Json
 $task = Get-ScheduledTask -TaskName 'Codex API Balance Whale' -ErrorAction SilentlyContinue
 Assert-WhaleTaskOwner $task $DataDir
 if ($KeepExistingTask) { Assert-WhaleReusableTask $task $DataDir $target }
+$oldFollowRoot = $null
+if ($task -and !$KeepExistingTask) {
+    $followConfig = Get-Content -LiteralPath (Join-Path $DataDir 'follow-config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (!$followConfig.enabled -or $followConfig.taskName -cne 'Codex API Balance Whale') { throw 'The existing whale follow configuration does not match this task.' }
+    $oldFollowRoot = Get-WhaleFullPath $followConfig.pluginRoot
+    Assert-WhalePlainPath $oldFollowRoot
+    $action = @($task.Actions)[0]
+    if (!$action.Arguments.Contains((Join-Path $oldFollowRoot 'desktop\supervisor.ps1'))) { throw 'The existing whale task points to another source.' }
+    $oldManifestFile = Join-Path $oldFollowRoot '.codex-plugin\plugin.json'
+    $oldUninstaller = Join-Path $oldFollowRoot 'scripts\uninstall-follow.ps1'
+    if (!(Test-Path -LiteralPath $oldManifestFile -PathType Leaf) -or !(Test-Path -LiteralPath $oldUninstaller -PathType Leaf)) { throw 'The existing whale installation is incomplete.' }
+    $oldManifest = Get-Content -LiteralPath $oldManifestFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($oldManifest.name -cne 'api-balance-whale') { throw 'The existing task belongs to another plugin.' }
+}
 $previousVersion = $null
 if (Test-Path -LiteralPath $target) {
     $previousManifest = Get-Content -LiteralPath (Join-Path $target '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($previousManifest.name -cne 'api-balance-whale') { throw 'Destination belongs to another plugin.' }
     $previousVersion = $previousManifest.version
 }
-if ($CheckOnly) { @{ ok=$true; version=$manifest.version; destination=$target; data=$DataDir; codexCli=$cli; marketplace=$marketplaceInfo.marketplaceName; previousVersion=$previousVersion } | ConvertTo-Json; return }
+if ($CheckOnly) { @{ ok=$true; version=$manifest.version; destination=$target; data=$DataDir; codexCli=$cli; marketplace=$marketplaceInfo.marketplaceName; previousVersion=$previousVersion; previousTaskRoot=$oldFollowRoot } | ConvertTo-Json; return }
 $backupRoot = Get-WhaleFullPath (Join-Path $env:LOCALAPPDATA ('CodexWhale\backups\' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,8)))
 Assert-WhalePlainPath $backupRoot
 $null = New-Item -ItemType Directory -Path $backupRoot
@@ -46,7 +60,7 @@ try {
         Copy-WhaleTree $Source $stage @('node_modules','.git')
         if ($task) {
             if ($KeepExistingTask) { Stop-WhaleExistingTask $task $DataDir $target }
-            else { & (Join-Path $target 'scripts\uninstall-follow.ps1') -DataDir $DataDir }
+            else { & (Join-Path $oldFollowRoot 'scripts\uninstall-follow.ps1') -DataDir $DataDir }
         }
         if (Test-Path -LiteralPath $target) {
             # Both absolute locations were validated; the old tree remains a private checkpoint.

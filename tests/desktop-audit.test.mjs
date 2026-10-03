@@ -139,6 +139,25 @@ test('an earlier accepted press retains native input after the squish makes its 
   assert.equal(box.heldPointer, null); assert.deepEqual(enabled, [true, false], 'an unaccepted transparent-area press still passes through');
 });
 
+test('petting an open character bubble never advances or closes its queue', async () => {
+  const source = await fs.readFile(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
+  const start = source.indexOf('    function whaleClick()');
+  const end = source.indexOf('    function bubbleNext()', start);
+  assert.ok(start >= 0 && end > start, 'whaleClick source is available');
+  const box = {
+    bubbleOn: true, bubbleScene: null, bubbleShown: false, bubbleRoundOn: false, bubbleSeqIdx: 8,
+    opens: 0,
+  };
+  box.bubbleShowSeqNext = () => { box.opens++; };
+  vm.createContext(box);
+  vm.runInContext(source.slice(start, end), box);
+  vm.runInContext('whaleClick()', box);
+  assert.equal(box.opens, 1); assert.equal(box.bubbleRoundOn, true); assert.equal(box.bubbleSeqIdx, 0);
+  box.bubbleShown = true; box.bubbleSeqIdx = 1;
+  vm.runInContext('whaleClick(); whaleClick(); whaleClick()', box);
+  assert.equal(box.opens, 1); assert.equal(box.bubbleSeqIdx, 1, 'open bubble remains on its current item');
+});
+
 test('failed task registration leaves a running installation untouched and cannot print success', { skip: process.platform !== 'win32' }, async t => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-desktop-audit-'));
   t.after(async () => {
@@ -170,7 +189,7 @@ function Register-ScheduledTask { [CmdletBinding()]param($TaskName,$InputObject,
 & ${quote(path.join(scripts, 'install-follow.ps1'))} -DataDir ${quote(data)}
 `);
   const executable = path.join(process.env.WINDIR || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe');
-  const result = spawnSync(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', harness], { encoding: 'utf8', windowsHide: true, timeout: 20000 });
+  const result = spawnSync(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', harness], { encoding: 'utf8', windowsHide: true, timeout: 20000 });
   assert.notEqual(result.status, 0); assert.doesNotMatch(result.stdout, /companion installed/);
   assert.match(result.stderr, /could not register or verify/);
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(data, 'follow-config.json'), 'utf8')), { sentinel: 'keep-current-monitor' });
@@ -219,7 +238,7 @@ foreach($case in $cases){
 $results|ConvertTo-Json -Compress
 `);
   const executable = path.join(process.env.WINDIR || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe');
-  const result = spawnSync(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', harness], { encoding: 'utf8', windowsHide: true, timeout: 15000, env: { ...process.env, CODEX_HOME: codex } });
+  const result = spawnSync(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', harness], { encoding: 'utf8', windowsHide: true, timeout: 15000, env: { ...process.env, CODEX_HOME: codex } });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout.trim()), cases.map(({ name, accepted }) => ({ name, accepted })));
 });

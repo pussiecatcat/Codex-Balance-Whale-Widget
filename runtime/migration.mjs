@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 
-// Remove retired scheduling modules, without touching money, text or resource IDs.
+// Keep every report-supported bubble module. Only obsolete top-level schedule
+// caches are discarded; live peak modules now read the verified service route.
 export function stripRetiredModules(value) {
-  if (Array.isArray(value)) return value.filter(v => !v || typeof v !== 'object' || !['peak', 'nextpeak'].includes(v.type)).map(stripRetiredModules);
+  if (Array.isArray(value)) return value.map(stripRetiredModules);
   if (value && typeof value === 'object') {
     const result = {};
     for (const [key, v] of Object.entries(value)) if (!['pricingSchedule', 'peakMode'].includes(key)) result[key] = stripRetiredModules(v);

@@ -1,6 +1,6 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**For-Codex 分支发布，标签 `codex-v0.3.0-fixed.2`。** 本次按维护者授权发布；内部构建为 `0.3.0+codex.20260929173027`。协作者 [Yang-huai406](https://github.com/Yang-huai406) 维护 Codex 适配，仓库所有者仍为 [MeteorNOX](https://github.com/MeteorNOX)。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.2`。** 当前内部构建为 `0.3.0+codex.20261003-menu-streamline`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 
@@ -17,15 +17,15 @@
 
 ## 保留功能与来源
 
-B 版概览/用量/设置、API/订阅模式、角色和气泡、音效与手感、本地创意工坊、桌面/跟随切换、余额与 token 统计、官方端点适用时的 DeepSeek 峰谷均保留。
+当前恢复为原版紧凑菜单；API/订阅模式、角色和气泡、音效与手感、本地素材工坊、桌面/跟随切换、余额与 token 统计、官方端点适用时的 DeepSeek 峰谷均保留。Codex 订阅气泡显示五小时和每周额度、剩余百分比及重置倒计时。
 
 保留 [macOS PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128) 的平台代码、来源和贡献者署名；不以旧整包覆盖当前修复。
 
 ## 验证和限制
 
-238 项单元测试通过；16 次 Windows 原生区域采样覆盖关闭与快速重开，慢/快悬停及原生点击穿透、当前 B 版 Electron 界面审计通过。最新成品解压验证和哈希见随附 `verification-report.json`、`release-manifest.json`。
+256 项单元测试通过；Windows 原生区域采样覆盖关闭与快速重开、慢/快悬停和原生点击穿透，紧凑菜单 Electron 界面审计及包含 72 次跟随移动/缩放的完整桌面烟测通过。当前 Plus 登录的五小时和每周额度直读已经验证。最新成品解压验证和哈希见随附 `verification-report.json`、`release-manifest.json`。
 
-长期偶发显示稳定性、其他设备、Mac 实机及真实订阅账号端到端仍待验证；发布授权不等于这些场景已全部验收。专项置顶隔离窗口测试用于动画裁剪，不证明日常跟随层级始终正确。旧版布局脚本的既有断言不适配 B 版，具体范围见 [验证记录](docs/VERIFICATION-0.3.md)。
+长期偶发显示稳定性、其他设备、Mac 实机及跨额度重置点刷新仍待验证；发布不等于这些场景已全部验收。具体范围见 [验证记录](docs/VERIFICATION-0.3.md)。
 
 ## 安装附件
 
@@ -35,4 +35,4 @@ B 版概览/用量/设置、API/订阅模式、角色和气泡、音效与手感
 
 Windows 完整解压后运行“安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
-公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。本次使用新标签 `codex-v0.3.0-fixed.2`，不覆盖既有 `codex-v0.3.0-fixed` tag，不变更主线 Latest。
+公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.2` 对应本次整理后的发行版本。
