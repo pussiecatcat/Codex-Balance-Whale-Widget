@@ -15,7 +15,7 @@ Windows 应检查关闭动画中途的实际原生窗口区域和屏幕像素，
 
 macOS 保留 [PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128) 的平台实现和来源；Windows 原生区域逻辑继续受平台判断保护。公共菜单交互有所更新，Mac 实机验证仍需单独完成。
 
-本次 Windows 验证：256 项单元测试通过；16 次真实 `GetWindowRgn`/`GetRegionData` 采样覆盖关闭中途和快速重开；慢速、快速（含翻转后的角色）跨越透明缝隙能打开菜单，`WindowFromPoint` 确认缝隙穿透。隔离测试窗口上的屏幕图确认气泡完整淡出。紧凑菜单 Electron 审计的角色、音效、设置、模式切换、拖动与关闭流程均通过。
+本次 Windows 验证：260 项单元测试通过；16 次真实 `GetWindowRgn`/`GetRegionData` 采样覆盖关闭中途和快速重开；慢速、快速（含翻转后的角色）跨越透明缝隙能打开菜单，`WindowFromPoint` 确认缝隙穿透。隔离测试窗口上的屏幕图确认气泡完整淡出。紧凑菜单 Electron 审计的角色、音效、设置、模式切换、拖动与关闭流程均通过。
 
 专项截图使用临时置顶的隔离测试窗口，验证的是动画裁剪，不作为日常跟随层级或长期稳定性的证明。整体界面验收使用已适配紧凑菜单的 `tests/desktop-audit-smoke.mjs`。
 

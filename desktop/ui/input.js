@@ -91,9 +91,14 @@
     if (!pet.complete) return;
     if (!pet.naturalWidth) { fallbackRole(); return; }
     const source = pet.currentSrc || pet.src;
+    // Show the widget as soon as a sprite is decoded: the alpha mask only feeds
+    // per-pixel hit testing, and awaiting it here kept the window hidden for up
+    // to the 12 s worker timeout. It also skipped bridge.ready() outright when
+    // the role changed mid-await, which the 15 s ready watchdog answers by
+    // reloading the page instead of ever showing a whale.
+    if (!ready) { ready = true; bridge.ready(); }
     await rendering.hitCache.prepare(source);
     if (!pet.complete || !pet.naturalWidth || (pet.currentSrc || pet.src) !== source) return;
-    if (!ready) { ready = true; bridge.ready(); }
     request();
   }
   function fallbackRole() {

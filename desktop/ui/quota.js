@@ -3,9 +3,13 @@
   const labels = { 300: '5 小时', 10080: '每周' };
   const validPercent = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
   const timeValue = value => typeof value === 'number' && value < 1e12 ? value * 1000 : value;
+  // The longest real window is weekly. A reset further out than this is a corrupt
+  // or unit-confused value (milliseconds read back as seconds), not a quota
+  // window. Rendered as a countdown it produced strings like "12000000天 00:00:00".
+  const MAX_RESET_AHEAD_MS = 10 * 365 * 86400000;
   function countdown(reset, now = Date.now()) {
     const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '未观测';
+    if (!Number.isFinite(time) || time > now + MAX_RESET_AHEAD_MS) return '未观测';
     if (time <= now) return '等待额度更新';
     let seconds = Math.ceil((time - now) / 1000);
     const days = Math.floor(seconds / 86400); seconds %= 86400;
@@ -15,7 +19,7 @@
   }
   function countdownShort(reset, now = Date.now()) {
     const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '等待同步';
+    if (!Number.isFinite(time) || time > now + MAX_RESET_AHEAD_MS) return '等待同步';
     if (time <= now) return '等待刷新';
     let seconds = Math.ceil((time - now) / 1000);
     const days = Math.floor(seconds / 86400); seconds %= 86400;
@@ -27,7 +31,7 @@
   }
   function resetAt(reset) {
     const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '等待同步';
+    if (!Number.isFinite(time) || time > Date.now() + MAX_RESET_AHEAD_MS) return '等待同步';
     const value = new Date(time);
     if (!Number.isFinite(value.getTime())) return '等待同步';
     return value.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -90,7 +94,7 @@
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null;
+  let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null, boundaryStreak = 0;
   const bindings = new Map();
   function ensureQuotaMeter(element) {
     if (element.querySelector('.dshwv-quota-meter-head')) return;
@@ -203,7 +207,18 @@
   }
   async function refresh(force = false) {
     if (pending) return pending;
-    if (!force && Date.now() - fetchedAt < 30000 && !(pricing?.nextChangeAt && pricing.nextChangeAt <= Date.now() && Date.now() - fetchedAt >= 1000)) return subscription;
+    // Crossing a peak boundary retries every second so the phase flips promptly.
+    // That retry is only meant to cover the moment until the service publishes the
+    // next boundary, but a rule that stays in the past kept it at 1 Hz forever —
+    // two requests a second, for as long as the widget runs. After a sustained
+    // streak the retry drops to the normal 30 s cadence; the streak resets as soon
+    // as a fresh boundary arrives, so the fast path is unchanged in the normal case.
+    const overdue = !!(pricing?.nextChangeAt && pricing.nextChangeAt <= Date.now());
+    if (!force) {
+      const gap = overdue && boundaryStreak < 30 ? 1000 : 30000;
+      if (Date.now() - fetchedAt < gap) return subscription;
+    }
+    if (overdue) boundaryStreak++; else boundaryStreak = 0;
     pending = (async () => {
       try {
         const [insightResponse, pricingResponse] = await Promise.all([

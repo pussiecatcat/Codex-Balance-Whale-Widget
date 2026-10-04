@@ -43,6 +43,7 @@
     // Drawing lifetime is separate from input.js's open/visible hit surfaces.
     // Keep only these bounded UI islands, never a viewport-sized input backdrop.
     document.querySelectorAll('.dshwv-img').forEach(e=>add(e,true));
+    const spriteRects=result.length;
     for(const el of document.querySelectorAll('.dshwv-pop,.dshwv-menu-btn,.dshwv-menu')){
       if(!visible(el,true))continue;
       const animations=paintingAnimations(el);
@@ -55,7 +56,12 @@
     // Modal backdrops are viewport-sized. Include their cards, not the backdrop.
     function card(el,depth=0){if(!visible(el))return;const r=el.getBoundingClientRect();if(depth<3&&r.width>=innerWidth*.95&&r.height>=innerHeight*.95){for(const child of el.children)card(child,depth+1);}else add(el);}
     document.querySelectorAll('[class*="mask"]').forEach(e=>{if(!e.closest('.dshwv-root'))card(e);});
-    rectangles=result.slice(0,64);
+    // Rects are collected sprites-first, so a blind slice(0,64) would silently
+    // clip an open menu or dialog — invisible AND unclickable, since the native
+    // region gates drawing and input alike — while keeping sprites that only
+    // need drawing. Past the cap, keep the interactive surfaces and fill the
+    // remainder with sprites. Under the cap the payload is unchanged.
+    rectangles=result.length<=64?result:result.slice(spriteRects).concat(result.slice(0,spriteRects)).slice(0,64);
     const key=JSON.stringify(rectangles);
     if(force||key!==last){last=key;updates++;bridge.shape(rectangles);}
     if(animate)request();
