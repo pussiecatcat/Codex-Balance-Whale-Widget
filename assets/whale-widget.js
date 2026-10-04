@@ -3372,7 +3372,7 @@
       }, {
         type: "today",
         size: 4,
-        color: "#9fb0d9",
+        color: "#5c6b85",
         tpl: "今日已观测 {expense_api}"
       }];
     }
@@ -3779,7 +3779,7 @@
       }, {
         "type": "today",
         "size": 4,
-        "color": "#9fb0d9",
+        "color": "#5c6b85",
         "tpl": "今日已观测 {expense_api}"
       }]
     }, {
@@ -11893,6 +11893,15 @@
   if (dshwEnabled) {
     try {
       dshwInit();
-    } catch (err) {}
+    } catch (err) {
+      // dshwInit holds ~11,800 statements; a throw part-way through leaves the
+      // widget half-built (no drag, no menu, no bubbles) and looks like "the
+      // whale never appeared". Swallowing it silently made that unreportable,
+      // so record it — guarded, because this handler must never throw itself.
+      try {
+        console.error('[whale] 挂件初始化失败，后续功能可能未生效', err);
+        window.__dshWhaleInitError = err;
+      } catch (ignored) { /* reporting must never break teardown */ }
+    }
   }
 })();

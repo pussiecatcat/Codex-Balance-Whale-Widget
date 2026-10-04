@@ -24,6 +24,7 @@
       this.serial = 0;
       this.bytes = 0;
       this.stats = { decodes: 0, hits: 0, failures: 0 };
+      this.dead = false;
       this.worker = new Worker('/alpha-worker.js');
       this.worker.onmessage = ({ data }) => {
         const job = this.jobs.get(data.id);
@@ -40,6 +41,10 @@
         presentFor();
       };
       this.worker.onerror = () => {
+        // A worker that failed to load or crashed never answers again. Without
+        // this flag every later prepare() posts into the dead worker and blocks
+        // for the full 12 s timeout before falling back.
+        this.dead = true;
         for (const job of this.jobs.values()) {
           clearTimeout(job.timer); job.entry.done = true; job.resolve(null);
         }
@@ -56,6 +61,15 @@
         return entry.promise;
       }
       entry = { done: false, mask: null };
+      // A dead worker never answers. Resolve at once with the same result the
+      // 12 s timeout would eventually produce (mask null keeps the image
+      // rectangle clickable) instead of stalling every prepare() for 12 s.
+      if (this.dead) {
+        entry.done = true; this.stats.failures++;
+        entry.promise = Promise.resolve(null);
+        this.entries.set(key, entry);
+        return entry.promise;
+      }
       entry.promise = new Promise(resolve => {
         const id = ++this.serial;
         const timer = setTimeout(() => {

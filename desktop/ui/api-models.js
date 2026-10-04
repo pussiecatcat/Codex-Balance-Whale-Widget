@@ -2,6 +2,21 @@
   'use strict';
   let registry = { templates: [], models: [] }, loadedAt = 0, pending = null;
   const values = new Map(), bindings = new Map();
+  const alertDay = () => new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+  function migrateAlertKeys() {
+    const day = alertDay();
+    try {
+      for (const key of Object.keys(localStorage)) {
+        const match = key.match(/^dshw-api-alert:(\d{4}-\d{2}-\d{2}):(.+):(balance|tokens|budget|quota)$/);
+        if (!match) continue;
+        const bounded = 'dshw-api-alert:' + match[2] + ':' + match[3];
+        // Preserve today's suppression before pruning every unbounded daily key.
+        if (match[1] === day && localStorage.getItem(bounded) !== day) localStorage.setItem(bounded, day);
+        localStorage.removeItem(key);
+      }
+    } catch {}
+  }
+  migrateAlertKeys();
   const request = async (url, method = 'GET', body) => {
     const response = await fetch(url, { method, cache: 'no-store', headers: body === undefined ? {} : {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body) });
     const data = await response.json(); if (!response.ok || data.ok === false) throw Error(data.error || '操作失败'); return data;
@@ -40,12 +55,19 @@
   function checkAlerts(id,value) {
     const model=registry.models.find(item=>item.id===id),alerts=model?.alerts||{};
     if(!model||value?.error)return;
-    const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+    const day=alertDay();
     const first=value.windows?.[0],left=first&&Number.isFinite(first.usedPercent)?100-first.usedPercent:null;
     const map={api_name:model.name,api_balance:value.balance??'未知',api_cost:value.todayEstimate??'未知',api_quota_left:left===null?'未知':left.toFixed(1)+'%'};
     const fire=(kind,fallback,rank)=>{
-      const key='dshw-api-alert:'+day+':'+id+':'+kind;
-      try{if(localStorage.getItem(key))return;localStorage.setItem(key,'1');}catch{}
+      // Bounded de-dupe: one key per model+kind, holding the last day it fired.
+      // The previous per-day key was never pruned, so it accumulated one entry
+      // per model per alert kind per day forever — 10 models x 4 kinds was
+      // ~14,600 keys after a year, every one of them re-serialised into each
+      // settings save and shipped over IPC. The legacy key is still read so
+      // upgrading does not re-fire alerts that already fired today.
+      const key='dshw-api-alert:'+id+':'+kind;
+      const legacy='dshw-api-alert:'+day+':'+id+':'+kind;
+      try{if(localStorage.getItem(key)===day||localStorage.getItem(legacy))return;localStorage.setItem(key,day);}catch{}
       const message=(model.messages?.[kind]||fallback).replace(/\{(api_name|api_balance|api_cost|api_quota_left)\}/g,(all,name)=>String(map[name]));
       const config=model.bubbleSettings?.[kind];const resolve=value=>Array.isArray(value)?value.map(resolve):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[key,resolve(item)])):typeof value==='string'?value.replace(/\{(api_name|api_balance|api_cost|api_quota_left|below|amount|currency)\}/g,(all,name)=>name==='below'?String(kind==='quota'?alerts.quotaRemainingBelow:alerts.balanceBelow):name==='amount'?String(alerts.dailyBudget):name==='currency'?model.currency:String(map[name])):value;window.dispatchEvent(new CustomEvent('whale-api-model-alert',{detail:{message,rank,lines:config?.lines?.length?resolve(config.lines):null,config}}));
     };
@@ -182,7 +204,6 @@
   setInterval(()=>{if(bindings.size)paint();},1000);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPanel();window.WhaleMoney?.onChange(paint);monitor();},{once:true});else{initPanel();window.WhaleMoney?.onChange(paint);monitor();}
 })();
-
 
 
 
