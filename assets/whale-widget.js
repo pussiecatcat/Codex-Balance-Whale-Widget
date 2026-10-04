@@ -3372,7 +3372,7 @@
       }, {
         type: "today",
         size: 4,
-        color: "#9fb0d9",
+        color: "#5c6b85",
         tpl: "今日已观测 {expense_api}"
       }];
     }
@@ -3779,7 +3779,7 @@
       }, {
         "type": "today",
         "size": 4,
-        "color": "#9fb0d9",
+        "color": "#5c6b85",
         "tpl": "今日已观测 {expense_api}"
       }]
     }, {
