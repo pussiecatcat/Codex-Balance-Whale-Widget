@@ -156,10 +156,39 @@
     }
     if (!bindings.size && ticker) { clearInterval(ticker); ticker = null; }
   }
+  // applyPeakStyle writes inline colour/background/padding onto the row and adds
+  // scheme classes. When the pricing rule later goes away (API switch, rule
+  // update, "no peak rule"), the old early return left all of it in place: a
+  // frozen peak-red row with 6px padding that no longer describes anything, and
+  // one that also skewed the row size the window-shape rects are measured from.
+  // Snapshot what we are about to overwrite so the fallback restores exactly it,
+  // instead of blanking styling the bubble editor owns.
+  const peakSnapshots = new WeakMap();
+  const isPeakSchemeClass = cls => cls === 'dshwv-rgb' || cls.startsWith('dshwv-rgb-') || cls === 'dshwv-bgrgb' || cls.startsWith('dshwv-bgrgb-');
+  function restorePeakStyle(element) {
+    const saved = peakSnapshots.get(element);
+    if (!saved) return;
+    peakSnapshots.delete(element);
+    for (const snap of saved) {
+      for (const cls of [...snap.node.classList]) if (isPeakSchemeClass(cls)) snap.node.classList.remove(cls);
+      for (const cls of snap.classes) snap.node.classList.add(cls);
+      snap.node.style.color = snap.color;
+      snap.node.style.background = snap.background;
+      snap.node.style.padding = snap.padding;
+      snap.node.style.borderRadius = snap.borderRadius;
+      snap.node.style.fontVariantNumeric = snap.fontVariantNumeric;
+    }
+  }
   function applyPeakStyle(element, module, pricing) {
-    if (!pricing?.visible || pricing.phase === 'unknown') return;
+    if (!pricing?.visible || pricing.phase === 'unknown') { restorePeakStyle(element); return; }
     const prefix = pricing.phase === 'peak' ? 'peak' : 'off';
     const row = element.closest('.dshwv-trow') || element;
+    if (!peakSnapshots.has(element)) {
+      peakSnapshots.set(element, [...new Set([element, row])].map(node => ({
+        node, classes: [...node.classList], color: node.style.color, background: node.style.background,
+        padding: node.style.padding, borderRadius: node.style.borderRadius, fontVariantNumeric: node.style.fontVariantNumeric,
+      })));
+    }
     const rgb = module[prefix + 'Rgb'], bgRgb = module[prefix + 'BgRgb'];
     for (const node of new Set([element, row])) {
       for (const cls of [...node.classList]) if (cls === 'dshwv-rgb' || cls.startsWith('dshwv-rgb-') || cls === 'dshwv-bgrgb' || cls.startsWith('dshwv-bgrgb-')) node.classList.remove(cls);
