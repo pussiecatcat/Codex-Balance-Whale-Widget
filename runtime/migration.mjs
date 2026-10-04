@@ -45,5 +45,8 @@ export function migrateData(dataDir) {
       failed.push({ name, message: String(error && error.message).slice(0, 200) });
     }
   }
-  writeJson(marker, { complete: true, changed, ...(failed.length ? { failed } : {}), at: new Date().toISOString() });
+  // A parse or filesystem failure is non-fatal for this boot, but it must remain
+  // retryable. Marking a partial pass complete would permanently skip a file
+  // after a transient sharing violation, permission failure, or full disk.
+  writeJson(marker, { complete: failed.length === 0, changed, ...(failed.length ? { failed } : {}), at: new Date().toISOString() });
 }

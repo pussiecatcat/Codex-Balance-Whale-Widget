@@ -2,6 +2,21 @@
   'use strict';
   let registry = { templates: [], models: [] }, loadedAt = 0, pending = null;
   const values = new Map(), bindings = new Map();
+  const alertDay = () => new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+  function migrateAlertKeys() {
+    const day = alertDay();
+    try {
+      for (const key of Object.keys(localStorage)) {
+        const match = key.match(/^dshw-api-alert:(\d{4}-\d{2}-\d{2}):(.+):(balance|tokens|budget|quota)$/);
+        if (!match) continue;
+        const bounded = 'dshw-api-alert:' + match[2] + ':' + match[3];
+        // Preserve today's suppression before pruning every unbounded daily key.
+        if (match[1] === day && localStorage.getItem(bounded) !== day) localStorage.setItem(bounded, day);
+        localStorage.removeItem(key);
+      }
+    } catch {}
+  }
+  migrateAlertKeys();
   const request = async (url, method = 'GET', body) => {
     const response = await fetch(url, { method, cache: 'no-store', headers: body === undefined ? {} : {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body) });
     const data = await response.json(); if (!response.ok || data.ok === false) throw Error(data.error || '操作失败'); return data;
@@ -40,7 +55,7 @@
   function checkAlerts(id,value) {
     const model=registry.models.find(item=>item.id===id),alerts=model?.alerts||{};
     if(!model||value?.error)return;
-    const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+    const day=alertDay();
     const first=value.windows?.[0],left=first&&Number.isFinite(first.usedPercent)?100-first.usedPercent:null;
     const map={api_name:model.name,api_balance:value.balance??'未知',api_cost:value.todayEstimate??'未知',api_quota_left:left===null?'未知':left.toFixed(1)+'%'};
     const fire=(kind,fallback,rank)=>{
@@ -189,7 +204,6 @@
   setInterval(()=>{if(bindings.size)paint();},1000);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPanel();window.WhaleMoney?.onChange(paint);monitor();},{once:true});else{initPanel();window.WhaleMoney?.onChange(paint);monitor();}
 })();
-
 
 
 
