@@ -4,7 +4,7 @@
 > [实施范围与数据口径](V0.3-PLAN-AND-PROVENANCE.md) 与 [验证记录](VERIFICATION-0.3.md) 即可；
 > 下文引用的修复记录属过程材料，不必逐篇展开。**
 
-本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停，同时新增 Codex 额度潮汐卡片。显示名称为 **v0.3(fixed)**，当前插件构建标识为 `0.3.0+codex.20261004-menu-sound`。源码、测试、发布包和远程 Release 分开验证。
+本版保留 v0.3 的完整功能，并修复窗口显示、失败用量提示、气泡收起和菜单悬停，同时新增 Codex 额度潮汐卡片及 DSH 四段式音效提示页。显示名称为 **v0.3(fixed)**，当前插件构建标识为 `0.3.0+codex.20261007-dsh-sound`。源码、测试、发布包和远程 Release 分开验证。
 
 ## 基础功能与来源
 
@@ -40,6 +40,6 @@
 
 ## 验证与交付
 
-本构建已有 260 项单元测试、真实 Windows 原生区域与穿透专项验证、适配紧凑菜单和分组音效页的 Electron 界面审计，以及包含宿主遮挡、原生焦点和 72 步跟随移动/缩放的完整桌面烟测。当前 Plus 账号的 5 小时/周额度直读也已验证。证据范围和待验证项目见 [验证记录](VERIFICATION-0.3.md)。Mac 实机、跨重置点额度变化及长期显示稳定性仍需验收。
+本构建已有 262 项单元测试、真实 Windows 原生区域与穿透专项验证、适配紧凑菜单和 DSH 四段式音效页的 Electron 界面审计，以及包含宿主遮挡、原生焦点和 72 步跟随移动/缩放的完整桌面烟测。当前 Plus 账号的 5 小时/周额度直读也已验证。证据范围和待验证项目见 [验证记录](VERIFICATION-0.3.md)。Mac 实机、跨重置点额度变化及长期显示稳定性仍需验收。
 
-发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。独立个人仓库使用标签 `codex-v0.3.0-fixed.4` 和 Release 名称 `Codex 额度小鲸鱼 v0.3(fixed)`，不会改写上游仓库的分支、标签或 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。
+发布附件统一为 `api-balance-whale-v0.3(fixed).zip` 与 `api-balance-whale-v0.3(fixed)-source.zip`，并附 SHA-256 与构建清单。独立个人仓库使用标签 `codex-v0.3.0-fixed.5` 和 Release 名称 `Codex 额度小鲸鱼 v0.3(fixed)`，不会改写上游仓库的分支、标签或 Latest 状态。[用户测试清单](USER_TEST_CHECKLIST.md) 中未完成项目继续保留，发布不将其改为已通过。

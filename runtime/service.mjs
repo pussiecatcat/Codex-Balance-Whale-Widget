@@ -21,6 +21,7 @@ export class WhaleService {
     this.noticeDelayMs = options.noticeDelayMs ?? 2500; this.pendingCostMs = options.pendingCostMs ?? 30000;
     this.closed = false; this.restored = false; this.recoveryActive = new Set();
     this.cancelledOutcomes = new Set();
+    this.waits = new Map(); this.waitRevision = 0;
     this.recoveryError = '';
   }
   scope(c, currency) { return c.accountId + '-' + currency; }
@@ -141,16 +142,44 @@ export class WhaleService {
     const defaults = usageDefaults();
     defaults.alert.lines.find(line => line.type === 'link').url = this.config.resolve().dashboardUrl;
     for (const key of Object.keys(defaults)) defaults[key] = { ...defaults[key], ...saved[key] };
+    for (const kind of Object.keys(defaults.events)) {
+      defaults.events[kind] = { ...usageDefaults().events[kind], ...(saved.events?.[kind] || {}) };
+    }
     delete defaults.outcomeNotice;
     return defaults;
   }
   writeUsageSettings(patch) {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('用量设置格式无效');
     const result = this.readUsageSettings();
-    for (const key of Object.keys(result)) if (patch[key] && typeof patch[key] === 'object') result[key] = { ...result[key], ...patch[key] };
+    for (const key of Object.keys(result)) if (key !== 'events' && patch[key] && typeof patch[key] === 'object') result[key] = { ...result[key], ...patch[key] };
+    if (patch.events && typeof patch.events === 'object' && !Array.isArray(patch.events)) {
+      for (const kind of Object.keys(result.events)) if (patch.events[kind] && typeof patch.events[kind] === 'object') {
+        result.events[kind] = { ...result.events[kind], ...patch.events[kind] };
+      }
+    }
+    for (const kind of ['press', 'turnCost', 'question', 'approval']) {
+      const event = result.events[kind];
+      if (!Number.isFinite(Number(event.vol)) || Number(event.vol) < 0 || Number(event.vol) > 1) throw new Error('提示音量须在 0% 到 100% 之间');
+      event.vol = Number(event.vol);
+      if (event.lines !== undefined && (!Array.isArray(event.lines) || event.lines.length > 64)) throw new Error('提示内容格式无效');
+    }
     for (const [key, field] of [['alert', 'below'], ['budget', 'amount']]) if (!Number.isFinite(Number(result[key][field])) || Number(result[key][field]) < 0) throw new Error('提醒阈值须为非负数字');
     writeJson(this.usageSettingsFile, result);
     return { ok: true, settings: result };
+  }
+  updateWait(meta) {
+    if (!meta || meta.isSubagent || !meta.sessionId || !meta.id) return;
+    const key = meta.sessionId + ':' + meta.id;
+    if (meta.pending === false) this.waits.delete(key);
+    else if (meta.kind === 'question' || meta.kind === 'approval') this.waits.set(key, {
+      id: String(meta.id), sessionId: String(meta.sessionId), sessionLabel: String(meta.sessionLabel || '当前对话').slice(0, 120),
+      kind: meta.kind, pending: true, ts: Number(meta.ts) || Date.now(),
+    });
+    this.waitRevision++;
+  }
+  waitStatus() {
+    const pending = [...this.waits.values()].sort((a, b) => b.ts - a.ts)[0] || null;
+    return { ok: true, revision: this.waitRevision, pending };
   }
   lastTurn() {
     const last = readJson(this.lastFile, { ok: true, seq: 0, turn: null, amount: null, tokens: null, ts: null });

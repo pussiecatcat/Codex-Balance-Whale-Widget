@@ -179,7 +179,7 @@ test('failed task registration leaves a running installation untouched and canno
     fs.writeFile(path.join(desktop, 'supervisor.ps1'), 'param([string]$DataDir,[switch]$Stop)\nSet-Content -LiteralPath (Join-Path $DataDir stop-was-called) -Value yes'),
   ]);
   const harness = path.join(temporary, 'simulate-install.ps1');
-  await fs.writeFile(harness, `$ErrorActionPreference='Stop'
+  await fs.writeFile(harness, `\uFEFF$ErrorActionPreference='Stop'
 function Get-ScheduledTask { param($TaskName,$ErrorAction) return $null }
 function New-ScheduledTaskAction { param($Execute,$Argument,$WorkingDirectory) [pscustomobject]@{Execute=$Execute;Arguments=$Argument} }
 function New-ScheduledTaskPrincipal { param($UserId,$LogonType,$RunLevel) [pscustomobject]@{} }
@@ -227,7 +227,7 @@ test('task identity accepts a verified old cache but rejects outside installatio
   const quote = value => "'" + value.replaceAll("'", "''") + "'";
   const harness = path.join(temporary, 'inspect-identities.ps1');
   const encoded = Buffer.from(JSON.stringify(cases), 'utf8').toString('base64');
-  await fs.writeFile(harness, `$ErrorActionPreference='Stop'
+  await fs.writeFile(harness, `\uFEFF$ErrorActionPreference='Stop'
 $whaleRoot=${quote(root)}; $DataDir=${quote(data)}; $whaleScript=${quote(ownScript)}
 $whaleQuotedData='"'+$DataDir+'"'; $whalePowerShell=Join-Path $env:WINDIR 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'; $whaleTaskName='Codex API Balance Whale'
 $source=Get-Content -LiteralPath ${quote(installer)} -Raw -Encoding UTF8

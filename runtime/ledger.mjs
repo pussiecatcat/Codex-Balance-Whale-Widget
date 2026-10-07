@@ -153,7 +153,20 @@ export class UsageLedger {
 
 export function usageDefaults() {
   return {
-    taskEnd: { on: false, sel: '' },
+    taskEnd: { on: false, sel: 'preset:duck:press', vol: 1, volSet: false },
+    events: {
+      press: { vol: 1 },
+      turnCost: { vol: 1, volSet: false, bubbleOn: true },
+      question: { on: true, soundOn: false, sel: 'preset:duck:press', vol: 1, bubbleOn: true, lines: [
+        { type: 'text', text: 'Codex 正在等你回答', size: 6, bold: true },
+        { type: 'text', text: '{session}', size: 3, color: '#63719a' },
+      ] },
+      approval: { on: true, soundOn: false, sel: 'preset:duck:press', vol: 1, bubbleOn: true, lines: [
+        { type: 'text', text: 'Codex 正在等你授权', size: 6, bold: true },
+        { type: 'text', text: '{session}', size: 3, color: '#63719a' },
+      ] },
+    },
+    wait: { charClose: false },
     turnCost: { lines: [
       { type: 'text', text: '{turn_title}', size: 6, bold: true },
       { type: 'text', text: '{turn_primary}', size: 16, bold: true, color: '#4059b3' },

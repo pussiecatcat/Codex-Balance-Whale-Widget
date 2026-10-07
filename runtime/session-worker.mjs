@@ -7,6 +7,7 @@ const reader = new SessionReader({ ...workerData,
   onStart: meta => events.push({ type: 'start', meta }),
   onEnd: meta => events.push({ type: 'end', meta }),
   onUpdate: meta => events.push({ type: 'update', meta }),
+  onWait: meta => events.push({ type: 'wait', meta }),
 });
 function tick() {
   events = [];

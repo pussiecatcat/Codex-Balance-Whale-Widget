@@ -7,16 +7,17 @@ import { failureKind } from './failure-kind.mjs';
 const fields = ['input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens'];
 const normalize = value => Object.fromEntries(fields.map(key => [key, Math.max(0, Number(value?.[key]) || 0)]));
 const zero = () => normalize({});
-const relevant = /"(?:session_meta|token_count|turn_context|task_started|task_complete|turn_started|turn_completed|turn_aborted|task_aborted|error|stream_error)"/;
+const relevant = /"(?:session_meta|response_item|token_count|turn_context|task_started|task_complete|turn_started|turn_completed|turn_aborted|task_aborted|error|stream_error|request_user_input|request_user_input_async|request_permissions|function_call_output)"/;
 const timestamp = value => typeof value === 'number' ? (value < 1e12 ? value * 1000 : value) : Date.parse(value);
 
 export class SessionParser {
-  constructor({ id, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, recoverIds = [] }) {
+  constructor({ id, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, onWait = () => {}, recoverIds = [] }) {
     this.id = id; this.model = ['__proto__', 'prototype', 'constructor'].includes(defaultModel) ? '' : defaultModel;
-    this.onStart = onStart; this.onEnd = onEnd; this.onUpdate = onUpdate;
+    this.onStart = onStart; this.onEnd = onEnd; this.onUpdate = onUpdate; this.onWait = onWait;
     this.total = null; this.active = null; this.priming = false;
     this.identity = null; this.skipHistory = 0; this.completed = new Set();
     this.recentEnds = new Map();
+    this.waiting = new Map();
     this.recoverIds = new Set(recoverIds); this.recoverySeen = new Set();
   }
   identify(meta) {
@@ -38,6 +39,7 @@ export class SessionParser {
       if (!this.active.recoverable) { this.active.byModel = {}; this.active.partial = true; }
       this.onStart({ ...this.active });
     }
+    if (!this.identity?.isSubagent) for (const wait of this.waiting.values()) this.onWait({ ...wait });
   }
   accept(line) {
     if (this.skipHistory > 0) { this.skipHistory--; return; }
@@ -46,6 +48,25 @@ export class SessionParser {
     try { d = typeof line === 'string' ? JSON.parse(line) : line; } catch { return; }
     const p = d.payload || {};
     if (d.type === 'session_meta') { this.identify(p); return; }
+    if (d.type === 'response_item') {
+      if (p.type === 'function_call') {
+        const kind = ['request_user_input', 'request_user_input_async'].includes(p.name) ? 'question' : p.name === 'request_permissions' ? 'approval' : '';
+        const callId = p.call_id || p.id;
+        if (kind && callId && !this.identity?.isSubagent) {
+          const wait = { id: String(callId), sessionId: this.id, sessionLabel: this.identity?.sessionLabel || '当前对话',
+            turnId: this.active?.turnId || '', kind, pending: true, ts: timestamp(d.timestamp) || Date.now(), isSubagent: false };
+          this.waiting.set(String(callId), wait);
+          if (!this.priming) this.onWait({ ...wait });
+        }
+      } else if (p.type === 'function_call_output') {
+        const callId = p.call_id || p.id, wait = callId && this.waiting.get(String(callId));
+        if (wait) {
+          this.waiting.delete(String(callId));
+          if (!this.priming) this.onWait({ ...wait, pending: false, ts: timestamp(d.timestamp) || Date.now() });
+        }
+      }
+      return;
+    }
     if (d.type === 'turn_context') {
       if (typeof p.model === 'string' && !['__proto__', 'prototype', 'constructor'].includes(p.model)) this.model = p.model;
       if (this.active && (!p.turn_id || p.turn_id === this.active.turnId)) {
@@ -115,11 +136,16 @@ export class SessionParser {
   }
   end(ts, outcome) {
     if (!this.active) return;
+    const endingTurnId = this.active.turnId;
     const completed = { ...this.active, ts, outcome, historical: this.priming,
       notify: !this.priming && outcome === 'completed' && !this.active.isSubagent,
       failureKind: outcome === 'failed' && this.active.failureKind === 'high-demand' ? 'high-demand' : null,
       statusNotify: !this.priming && ['aborted','failed','interrupted','superseded'].includes(outcome) && !this.active.isSubagent };
     this.active = null; this.completed.add(completed.turnId);
+    for (const [callId, wait] of this.waiting) if (!wait.turnId || wait.turnId === endingTurnId) {
+      this.waiting.delete(callId);
+      if (!this.priming) this.onWait({ ...wait, pending: false, ts });
+    }
     this.recentEnds.set(completed.turnId, completed);
     if (this.recentEnds.size > 128) this.recentEnds.delete(this.recentEnds.keys().next().value);
     if (this.completed.size > 8192) this.completed.delete(this.completed.values().next().value);
@@ -148,13 +174,13 @@ function sessionFiles(root, recoverIds = []) {
 
 // Synchronous scanning is confined to the worker or isolated replay tests.
 export class SessionReader {
-  constructor({ root, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, discoverMs = 3000, recoverIds = [] }) {
-    Object.assign(this, { root, defaultModel, onStart, onEnd, onUpdate, discoverMs, recoverIds });
+  constructor({ root, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, onWait = () => {}, discoverMs = 3000, recoverIds = [] }) {
+    Object.assign(this, { root, defaultModel, onStart, onEnd, onUpdate, onWait, discoverMs, recoverIds });
     this.files = new Map(); this.lastDiscovery = 0; this.error = '';
   }
   add(info, initial) {
     const parser = new SessionParser({ id: path.basename(info.file, '.jsonl'), defaultModel: this.defaultModel,
-      onStart: this.onStart, onEnd: this.onEnd, onUpdate: this.onUpdate, recoverIds: this.recoverIds });
+      onStart: this.onStart, onEnd: this.onEnd, onUpdate: this.onUpdate, onWait: this.onWait, recoverIds: this.recoverIds });
     const fd = fs.openSync(info.file, 'r');
     try {
       const head = Buffer.alloc(Math.min(info.size, 1024 * 1024));
@@ -235,6 +261,7 @@ export class SessionMonitor {
       for (const item of message.events || []) {
         if (item.type === 'start') this.service.beginTurn(item.meta);
         else if (item.type === 'update') this.service.updateTurn?.(item.meta);
+        else if (item.type === 'wait') this.service.updateWait?.(item.meta);
         else this.dispatch(item.meta);
       }
       if (message.recoveryComplete) this.service.finishMissingRecovery?.(message.status?.recoverySeen || []);

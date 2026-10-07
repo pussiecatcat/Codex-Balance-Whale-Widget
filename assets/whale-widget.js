@@ -1150,7 +1150,9 @@
         if (!usageRefreshTimer) usageRefreshTimer = setInterval(function () { if (usagePanelOpen) renderUsagePanel(); }, 10000);
       },
       stop: function () { usagePanelOpen = false; clearInterval(usageRefreshTimer); usageRefreshTimer = null; },
-      records: function () { openUsageRecordsWindow(); }
+      records: function () { openUsageRecordsWindow(); },
+      showWait: function (detail) { return showWaitBubble(detail || {}); },
+      hideWait: function (id) { hideWaitBubble(false, id); }
     };
     function whaleCurrencySymbol() {
       return WhaleMoney.symbol();
@@ -1200,14 +1202,15 @@
       try {
         var isCost = key === 'turnCost';
         var isAlert = key === 'alert';
-        var cfg = customConfig || (usageSet || ({}))[isCost ? 'turnCost' : isAlert ? 'alert' : 'budget'] || ({});
+        var isWait = key === 'question' || key === 'approval';
+        var cfg = customConfig || (isWait ? ((usageSet || {}).events || {})[key] : (usageSet || ({}))[isCost ? 'turnCost' : isAlert ? 'alert' : 'budget']) || ({});
         var numDef = isAlert ? 50 : 20;
         var numInit = isAlert ? cfg.below != null ? cfg.below : numDef : cfg.amount != null ? cfg.amount : numDef;
         var nativeCurrency = cfg.currency || state.currency || 'USD';
         var nativeDraft = Number(numInit);
         var step = {
           kind: 'custom',
-          modules: JSON.parse(JSON.stringify(isCost ? usageTurnCostLines() : usageRemindLinesOf(cfg, isAlert)))
+          modules: JSON.parse(JSON.stringify(isCost ? (customConfig && Array.isArray(customConfig.lines) ? customConfig.lines : usageTurnCostLines()) : isWait ? usageWaitLinesOf(cfg, key) : usageRemindLinesOf(cfg, isAlert)))
         };
         var bkEditItems = bubbleEditItems;
         var bkEditorSnap = bubbleEditorSnap;
@@ -1234,11 +1237,11 @@
         card.style.overflow = 'hidden auto';
         var title = document.createElement('div');
         title.className = 'dshwv-bubtitle';
-        title.textContent = '编辑 ' + (isCost ? '每轮消耗' : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
+        title.textContent = '编辑 ' + (isCost ? '每轮消耗' : isWait ? (key === 'approval' ? '授权' : '提问') : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
         card.appendChild(title);
         var secCond = document.createElement('div');
         secCond.className = 'dshwv-bubsec dshwv-bubsec-first';
-        secCond.textContent = isCost ? '显示条件与关闭时间' : isAlert ? '触发条件(余额低于该值时提醒)' : '触发条件(今日已观测达到该值时提醒)';
+        secCond.textContent = isCost ? '显示条件与关闭时间' : isWait ? '' : isAlert ? '触发条件(余额低于该值时提醒)' : '触发条件(今日已观测达到该值时提醒)';
         card.appendChild(secCond);
         var chk = document.createElement('input');
         chk.type = 'checkbox';
@@ -1313,7 +1316,7 @@
         gSec.appendChild(lSec);
         condBox.appendChild(gSec);
         card.appendChild(condBox);
-        if (customConfig && customConfig.layoutOnly) { condBox.style.display = 'none'; secCond.style.display = 'none'; }
+        if (isWait || customConfig && customConfig.layoutOnly) { condBox.style.display = 'none'; secCond.style.display = 'none'; }
         var secPal = document.createElement('div');
         secPal.className = 'dshwv-bubsec dshwv-bubsec-first';
         secPal.textContent = '可选模块(点击或拖入下方内容框)';
@@ -1323,7 +1326,7 @@
         card.appendChild(bubblePalEl);
         var secPv = document.createElement('div');
         secPv.className = 'dshwv-bubsec';
-        secPv.textContent = isCost ? '提示内容(支持 {turn_title} {turn_primary} {turn_detail} {cost} 和 token 占位符)' : '提醒内容(同一行模块并排 ≤6;拖模块到行边缘=并排、上/下=拆行、拖 ⠿ 整行排序;{below} / {amount} 触发时替换)';
+        secPv.textContent = isCost ? '提示内容(支持 {turn_title} {turn_primary} {turn_detail} {cost} 和 token 占位符)' : isWait ? '提示内容(支持 {session} 表示当前对话；模块可点击或拖入下方内容框)' : '提醒内容(同一行模块并排 ≤6;拖模块到行边缘=并排、上/下=拆行、拖 ⠿ 整行排序;{below} / {amount} 触发时替换)';
         card.appendChild(secPv);
         bubblePvEl = document.createElement('div');
         bubblePvEl.className = 'dshwv-bubpvbox';
@@ -1405,7 +1408,7 @@
         resBtn.textContent = '恢复默认';
         resBtn.title = '恢复为默认提醒内容(触发条件保持不变)';
         resBtn.addEventListener('click', function () {
-          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines() : usageRemindDefaultLines(isAlert)));
+          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines() : isWait ? usageWaitDefaultLines(key) : usageRemindDefaultLines(isAlert)));
           renderBubblePv();
         });
         btns.appendChild(resBtn);
@@ -1414,7 +1417,7 @@
         okBtn.className = 'dshwv-bubbtn dshwv-bubbtn-ok';
         okBtn.textContent = '保存';
         okBtn.addEventListener('click', function () {
-          if (!isCost && !numInp.reportValidity()) return;
+          if (!isCost && !isWait && !numInp.reportValidity()) return;
           try {
             bubbleRowsCanon(step.modules);
           } catch (err) {}
@@ -1424,7 +1427,7 @@
             autoClose: isCost ? Number(secInp.value) > 0 : acChk.checked,
             ttlSec: isCost && !acChk.checked ? 0 : Math.max(0, Number(secInp.value) || 0)
           };
-          if (!isCost) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
+          if (!isCost && !isWait) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
           cleanup();
           if (onSave) onSave(o);
         });
@@ -1456,8 +1459,8 @@
           try {
             var it = bubbleEditTarget();
             var below = isAlert ? nativeDraft : null;
-            var amount = isAlert || isCost ? null : nativeDraft;
-            var previewNotice = WhaleTurnNotice.snapshot({ ok: true, amount: 0.08, costState: 'estimated', tokens: 12840, byModel: { preview: { input_tokens: 10240, output_tokens: 2600, cached_input_tokens: 6000, reasoning_output_tokens: 800 } } }, state.currency);
+            var amount = isAlert || isCost || isWait ? null : nativeDraft;
+            var previewNotice = WhaleTurnNotice.snapshot({ ok: true, amount: 0.08, costState: 'estimated', tokens: 12840, sessionLabel: '当前对话', byModel: { preview: { input_tokens: 10240, output_tokens: 2600, cached_input_tokens: 6000, reasoning_output_tokens: 800 } } }, state.currency);
             if (customConfig && customConfig.previewNotice) previewNotice = customConfig.previewNotice;
             if (it && Array.isArray(it.modules) && bubblePvPrevEl) bubblePreviewInto(bubblePvPrevEl, usageAlertModsResolved(it.modules, below, amount, isCost || customConfig ? previewNotice : null));
           } catch (err) {}
@@ -1470,7 +1473,7 @@
             numInp.setCustomValidity(''); renderBubblePv();
           } catch (err) { numInp.setCustomValidity(err.message); }
         }
-        if (!isCost) numInp.addEventListener('input', editNativeAmount);
+        if (!isCost && !isWait) numInp.addEventListener('input', editNativeAmount);
         chk.addEventListener('change', renderBubblePv);
         mask.appendChild(card);
         mask.addEventListener('click', function (e) {
@@ -2122,6 +2125,15 @@
         { type: 'text', text: '{turn_detail}', size: 2, color: '#63719a' }
       ];
     }
+    function usageWaitDefaultLines(kind) {
+      return [
+        { type: 'text', text: kind === 'approval' ? 'Codex 正在等你授权' : 'Codex 正在等你回答', size: 6, bold: true },
+        { type: 'text', text: '{session}', size: 3, color: '#63719a' }
+      ];
+    }
+    function usageWaitLinesOf(cfg, kind) {
+      return cfg && Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageWaitDefaultLines(kind);
+    }
     function usageTurnCostLines() {
       var cfg = usageSet && usageSet.turnCost || ({});
       return Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageTurnCostDefaultLines();
@@ -2148,7 +2160,7 @@
         (notice.tokens == null ? '' : bubbleTokenValue(notice.tokens) + ' tokens · ') + (notice.costState === 'estimated' ? '配置价格估算' : notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' : '同密钥区间观测');
       return { turn_title: title, turn_primary: primary, turn_detail: detail, cost: cost,
         turn_tokens: bubbleTokenValue(notice.tokens), turn_input: bubbleTokenValue(notice.inputTokens), turn_output: bubbleTokenValue(notice.outputTokens),
-        turn_cached: bubbleTokenValue(notice.cachedInputTokens), turn_reasoning: bubbleTokenValue(notice.reasoningOutputTokens), session_name: notice.sessionLabel || '当前会话',
+        turn_cached: bubbleTokenValue(notice.cachedInputTokens), turn_reasoning: bubbleTokenValue(notice.reasoningOutputTokens), session: notice.sessionLabel || '当前对话', session_name: notice.sessionLabel || '当前会话',
         api_name: notice.apiName || 'API 模型', api_balance: notice.apiBalance || '12.00', api_cost: notice.apiCost || '0.08', api_quota_left: notice.apiQuotaLeft || '75%' };
     }
     function usageFillText(txt, below, amount, currency, notice) {
@@ -9149,6 +9161,10 @@
     function whaleClick() {
       try {
         if (!bubbleOn) return;
+        if (bubbleScene && bubbleScene.kind === 'wait') {
+          if (whaleSysItem && whaleSysItem.closeOnRole) hideWaitBubble(true, whaleSysItem.id);
+          return;
+        }
         if (bubbleScene && (bubbleScene.kind === 'cost' || bubbleScene.kind === 'alert')) return;
         // Match the original petting interaction: once a bubble is visible,
         // presses on the character only play the press/release feedback. The
@@ -9168,6 +9184,10 @@
         }
         if (bubbleScene && bubbleScene.kind === 'alert') {
           hideUsageAlertBubble();
+          return;
+        }
+        if (bubbleScene && bubbleScene.kind === 'wait') {
+          hideWaitBubble(true, whaleSysItem && whaleSysItem.id);
           return;
         }
         if (bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length) {
@@ -9227,11 +9247,46 @@
     var whaleSysQueue = [];
     var whaleSysItem = null;
     var whaleSysTimer = null;
+    function showWaitBubble(detail) {
+      try {
+        if (!detail || !detail.id || !bubbleOn) return false;
+        var id = String(detail.id);
+        if (whaleSysItem && whaleSysItem.kind === 'wait' && whaleSysItem.id === id) return true;
+        whaleSysQueue = whaleSysQueue.filter(function (item) { return !(item && item.kind === 'wait'); });
+        var lines = Array.isArray(detail.lines) && detail.lines.length ? detail.lines : usageWaitDefaultLines(detail.kind);
+        var mods = usageAlertModsResolved(lines, null, null, { sessionLabel: detail.sessionLabel || '当前对话' });
+        return whaleSysPush({ kind: 'wait', id: id, waitKind: detail.kind, mods: mods, rank: 1, ttlMs: 0, closeOnRole: detail.closeOnRole === true });
+      } catch (err) { return false; }
+    }
+    function hideWaitBubble(userDismissed, id) {
+      try {
+        whaleSysQueue = whaleSysQueue.filter(function (item) { return !(item && item.kind === 'wait' && (!id || item.id === id)); });
+        if (!whaleSysItem || whaleSysItem.kind !== 'wait' || id && whaleSysItem.id !== id) return;
+        var closedId = whaleSysItem.id;
+        if (userDismissed) window.dispatchEvent(new CustomEvent('whale-wait-dismissed', { detail: { id: closedId } }));
+        if (whaleSysSwapNext()) return;
+        bubbleClearAll();
+        bubbleScene = null; bubbleShown = false; bubbleRandomActive = false; bubbleRandomLines = null;
+        bubbleCloseVisual(); whaleSysDone();
+      } catch (err) {}
+    }
     function whaleSysPush(item) {
       try {
         if (!bubbleOn || !bubbleBox || !textBox) return false;
-        if (costBubbleActive && !whaleSysItem) return false;
         if (!item || !item.kind) return false;
+        if (item.kind === 'wait') {
+          whaleSysQueue = whaleSysQueue.filter(function (queued) { return !(queued && queued.kind === 'wait'); });
+          if (whaleSysItem && whaleSysItem.kind === 'wait') {
+            whaleSysItem = item;
+            sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
+            return true;
+          }
+          if (whaleSysItem) whaleSysQueue.unshift(whaleSysItem);
+          whaleSysItem = item;
+          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
+          return true;
+        }
+        if (costBubbleActive && !whaleSysItem) return false;
         var rank = Number(item.rank);
         if (!(rank >= 1)) rank = 2;
         item.rank = rank;
@@ -9271,6 +9326,8 @@
           sceneOpen('cost', function () {
             bubbleRenderCost(item.amount, item.notice);
           }, turnCostCloseMs > 0 ? turnCostCloseMs : 0);
+        } else if (item.kind === 'wait') {
+          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
         } else {
           sceneOpen('alert', function () {
             bubbleRenderModules(item.mods || []);
@@ -9298,6 +9355,8 @@
           sceneOpen('cost', function () {
             bubbleRenderCost(item.amount, item.notice);
           }, turnCostCloseMs > 0 ? turnCostCloseMs : 0);
+        } else if (item.kind === 'wait') {
+          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
         } else {
           sceneOpen('alert', function () {
             bubbleRenderModules(item.mods || []);
@@ -11727,6 +11786,15 @@
     window.addEventListener('whale-edit-api-reminder', function (event) {
       var detail=event.detail || {};
       usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
+    });
+    window.addEventListener('whale-edit-sound-prompt', function (event) {
+      var detail = event.detail || {};
+      if (detail.key !== 'question' && detail.key !== 'approval') return;
+      usageAlertBudgetEditor(detail.key, detail.save, detail.config);
+    });
+    window.addEventListener('whale-edit-sound-turn-cost', function (event) {
+      var detail = event.detail || {};
+      usageAlertBudgetEditor('turnCost', detail.save, detail.config);
     });
     applySoundSet();
     setupHitTest(initRoleUrl);

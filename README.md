@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261004-menu-sound`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261007-dsh-sound`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -57,9 +57,11 @@
 ### 紧凑设置与音效
 
 - 设置页沿用原版小尺寸平铺布局，包含角色、大小、气泡开关、滚动条避让、吸附、翻转、菜单按钮、资源管理和模式切换。
-- “提示与音效设置”按原版风格拆成可折叠卡片，统一管理按压手感、音效组、按压音量、每轮消耗气泡、自动关闭时间、任务结束音和独立事件音量。
-- 设置先在草稿中编辑；只有保存才生效，取消、Esc 或点击遮罩会放弃本次改动。
-- 支持内置音效组、自定义音效组、静音片段、事件音色、试听和 WAV 片段裁剪。
+- “提示与音效设置”完整复刻原版四个折叠入口：按压音效、每轮消耗提示、提问提示和授权提示，默认全部收起并在入口显示当前状态摘要。
+- 按压区提供音效组、新建音效组、音量和试听；每轮区提供冒泡内容、自动关闭、任务结束音、独立音量和试听；提问/授权区分别提供总开关、冒泡内容、音效开关、选音、音量和试听。
+- 设置先在草稿中编辑；只有保存才生效，取消、Esc 或点击遮罩会放弃本次改动。“恢复默认”也只修改草稿，可以继续取消。
+- Codex 进入等待回答或等待授权时会触发对应提示；提示常驻到交互完成，也可点气泡收起。可选“点按角色关闭提示气泡”，同一条挂起提示被收起后不会反复弹回。
+- 支持内置音效组、自定义音效组、试听和 WAV 片段裁剪；关闭某项音效时下拉与音量置灰，音效开关和试听仍可操作。
 
 ### 角色与资源管理
 
@@ -127,7 +129,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-packag
 2. 点击鲸鱼打开额度气泡，点击气泡依次浏览，继续点击角色可触发按压互动。
 3. 在紧凑菜单底部切换“Codex 订阅”与“API 余额”。
 4. 进入“自定义泡泡”编辑两种模式各自的序列、模块与样式。
-5. 在“音效与提示”中调整手感、事件音效、音量和每轮提示。
+5. 在“音效与提示”中调整按压、每轮结束、提问与授权的气泡、音效和音量。
 6. 如果挂件不可见，使用托盘中的“恢复显示小鲸鱼”或按 `Ctrl+Alt+W`。
 
 退出挂件不会取消正在运行的 Codex 任务。
@@ -166,8 +168,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 ## 验证状态
 
-- 260 项 Node 单元测试通过。
-- Windows Electron 紧凑菜单界面审查通过。
+- 262 项 Node 单元测试通过。
+- Windows Electron 紧凑菜单与 DSH 四段式音效页面审查通过。
 - Windows 原生区域、透明穿透和焦点专项验证通过。
 - 完整桌面烟测通过，包括宿主遮挡以及 72 次跟随移动/缩放。
 - 当前 Plus 登录的五小时和每周额度直读已验证。
@@ -199,7 +201,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.4
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.5
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。

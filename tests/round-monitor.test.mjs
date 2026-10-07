@@ -42,6 +42,37 @@ test('only the matching successful main turn can request a completion notificati
   assert.equal(p.active.turnId, 'E');
 });
 
+test('Codex question and permission calls publish real wait state and clear on output or turn end', () => {
+  const waits = [], p = new SessionParser({ id: 'file', onWait: value => waits.push(value) });
+  const call = (name, callId) => ({ type: 'response_item', timestamp: new Date().toISOString(), payload: { type: 'function_call', name, call_id: callId } });
+  const output = callId => ({ type: 'response_item', timestamp: new Date().toISOString(), payload: { type: 'function_call_output', call_id: callId, output: '{}' } });
+  p.accept(header('main', { cwd: 'C:/project' })); p.accept(event('task_started', 'turn'));
+  p.accept(call('request_user_input_async', 'question-1'));
+  assert.deepEqual(waits.map(value => [value.kind, value.pending]), [['question', true]]);
+  assert.equal(waits[0].sessionLabel, 'project');
+  p.accept(output('question-1'));
+  p.accept(call('request_permissions', 'approval-1'));
+  p.accept(event('task_complete', 'turn'));
+  assert.deepEqual(waits.map(value => [value.kind, value.pending]), [
+    ['question', true], ['question', false], ['approval', true], ['approval', false],
+  ]);
+});
+
+test('sound event settings merge by event and wait DTO never exposes call payloads', t => {
+  const { service } = fixture(t);
+  const before = service.readUsageSettings();
+  service.writeUsageSettings({ events: { question: { soundOn: true, vol: .35 } }, wait: { charClose: true } });
+  const after = service.readUsageSettings();
+  assert.equal(after.events.question.soundOn, true); assert.equal(after.events.question.vol, .35);
+  assert.deepEqual(after.events.question.lines, before.events.question.lines);
+  assert.deepEqual(after.events.approval.lines, before.events.approval.lines);
+  assert.equal(after.wait.charClose, true);
+  service.updateWait({ id: 'call-1', sessionId: 'session-1', sessionLabel: '当前项目', kind: 'approval', pending: true, ts: 10 });
+  assert.deepEqual(service.waitStatus().pending, { id: 'call-1', sessionId: 'session-1', sessionLabel: '当前项目', kind: 'approval', pending: true, ts: 10 });
+  service.updateWait({ id: 'call-1', sessionId: 'session-1', kind: 'approval', pending: false, ts: 20 });
+  assert.equal(service.waitStatus().pending, null);
+});
+
 test('fork identity and inherited history cannot be replaced by parent metadata', () => {
   const starts = [], ends = [], p = new SessionParser({ id: 'filename', defaultModel: 'model', onStart: e => starts.push(e), onEnd: e => ends.push(e) });
   p.accept(header('child', { session_id: 'main', thread_source: 'subagent', parent_thread_id: 'main', subagent_history_start_ordinal: 4 }));
