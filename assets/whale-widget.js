@@ -964,10 +964,9 @@
     }
     var apiSettingsBtn = document.createElement('button');
     apiSettingsBtn.type = 'button';
-    apiSettingsBtn.className = 'dshwv-api-open';
+    apiSettingsBtn.className = 'dshwv-roleimport dshwv-api-open';
     apiSettingsBtn.dataset.accountApi = 'true';
     apiSettingsBtn.textContent = 'API 设置';
-    apiSettingsBtn.style.cssText = 'width:100%;margin:6px 0;padding:7px;border:1px solid #badbdc;border-radius:8px;background:#eff9f8;color:#22676b;cursor:pointer';
     apiSettingsBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       window.dispatchEvent(new Event('whale-open-settings'));

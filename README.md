@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-select-polish`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-api-button`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -202,7 +202,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.6
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.7
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。
