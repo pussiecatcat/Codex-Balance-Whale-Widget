@@ -390,8 +390,8 @@
     var usageRecBtn = document.createElement('button');
     usageRecBtn.type = 'button';
     usageRecBtn.className = 'dshwv-roleimport';
-    usageRecBtn.textContent = '查看 API 消费记录';
-    usageRecBtn.title = '查看今日/近7天/全部消费记录';
+    usageRecBtn.textContent = '- = 小龙娘记账 = -';
+    usageRecBtn.title = '打开小龙娘记账';
     usageRecBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       toggleUsagePanel();
@@ -993,6 +993,9 @@
     var usagePanelOpen = false;
     var usageRefreshTimer = null;
     var usageMainEl = null;
+    var usageModelListEl = null;
+    var usageModelRefreshBtn = null;
+    var usageModelRenderSeq = 0;
     function toggleUsagePanel() {
       if (usagePanelOpen) {
         hideUsageSub();
@@ -1010,8 +1013,8 @@
     var usageShowTimer = null;
     function setUsageNavBtn(inUsage) {
       try {
-        usageRecBtn.textContent = inUsage ? '‹ 返回控制面板' : '查看 API 消费记录';
-        usageRecBtn.title = inUsage ? '返回主菜单' : '查看今日/近7天/全部消费记录';
+        usageRecBtn.textContent = inUsage ? '‹ 返回' : '- = 小龙娘记账 = -';
+        usageRecBtn.title = inUsage ? '返回' : '打开小龙娘记账';
       } catch (err) {}
     }
     function showUsageSub() {
@@ -1229,6 +1232,7 @@
     }
     function renderUsagePanel() {
       if (usageMainEl && usagePanelOpen && usageSet !== null) {
+        renderUsageModels(false);
         refreshUsageMain();
         return;
       }
@@ -1239,12 +1243,146 @@
       usagePanel.innerHTML = '';
       var subTitle = document.createElement('div');
       subTitle.className = 'dshwv-usage-subtitle';
-      subTitle.textContent = '- = 小鲸鱼记账 = -';
+      subTitle.textContent = '- = 小龙娘记账 = -';
       usagePanel.appendChild(subTitle);
-      buildUsageSettingsArea();
+      buildUsageModelArea();
       usageMainEl = document.createElement('div');
       usageMainEl.className = 'dshwv-usagebody';
       usagePanel.appendChild(usageMainEl);
+      var tools = document.createElement('details');
+      tools.className = 'dshwv-book-tools';
+      var toolsTitle = document.createElement('summary');
+      toolsTitle.textContent = '账本工具';
+      tools.appendChild(toolsTitle);
+      var toolsBody = document.createElement('div');
+      toolsBody.className = 'dshwv-book-tools-body';
+      tools.appendChild(toolsBody);
+      buildUsageSettingsArea(toolsBody);
+      usagePanel.appendChild(tools);
+    }
+    function usageApiModelSummary(model, value) {
+      if (!value) return '加载中…';
+      if (value.error) return '暂不可用';
+      var windows = Array.isArray(value.windows) ? value.windows : [];
+      var quota = windows.length ? windows[0] : null;
+      if (quota && typeof quota.usedPercent === 'number' && isFinite(quota.usedPercent) && !(quota.resetsAt && Number(quota.resetsAt) <= Date.now())) {
+        return '剩余 ' + Math.max(0, 100 - quota.usedPercent).toFixed(1) + '%';
+      }
+      if (model.kind === 'quota') return '额度（未观测）';
+      if (typeof value.balance === 'number' && isFinite(value.balance)) {
+        return '余额 ' + WhaleMoney.formatMoney(value.balance, value.currency || model.currency || 'USD');
+      }
+      if (typeof value.todayEstimate === 'number' && isFinite(value.todayEstimate)) {
+        return '今日 ' + WhaleMoney.formatMoney(value.todayEstimate, value.currency || model.currency || 'USD');
+      }
+      if (value.noBalanceApi || value.available === false || model.noBalanceApi) return '余额（无接口）';
+      if (model.kind === 'codex') return '本机统计';
+      return '余额（待同步）';
+    }
+    function renderUsageModels(force) {
+      if (!usageModelListEl) return;
+      var list = usageModelListEl;
+      var button = usageModelRefreshBtn;
+      var seq = ++usageModelRenderSeq;
+      if (button) button.disabled = true;
+      list.innerHTML = '';
+      var loading = document.createElement('div');
+      loading.className = 'dshwv-book-model-empty';
+      loading.textContent = '正在读取模型…';
+      list.appendChild(loading);
+      if (!window.WhaleApiModels || typeof window.WhaleApiModels.load !== 'function') {
+        loading.textContent = 'API 模型模块未加载';
+        if (button) button.disabled = false;
+        return;
+      }
+      window.WhaleApiModels.load(!!force).then(function (data) {
+        var models = data && Array.isArray(data.models) ? data.models : [];
+        return Promise.all(models.map(function (model) {
+          return window.WhaleApiModels.refresh(model.id, !!force).then(function (value) {
+            return { model: model, value: value };
+          }).catch(function (error) {
+            return { model: model, value: { error: error && error.message || '读取失败' } };
+          });
+        }));
+      }).then(function (items) {
+        if (seq !== usageModelRenderSeq || list !== usageModelListEl) return;
+        list.innerHTML = '';
+        if (!items.length) {
+          var empty = document.createElement('div');
+          empty.className = 'dshwv-book-model-empty';
+          empty.textContent = '还没有 API 模型';
+          list.appendChild(empty);
+          return;
+        }
+        items.forEach(function (entry) {
+          var row = document.createElement('div');
+          row.className = 'dshwv-book-model-row';
+          var name = document.createElement('span');
+          name.className = 'dshwv-book-model-name';
+          name.textContent = entry.model.name || 'API 模型';
+          name.title = name.textContent;
+          row.appendChild(name);
+          var value = document.createElement('span');
+          value.className = 'dshwv-book-model-value';
+          value.textContent = usageApiModelSummary(entry.model, entry.value);
+          value.title = value.textContent;
+          row.appendChild(value);
+          var settings = document.createElement('button');
+          settings.type = 'button';
+          settings.className = 'dshwv-roleimport dshwv-book-model-setting';
+          settings.textContent = '设置';
+          settings.title = '设置 ' + name.textContent + ' 的接口、预算、提醒与额度';
+          settings.addEventListener('click', function (event) {
+            event.stopPropagation();
+            window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: entry.model.id } }));
+          });
+          row.appendChild(settings);
+          list.appendChild(row);
+        });
+      }).catch(function (error) {
+        if (seq !== usageModelRenderSeq || list !== usageModelListEl) return;
+        list.innerHTML = '';
+        var failed = document.createElement('div');
+        failed.className = 'dshwv-book-model-empty';
+        failed.textContent = error && error.message || '模型读取失败';
+        list.appendChild(failed);
+      }).finally(function () {
+        if (seq === usageModelRenderSeq && button === usageModelRefreshBtn && button) button.disabled = false;
+      });
+    }
+    function buildUsageModelArea() {
+      var area = document.createElement('section');
+      area.className = 'dshwv-book-models';
+      var head = document.createElement('div');
+      head.className = 'dshwv-book-model-head';
+      var title = document.createElement('strong');
+      title.className = 'dshwv-book-model-title';
+      title.textContent = '模型（提醒 / 预算 / 额度）';
+      head.appendChild(title);
+      usageModelRefreshBtn = document.createElement('button');
+      usageModelRefreshBtn.type = 'button';
+      usageModelRefreshBtn.className = 'dshwv-roleimport dshwv-book-model-refresh';
+      usageModelRefreshBtn.textContent = '刷新';
+      usageModelRefreshBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        renderUsageModels(true);
+      });
+      head.appendChild(usageModelRefreshBtn);
+      area.appendChild(head);
+      usageModelListEl = document.createElement('div');
+      usageModelListEl.className = 'dshwv-book-model-list';
+      area.appendChild(usageModelListEl);
+      var add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'dshwv-usage-more dshwv-book-add';
+      add.textContent = '＋ 添加模型（自定义 API）';
+      add.addEventListener('click', function (event) {
+        event.stopPropagation();
+        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: null } }));
+      });
+      area.appendChild(add);
+      usagePanel.appendChild(area);
+      renderUsageModels(false);
     }
     function usageAlertBudgetEditor(key, onSave, customConfig) {
       try {
@@ -1533,7 +1671,8 @@
         renderBubblePv();
       } catch (err) {}
     }
-    function buildUsageSettingsArea() {
+    function buildUsageSettingsArea(parentEl) {
+      parentEl = parentEl || usagePanel;
       var S = usageSet || ({});
       var stA = S.alert || ({
         on: false,
@@ -1569,7 +1708,7 @@
           });
         });
         row.appendChild(btn);
-        usagePanel.appendChild(row);
+        parentEl.appendChild(row);
         info.dataset.moneyRole = key;
         WhaleMoney.bind(info, stateFn);
       }
@@ -1619,7 +1758,7 @@
       var reconcileLabel = menuLabel('余额对账'); reconcileLabel.style.flex = '1'; reconcileRow.appendChild(reconcileLabel);
       var reconcileBtn = document.createElement('button'); reconcileBtn.type = 'button'; reconcileBtn.className = 'dshwv-roleimport';
       reconcileBtn.textContent = '校正'; reconcileBtn.title = '用期初、充值、其他支出和期末余额校正今日已用';
-      reconcileBtn.addEventListener('click', usageReconcileEditor); reconcileRow.appendChild(reconcileBtn); usagePanel.appendChild(reconcileRow);
+      reconcileBtn.addEventListener('click', usageReconcileEditor); reconcileRow.appendChild(reconcileBtn); parentEl.appendChild(reconcileRow);
     }
     function usageReconcileEditor() {
       fetch('/api/reconcile', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (data) {
@@ -1700,7 +1839,7 @@
       var today = d.today || ({});
       var todayModels = today.models || [];
       var hasEvToday = todayModels.length > 0;
-      wrap.appendChild(uSectionTitle('今日已观测 / 模型估算', usageMoneyText(today.total)));
+      wrap.appendChild(uSectionTitle('本机模型费用', usageMoneyText(today.total)));
       var todayBox = document.createElement('div');
       todayBox.className = 'dshwv-usage-scroll dshwv-usage-today';
       if (hasEvToday) {
@@ -1755,6 +1894,9 @@
       wrap.appendChild(more);
       (usageMainEl || usagePanel).appendChild(wrap);
     }
+    window.addEventListener('whale-api-model-changed', function () {
+      if (usagePanelOpen && usageModelListEl) renderUsageModels(true);
+    });
     var usageMoreMask = document.createElement('div');
     usageMoreMask.className = 'dshwv-usage-mask';
     usageMoreMask.style.display = 'none';

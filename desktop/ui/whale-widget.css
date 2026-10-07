@@ -241,6 +241,25 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-usage-model{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dshwv-usage-hint{color:#9fb0d9;font-size:11px;padding:2px 0;line-height:1.4}
 .dshwv-usage-subtitle{text-align:center;font-size:13px;font-weight:700;color:#203170;margin:0 0 6px}
+.dshwv-book-models{margin:0 0 7px;padding-bottom:7px;border-bottom:1px solid rgba(32,49,112,.18)}
+.dshwv-book-model-head{display:flex;align-items:center;gap:8px;min-height:31px;margin-bottom:1px}
+.dshwv-book-model-title{flex:1;min-width:0;color:#203170;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dshwv-book-model-refresh,.dshwv-book-model-setting{flex:0 0 50px!important;width:50px!important;min-width:50px!important;height:29px!important;padding:0!important;font-size:12px!important;border-radius:7px!important}
+.dshwv-book-model-list{display:flex;flex-direction:column;min-height:30px}
+.dshwv-book-model-row{display:grid;grid-template-columns:minmax(74px,1fr) minmax(82px,1.25fr) 50px;align-items:center;gap:7px;min-height:34px;border-bottom:1px dashed rgba(32,49,112,.24)}
+.dshwv-book-model-name,.dshwv-book-model-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dshwv-book-model-name{color:#203170;font-size:12px}
+.dshwv-book-model-value{color:#9fb0d9;font-size:11px;text-align:right}
+.dshwv-book-model-empty{display:flex;align-items:center;min-height:34px;color:#9fb0d9;font-size:11px}
+.dshwv-book-add{height:31px;margin-top:5px;padding:0 8px}
+.dshwv-book-tools{margin-top:7px;border-top:1px solid rgba(32,49,112,.15);padding-top:5px}
+.dshwv-book-tools>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 8px;border:1px solid rgba(32,49,112,.2);border-radius:7px;background:rgba(32,49,112,.045);color:#203170;font-size:11px;cursor:pointer;user-select:none}
+.dshwv-book-tools>summary::-webkit-details-marker{display:none}
+.dshwv-book-tools>summary::after{content:'▾';color:#8190b5;font-size:10px;transition:transform .15s ease}
+.dshwv-book-tools[open]>summary::after{transform:rotate(180deg)}
+.dshwv-book-tools-body{padding-top:4px}
+.dshwv-book-tools-body>.dshwv-menurow{margin:0;min-height:34px}
+.dshwv-book-tools-body>.dshwv-menurow .dshwv-roleimport{flex:0 0 50px;width:50px;min-width:50px;height:29px;padding:0;font-size:12px;border-radius:7px}
 .dshwv-usageset{border:1px dashed rgba(32,49,112,.28);border-radius:8px;padding:0 6px 6px;margin:0 0 6px}
 .dshwv-usagemsg{flex:1;min-width:80px;box-sizing:border-box;border:1px solid rgba(32,49,112,.4);border-radius:6px;padding:2px 5px;font-size:11px;color:#203170;background:#fff}
 .dshwv-usagemsg:disabled{opacity:.45}

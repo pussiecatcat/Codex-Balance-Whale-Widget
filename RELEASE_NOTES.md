@@ -1,6 +1,6 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.9`。** 当前内部构建为 `0.3.0+codex.20261008-snap-menu`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.10`。** 当前内部构建为 `0.3.0+codex.20261008-ledger-align`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 
@@ -13,6 +13,8 @@
 - 桌面端所有选择框改为统一的 DSH 白色浮层样式，当前项使用浅蓝高亮与勾选标记；列表自动向上或向下展开，音效项不再使用音乐 Emoji。
 - “API 设置”入口改用与其他主要操作一致的深蓝按钮样式。
 - “吸附与翻转”行移除重复的“复位”按钮，重置操作集中保留在自定义面板中。
+- 记账页改为原版模型账本布局并统一命名为“小龙娘记账”：模型余额或额度、刷新、设置和添加自定义 API 置顶，本机模型费用与近 7 天记录紧随其后；全局预警、预算和对账完整保留在“账本工具”。
+- 记账入口与页面内按钮使用一致尺寸，底部“返回控制面板”精简为“‹ 返回”。
 
 ## 关于 Issue #177
 
@@ -40,4 +42,4 @@
 
 Windows 完整解压后运行“launchers/安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
-公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.9` 对应本次整理后的发行版本。
+公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.10` 对应本次整理后的发行版本。

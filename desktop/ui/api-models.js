@@ -65,7 +65,7 @@
     async function render() {
       root.replaceChildren(); let data; try{data=await load(true);}catch(error){el(root,'p',error.message,'notice');return;}
       const list=el(root,'div','','api-model-list');
-      for(const model of data.models){const row=el(list,'div','','api-model-row');const meta=el(row,'div','', 'api-model-meta');el(meta,'strong',model.name);el(meta,'small',(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);const test=el(row,'button','测试','quiet');test.type='button';test.onclick=async()=>{test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){window.whaleToast?.(error.message);}finally{test.disabled=false;}};const edit=el(row,'button','编辑','quiet');edit.type='button';edit.onclick=()=>editor(model);const remove=el(row,'button','删除','quiet');remove.type='button';remove.onclick=async()=>{if(!await confirmRemoval(model))return;await request('/api/models?id='+encodeURIComponent(model.id),'DELETE',{});values.delete(model.id);loadedAt=0;await render();paint();};}
+      for(const model of data.models){const row=el(list,'div','','api-model-row');const meta=el(row,'div','', 'api-model-meta');el(meta,'strong',model.name);el(meta,'small',(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);const test=el(row,'button','测试','quiet');test.type='button';test.onclick=async()=>{test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){window.whaleToast?.(error.message);}finally{test.disabled=false;}};const edit=el(row,'button','编辑','quiet');edit.type='button';edit.onclick=()=>editor(model);const remove=el(row,'button','删除','quiet');remove.type='button';remove.onclick=async()=>{if(!await confirmRemoval(model))return;await request('/api/models?id='+encodeURIComponent(model.id),'DELETE',{});values.delete(model.id);loadedAt=0;await render();paint();window.dispatchEvent(new Event('whale-api-model-changed'));};}
       for(const [index,model] of data.models.entries()) {
         const row=list.children[index],custom=el(row,'button','泡泡','quiet');custom.type='button';
         custom.onclick=()=>{
@@ -170,11 +170,17 @@
           const total=fields.manualTotal.value,remaining=fields.manualRemaining.value,date=fields.manualReset.value;
           body.manualQuota=total||remaining||date?{total,remaining,resetsAt:date,mode:fields.manualMode.value,period:fields.manualPeriod.value,resetBase:fields.manualResetBase.checked}:null;
           await request('/api/models','PUT',body);
-          if(existing)values.delete(existing.id);close();loadedAt=0;await render();
+          if(existing)values.delete(existing.id);close();loadedAt=0;await render();window.dispatchEvent(new Event('whale-api-model-changed'));
         }catch(ex){error.textContent=ex.message;error.hidden=false;save.disabled=false;}
       };
       overlay.showModal();fields.name.focus();
     }
+    window.addEventListener('whale-api-model-edit',async event=>{
+      try{
+        const data=await load(true),id=event.detail?.id;
+        editor(id?data.models.find(model=>model.id===id)||null:null);
+      }catch(error){window.whaleToast?.(error.message||'模型设置打开失败');}
+    });
     document.getElementById('api-models-panel')?.addEventListener('toggle',event=>{if(event.target.open)render();});
   }
   window.WhaleApiModels={load,options,bind,clearBindings,text:module=>valueText(module,values.get(module.apiModelId)?.data),refresh:refreshValue};
@@ -182,7 +188,6 @@
   setInterval(()=>{if(bindings.size)paint();},1000);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPanel();window.WhaleMoney?.onChange(paint);monitor();},{once:true});else{initPanel();window.WhaleMoney?.onChange(paint);monitor();}
 })();
-
 
 
 
