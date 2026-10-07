@@ -45,10 +45,10 @@
     accountModeChanged(); window.addEventListener('whale-account-view',accountModeChanged);setInterval(accountModeChanged,60000);
     if (window.whaleDesktop?.command) {
       const modeRow = document.createElement('div'); modeRow.className = 'dshwv-menu-row whale-mode-row whale-utility-row';
-      const button = text(modeRow, 'button', '固定在桌面'); button.className = 'dshwv-sound whale-mode-button';
+      const button = text(modeRow, 'button', '桌面驻留'); button.className = 'dshwv-sound whale-mode-button';
       let currentMode = 'follow-codex';
-      const paintMode = mode => {currentMode=mode==='standalone'?'standalone':'follow-codex';button.textContent=currentMode==='standalone'?'跟随 Codex':'固定在桌面';button.title=currentMode==='standalone'?'让桌宠重新跟随 Codex 窗口':'让桌宠在 Codex 隐藏后仍留在桌面';};
-      button.onclick = async () => {const command=currentMode==='standalone'?'follow':'desktop';button.disabled=true;try{await switchDesktop(command);window.whaleToast?.(command==='desktop'?'已切换为独立桌面模式':'已切换为跟随 Codex');}catch(e){window.whaleToast?.(e.message);}finally{button.disabled=false;}};
+      const paintMode = mode => {currentMode=mode==='standalone'?'standalone':'follow-codex';button.textContent=currentMode==='standalone'?'窗口随行':'桌面驻留';button.title=currentMode==='standalone'?'让桌宠随 Codex 窗口移动':'让桌宠在 Codex 隐藏后仍驻留桌面';};
+      button.onclick = async () => {const command=currentMode==='standalone'?'follow':'desktop';button.disabled=true;try{await switchDesktop(command);window.whaleToast?.(command==='desktop'?'已切换为桌面驻留':'已切换为窗口随行');}catch(e){window.whaleToast?.(e.message);}finally{button.disabled=false;}};
       window.addEventListener('whale-desktop-mode',event=>paintMode(event.detail));
       Promise.resolve(window.whaleDesktop.command('mode')).then(paintMode).catch(()=>{});
       container.append(modeRow);

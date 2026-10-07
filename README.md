@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-api-button`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-mode-wording`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -72,11 +72,11 @@
 - 素材包可以导入或导出角色、气泡图、音频片段和音效组；导入采用新 ID 并在校验失败时回滚。
 - 素材包不包含 API 凭据、个人设置、账本、聊天内容或额度快照。
 
-### 跟随 Codex 与独立桌面
+### 窗口随行与桌面驻留
 
 - 默认跟随 Codex 窗口移动、缩放、最小化和恢复。
-- 一个状态按钮在“固定在桌面”和“跟随 Codex”之间切换，并与素材包入口紧凑排在同一行。
-- 独立桌面模式不依赖 Codex 窗口存活，位置、缩放、翻转和显示模式分别保存。
+- 一个状态按钮在“桌面驻留”和“窗口随行”之间切换，并与素材包入口紧凑排在同一行。
+- 桌面驻留不依赖 Codex 窗口存活；两种模式的位置、缩放、翻转和显示状态分别保存。
 - Windows 提供 `Ctrl+Alt+W` 恢复显示，以及 `Ctrl+Alt+Shift+F10` 静默保存窗口诊断。
 - 显示恢复不会抢焦点、移动 Codex 或截取聊天内容。
 
@@ -202,7 +202,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.7
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.8
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。
