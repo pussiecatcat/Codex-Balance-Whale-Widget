@@ -83,7 +83,9 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-audioitem.dshwv-audioitem-cur{background:rgba(32,49,112,.14)}
 .dshwv-audioname{flex:1;min-width:0;overflow:hidden}
 .dshwv-audiopreset{color:#9fb0d9;font-size:11px;flex:0 0 auto}
-.dshwv-audiothumb{width:22px;height:22px;border-radius:4px;flex:0 0 auto;background:#e8ecf7;display:flex;align-items:center;justify-content:center;font-size:13px}
+.dshwv-audiothumb{width:6px;height:18px;border-radius:999px;flex:0 0 auto;background:#9ba9cf;display:block;font-size:0}
+.dshwv-audioitem-cur .dshwv-audiothumb{background:#263c82}
+.dshwv-audiothumb-empty{width:10px;height:10px;border:1.5px solid #9ba9cf;background:transparent;box-sizing:border-box}
 .dshwv-audiopin{width:22px;height:22px;border:none;background:none;cursor:pointer;font-size:13px;opacity:.45;padding:0;flex:0 0 auto}
 .dshwv-audiopin.on{opacity:1}
 .dshwv-audiodel{width:22px;height:22px;border:none;background:none;cursor:pointer;font-size:13px;color:#c0392b;padding:0;flex:0 0 auto}
@@ -391,12 +393,20 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-rgbmenu::-webkit-scrollbar-thumb,.dshwv-rolelist::-webkit-scrollbar-thumb,.dshwv-audiolist::-webkit-scrollbar-thumb,.dshwv-slotlist::-webkit-scrollbar-thumb,.dshwv-usage-sub::-webkit-scrollbar-thumb,.dshwv-listbox::-webkit-scrollbar-thumb{background:rgba(32,49,112,.14);border-radius:3px}
 .dshwv-rgbmenu::-webkit-scrollbar-thumb:hover,.dshwv-rolelist::-webkit-scrollbar-thumb:hover,.dshwv-audiolist::-webkit-scrollbar-thumb:hover,.dshwv-slotlist::-webkit-scrollbar-thumb:hover,.dshwv-usage-sub::-webkit-scrollbar-thumb:hover,.dshwv-listbox::-webkit-scrollbar-thumb:hover{background:rgba(32,49,112,.26)}
 .dshwv-custwrap{position:relative;flex:1;min-width:0;display:flex;align-items:center}
-.dshwv-custbtn{flex:1;min-width:0;height:24px;box-sizing:border-box;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170;font-size:12px;padding:0 8px;cursor:pointer;display:flex;align-items:center;gap:6px;text-align:left}
-.dshwv-custbtn:hover{background:rgba(32,49,112,.16)}
+.dshwv-custbtn{flex:1;min-width:0;height:30px;box-sizing:border-box;border:1px solid #aeb9d5;border-radius:7px;background:#f1f3f9;color:#203170;font-size:12px;padding:0 9px;cursor:pointer;display:flex;align-items:center;gap:7px;text-align:left;box-shadow:0 1px 0 rgba(255,255,255,.85) inset}
+.dshwv-custbtn:hover{border-color:#8192c2;background:#edf0f8}
+.dshwv-custbtn:focus-visible{outline:2px solid #8a9bd2;outline-offset:2px}
 .dshwv-custbtn:disabled{opacity:.45;cursor:not-allowed}
-.dshwv-custbtn::after{content:"▾";font-size:9px;opacity:.7;flex:0 0 auto}
+.dshwv-custbtn::after{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #526595;opacity:.9;flex:0 0 auto}
 .dshwv-custlab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dshwv-custmenu{max-height:220px;max-width:min(340px,calc(100vw - 16px))}
+.dshwv-custmenu{max-height:220px;max-width:min(360px,calc(100vw - 16px));padding:5px;background:rgba(255,255,255,.985);border-color:#aeb9d5;box-shadow:0 8px 22px rgba(28,43,91,.22)}
+.dshwv-custmenu .dshwv-rgbopt{display:flex;align-items:center;gap:8px;min-height:31px;box-sizing:border-box;padding:5px 8px;border-radius:6px;font-weight:400;overflow:hidden}
+.dshwv-custmenu .dshwv-rgbopt:hover{background:#eef1f8}
+.dshwv-custmenu .dshwv-rgbopt.dshwv-rgbcur{background:#e2e7f4;font-weight:600}
+.dshwv-custtext{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dshwv-custcheck{flex:0 0 14px;color:#263c82;font-size:12px;font-weight:700;text-align:center;opacity:0}
+.dshwv-rgbcur>.dshwv-custcheck{opacity:1}
+.dshwv-custdisabled{opacity:.42;cursor:not-allowed!important}
 .dshwv-custrow{display:flex;align-items:center;min-width:0;overflow:hidden;box-sizing:border-box}
 .dshwv-custrow .dshwv-custnm{flex:1;min-width:0;overflow:hidden;display:flex;align-items:center}
 .dshwv-custrow .dshwv-custnm .dshwv-nameinner{display:inline-flex;white-space:nowrap;transition:transform .22s ease}

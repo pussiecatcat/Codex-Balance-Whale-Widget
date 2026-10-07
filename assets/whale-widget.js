@@ -195,6 +195,7 @@
       if (!o) return;
       try {
         o.menu.classList.remove('dshwv-rgbopen');
+        if (o.btn) o.btn.setAttribute('aria-expanded', 'false');
         if (o.menu.parentNode === document.body) document.body.removeChild(o.menu);
       } catch (err) {}
     }
@@ -227,7 +228,12 @@
     var taskEndDrop = null;
     var moduleImgDrop = null;
     function dshwCustSel(sel, opts) {
-      if (!sel || !sel.parentNode || sel.__dshwCust) return {
+      if (!sel || !sel.parentNode) return {
+        sync: function () {},
+        refresh: function () {}
+      };
+      if (sel.__dshwCustDrop) return sel.__dshwCustDrop;
+      if (sel.__dshwCust) return {
         sync: function () {},
         refresh: function () {}
       };
@@ -239,6 +245,8 @@
       btn.type = 'button';
       btn.className = 'dshwv-custbtn';
       btn.title = sel.title || '';
+      btn.setAttribute('aria-haspopup', 'listbox');
+      btn.setAttribute('aria-expanded', 'false');
       var lab = document.createElement('span');
       lab.className = 'dshwv-custlab';
       btn.appendChild(lab);
@@ -248,6 +256,7 @@
       sel.style.display = 'none';
       var menu = document.createElement('div');
       menu.className = 'dshwv-rgbmenu dshwv-custmenu';
+      menu.setAttribute('role', 'listbox');
       function labelOf(v) {
         for (var i = 0; i < sel.options.length; i++) {
           if (String(sel.options[i].value) === String(v)) return String(sel.options[i].textContent || sel.options[i].text || '');
@@ -267,6 +276,8 @@
           (function (opt) {
             var d = document.createElement('div');
             var lab = String(opt.textContent || opt.text || opt.value);
+            d.setAttribute('role', 'option');
+            d.setAttribute('aria-selected', String(opt.value) === String(cur) ? 'true' : 'false');
             if (opts && opts.scrollNames) {
               d.className = 'dshwv-rgbopt dshwv-custrow' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
               var nm = makeNameCell('dshwv-custnm', lab);
@@ -274,10 +285,20 @@
               bindNameMarquee(d, nm);
             } else {
               d.className = 'dshwv-rgbopt' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
-              d.textContent = lab;
+              var txt = document.createElement('span');
+              txt.className = 'dshwv-custtext';
+              txt.textContent = lab;
+              d.appendChild(txt);
             }
+            if (opt.disabled) d.classList.add('dshwv-custdisabled');
+            var mark = document.createElement('span');
+            mark.className = 'dshwv-custcheck';
+            mark.textContent = '✓';
+            mark.setAttribute('aria-hidden', 'true');
+            d.appendChild(mark);
             d.addEventListener('click', function (e) {
               e.stopPropagation();
+              if (opt.disabled) return;
               try {
                 sel.value = opt.value;
               } catch (err) {}
@@ -291,6 +312,25 @@
           })(sel.options[i]);
         }
       }
+      sel.addEventListener('change', sync);
+      btn.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        e.preventDefault();
+        var count = sel.options.length;
+        if (!count) return;
+        var direction = e.key === 'ArrowDown' ? 1 : -1;
+        var index = Math.max(0, sel.selectedIndex);
+        for (var step = 0; step < count; step++) {
+          index = (index + direction + count) % count;
+          if (sel.options[index].disabled) continue;
+          sel.selectedIndex = index;
+          sync();
+          try {
+            sel.dispatchEvent(new Event('change'));
+          } catch (err) {}
+          break;
+        }
+      });
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         if (btn.disabled) return;
@@ -307,6 +347,7 @@
         sync();
         if (menu.parentNode !== document.body) document.body.appendChild(menu);
         dshwDropOpen(menu, btn);
+        btn.setAttribute('aria-expanded', 'true');
         if (opts && typeof opts.bottom === 'function') {
           try {
             var bEl = opts.bottom();
@@ -324,14 +365,28 @@
         };
       });
       sync();
-      return {
+      var api = {
         sync: sync,
         refresh: function () {
           fill();
           sync();
-        }
+        },
+        close: dshwCustSelClose,
+        button: btn,
+        menu: menu
       };
+      sel.__dshwCustDrop = api;
+      return api;
     }
+    window.WhaleSelect = window.WhaleSelect || {};
+    window.WhaleSelect.enhance = dshwCustSel;
+    window.WhaleSelect.close = dshwCustSelClose;
+    window.WhaleSelect.sync = function (sel) {
+      if (sel && sel.__dshwCustDrop) sel.__dshwCustDrop.sync();
+    };
+    window.WhaleSelect.refresh = function (sel) {
+      if (sel && sel.__dshwCustDrop) sel.__dshwCustDrop.refresh();
+    };
     var usageRecBtn = document.createElement('button');
     usageRecBtn.type = 'button';
     usageRecBtn.className = 'dshwv-roleimport';
@@ -2078,7 +2133,7 @@
           var tag = resMkTag(preset ? '预设组' : '自定义组', preset);
           var meta = '';
           if (!preset && g.press && g.release) meta = '按压:' + g.press + ' 松开:' + g.release;
-          wrap.appendChild(resIconRow(preset ? '🎧' : '🎵', g.name || g.id, meta, [tag, resMkDel('删除', preset, function () {
+          wrap.appendChild(resIconRow('组', g.name || g.id, meta, [tag, resMkDel('删除', preset, function () {
             resDelAudioGroup(g.id);
           })]));
         });
@@ -2087,7 +2142,7 @@
           if (f.preset) return;
           anyAu = true;
           var tag = resMkTag('音频片段', false);
-          wrap.appendChild(resIconRow('🎶', f.name || f.id, f.id, [tag, resMkDel('删除', false, function () {
+          wrap.appendChild(resIconRow('音', f.name || f.id, f.id, [tag, resMkDel('删除', false, function () {
             resDelAudioFrag(f.id);
           })]));
         });
@@ -6510,6 +6565,7 @@
         if (menuEl.parentNode !== document.body) document.body.appendChild(menuEl);
         menuEl.style.position = 'fixed';
         menuEl.style.minWidth = '0px';
+        menuEl.style.maxHeight = '220px';
         menuEl.style.left = '0px';
         menuEl.style.top = '0px';
         menuEl.classList.add('dshwv-rgbopen');
@@ -6531,7 +6587,17 @@
         var left = r.left;
         if (left + w > vp.w - 8) left = Math.max(8, vp.w - w - 8);
         menuEl.style.left = Math.round(left) + 'px';
-        menuEl.style.top = Math.round(r.bottom + 2) + 'px';
+        var below = Math.max(0, vp.h - r.bottom - 8);
+        var above = Math.max(0, r.top - 8);
+        var wantedH = Math.min(220, Math.max(36, Math.ceil(menuEl.scrollHeight || 0)));
+        var openBelow = wantedH <= below || below >= above;
+        var room = openBelow ? below : above;
+        var maxH = Math.max(36, Math.min(220, room - 2));
+        menuEl.style.maxHeight = Math.floor(maxH) + 'px';
+        var measuredH = Math.min(maxH, Math.max(0, menuEl.getBoundingClientRect().height || wantedH));
+        var top = openBelow ? r.bottom + 2 : r.top - measuredH - 2;
+        top = Math.max(8, Math.min(top, vp.h - measuredH - 8));
+        menuEl.style.top = Math.round(top) + 'px';
         var vTop = visibleTopZ();
         menuEl.style.zIndex = String(Math.max(26010, Math.round(vTop) + 10));
       } catch (err) {}
@@ -10513,11 +10579,21 @@
         renderAudioGroupPanel();
         var b = audioGroupBtn.getBoundingClientRect();
         var vp = viewport();
-        var panelW = Math.max(200, Math.round(b.width));
+        var availableWidth = Math.max(80, vp.w - 8);
+        var panelW = Math.min(Math.max(160, Math.round(b.width)), availableWidth);
+        audioGroupPanel.style.maxHeight = Math.max(80, Math.min(240, vp.h - 16)) + 'px';
+        audioGroupPanel.style.maxWidth = availableWidth + 'px';
         audioGroupPanel.style.width = panelW + 'px';
         audioGroupPanel.style.left = Math.max(4, Math.min(b.left, vp.w - panelW - 4)) + 'px';
-        audioGroupPanel.style.top = b.bottom + 6 + 'px';
+        audioGroupPanel.style.top = '4px';
         audioGroupPanel.style.display = 'block';
+        var panelH = audioGroupPanel.getBoundingClientRect().height;
+        var below = vp.h - b.bottom - 10;
+        var above = b.top - 10;
+        var panelTop = panelH <= below ? b.bottom + 6
+          : panelH <= above ? b.top - panelH - 6
+          : below >= above ? Math.max(4, b.bottom + 6) : Math.max(4, b.top - panelH - 6);
+        audioGroupPanel.style.top = Math.max(4, Math.min(panelTop, vp.h - panelH - 4)) + 'px';
         audioGroupPanel.classList.add('dshwv-audiolist-open');
         audioGroupPanelOpen = true;
       } catch (err) {}
@@ -10537,7 +10613,7 @@
           item.className = 'dshwv-audioitem' + (soundSet === g.id ? ' dshwv-audioitem-cur' : '');
           var thumb = document.createElement('span');
           thumb.className = 'dshwv-audiothumb';
-          thumb.textContent = '🎵';
+          thumb.setAttribute('aria-hidden', 'true');
           item.appendChild(thumb);
           var name = makeNameCell('dshwv-audioname', g.name);
           item.appendChild(name);
@@ -10699,8 +10775,8 @@
         var emptyItem = document.createElement('div');
         emptyItem.className = 'dshwv-audioitem' + (!current ? ' dshwv-audioitem-cur' : '');
         var emptyIcon = document.createElement('span');
-        emptyIcon.className = 'dshwv-audiothumb';
-        emptyIcon.textContent = '🚫';
+        emptyIcon.className = 'dshwv-audiothumb dshwv-audiothumb-empty';
+        emptyIcon.setAttribute('aria-hidden', 'true');
         emptyItem.appendChild(emptyIcon);
         var emptyName = makeNameCell('dshwv-audioname', '留空（不发声）');
         emptyItem.appendChild(emptyName);
@@ -10722,7 +10798,7 @@
           item.className = 'dshwv-audioitem' + (current === f.id ? ' dshwv-audioitem-cur' : '');
           var thumb = document.createElement('span');
           thumb.className = 'dshwv-audiothumb';
-          thumb.textContent = '🎵';
+          thumb.setAttribute('aria-hidden', 'true');
           item.appendChild(thumb);
           var name = makeNameCell('dshwv-audioname', f.name);
           item.appendChild(name);

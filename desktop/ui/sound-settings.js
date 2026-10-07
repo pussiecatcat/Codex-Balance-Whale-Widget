@@ -28,6 +28,7 @@
     options.forEach(([id, label]) => select.append(new Option(label, id)));
     if (value && !options.some(item => item[0] === value)) select.append(new Option('已保存音效', value));
     select.value = value || options[0]?.[0] || '';
+    window.WhaleSelect?.refresh(select);
   }
   function soundUrl(value) {
     value = String(value || '');
@@ -120,6 +121,7 @@
       };
       const check = (parent, checked, fn) => {
         const element = make(parent, 'input', '', 'dshwv-check'); element.type = 'checkbox'; element.checked = checked;
+        parent.prepend(element);
         element.addEventListener('change', () => { fn(element.checked); refresh(); }); return element;
       };
       const select = (parent, options, value, fn) => {
@@ -244,6 +246,7 @@
       }
       function setDisabled(control, disabled) {
         if (!control) return; const input = control.input || control; input.disabled = disabled;
+        window.WhaleSelect?.sync(input);
         input.closest('.whale-sound-row')?.classList.toggle('is-dim', disabled);
       }
       function refresh() {
