@@ -1,6 +1,6 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.8`。** 当前内部构建为 `0.3.0+codex.20261008-mode-wording`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.9`。** 当前内部构建为 `0.3.0+codex.20261008-snap-menu`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 
@@ -12,6 +12,7 @@
 - 设置菜单底部保持同排的“桌面驻留 / 窗口随行”和“素材包导入/导出”；提示与音效页面完整恢复原版四段折叠逻辑，并接入 Codex 的真实提问、授权等待提示。
 - 桌面端所有选择框改为统一的 DSH 白色浮层样式，当前项使用浅蓝高亮与勾选标记；列表自动向上或向下展开，音效项不再使用音乐 Emoji。
 - “API 设置”入口改用与其他主要操作一致的深蓝按钮样式。
+- “吸附与翻转”行移除重复的“复位”按钮，重置操作集中保留在自定义面板中。
 
 ## 关于 Issue #177
 
@@ -39,4 +40,4 @@
 
 Windows 完整解压后运行“launchers/安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
-公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.8` 对应本次整理后的发行版本。
+公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.9` 对应本次整理后的发行版本。

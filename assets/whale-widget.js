@@ -972,12 +972,6 @@
       window.dispatchEvent(new Event('whale-open-settings'));
     });
     menuBox.appendChild(apiSettingsBtn);
-    var resetPositionBtn = document.createElement('button');
-    resetPositionBtn.type = 'button'; resetPositionBtn.className = 'dshwv-roleimport';
-    resetPositionBtn.textContent = '复位';
-    resetPositionBtn.title = '位置重置到右下角';
-    resetPositionBtn.addEventListener('click', function () { window.dispatchEvent(new Event('whale-reset-position')); });
-    rowSnap.appendChild(resetPositionBtn);
     var menuRootView = document.createElement('div');
     menuRootView.className = 'dshwv-menuview';
     while (menuBox.firstChild) menuRootView.appendChild(menuBox.firstChild);
