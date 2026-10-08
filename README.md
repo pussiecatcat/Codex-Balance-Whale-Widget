@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-ledger-money-spacing`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-quota-refresh`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -14,6 +14,8 @@
 
 - 通过本机 `codex app-server` 的 `account/rateLimits/read` 读取当前登录账号提供的额度窗口。
 - 自动识别五小时与每周额度，用双色“潮汐卡片”显示剩余百分比、水位进度珠和逐秒更新的重置倒计时。
+- 手动刷新会跳过 30 秒快照缓存；每轮对话结束后在 1.5 秒与 8 秒各强制读取一次，兼顾快速反馈和官方稍晚结算。
+- 卡片显示本次官方快照的更新时间；官方返回小数百分比时保留一位，官方只返回整数时不虚构额外精度。
 - 额度读取失败时回退到本机会话里的 `rate_limits` 事件；两种来源都不可用时明确显示“未观测”。
 - 数据过期、重置时间异常或扫描不完整时给出状态说明，不用 token 数虚构官方剩余额度。
 - 当前 Plus 登录已在 Windows 实机验证；额度数值会实时变化，因此仓库不保存个人额度快照。
@@ -173,7 +175,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 ## 验证状态
 
-- 262 项 Node 单元测试通过。
+- 263 项 Node 单元测试通过。
 - Windows Electron 紧凑菜单与 DSH 四段式音效页面审查通过。
 - Windows 原生区域、透明穿透和焦点专项验证通过。
 - 完整桌面烟测通过，包括宿主遮挡以及 72 次跟随移动/缩放。
@@ -206,7 +208,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.15
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.16
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。

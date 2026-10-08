@@ -1,15 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { quotaFromAppServer, readCodexRateLimits } from '../runtime/codex-rate-limits.mjs';
+import { createInsightsService } from '../runtime/insights.mjs';
 
 const source = await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8');
 const context = { module: { exports: {} } };
 vm.runInNewContext(source, context);
-const { countdown, countdownShort, resetAt, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
+const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
 
 test('plan and all original peak styles resolve legacy and new placeholders', () => {
   const now=Date.parse('2026-10-02T10:00:00Z'),pricing={visible:true,phase:'peak',nextChangeAt:now+3600000};
@@ -70,9 +73,30 @@ test('quota tide state exposes remaining percentage and urgency tone', () => {
   });
   const steady = quotaState({ windowDurationMins: 300 }, subscription(36), now);
   assert.deepEqual({ left: steady.left, tone: steady.tone }, { left: 64, tone: 'steady' });
+  assert.equal(percentNumber(64), '64');
+  assert.equal(percentNumber(63.6), '63.6');
+  assert.match(snapshotAt(now), /^\d{2}:\d{2}:\d{2}$/);
   assert.equal(quotaState({ windowDurationMins: 300 }, subscription(65), now).tone, 'caution');
   assert.equal(quotaState({ windowDurationMins: 300 }, subscription(85), now).tone, 'critical');
   assert.equal(quotaState({ windowDurationMins: 300 }, subscription(85), now + 120_000).tone, 'unknown');
+});
+
+test('forced Codex insight refresh bypasses the thirty-second snapshot cache', async t => {
+  const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-insights-'));
+  t.after(() => fs.rm(codexHome, { recursive: true, force: true }));
+  let now = 1_790_000_000_000, calls = 0;
+  const config = { codexHome, resolve: () => ({ accountId: 'fixture', id: 'openai', key: null,
+    baseUrl: 'https://api.openai.com/v1', setting: { monitorSessions: false } }) };
+  const service = createInsightsService(config, { clock: () => now, readRateLimits: async () => ({
+    observedAt: now, planType: 'plus', windows: [{ windowDurationMins: 300, usedPercent: ++calls, resetsAt: now + 3600000 }],
+  }) });
+  t.after(() => service.close());
+  assert.equal((await service.get()).subscription.windows[0].usedPercent, 1);
+  now += 1000;
+  assert.equal((await service.get()).subscription.windows[0].usedPercent, 1);
+  assert.equal(calls, 1);
+  assert.equal((await service.get({ force: true })).subscription.windows[0].usedPercent, 2);
+  assert.equal(calls, 2);
 });
 
 test('direct Codex reader initializes app-server and requests rate limits without a login flow', async () => {

@@ -32,6 +32,17 @@
     if (!Number.isFinite(value.getTime())) return '等待同步';
     return value.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   }
+  function snapshotAt(value) {
+    const time = timeValue(value);
+    if (!Number.isFinite(time)) return '未同步';
+    const date = new Date(time);
+    if (!Number.isFinite(date.getTime())) return '未同步';
+    return [date.getHours(), date.getMinutes(), date.getSeconds()].map(part => String(part).padStart(2, '0')).join(':');
+  }
+  function percentNumber(value) {
+    if (!validPercent(value)) return '—';
+    return Math.abs(value - Math.round(value)) < 1e-9 ? String(Math.round(value)) : value.toFixed(1);
+  }
   function quotaBar(left, width = 8) {
     if (!validPercent(left)) return '────────';
     const filled = Math.max(0, Math.min(width, Math.round(left / 100 * width)));
@@ -49,15 +60,17 @@
       subscription?.source === 'codex-app-server' && now - subscription.observedAt > 2 * 60000);
     const valid = item && validPercent(item.usedPercent) && !expired;
     const left = valid ? Math.max(0, 100 - item.usedPercent) : null;
+    const observedAt = item?.observedAt || subscription?.observedAt || null;
     const map = {
       quota_label: labels[minutes], quota_left: valid ? left.toFixed(1) + '%' : '未观测',
       quota_left_round: valid ? Math.round(left) + '%' : '未观测', quota_used: valid ? item.usedPercent.toFixed(1) + '%' : '未观测',
       quota_reset: item ? countdown(item.resetsAt, now) : '未观测', quota_reset_short: item ? countdownShort(item.resetsAt, now) : '等待同步',
       quota_reset_at: item ? resetAt(item.resetsAt) : '等待同步', quota_bar: quotaBar(left),
+      quota_updated_at: snapshotAt(observedAt),
       quota_source: subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : subscription?.source === 'local-session' ? '本机会话记录' : '正在读取额度',
     };
     const tone = !valid ? 'unknown' : left <= 15 ? 'critical' : left <= 35 ? 'caution' : 'steady';
-    return { minutes, item, expired, valid, left, map, tone };
+    return { minutes, item, observedAt, expired, valid, left, map, tone };
   }
   function quotaText(module, subscription, now = Date.now()) {
     const state = quotaState(module, subscription, now);
@@ -88,9 +101,9 @@
     if (module?.type === 'peak' || module?.type === 'nextpeak') return peakText(module, pricing, now);
     return quotaText(module, subscription, now);
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null;
+  let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null, settledTimers = [];
   const bindings = new Map();
   function ensureQuotaMeter(element) {
     if (element.querySelector('.dshwv-quota-meter-head')) return;
@@ -137,13 +150,13 @@
     const resetLabel = element.querySelector('.dshwv-quota-meter-reset-label');
     const reset = element.querySelector('.dshwv-quota-meter-reset');
     label.textContent = labels[state.minutes];
-    number.textContent = state.valid ? String(Math.round(state.left)) : '—';
+    number.textContent = percentNumber(state.left);
     unit.hidden = !state.valid;
     fill.style.width = state.valid ? Math.max(0, Math.min(100, state.left)) + '%' : '0%';
-    resetLabel.textContent = state.expired ? '状态' : '重置';
-    reset.textContent = state.expired ? '额度待刷新' : state.item ? countdown(state.item.resetsAt) : '等待同步';
-    const spokenValue = state.valid ? Math.round(state.left) + '%' : '未观测';
-    element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + reset.textContent);
+    resetLabel.textContent = state.item ? snapshotAt(state.observedAt) + ' 更新' : '状态';
+    reset.textContent = state.expired ? '额度待刷新' : state.item ? '重置 ' + countdown(state.item.resetsAt) : '等待同步';
+    const spokenValue = state.valid ? percentNumber(state.left) + '%' : '未观测';
+    element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + '，' + reset.textContent);
   }
   function paint() {
     for (const [element, module] of bindings) {
@@ -173,12 +186,16 @@
     row.style.borderRadius = '7px'; row.style.fontVariantNumeric = 'tabular-nums';
   }
   async function refresh(force = false) {
-    if (pending) return pending;
+    if (pending) {
+      if (!force || pending.force) return pending.promise;
+      return pending.promise.then(() => refresh(true));
+    }
     if (!force && Date.now() - fetchedAt < 30000 && !(pricing?.nextChangeAt && pricing.nextChangeAt <= Date.now() && Date.now() - fetchedAt >= 1000)) return subscription;
-    pending = (async () => {
+    const current = { force, promise: null };
+    current.promise = (async () => {
       try {
         const [insightResponse, pricingResponse] = await Promise.all([
-          fetch('/api/insights', { cache: 'no-store' }), fetch('/api/pricing', { cache: 'no-store' })
+          fetch('/api/insights' + (force ? '?refresh=1' : ''), { cache: 'no-store' }), fetch('/api/pricing', { cache: 'no-store' })
         ]);
         if (insightResponse.ok) { const data = await insightResponse.json(); subscription = data.subscription || null; }
         if (pricingResponse.ok) { const data = await pricingResponse.json(); pricing = data || null; }
@@ -186,8 +203,9 @@
       } catch { fetchedAt = Date.now(); }
       paint();
       return subscription;
-    })().finally(() => { pending = null; });
-    return pending;
+    })().finally(() => { if (pending === current) pending = null; });
+    pending = current;
+    return current.promise;
   }
   function bind(element, module) {
     bindings.set(element, module);
@@ -200,5 +218,15 @@
     for (const element of bindings.keys()) if (element === root || root.contains(element)) bindings.delete(element);
     if (!bindings.size && ticker) { clearInterval(ticker); ticker = null; }
   }
-  window.WhaleQuota = { bind, clearBindings, refresh, countdown, countdownShort, resetAt, quotaBar, text: module => moduleText(module, subscription, pricing) };
+  function settled() {
+    for (const timer of settledTimers) clearTimeout(timer);
+    settledTimers = [1500, 8000].map(delay => setTimeout(() => refresh(true), delay));
+  }
+  window.addEventListener('whale-account-view', event => {
+    if (event.detail?.mode === 'subscription') return;
+    for (const timer of settledTimers) clearTimeout(timer);
+    settledTimers = [];
+  });
+  window.addEventListener('pagehide', () => { for (const timer of settledTimers) clearTimeout(timer); settledTimers = []; }, { once: true });
+  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, text: module => moduleText(module, subscription, pricing) };
 })();

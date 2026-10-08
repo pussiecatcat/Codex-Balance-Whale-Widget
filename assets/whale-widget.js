@@ -5477,7 +5477,7 @@
         inp.className = 'dshwv-qedit-content';
         inp.value = m.tpl || '';
         inp.placeholder = m.type === 'balance' ? '例: {balance_api}' : m.type === 'today' ? '例: 今日已观测 {expense_api}' : m.type === 'quota' ? '例: 剩余 {quota_left_round} · {quota_reset_short}' : m.type === 'turn' ? '例: 上轮使用 {turn_tokens} tokens' : m.type === 'session' ? '例: 当前会话 {session_name}' : m.type === 'plan' ? '例: {plan_name}' : m.type === 'peak' || m.type === 'nextpeak' ? '例: {peak_phase} · {peak_countdown}' : '自定义内容';
-        inp.title = '可用占位符(英文): ' + (m.type === 'balance' ? '{balance_api}' : m.type === 'today' ? '{expense_api}' : m.type === 'turn' ? '{turn_tokens} {turn_input} {turn_output} {turn_cached} {turn_reasoning}' : m.type === 'session' ? '{session_name}' : m.type === 'plan' ? '{plan_name} {plan_type}' : m.type === 'peak' || m.type === 'nextpeak' ? '{peak_phase} {peak_countdown} {peak_switch_at} {peak_note}' : '{quota_left} {quota_left_round} {quota_used} {quota_reset} {quota_reset_short} {quota_reset_at} {quota_bar}');
+        inp.title = '可用占位符(英文): ' + (m.type === 'balance' ? '{balance_api}' : m.type === 'today' ? '{expense_api}' : m.type === 'turn' ? '{turn_tokens} {turn_input} {turn_output} {turn_cached} {turn_reasoning}' : m.type === 'session' ? '{session_name}' : m.type === 'plan' ? '{plan_name} {plan_type}' : m.type === 'peak' || m.type === 'nextpeak' ? '{peak_phase} {peak_countdown} {peak_switch_at} {peak_note}' : '{quota_left} {quota_left_round} {quota_used} {quota_reset} {quota_reset_short} {quota_reset_at} {quota_updated_at} {quota_bar}');
         inp.addEventListener('input', function () {
           m.tpl = inp.value;
           changed();
@@ -8928,7 +8928,7 @@
       if (m.type === 'balance') add('balance_ds', '余额数值'); else if (m.type === 'today') add('expense_ds', '今日已观测金额');
       else if (m.type === 'quota') {
         add('quota_left', '剩余百分比（1 位小数）'); add('quota_left_round', '剩余百分比（整数）'); add('quota_used', '已用百分比');
-        add('quota_reset', '精确重置倒计时'); add('quota_reset_short', '简洁重置倒计时'); add('quota_reset_at', '重置时间');
+        add('quota_reset', '精确重置倒计时'); add('quota_reset_short', '简洁重置倒计时'); add('quota_reset_at', '重置时间'); add('quota_updated_at', '快照更新时间');
         add('quota_bar', '剩余额度条'); add('quota_label', '额度窗口名称');
         add('quota_source', '额度数据来源');
       } else if (m.type === 'turn') {
@@ -12170,7 +12170,10 @@
           window.dispatchEvent(new CustomEvent('whale-turn-notice', {detail:notice}));
           if (notice.completionKind === 'success') playTaskEndSound();
           else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && typeof window !== 'undefined' && window.WhaleFeedback) window.WhaleFeedback.play(notice.completionKind, '', soundOn ? soundVol : 0);
-          if (typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription') window.WhaleAccountView.notice(notice);
+          if (typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription') {
+            window.WhaleAccountView.notice(notice);
+            window.WhaleQuota?.settled();
+          }
           showCostBubble(notice.amount, notice);
         }).catch(function () {}).finally(function () { lastCostPending = false; });
       } catch (err) { lastCostPending = false; }

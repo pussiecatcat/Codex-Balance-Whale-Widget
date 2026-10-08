@@ -90,7 +90,7 @@
     async function refresh(manual=false){
       const own=++generation,mode=account.mode;refreshButton.disabled=true;
       try{
-        const response=await fetch(mode==='subscription'?'/api/insights':'/dsh-whale/balance.json'+(manual?'?refresh=1':''),{cache:'no-store'});
+        const response=await fetch(mode==='subscription'?'/api/insights'+(manual?'?refresh=1':''):'/dsh-whale/balance.json'+(manual?'?refresh=1':''),{cache:'no-store'});
         if(!response.ok)throw Error('刷新失败');const data=await response.json();
         if(own!==generation||account.mode!==mode)return;
         if(mode==='subscription')insights=data;else balance=data;render();

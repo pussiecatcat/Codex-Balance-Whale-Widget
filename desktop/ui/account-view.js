@@ -60,29 +60,31 @@
     } catch (e) { if (status) status.textContent = e.message || '切换失败，请重试'; return false; }
     finally { switching = false; updateButtons(); }
   }
-  async function refresh() {
+  async function refresh(force = false) {
     if (mode !== 'subscription' || !card) return;
-    const own = ++generation; content.replaceChildren(); text(content, 'p', '正在读取订阅快照…'); position();
+    const own = ++generation, ownContent = content;
+    if (!ownContent) return;
+    ownContent.replaceChildren(); text(ownContent, 'p', '正在读取订阅快照…'); position();
     try {
-      const response = await fetch('/api/insights', { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取订阅快照');
-      const data = await response.json(); if (own !== generation || !card) return;
-      content.replaceChildren(); const sub = data.subscription || {};
-      if (!sub.available) text(content, 'p', sub.reason || '暂无可用订阅额度快照。使用订阅账号完成 Codex 请求后刷新。');
+      const response = await fetch('/api/insights' + (force ? '?refresh=1' : ''), { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取订阅快照');
+      const data = await response.json(); if (own !== generation || !card || content !== ownContent) return;
+      ownContent.replaceChildren(); const sub = data.subscription || {};
+      if (!sub.available) text(ownContent, 'p', sub.reason || '暂无可用订阅额度快照。使用订阅账号完成 Codex 请求后刷新。');
       else {
-        if (!(sub.windows || []).length) text(content, 'p', '暂无可用额度窗口');
+        if (!(sub.windows || []).length) text(ownContent, 'p', '暂无可用额度窗口');
         for (const item of sub.windows || []) {
-          const section = text(content, 'section', ''); text(section, 'strong', quotaLabel(item)); text(section, 'p', windowText(item));
+          const section = text(ownContent, 'section', ''); text(section, 'strong', quotaLabel(item)); text(section, 'p', windowText(item));
           const used = number(item.usedPercent);
           if (used !== null) { const meter = document.createElement('progress'); meter.max = 100; meter.value = Math.min(100, used); meter.setAttribute('aria-label', item.label || '已用额度'); section.append(meter); }
           text(section, 'small', '重置：' + date(item.resetsAt));
         }
       }
       const tokens = sub.tokens || data.tokens || {};
-      text(content, 'p', '本机近 7 天：' + tokenText(tokens.total)); text(content, 'p', '本机滚动 5 小时：' + tokenText(tokens.last5Hours));
-      if (tokens.complete === false) text(content, 'small', '扫描尚不完整，仅显示部分记录。');
-      text(content, 'small', 'token 是本机观测，非官方订阅剩余额度；不包含其他设备，不能用百分比换算剩余 token。');
-      const notice = noticeText(latestNotice); if (notice) text(content, 'p', notice); position();
-    } catch (e) { if (own === generation && content) { content.replaceChildren(); text(content, 'p', e.message || '读取失败，请稍后重试'); position(); } }
+      text(ownContent, 'p', '本机近 7 天：' + tokenText(tokens.total)); text(ownContent, 'p', '本机滚动 5 小时：' + tokenText(tokens.last5Hours));
+      if (tokens.complete === false) text(ownContent, 'small', '扫描尚不完整，仅显示部分记录。');
+      text(ownContent, 'small', 'token 是本机观测，非官方订阅剩余额度；不包含其他设备，不能用百分比换算剩余 token。');
+      const notice = noticeText(latestNotice); if (notice) text(ownContent, 'p', notice); position();
+    } catch (e) { if (own === generation && content === ownContent) { ownContent.replaceChildren(); text(ownContent, 'p', e.message || '读取失败，请稍后重试'); position(); } }
   }
   function toggleBubble(anchorRoot) {
     if (mode !== 'subscription') return false;
@@ -91,15 +93,15 @@
     card = document.createElement('section'); card.className = 'whale-account-card'; card.setAttribute('aria-label', '会员订阅额度');
     const header = text(card, 'div', ''); header.className = 'whale-account-header'; text(header, 'strong', '会员订阅额度');
     const closeButton = text(header, 'button', '关闭'); closeButton.onclick = close;
-    content = text(card, 'div', ''); const refreshButton = text(card, 'button', '刷新'); refreshButton.onclick = refresh;
-    document.body.append(card); followCard(card); refresh(); return true;
+    content = text(card, 'div', ''); const refreshButton = text(card, 'button', '刷新'); refreshButton.onclick = () => refresh(true);
+    document.body.append(card); followCard(card); refresh(false); return true;
   }
   function notice(value) {
     if (mode !== 'subscription') return;
     latestNotice = value;
     const message = noticeText(value);
     if (message) window.whaleToast?.(message);
-    if (card) refresh();
+    if (card) refresh(false);
   }
   function init() {
     const style = document.createElement('style'); style.textContent = `.whale-account-card{position:fixed;z-index:2147483646;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;box-sizing:border-box;padding:14px;border:1px solid #9fcbd5;border-radius:12px;background:#f6fdff;color:#173d48;box-shadow:0 8px 26px #163f4433;font:13px/1.5 system-ui;pointer-events:auto}.whale-account-card p{margin:8px 0}.whale-account-card small{display:block;color:#496873}.whale-account-card progress{width:100%;accent-color:#258b9c}.whale-account-header{display:flex;justify-content:space-between;align-items:center}.whale-account-switch{border-top:1px solid rgba(32,49,112,.2);padding-top:6px;margin-top:6px!important}.whale-account-switch>span{color:#203170;font-size:12px;flex:0 0 auto}.whale-account-switch select{flex:1;min-width:0;margin:0;padding:3px 4px}`; document.head.append(style);

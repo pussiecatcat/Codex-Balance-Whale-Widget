@@ -4,10 +4,32 @@ import crypto from 'node:crypto';
 import {Worker} from 'node:worker_threads';
 import {pricingSchedule} from './pricing-schedule.mjs';
 import {readCodexRateLimits} from './codex-rate-limits.mjs';
-export function createInsightsService(config) {
+export function createInsightsService(config,{readRateLimits=readCodexRateLimits,clock=Date.now}={}) {
   let cache=null,pending=null,lastKey='',worker=null,readerAbort=null,closed=false;
-  async function get() {
-    const now=Date.now(), c=config.resolve(), pricing=pricingSchedule(c,now);
+  function startRead(monitored,force) {
+    if(closed)return Promise.resolve([{tokens:null,windows:[],observedAt:null},null]);
+    if(pending){
+      if(!force||pending.force)return pending.promise;
+      return pending.promise.catch(()=>null).then(()=>startRead(monitored,true));
+    }
+    readerAbort=new AbortController();
+    const currentAbort=readerAbort,current={force,promise:null};
+    current.promise=Promise.all([monitored ? new Promise(resolve=>{
+      worker=new Worker(new URL('./insights-worker.mjs',import.meta.url),{workerData:{codexHome:config.codexHome,now:clock()}});
+      const currentWorker=worker;let finished=false;
+      const done=data=>{if(finished)return;finished=true;clearTimeout(timeout);void currentWorker.terminate();if(worker===currentWorker)worker=null;resolve(data);};
+      const timeout=setTimeout(()=>done({error:'observation-timeout'}),8000);timeout.unref();
+      currentWorker.once('message',done);currentWorker.once('error',()=>done({error:'local-observation-unavailable'}));currentWorker.once('exit',()=>done({error:'local-observation-unavailable'}));
+    }) : Promise.resolve({tokens:null,windows:[],observedAt:null}),
+    readRateLimits({codexHome:config.codexHome,signal:currentAbort.signal}).catch(()=>null)]).finally(()=>{
+      if(pending===current)pending=null;
+      if(readerAbort===currentAbort)readerAbort=null;
+    });
+    pending=current;
+    return current.promise;
+  }
+  async function get({force=false}={}) {
+    const now=clock(), c=config.resolve(), pricing=pricingSchedule(c,now);
     const monitored=c.setting.monitorSessions !== false;
     let auth={},authChangedAt=0;try{const file=path.join(config.codexHome,'auth.json'),stat=fs.statSync(file);authChangedAt=stat.mtimeMs;if(stat.size<1024*1024)auth=JSON.parse(fs.readFileSync(file,'utf8'));}catch{}
     const subscribed=!c.key && c.id==='openai' && (auth.auth_mode==='chatgpt' || !!auth.tokens?.access_token);
@@ -16,20 +38,8 @@ export function createInsightsService(config) {
     auth=null;
     if(lastKey!==key){cache=null;lastKey=key;}
     if(closed)return {ok:true,pricing,subscription:{available:false,windows:[],reason:'额度服务已关闭'},tokens:null};
-    if(!cache || now-cache.at>30000){
-      if(!pending){
-        readerAbort=new AbortController();
-        const currentAbort=readerAbort;
-        pending=Promise.all([monitored ? new Promise(resolve=>{
-        worker=new Worker(new URL('./insights-worker.mjs',import.meta.url),{workerData:{codexHome:config.codexHome,now}});
-        const current=worker;let finished=false;
-        const done=data=>{if(finished)return;finished=true;clearTimeout(timeout);void current.terminate();if(worker===current)worker=null;resolve(data);};
-        const timeout=setTimeout(()=>done({error:'observation-timeout'}),8000);timeout.unref();
-        current.once('message',done);current.once('error',()=>done({error:'local-observation-unavailable'}));current.once('exit',()=>done({error:'local-observation-unavailable'}));
-      }) : Promise.resolve({tokens:null,windows:[],observedAt:null}),
-      readCodexRateLimits({codexHome:config.codexHome,signal:currentAbort.signal}).catch(()=>null)]).finally(()=>{pending=null;if(readerAbort===currentAbort)readerAbort=null;});
-      }
-      const [data,direct]=await pending; if(key===lastKey)cache={at:now,data,direct};
+    if(force || !cache || now-cache.at>30000){
+      const [data,direct]=await startRead(monitored,force); if(key===lastKey)cache={at:clock(),data,direct};
     }
     const data=cache?.data||{},direct=cache?.direct;
     const windows=direct ? direct.windows : subscribed && data.observedAt>=authChangedAt ? data.windows||[] : [];

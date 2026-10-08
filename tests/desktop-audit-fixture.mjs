@@ -73,38 +73,39 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     // Feedback controls are exercised through the combined compact sound panel.
     await ev("window.__whaleRenderTest.close();document.querySelector('.dshwv-menu-btn').click()");
     await wait("document.querySelector('.dshwv-menu').classList.contains('dshwv-menu-open')", 'compact menu opens for sound settings');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click();window.__feedbackBefore=localStorage.getItem('dshw-v3-feedback')");
-    await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings opens');
-    await ev("(()=>{const e=document.querySelector('.whale-sound-advanced input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));})()");
+    await ev("(async()=>{window.__soundBefore=await fetch('/dsh-whale/size.json',{cache:'no-store'}).then(r=>r.json());[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()})()");
+    await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings opens');
+    await ev("(()=>{const e=document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));})()");
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await wait("!document.querySelector('.whale-sound-mask')", 'Escape dismisses the combined sound draft');
-    assert.equal(await ev("localStorage.getItem('dshw-v3-feedback') === window.__feedbackBefore"), true);
+    assert.equal(await ev("fetch('/dsh-whale/size.json',{cache:'no-store'}).then(r=>r.json()).then(v=>v.vol===window.__soundBefore.vol)"), true);
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
-    await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings reopens for save');
-    await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-advanced input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click();})()");
+    await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for save');
+    await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click();})()");
     await wait("!document.querySelector('.whale-sound-mask')", 'combined sound settings save');
-    assert.equal(await ev("JSON.parse(localStorage.getItem('dshw-v3-feedback')).events.press.volume"), 0);
-    assert.equal(await ev("JSON.parse(localStorage.getItem('dshw-v3-feedback')).events.release.volume"), .8);
+    assert.equal(await ev("fetch('/dsh-whale/size.json',{cache:'no-store'}).then(r=>r.json()).then(v=>v.vol)"), 0);
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
-    await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings reopens for cancel');
-    await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-advanced input[type=range]');e.value='.5';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='取消').click();})()");
-    assert.equal(await ev("JSON.parse(localStorage.getItem('dshw-v3-feedback')).events.press.volume"), 0);
+    await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for cancel');
+    await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='.5';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='取消').click();})()");
+    assert.equal(await ev("fetch('/dsh-whale/size.json',{cache:'no-store'}).then(r=>r.json()).then(v=>v.vol)"), 0);
     checks.push('combined sound panel saves independent event volume and discards Cancel and Escape drafts');
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
     await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings opens for screenshot');
-    assert.equal(await ev("document.querySelectorAll('.whale-sound-card>.whale-sound-block').length"), 3);
-    assert.equal(await ev("document.querySelector('.whale-sound-turn-block .whale-sound-wide-action').textContent"), '编辑提示内容');
+    assert.equal(await ev("document.querySelectorAll('.whale-sound-card>.whale-sound-block').length"), 4);
+    assert.equal(await ev("[...document.querySelectorAll('.whale-sound-card>.whale-sound-block')].find(b=>b.querySelector('.whale-sound-block-title')?.textContent==='每轮消耗提示').querySelector('.whale-sound-wide-action').textContent"), '编辑提示内容');
     fs.writeFileSync(path.join(output, 'feedback-v3.png'), (await window.webContents.capturePage()).toPNG());
+    await ev("(()=>{const b=[...document.querySelectorAll('.whale-sound-card>.whale-sound-block')].find(b=>b.querySelector('.whale-sound-block-title')?.textContent==='按压音效'),e=b.querySelector('summary input[type=checkbox]');if(!e.checked){e.checked=true;e.dispatchEvent(new Event('change'))}})()");
     await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='新建音效组').click()");
     await wait("[...document.querySelectorAll('.dshwv-audiomask')].some(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组')", 'sound panel opens the functional audio-group editor');
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-audiomask')].filter(m=>m.style.display==='flex').map(m=>m.querySelector('.dshwv-audiotitle')?.textContent).includes('新建音效组')"), true);
     await ev("[...document.querySelectorAll('.dshwv-audiomask')].find(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组').querySelector('.dshwv-cropbtn-no').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].some(b=>b.textContent==='会员额度详情')"), false);
-    await ev(`(async()=>{const original=window.fetch;window.fetch=async input=>{
+    await ev(`(async()=>{const original=window.fetch;window.__quotaFetches=[];window.fetch=async input=>{
       const url=String(input);
-      if(url==='/api/insights')return new Response(JSON.stringify({subscription:{source:'codex-app-server',planType:'plus',observedAt:Date.now(),windows:[
-        {windowDurationMins:300,usedPercent:36,resetsAt:Date.now()+4876000},
+      window.__quotaFetches.push(url);
+      if(url.startsWith('/api/insights'))return new Response(JSON.stringify({subscription:{source:'codex-app-server',planType:'plus',observedAt:Date.now(),windows:[
+        {windowDurationMins:300,usedPercent:36.4,resetsAt:Date.now()+4876000},
         {windowDurationMins:10080,usedPercent:21,resetsAt:Date.now()+392876000}
       ]}}),{status:200,headers:{'Content-Type':'application/json'}});
       if(url==='/api/pricing')return new Response(JSON.stringify({visible:false}),{status:200,headers:{'Content-Type':'application/json'}});
@@ -118,13 +119,14 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       {type:'quota',quotaStyle:'meter',windowDurationMins:300,row:1},
       {type:'quota',quotaStyle:'meter',windowDurationMins:10080,row:2}
     ],0);})()`);
-    await wait("document.querySelectorAll('.dshwv-quota-meter').length===2&&[...document.querySelectorAll('.dshwv-quota-meter-number')].map(e=>e.textContent).join(',')==='64,79'", 'tide quota meters render live percentages');
-    const tideMeters = await ev("[...document.querySelectorAll('.dshwv-quota-meter')].map(e=>({tone:e.dataset.quotaTone,label:e.querySelector('.dshwv-quota-meter-label').textContent,reset:e.querySelector('.dshwv-quota-meter-reset').textContent,aria:e.getAttribute('aria-label'),fill:e.querySelector('.dshwv-quota-meter-fill').style.width}))");
+    await wait("document.querySelectorAll('.dshwv-quota-meter').length===2&&[...document.querySelectorAll('.dshwv-quota-meter-number')].map(e=>e.textContent).join(',')==='63.6,79'", 'tide quota meters render live percentages');
+    const tideMeters = await ev("[...document.querySelectorAll('.dshwv-quota-meter')].map(e=>({tone:e.dataset.quotaTone,label:e.querySelector('.dshwv-quota-meter-label').textContent,updated:e.querySelector('.dshwv-quota-meter-reset-label').textContent,reset:e.querySelector('.dshwv-quota-meter-reset').textContent,aria:e.getAttribute('aria-label'),fill:e.querySelector('.dshwv-quota-meter-fill').style.width}))");
     assert.deepEqual(tideMeters.map(value => ({ tone:value.tone, label:value.label, fill:value.fill })), [
-      {tone:'steady',label:'5 小时',fill:'64%'},
+      {tone:'steady',label:'5 小时',fill:'63.6%'},
       {tone:'steady',label:'每周',fill:'79%'}
     ]);
-    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.reset.includes(':')));
+    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.includes(':')));
+    assert.ok(await ev("window.__quotaFetches.includes('/api/insights?refresh=1')"));
     await delay(500);
     fs.writeFileSync(path.join(output, 'quota-tide.png'), (await window.webContents.capturePage()).toPNG());
     checks.push('Codex five-hour and weekly quota render as compact tide gauges with live percentages, reset countdowns and accessible labels');
@@ -132,9 +134,9 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("WhaleAccountView.setMode('api')");
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='素材包导入/导出').click()"); await delay(100);
     fs.writeFileSync(path.join(output, 'workshop-v3.png'), (await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('.whale-v3-dialog[open]').close(); [...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='固定在桌面').click()"); await delay(150);
+    await ev("document.querySelector('.whale-v3-dialog[open]').close(); [...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='桌面驻留').click()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'standalone');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='跟随 Codex').click()"); await delay(150);
+    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='窗口随行').click()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'follow-codex');
     checks.push('feedback and material-package panels render; redundant member details are absent and one mode button toggles both directions');
     assert.equal(await ev("whaleDesktop.command('desktop')"), true);
@@ -213,7 +215,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent.includes('返回控制面板')).click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
-    for(const label of ['数据显示','角色','大小','音效与提示','自定义泡泡','币种','刷新汇率','吸附与翻转','资源管理','API 设置','固定在桌面','素材包导入/导出'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of ['数据显示','角色','大小','音效与提示','自定义泡泡','币种','刷新汇率','吸附与翻转','资源管理','API 设置','桌面驻留','素材包导入/导出'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,{...dip,width:360,height:320})});await delay(250);
