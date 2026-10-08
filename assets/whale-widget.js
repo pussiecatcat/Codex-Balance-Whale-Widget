@@ -9379,6 +9379,7 @@
         // presses on the character only play the press/release feedback. The
         // bubble itself is the sole control that advances or pops the queue.
         if (bubbleShown) return;
+        if (window.WhaleAccountView?.mode === 'subscription') window.WhaleQuota?.refresh(true);
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();

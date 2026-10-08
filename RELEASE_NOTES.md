@@ -1,9 +1,11 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.16`。** 当前内部构建为 `0.3.0+codex.20261008-quota-refresh`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.17`。** 当前内部构建为 `0.3.0+codex.20261009-bubble-open-refresh`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 
+- 每次从关闭状态点击角色打开气泡时立即强制读取 Codex 官方额度；气泡先即时显示已有快照，响应返回后原地更新五小时和每周百分比、快照时间及倒计时。
+- 气泡已经打开时连续点击角色只触发按压互动，不会重复发起额度请求；尚未完成的普通刷新也不会吞掉这次强制读取。
 - Codex 额度的手动刷新现在绕过 30 秒快照，普通刷新尚未完成时触发的强刷会排队补做，不再被旧请求吞掉。
 - 每轮对话完成后自动在 1.5 秒和 8 秒读取官方额度，以覆盖服务端延迟结算；气泡关闭时也会更新下一次打开所用的快照。
 - 五小时与每周潮汐卡片新增快照更新时间，并在官方返回小数时保留一位百分比精度；重置倒计时仍逐秒更新。
@@ -50,4 +52,4 @@
 
 Windows 完整解压后运行“launchers/安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
-公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.16` 对应本次整理后的发行版本。
+公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.17` 对应本次整理后的发行版本。

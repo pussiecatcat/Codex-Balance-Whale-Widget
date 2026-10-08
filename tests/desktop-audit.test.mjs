@@ -147,16 +147,17 @@ test('petting an open character bubble never advances or closes its queue', asyn
   assert.ok(start >= 0 && end > start, 'whaleClick source is available');
   const box = {
     bubbleOn: true, bubbleScene: null, bubbleShown: false, bubbleRoundOn: false, bubbleSeqIdx: 8,
-    opens: 0,
+    opens: 0, quotaRefreshes: 0,
+    window: { WhaleAccountView: { mode: 'subscription' }, WhaleQuota: { refresh: force => { assert.equal(force, true); box.quotaRefreshes++; } } },
   };
   box.bubbleShowSeqNext = () => { box.opens++; };
   vm.createContext(box);
   vm.runInContext(source.slice(start, end), box);
   vm.runInContext('whaleClick()', box);
-  assert.equal(box.opens, 1); assert.equal(box.bubbleRoundOn, true); assert.equal(box.bubbleSeqIdx, 0);
+  assert.equal(box.opens, 1); assert.equal(box.quotaRefreshes, 1); assert.equal(box.bubbleRoundOn, true); assert.equal(box.bubbleSeqIdx, 0);
   box.bubbleShown = true; box.bubbleSeqIdx = 1;
   vm.runInContext('whaleClick(); whaleClick(); whaleClick()', box);
-  assert.equal(box.opens, 1); assert.equal(box.bubbleSeqIdx, 1, 'open bubble remains on its current item');
+  assert.equal(box.opens, 1); assert.equal(box.quotaRefreshes, 1); assert.equal(box.bubbleSeqIdx, 1, 'open bubble remains on its current item');
 });
 
 test('failed task registration leaves a running installation untouched and cannot print success', { skip: process.platform !== 'win32' }, async t => {
