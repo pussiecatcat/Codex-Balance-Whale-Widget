@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-ledger-dsh-type`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261008-ledger-original-height`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -47,7 +47,7 @@
 
 - “小龙娘记账”按原版模型账本结构显示模型名称、余额/额度摘要、刷新、设置和自定义 API 添加入口；本机模型费用、近 7 天记录和更多消费记录紧随其后。
 - 每个模型的“设置”使用原版 DSH 风格详情卡，集中管理余额预警、今日预算、订阅额度、价格估算、已观测消费和可用的余额校正；“密钥 / 接口”与提示气泡编辑从详情卡进入。
-- 小龙娘记账与控制面板使用相同的半透明底色；中文分区标题使用原版界面粗体，模型、日期、金额和 API 字母使用 Consolas 等宽字体，窗口高度收紧并由整个内容区统一上下滚动。
+- 小龙娘记账与控制面板使用相同的半透明底色和完整高度；中文分区标题使用原版界面粗体，模型、日期、金额和 API 字母使用 Consolas 等宽字体，整个内容区统一上下滚动。
 - “近 7 天使用记录”完整展开七行，不再使用独立的狭窄滚动框；今日模型费用也随内容自然增长。
 - 保留原版 API 余额、今日消费、汇率、账本、对账、消费记录和余额校正。
 - 内置 34 个 DIY 模板，覆盖无余额接口、订阅配额、本地统计、兼容账单和自定义 JSON 端点等类型。
@@ -206,7 +206,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.13
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.14
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。

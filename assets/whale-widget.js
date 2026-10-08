@@ -1033,15 +1033,10 @@
         if (mb.width > 0) w0 = Math.round(mb.width);
         if (mb.height > 0) h0 = Math.round(mb.height);
       } catch (err) {}
-      var viewportH = 424;
-      try {
-        viewportH = Math.max(320, Math.round(window.innerHeight || document.documentElement.clientHeight || 424));
-      } catch (err) {}
-      var ledgerH = Math.max(320, Math.min(h0, 400, viewportH - 24));
       menuBox.classList.add('dshwv-ledger-open');
       menuBox.style.width = w0 + 'px';
       menuBox.style.maxWidth = w0 + 'px';
-      menuBox.style.height = ledgerH + 'px';
+      menuBox.style.height = h0 + 'px';
       menuBox.style.overflow = 'hidden';
       menuBox.style.display = 'flex';
       menuBox.style.flexDirection = 'column';

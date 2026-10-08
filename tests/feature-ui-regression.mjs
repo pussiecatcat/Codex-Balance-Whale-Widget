@@ -55,6 +55,7 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   await screenshot('feature-api-quota');await ev('window.__whaleRenderTest.close()');
   await ev("document.querySelector('.dshwv-menu-btn').click()");
   await wait("document.querySelector('.dshwv-menu')?.classList.contains('dshwv-menu-open')",'menu opens for ledger');
+  const originalMenuHeight=await ev("Math.round(document.querySelector('.dshwv-menu').getBoundingClientRect().height)");
   await ev("[...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('小龙娘记账')).click()");
   await wait("getComputedStyle(document.querySelector('.dshwv-usage-sub')).display!=='none'",'Xiaolongnu ledger opens');
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sub')).backgroundColor"),'rgba(0, 0, 0, 0)');
@@ -64,13 +65,12 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   assert.equal(await ev("document.querySelector('.dshwv-usage-days').children.length"),7);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-days')).overflowY"),'visible');
   assert.equal(await ev("Math.abs(document.querySelector('.dshwv-usage-days').scrollHeight-document.querySelector('.dshwv-usage-days').clientHeight)<=1"),true);
-  assert.ok(await ev("document.querySelector('.dshwv-menu').getBoundingClientRect().height")<=400);
+  assert.equal(await ev("document.querySelector('.dshwv-menu').style.height"),`${originalMenuHeight}px`);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sub')).overflowY"),'auto');
-  assert.equal(await ev("document.querySelector('.dshwv-usage-sub').scrollHeight>document.querySelector('.dshwv-usage-sub').clientHeight"),true);
   assert.match(await ev("getComputedStyle([...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回'))).fontFamily"),/^Consolas/);
   await screenshot('feature-xiaolongnu-ledger');
   await ev("[...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回')).click()");
-  checks.push('Xiaolongnu ledger matches DSH with bold UI headings, Consolas data, one page scroller and seven expanded daily rows');
+  checks.push('Xiaolongnu ledger matches DSH height and typography while all seven daily rows stay expanded');
   await ev("window.dispatchEvent(new Event('whale-edit-turn-cost'))");
   await wait("window.__dshwRemindMask?.isConnected",'modular turn prompt editor');
   const preview=await ev("window.__dshwRemindMask.querySelector('.dshwv-bubprev').innerText");
