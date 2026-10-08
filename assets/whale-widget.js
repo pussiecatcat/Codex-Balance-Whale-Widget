@@ -1215,13 +1215,17 @@
       return WhaleMoney.symbol();
     }
     function usageMoney(x, currency) {
-      return x == null ? '—' : WhaleMoney.formatMoney(x, currency || state && state.currency || 'USD');
+      if (x == null) return '—';
+      var text = WhaleMoney.formatMoney(x, currency || state && state.currency || 'USD');
+      return String(text).replace(/^([$¥])\s*/, '$1\u00a0');
     }
     function usageMoneyText(x, currency) {
       var nativeCurrency = currency || state && state.currency || 'USD';
       return function () { return usageMoney(x, nativeCurrency); };
     }
     function bindUsageMoney(element, x, currency) {
+      element.classList.add('dshwv-usage-money');
+      element.classList.toggle('dshwv-usage-money-unknown', x == null);
       return WhaleMoney.bind(element, usageMoneyText(x, currency));
     }
     function usageDayLabel(day) {
@@ -1813,7 +1817,7 @@
         usageMainEl.textContent = '记录加载失败';
       });
     }
-    function uSectionTitle(leftTxt, rightTxt) {
+    function uSectionTitle(leftTxt, rightTxt, rightValue) {
       var h = document.createElement('div');
       h.className = 'dshwv-usage-sec';
       var l = document.createElement('span');
@@ -1821,7 +1825,9 @@
       h.appendChild(l);
       var r = document.createElement('span');
       r.className = 'dshwv-usage-total';
-      if (typeof rightTxt === 'function') WhaleMoney.bind(r, rightTxt); else r.textContent = rightTxt;
+      if (arguments.length > 2) bindUsageMoney(r, rightValue);
+      else if (typeof rightTxt === 'function') WhaleMoney.bind(r, rightTxt);
+      else r.textContent = rightTxt;
       h.appendChild(r);
       return h;
     }
@@ -1838,7 +1844,7 @@
       var today = d.today || ({});
       var todayModels = today.models || [];
       var hasEvToday = todayModels.length > 0;
-      wrap.appendChild(uSectionTitle('本机模型费用', usageMoneyText(today.total)));
+      wrap.appendChild(uSectionTitle('本机模型费用', null, today.total));
       var todayBox = document.createElement('div');
       todayBox.className = 'dshwv-usage-scroll dshwv-usage-today';
       if (hasEvToday) {
@@ -1866,7 +1872,7 @@
         todayBox.appendChild(empty);
       }
       wrap.appendChild(todayBox);
-      wrap.appendChild(uSectionTitle(d.total7Complete === false ? '近7天使用记录（已知小计）' : '近7天使用记录', usageMoneyText(d.total7)));
+      wrap.appendChild(uSectionTitle(d.total7Complete === false ? '近7天使用记录（已知小计）' : '近7天使用记录', null, d.total7));
       var daysBox = document.createElement('div');
       daysBox.className = 'dshwv-usage-scroll dshwv-usage-days';
       (d.days7 || []).forEach(function (row) {

@@ -1,6 +1,6 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.14`。** 当前内部构建为 `0.3.0+codex.20261008-ledger-original-height`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.15`。** 当前内部构建为 `0.3.0+codex.20261008-ledger-money-spacing`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 
@@ -18,6 +18,7 @@
 - 记账入口与页面内按钮使用一致尺寸，底部“返回控制面板”精简为“‹ 返回”。
 - 小龙娘记账恢复原版 DSH 高度：打开账本后继承控制面板切换前的完整高度，由账本内容区统一上下滚动；今日费用与近 7 天记录取消内部滚动，七天日期完整展开。
 - 账本字体按原版 DSH 层级重做：中文分区标题使用微软雅黑界面粗体，日期、金额、模型名、API 字母、按钮和表单数据使用 Consolas 等宽字体；字号、行高和字距恢复为原版紧凑比例。
+- 记账金额统一使用固定宽度列，币种符号与数字留出间距；已有金额右对齐，未知金额保留横杠语义并在金额列居中。
 
 ## 关于 Issue #177
 
@@ -45,4 +46,4 @@
 
 Windows 完整解压后运行“launchers/安装插件.cmd”；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。此包不是包含运行时的离线 EXE。Mac 安装范围、Swift 工具与未验证限制见 [平台说明](docs/MACOS.md)。安装和按本次私有回执回滚见 [README](README.md)。
 
-公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.14` 对应本次整理后的发行版本。
+公开包不包含个人凭据、配置、账本、日志、截图、录屏、回滚回执或 Git 历史。公开署名、第三方许可和兼容来源保留。标签 `codex-v0.3.0-fixed.15` 对应本次整理后的发行版本。

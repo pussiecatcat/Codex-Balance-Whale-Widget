@@ -223,8 +223,12 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-view-in{animation:dshwvViewIn .1s ease}
 .dshwv-usage-sec{display:flex;justify-content:space-between;align-items:center;margin:2px 0 2px;font-weight:600;border-bottom:1px solid rgba(32,49,112,.15);padding-bottom:3px;white-space:nowrap}
 .dshwv-usage-sec>span:first-child,.dshwv-usage-subtitle,.dshwv-book-model-title{font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif;font-weight:700;letter-spacing:0}
-.dshwv-usage-total{color:#e0433f;font-weight:700}
+.dshwv-usage-sec>span:first-child{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.dshwv-usage-total{color:#e0433f;font-weight:700;flex:0 0 68px;min-width:68px;text-align:right;white-space:nowrap}
 .dshwv-usage-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;min-width:0}
+.dshwv-usage-row>span:first-child{flex:1 1 auto;min-width:0}
+.dshwv-usage-money{flex:0 0 68px;min-width:68px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dshwv-usage-money-unknown{text-align:center}
 .dshwv-usage-scroll{overflow-y:auto;overflow-x:hidden;padding-right:2px;margin:2px 0 2px;border:1px solid rgba(32,49,112,.12);border-radius:6px}
 .dshwv-usage-today,.dshwv-usage-days{height:auto;max-height:none;overflow:visible;padding-right:0}
 .dshwv-usage-oview{text-align:center;padding:4px 0 6px;border-bottom:1px solid rgba(32,49,112,.12);margin-bottom:6px}

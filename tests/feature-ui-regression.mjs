@@ -65,12 +65,17 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   assert.equal(await ev("document.querySelector('.dshwv-usage-days').children.length"),7);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-days')).overflowY"),'visible');
   assert.equal(await ev("Math.abs(document.querySelector('.dshwv-usage-days').scrollHeight-document.querySelector('.dshwv-usage-days').clientHeight)<=1"),true);
+  assert.match(await ev("document.querySelector('.dshwv-usage-total').textContent"),/^\$\u00a0\d+\.\d{2}$/);
+  assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-total')).textAlign"),'right');
+  assert.equal(await ev("[...document.querySelectorAll('.dshwv-usage-sec')].every(section=>{const total=section.querySelector('.dshwv-usage-total'),a=section.getBoundingClientRect(),b=total.getBoundingClientRect();return b.left>=a.left&&b.right<=a.right+.5})"),true);
+  assert.equal(await ev("[...document.querySelectorAll('.dshwv-usage-days .dshwv-usage-money')].some(value=>value.textContent==='—'&&getComputedStyle(value).textAlign==='center')"),true);
+  assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-days .dshwv-usage-money')).width"),'68px');
   assert.equal(await ev("document.querySelector('.dshwv-menu').style.height"),`${originalMenuHeight}px`);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sub')).overflowY"),'auto');
   assert.match(await ev("getComputedStyle([...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回'))).fontFamily"),/^Consolas/);
   await screenshot('feature-xiaolongnu-ledger');
   await ev("[...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回')).click()");
-  checks.push('Xiaolongnu ledger matches DSH height and typography while all seven daily rows stay expanded');
+  checks.push('Xiaolongnu ledger matches DSH height and typography while all seven daily rows stay expanded and money columns remain readable');
   await ev("window.dispatchEvent(new Event('whale-edit-turn-cost'))");
   await wait("window.__dshwRemindMask?.isConnected",'modular turn prompt editor');
   const preview=await ev("window.__dshwRemindMask.querySelector('.dshwv-bubprev').innerText");
