@@ -213,18 +213,19 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-qcolorhost .dshwv-bubmini{width:auto;height:20px;font-size:11px;opacity:.85;padding:0 6px}
 .dshwv-usagepanel{position:fixed;z-index:26020;background:#fff;border:1px solid rgba(32,49,112,.35);border-radius:10px;box-shadow:0 8px 22px rgba(15,23,42,.22);padding:10px 12px;color-scheme:light;max-height:70vh;overflow-y:auto}
 .dshwv-menuview{display:block}
-.dshwv-usage-sub{display:none;max-height:min(70vh,560px);overflow-y:auto;padding-right:2px;width:100%;box-sizing:border-box;background:transparent;font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}
+.dshwv-usage-sub{display:none;max-height:min(70vh,560px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px;width:100%;box-sizing:border-box;background:transparent;font-family:"Cascadia Code","Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font-variant-numeric:tabular-nums}
+.dshwv-usage-sub button,.dshwv-usage-sub input,.dshwv-usage-sub select,.dshwv-usage-sub textarea{font-family:inherit;font-variant-numeric:tabular-nums}
+.dshwv-menu.dshwv-ledger-open [data-account-api="true"] button{font-family:"Cascadia Code","Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font-variant-numeric:tabular-nums}
 .dshwv-usage-back{border:none;background:none;color:#203170;font-size:12px;font-weight:600;cursor:pointer;padding:0 0 2px;text-align:left;width:100%}
 .dshwv-usage-back:hover{color:#2f4488;text-decoration:underline}
-.dshwv-usagebody{display:flex;flex-direction:column;gap:2px;color:#203170;font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif;font-size:12px;font-weight:400;line-height:1.45;min-width:0;overflow-x:hidden;font-variant-numeric:tabular-nums}
+.dshwv-usagebody{display:flex;flex-direction:column;gap:2px;color:#203170;font-family:inherit;font-size:11.5px;font-weight:400;line-height:1.4;letter-spacing:.01em;min-width:0;overflow-x:hidden;font-variant-numeric:tabular-nums}
 @keyframes dshwvViewIn{from{transform:translateY(-8px)}to{transform:translateY(0)}}
 .dshwv-view-in{animation:dshwvViewIn .1s ease}
 .dshwv-usage-sec{display:flex;justify-content:space-between;align-items:center;margin:2px 0 2px;font-weight:600;border-bottom:1px solid rgba(32,49,112,.15);padding-bottom:3px;white-space:nowrap}
 .dshwv-usage-total{color:#e0433f;font-weight:700}
 .dshwv-usage-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;min-width:0}
 .dshwv-usage-scroll{overflow-y:auto;overflow-x:hidden;padding-right:2px;margin:2px 0 2px;border:1px solid rgba(32,49,112,.12);border-radius:6px}
-.dshwv-usage-today{height:55px}
-.dshwv-usage-days{height:55px}
+.dshwv-usage-today,.dshwv-usage-days{height:auto;max-height:none;overflow:visible;padding-right:0}
 .dshwv-usage-oview{text-align:center;padding:4px 0 6px;border-bottom:1px solid rgba(32,49,112,.12);margin-bottom:6px}
 .dshwv-usage-oview-num{font-size:22px;font-weight:800;color:#203170;margin:2px 0}
 .dshwv-usage-collapse{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:none;border:none;border-bottom:1px solid rgba(32,49,112,.15);padding:6px 0 3px;margin:6px 0 2px;color:#203170;font-size:12px;font-weight:600;cursor:pointer;text-align:left}

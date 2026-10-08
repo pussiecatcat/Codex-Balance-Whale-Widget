@@ -1033,9 +1033,15 @@
         if (mb.width > 0) w0 = Math.round(mb.width);
         if (mb.height > 0) h0 = Math.round(mb.height);
       } catch (err) {}
+      var viewportH = 424;
+      try {
+        viewportH = Math.max(320, Math.round(window.innerHeight || document.documentElement.clientHeight || 424));
+      } catch (err) {}
+      var ledgerH = Math.max(320, Math.min(h0, 400, viewportH - 24));
+      menuBox.classList.add('dshwv-ledger-open');
       menuBox.style.width = w0 + 'px';
       menuBox.style.maxWidth = w0 + 'px';
-      menuBox.style.height = h0 + 'px';
+      menuBox.style.height = ledgerH + 'px';
       menuBox.style.overflow = 'hidden';
       menuBox.style.display = 'flex';
       menuBox.style.flexDirection = 'column';
@@ -1053,6 +1059,8 @@
       usagePanel.style.height = '100%';
       usagePanel.style.maxHeight = 'none';
       usagePanel.style.overflowY = 'auto';
+      usagePanel.style.overscrollBehavior = 'contain';
+      usagePanel.scrollTop = 0;
       usagePanel.style.zIndex = '1';
       usagePanel.style.transform = 'translateY(100%)';
       usagePanel.style.transition = 'none';
@@ -1163,6 +1171,8 @@
           usagePanel.style.top = '';
           usagePanel.style.left = '';
           usagePanel.style.zIndex = '';
+          usagePanel.style.overflowY = '';
+          usagePanel.style.overscrollBehavior = '';
         } catch (err) {}
         if (menuRootView && usageArea) {
           try {
@@ -1181,6 +1191,7 @@
           usageArea.style.display = '';
         } catch (err) {}
         if (menuBox) {
+          menuBox.classList.remove('dshwv-ledger-open');
           menuBox.style.width = '';
           menuBox.style.maxWidth = '';
           menuBox.style.height = '';
