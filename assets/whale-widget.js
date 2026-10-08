@@ -1249,16 +1249,6 @@
       usageMainEl = document.createElement('div');
       usageMainEl.className = 'dshwv-usagebody';
       usagePanel.appendChild(usageMainEl);
-      var tools = document.createElement('details');
-      tools.className = 'dshwv-book-tools';
-      var toolsTitle = document.createElement('summary');
-      toolsTitle.textContent = '账本工具';
-      tools.appendChild(toolsTitle);
-      var toolsBody = document.createElement('div');
-      toolsBody.className = 'dshwv-book-tools-body';
-      tools.appendChild(toolsBody);
-      buildUsageSettingsArea(toolsBody);
-      usagePanel.appendChild(tools);
     }
     function usageApiModelSummary(model, value) {
       if (!value) return '加载中…';
@@ -1361,7 +1351,7 @@
       head.appendChild(title);
       usageModelRefreshBtn = document.createElement('button');
       usageModelRefreshBtn.type = 'button';
-      usageModelRefreshBtn.className = 'dshwv-roleimport dshwv-book-model-refresh';
+      usageModelRefreshBtn.className = 'dshwv-palchip dshwv-book-model-refresh';
       usageModelRefreshBtn.textContent = '刷新';
       usageModelRefreshBtn.addEventListener('click', function (event) {
         event.stopPropagation();
@@ -1381,6 +1371,9 @@
         window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: null } }));
       });
       area.appendChild(add);
+      var divider = document.createElement('div');
+      divider.className = 'dshwv-book-divider';
+      area.appendChild(divider);
       usagePanel.appendChild(area);
       renderUsageModels(false);
     }
@@ -1884,7 +1877,7 @@
       wrap.appendChild(daysBox);
       var more = document.createElement('button');
       more.type = 'button';
-      more.className = 'dshwv-usage-more';
+      more.className = 'dshwv-usage-more dshwv-usage-history';
       more.textContent = '更多消费记录…';
       more.title = '打开窗口查看全部有记录的消费';
       more.addEventListener('click', function (e) {
@@ -1896,6 +1889,9 @@
     }
     window.addEventListener('whale-api-model-changed', function () {
       if (usagePanelOpen && usageModelListEl) renderUsageModels(true);
+    });
+    window.addEventListener('whale-open-balance-reconcile', function () {
+      usageReconcileEditor();
     });
     var usageMoreMask = document.createElement('div');
     usageMoreMask.className = 'dshwv-usage-mask';
