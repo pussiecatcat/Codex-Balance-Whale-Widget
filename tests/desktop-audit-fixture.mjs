@@ -62,10 +62,18 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await delay(500);
     const link = await ev("(() => {const e=document.querySelector('.dshwv-frame:not([inert]) [title=\"https://example.org/whale-audit\"]');const r=e.getBoundingClientRect();return{x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2),left:r.left,top:r.top,right:r.right,bottom:r.bottom};})()");
     assert.ok(link.left >= 0 && link.top >= 0 && link.right <= viewport.width && link.bottom <= viewport.height);
-    setTestCursor({ x: link.x, y: link.y });
-    window.webContents.sendInputEvent({ type: 'mouseMove', x: link.x, y: link.y }); await delay(100);
-    window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: link.x, y: link.y }); await delay(30);
-    window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, x: link.x, y: link.y });
+    let hit = link;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      hit = await ev("(() => {const e=document.querySelector('.dshwv-frame:not([inert]) [title=\"https://example.org/whale-audit\"]');const r=e.getBoundingClientRect();return{x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()");
+      setTestCursor(hit);
+      window.webContents.sendInputEvent({ type: 'mouseMove', ...hit });
+      await delay(100);
+      if (await ev(`document.elementFromPoint(${hit.x}, ${hit.y})?.closest('[title="https://example.org/whale-audit"]') != null`)) break;
+      await delay(100);
+    }
+    assert.equal(await ev(`document.elementFromPoint(${hit.x}, ${hit.y})?.closest('[title="https://example.org/whale-audit"]') != null`), true, 'link must be the hit target before native input');
+    window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...hit }); await delay(30);
+    window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...hit });
     const linkDeadline = Date.now() + 3000;
     while (openedLinks.length === 0 && Date.now() < linkDeadline) await delay(30);
     assert.deepEqual(openedLinks, ['https://example.org/whale-audit']);

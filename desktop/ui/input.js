@@ -1,8 +1,10 @@
 (() => {
   'use strict';
+  function initialize() {
   const bridge = window.whaleDesktop, rendering = window.WhaleRendering;
   if (!bridge || !rendering) return;
   const pet = document.querySelector('.dshwv-img'), root = document.querySelector('.dshwv-root');
+  if (!pet || !root) return;
   const failedRoleSources = new Set();
   let pointerEventAt=0;
   let point = { x: -1, y: -1 }, heldPointer = null, releaseEpoch = 0, interactive = false, keyboardFocus = false, ready = false, lastStorage = '', externalDrag = false;
@@ -127,4 +129,7 @@
   document.addEventListener('visibilitychange', save);
   window.addEventListener('beforeunload', save);
   request();
+  }
+  if (document.querySelector('.dshwv-img')) initialize();
+  else window.addEventListener('whale-widget-ready', initialize, { once: true });
 })();

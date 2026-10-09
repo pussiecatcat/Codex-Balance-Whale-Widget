@@ -9,6 +9,7 @@ const { createHeartbeatMonitor } = require('./heartbeat.cjs');
 const { acceptsWindowMessage } = require('./ipc-window.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
+const { normalizeHostState } = require('./host-state.cjs');
 const { createVisibilityRecorder } = require('./visibility-recorder.cjs');
 const { pathToFileURL } = require('node:url');
 const root = path.resolve(__dirname, '..');
@@ -188,7 +189,8 @@ async function openWebLink(value, gestureRequired = true) {
   } catch { return false; }
 }
 async function setHost(host) {
-  if (!host || typeof host.hostAlive !== 'boolean') return;
+  host = normalizeHostState(host, { platform: process.platform });
+  if (!host) return;
   if (Number.isSafeInteger(host.serial)) { if (host.serial <= hostSequence) return; hostSequence = host.serial; }
   hostHeartbeat = Date.now(); lastHost = host;
   // Record the observed state before any lifecycle recovery can change it.

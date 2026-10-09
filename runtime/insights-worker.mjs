@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { parentPort, workerData } from 'node:worker_threads';
+import { HISTORY_EVENT_PATTERN, decodeSessionEvent, normalizeSessionUsage,
+  sessionCounterDifference, sessionTimestamp } from './session-events.mjs';
 
 const count = v => Number.isSafeInteger(v) && v >= 0 ? v : 0;
 export function quotaWindows(value, at, now) {
@@ -37,17 +39,18 @@ export class InsightAccumulator {
       this.skip=count(p.subagent_history_start_ordinal); this.created=Date.parse(p.timestamp)||0; this.forked=!!p.forked_from_id; return;
     }
     if (d.type !== 'event_msg' || p.type !== 'token_count') return;
-    const at=Date.parse(d.timestamp);
+    const at=sessionTimestamp(d.timestamp);
     if (!Number.isFinite(at) || at > this.now+60000 || this.forked && at < this.created) return;
     const windows=quotaWindows(p.rate_limits,at,this.now);
     if (windows.length && (!this.quota || at > this.quota.at)) this.quota={at,windows};
     const raw=p.info?.total_token_usage;
     if (!raw) return;
     const keys=['input_tokens','output_tokens','cached_input_tokens','reasoning_output_tokens'];
-    const next=Object.fromEntries(keys.map(k=>[k,count(raw[k])]));
-    const reset=this.last && (next.input_tokens<this.last.input_tokens || next.output_tokens<this.last.output_tokens);
+    const next=normalizeSessionUsage(raw,{fields:keys,strict:true});
+    const difference=sessionCounterDifference(next,this.last,keys);
+    const reset=difference.reset;
     if ((!this.last || reset) && !p.info.last_token_usage && at>=this.now-7*86400000) this.partial=true;
-    const delta = this.last && !reset ? Object.fromEntries(keys.map(k=>[k,Math.max(0,next[k]-this.last[k])])) : Object.fromEntries(keys.map(k=>[k,count(p.info.last_token_usage?.[k])]));
+    const delta = difference.delta || normalizeSessionUsage(p.info.last_token_usage,{fields:keys,strict:true});
     this.last=next;
     if (at>=this.now-7*86400000 && delta.input_tokens+delta.output_tokens>0) this.events.push({at,...delta});
   }
@@ -75,8 +78,9 @@ export function collectInsights({codexHome,now=Date.now(),maxFiles=400,maxBytes=
     let pending='',discard=false;const buffer=Buffer.alloc(65536);
     try{while(scannedBytes<maxBytes){const n=fs.readSync(fd,buffer,0,Math.min(buffer.length,maxBytes-scannedBytes),null);if(!n)break;scannedBytes+=n;pending+=decoder.write(buffer.subarray(0,n));
       let end;while((end=pending.indexOf('\n'))>=0){const line=pending.slice(0,end);pending=pending.slice(end+1);if(discard){discard=false;continue;}if(line.length>1024*1024){complete=false;continue;}
-        if(!/"(?:token_count|session_meta)"/.test(line)) {if(parser.skip>0)parser.skip--;continue;}
-        try{parser.accept(JSON.parse(line));}catch{complete=false;}
+        if(!HISTORY_EVENT_PATTERN.test(line)) {if(parser.skip>0)parser.skip--;continue;}
+        const record=decodeSessionEvent(line,HISTORY_EVENT_PATTERN);
+        if(record)parser.accept(record);else complete=false;
       }
       if(pending.length>1024*1024){pending='';discard=true;complete=false;}
     }}catch{complete=false;}finally{fs.closeSync(fd);}

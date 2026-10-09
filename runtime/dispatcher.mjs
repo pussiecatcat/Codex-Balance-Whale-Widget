@@ -142,7 +142,14 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
       const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/select-enhancer.js': 'select-enhancer.js', '/wait-notice.js': 'wait-notice.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js',
         '/services/request.js': 'services/request.js', '/services/sound-reference.js': 'services/sound-reference.js',
-        '/features/sound-settings/model.js': 'features/sound-settings/model.js', '/features/sound-settings/controller.js': 'features/sound-settings/controller.js', '/features/sound-settings/view.js': 'features/sound-settings/view.js' };
+        '/features/sound-settings/model.js': 'features/sound-settings/model.js', '/features/sound-settings/controller.js': 'features/sound-settings/controller.js', '/features/sound-settings/view.js': 'features/sound-settings/view.js',
+        '/features/widget/default-content.js': 'features/widget/default-content.js', '/features/widget/bubble-layout.js': 'features/widget/bubble-layout.js',
+        '/features/widget/custom-select.js': 'features/widget/custom-select.js', '/features/widget/usage-charts.js': 'features/widget/usage-charts.js',
+        '/features/widget/bubble-editor-commands.js': 'features/widget/bubble-editor-commands.js',
+        '/features/widget/bubble-scene.js': 'features/widget/bubble-scene.js',
+        '/features/widget/bubble-notice-queue.js': 'features/widget/bubble-notice-queue.js',
+        '/features/widget/asset-client.js': 'features/widget/asset-client.js',
+        '/features/widget/anchors.js': 'features/widget/anchors.js' };
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';

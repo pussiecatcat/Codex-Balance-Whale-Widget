@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 for(const name of [
-  '../vendor/smol-toml/dist/index.js','../desktop/main.cjs','../desktop/ui/widget.html','../desktop/ui/gesture.js','../desktop/ui/audio-engine.js','../desktop/ui/insights.js','../desktop/ui/workshop.js','../assets/DSniang1.png',
+  '../vendor/smol-toml/dist/index.js','../desktop/main.cjs','../desktop/host-state.cjs','../desktop/ui/widget.html','../desktop/ui/gesture.js','../desktop/ui/audio-engine.js','../desktop/ui/insights.js','../desktop/ui/workshop.js','../assets/DSniang1.png',
   '../desktop/ui/services/request.js','../desktop/ui/services/sound-reference.js',
   '../desktop/ui/features/sound-settings/model.js','../desktop/ui/features/sound-settings/controller.js','../desktop/ui/features/sound-settings/view.js',
+  '../desktop/ui/features/widget/default-content.js','../desktop/ui/features/widget/bubble-layout.js','../desktop/ui/features/widget/custom-select.js','../desktop/ui/features/widget/usage-charts.js','../desktop/ui/features/widget/bubble-editor-commands.js','../desktop/ui/features/widget/bubble-scene.js','../desktop/ui/features/widget/bubble-notice-queue.js','../desktop/ui/features/widget/asset-client.js','../desktop/ui/features/widget/anchors.js',
   '../runtime/size-settings.mjs','../runtime/sound-settings.mjs',
 ]) {
   if(!fs.existsSync(fileURLToPath(new URL(name,import.meta.url))))throw new Error('Package dependency missing: '+name);

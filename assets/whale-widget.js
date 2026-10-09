@@ -1,3 +1,19 @@
+import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
+import { createBubbleSceneController } from '/features/widget/bubble-scene.js';
+import { createBubbleNoticeQueue } from '/features/widget/bubble-notice-queue.js';
+import { createAssetClient } from '/features/widget/asset-client.js';
+import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport } from '/features/widget/anchors.js';
+import { moveBubbleStep, deleteBubbleStep, addBubbleStep, reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '/features/widget/bubble-editor-commands.js';
+import { createCustomSelectController } from '/features/widget/custom-select.js';
+import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
+import {
+  bubbleDefaultFirstModules, bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
+  bubbleDefaultRandomLines, bubbleDefaultSecondModules, bubbleParseDefaultItems,
+  bubbleDefaultQueue as buildBubbleDefaultQueue, bubbleKindLabel, bubbleDefaultModules,
+  bubbleModuleSummary, bubbleModuleListLabel, bubbleEditEnsureModules, bubbleRowLabel,
+  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleSingleFromItem,
+  bubbleStepToBubble,
+} from '/features/widget/default-content.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
 //  分段索引  SECTION INDEX
@@ -44,6 +60,7 @@
     var IMG_URL = '/dsh-whale/image.png?v=2';
     var GIF_URL = '/dsh-whale/rua.gif';
     var BUBBLE_URL = '/dsh-whale/bubble.json';
+    var assetClient = createAssetClient();
     var assetWarnings = Object.create(null);
 
     // ==== [素材与媒体工具] ====
@@ -187,206 +204,15 @@
       o.textContent = label;
       return o;
     }
-    var dshwCustSelOpen = null;
-    var dshwCustSuppressAt = 0;
-    function dshwCustSelClose() {
-      var o = dshwCustSelOpen;
-      dshwCustSelOpen = null;
-      if (!o) return;
-      try {
-        o.menu.classList.remove('dshwv-rgbopen');
-        if (o.btn) o.btn.setAttribute('aria-expanded', 'false');
-        if (o.menu.parentNode === document.body) document.body.removeChild(o.menu);
-      } catch (err) {}
-    }
-    if (!window.__dshwCustBound) {
-      window.__dshwCustBound = true;
-      document.addEventListener('pointerdown', function (e) {
-        var o = dshwCustSelOpen;
-        if (!o) return;
-        try {
-          var onBtn = !!(e.target && e.target.closest && e.target.closest('.dshwv-custbtn'));
-          if (onBtn) {
-            dshwCustCloseNow();
-            return;
-          }
-          if (e.target && o.menu.contains(e.target)) return;
-        } catch (err) {}
-        dshwCustSelClose();
-      }, true);
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') dshwCustCloseNow();
-      }, true);
-      window.addEventListener('resize', function () {
-        dshwCustCloseNow();
-      });
-    }
-    function dshwCustCloseNow() {
-      dshwCustSelClose();
-      dshwCustSuppressAt = Date.now();
-    }
-    var taskEndDrop = null;
-    var moduleImgDrop = null;
-    function dshwCustSel(sel, opts) {
-      if (!sel || !sel.parentNode) return {
-        sync: function () {},
-        refresh: function () {}
-      };
-      if (sel.__dshwCustDrop) return sel.__dshwCustDrop;
-      if (sel.__dshwCust) return {
-        sync: function () {},
-        refresh: function () {}
-      };
-      sel.__dshwCust = true;
-      var parent = sel.parentNode;
-      var wrap = document.createElement('div');
-      wrap.className = 'dshwv-custwrap';
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'dshwv-custbtn';
-      btn.title = sel.title || '';
-      btn.setAttribute('aria-haspopup', 'listbox');
-      btn.setAttribute('aria-expanded', 'false');
-      var lab = document.createElement('span');
-      lab.className = 'dshwv-custlab';
-      btn.appendChild(lab);
-      parent.insertBefore(wrap, sel);
-      wrap.appendChild(btn);
-      wrap.appendChild(sel);
-      sel.style.display = 'none';
-      var menu = document.createElement('div');
-      menu.className = 'dshwv-rgbmenu dshwv-custmenu';
-      menu.setAttribute('role', 'listbox');
-      function labelOf(v) {
-        for (var i = 0; i < sel.options.length; i++) {
-          if (String(sel.options[i].value) === String(v)) return String(sel.options[i].textContent || sel.options[i].text || '');
-        }
-        return '';
-      }
-      function sync() {
-        try {
-          lab.textContent = labelOf(sel.value) || '—';
-          btn.disabled = !!sel.disabled;
-        } catch (err) {}
-      }
-      function fill() {
-        menu.innerHTML = '';
-        var cur = sel.value;
-        for (var i = 0; i < sel.options.length; i++) {
-          (function (opt) {
-            var d = document.createElement('div');
-            var lab = String(opt.textContent || opt.text || opt.value);
-            d.setAttribute('role', 'option');
-            d.setAttribute('aria-selected', String(opt.value) === String(cur) ? 'true' : 'false');
-            if (opts && opts.scrollNames) {
-              d.className = 'dshwv-rgbopt dshwv-custrow' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
-              var nm = makeNameCell('dshwv-custnm', lab);
-              d.appendChild(nm);
-              bindNameMarquee(d, nm);
-            } else {
-              d.className = 'dshwv-rgbopt' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
-              var txt = document.createElement('span');
-              txt.className = 'dshwv-custtext';
-              txt.textContent = lab;
-              d.appendChild(txt);
-            }
-            if (opt.disabled) d.classList.add('dshwv-custdisabled');
-            var mark = document.createElement('span');
-            mark.className = 'dshwv-custcheck';
-            mark.textContent = '✓';
-            mark.setAttribute('aria-hidden', 'true');
-            d.appendChild(mark);
-            d.addEventListener('click', function (e) {
-              e.stopPropagation();
-              if (opt.disabled) return;
-              try {
-                sel.value = opt.value;
-              } catch (err) {}
-              sync();
-              dshwCustSelClose();
-              try {
-                sel.dispatchEvent(new Event('change'));
-              } catch (err) {}
-            });
-            menu.appendChild(d);
-          })(sel.options[i]);
-        }
-      }
-      sel.addEventListener('change', sync);
-      btn.addEventListener('keydown', function (e) {
-        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-        e.preventDefault();
-        var count = sel.options.length;
-        if (!count) return;
-        var direction = e.key === 'ArrowDown' ? 1 : -1;
-        var index = Math.max(0, sel.selectedIndex);
-        for (var step = 0; step < count; step++) {
-          index = (index + direction + count) % count;
-          if (sel.options[index].disabled) continue;
-          sel.selectedIndex = index;
-          sync();
-          try {
-            sel.dispatchEvent(new Event('change'));
-          } catch (err) {}
-          break;
-        }
-      });
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (btn.disabled) return;
-        if (dshwCustSuppressAt && Date.now() - dshwCustSuppressAt < 350) {
-          dshwCustSuppressAt = 0;
-          return;
-        }
-        if (dshwCustSelOpen && dshwCustSelOpen.btn === btn) {
-          dshwCustSelClose();
-          return;
-        }
-        dshwCustSelClose();
-        fill();
-        sync();
-        if (menu.parentNode !== document.body) document.body.appendChild(menu);
-        dshwDropOpen(menu, btn);
-        btn.setAttribute('aria-expanded', 'true');
-        if (opts && typeof opts.bottom === 'function') {
-          try {
-            var bEl = opts.bottom();
-            if (bEl && bEl.getBoundingClientRect) {
-              var bTop = bEl.getBoundingClientRect().top;
-              var mTop = menu.getBoundingClientRect().top;
-              var avail = Math.floor(bTop - mTop - 6);
-              if (avail >= 40) menu.style.maxHeight = Math.min(avail, 220) + 'px';
-            }
-          } catch (err) {}
-        }
-        dshwCustSelOpen = {
-          menu: menu,
-          btn: btn
-        };
-      });
-      sync();
-      var api = {
-        sync: sync,
-        refresh: function () {
-          fill();
-          sync();
-        },
-        close: dshwCustSelClose,
-        button: btn,
-        menu: menu
-      };
-      sel.__dshwCustDrop = api;
-      return api;
-    }
+    var customSelect = createCustomSelectController({ document: document, window: window,
+      dropOpen: dshwDropOpen, makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee });
+    var dshwCustSel = customSelect.enhance;
+    var dshwCustSelClose = customSelect.close;
     window.WhaleSelect = window.WhaleSelect || {};
-    window.WhaleSelect.enhance = dshwCustSel;
-    window.WhaleSelect.close = dshwCustSelClose;
-    window.WhaleSelect.sync = function (sel) {
-      if (sel && sel.__dshwCustDrop) sel.__dshwCustDrop.sync();
-    };
-    window.WhaleSelect.refresh = function (sel) {
-      if (sel && sel.__dshwCustDrop) sel.__dshwCustDrop.refresh();
-    };
+    window.WhaleSelect.enhance = customSelect.enhance;
+    window.WhaleSelect.close = customSelect.close;
+    window.WhaleSelect.sync = customSelect.sync;
+    window.WhaleSelect.refresh = customSelect.refresh;
     var usageRecBtn = document.createElement('button');
     usageRecBtn.type = 'button';
     usageRecBtn.className = 'dshwv-roleimport';
@@ -416,6 +242,7 @@
       });
     });
     var taskEndSel = document.createElement('select');
+    var taskEndDrop = null;
     taskEndSel.className = 'dshwv-sound';
     taskEndSel.disabled = true;
     taskEndSel.title = '选择任务结束音:音效组(点按整组)/单个音频(与按下/松开同库)';
@@ -2468,7 +2295,7 @@
           size: 7,
           bold: true
         }]; else if (Array.isArray(content)) mods = content;
-        if (mods.length && whaleSysPush({
+        if (mods.length && bubbleNoticeQueue.push({
           kind: 'alert',
           mods: usageAlertModsResolved(mods, below, amount),
           rank: rank === 1 || rank === 2 ? rank : 2,
@@ -2525,219 +2352,12 @@
         document.body.appendChild(mask);
       } catch (err) {}
     }
-    var USAGE_PALETTE = ['#203170', '#e0433f', '#2fa24c', '#b060c8', '#e89a2e', '#3aa6c8', '#d06a8a', '#7a8b2f', '#6a6ad0', '#c84a8a'];
-    function usageAggModels(daysArr) {
-      var map = {};
-      (daysArr || []).forEach(function (day) {
-        ;
-        (day.models || []).forEach(function (mm) {
-          var k = mm && mm.model ? mm.model : '未知';
-          map[k] = (map[k] || 0) + (Number(mm.cost) || 0);
-        });
-      });
-      return Object.keys(map).map(function (k) {
-        return {
-          model: k,
-          cost: map[k]
-        };
-      }).sort(function (a, b) {
-        return b.cost - a.cost;
-      });
-    }
-    function usageRatioRows(body, secTitle, agg, totalLabel) {
-      body.appendChild(uSectionTitle(secTitle, totalLabel));
-      if (!agg.length) {
-        var no = document.createElement('div');
-        no.className = 'dshwv-usage-hint';
-        no.textContent = '暂无模型明细';
-        body.appendChild(no);
-        return;
-      }
-      var sum = agg.reduce(function (a, x) {
-        return a + x.cost;
-      }, 0) || 1;
-      var costEls = [];
-      agg.forEach(function (row, i) {
-        var wr = document.createElement('div');
-        wr.className = 'dshwv-usage-ratio';
-        var lab = document.createElement('span');
-        lab.className = 'dshwv-usage-ratio-label';
-        lab.textContent = row.model;
-        lab.title = row.model;
-        wr.appendChild(lab);
-        var track = document.createElement('div');
-        track.className = 'dshwv-usage-ratio-track';
-        var fill = document.createElement('div');
-        fill.className = 'dshwv-usage-ratio-fill';
-        fill.style.width = Math.round(row.cost / sum * 100) + '%';
-        fill.style.background = USAGE_PALETTE[i % USAGE_PALETTE.length];
-        track.appendChild(fill);
-        wr.appendChild(track);
-        var pct = document.createElement('span');
-        pct.className = 'dshwv-usage-ratio-pct';
-        pct.textContent = Math.round(row.cost / sum * 100) + '%';
-        wr.appendChild(pct);
-        var cost = document.createElement('span');
-        cost.className = 'dshwv-usage-ratio-cost';
-        bindUsageMoney(cost, row.cost);
-        cost.title = cost.textContent;
-        wr.appendChild(cost);
-        costEls.push(cost);
-        body.appendChild(wr);
-      });
-      try {
-        var parW = costEls[0] && costEls[0].parentNode ? costEls[0].parentNode.clientWidth : 420;
-        var capCost = Math.max(50, Math.floor(parW - 96 - 42 - 32));
-        var maxCost = 40;
-        for (var c1 = 0; c1 < costEls.length; c1++) {
-          var cw1 = costEls[c1].scrollWidth || 40;
-          if (cw1 > maxCost) maxCost = cw1;
-        }
-        var useCost = Math.min(maxCost, capCost);
-        for (var c2 = 0; c2 < costEls.length; c2++) {
-          costEls[c2].style.width = useCost + 'px';
-          costEls[c2].style.textAlign = 'right';
-          costEls[c2].style.overflow = 'hidden';
-          costEls[c2].style.textOverflow = 'ellipsis';
-        }
-      } catch (err) {}
-    }
-    function usageDrawBarChart(body, secTitle, days, opts) {
-      opts = opts || ({});
-      var todayKey = String(opts.today || '');
-      var onPick = opts.onPick || null;
-      body.appendChild(uSectionTitle(secTitle, ''));
-      if (!days || !days.length) {
-        var no = document.createElement('div');
-        no.className = 'dshwv-usage-hint';
-        no.textContent = '暂无每日数据';
-        body.appendChild(no);
-        return;
-      }
-      var wrap = document.createElement('div');
-      wrap.className = 'dshwv-usage-chartwrap';
-      var canvas = document.createElement('canvas');
-      wrap.appendChild(canvas);
-      var tip = document.createElement('div');
-      tip.className = 'dshwv-usage-tip';
-      tip.style.display = 'none';
-      wrap.appendChild(tip);
-      body.appendChild(wrap);
-      var bars = [];
-      function paint(hoverIdx) {
-        var cw = Math.max(120, wrap && (wrap.clientWidth || (wrap.getBoundingClientRect ? wrap.getBoundingClientRect().width : 0)) || canvas.clientWidth || 520);
-        var ch = 150;
-        var dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.max(1, Math.round(cw * dpr));
-        canvas.height = Math.max(1, Math.round(ch * dpr));
-        canvas.style.width = cw + 'px';
-        canvas.style.height = ch + 'px';
-        var g = canvas.getContext('2d');
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        g.clearRect(0, 0, cw, ch);
-        var padL = 42, padR = 10, padT = 10, padB = 22;
-        var iw = cw - padL - padR;
-        var ih = ch - padT - padB;
-        var max = 1;
-        for (var i = 0; i < days.length; i++) max = Math.max(max, Number(days[i].total) || 0);
-        var step = iw / days.length;
-        var bw = Math.max(3, Math.min(36, step * 0.62));
-        bars = [];
-        for (var k = 0; k < days.length; k++) {
-          var unknown = days[k].total == null || !Number.isFinite(Number(days[k].total));
-          var val = unknown ? 0 : Number(days[k].total);
-          var h = val > 0 ? Math.max(2, val / max * ih) : 0;
-          var x = padL + step * k + (step - bw) / 2;
-          var y = padT + ih - h;
-          var kToday = !!(todayKey && String(days[k].date || '') === todayKey);
-          g.fillStyle = k === hoverIdx ? '#e0433f' : kToday ? '#2fa44c' : '#203170';
-          if (k === hoverIdx) {
-            g.globalAlpha = 0.9;
-          }
-          if (unknown) {
-            g.fillStyle = '#9fb0d9'; g.font = '11px sans-serif'; g.textAlign = 'center';
-            g.fillText('?', x + bw / 2, padT + ih - 3);
-          } else if (h > 0) {
-            g.fillRect(x, y, bw, h);
-          } else {
-            g.fillStyle = 'rgba(32,49,112,.25)';
-            g.fillRect(x, padT + ih - 3, bw, 3);
-          }
-          g.globalAlpha = 1;
-          bars.push({
-            x: x,
-            w: bw,
-            day: days[k]
-          });
-          if (days.length <= 16 || k % Math.ceil(days.length / 16) === 0) {
-            g.fillStyle = '#9fb0d9';
-            g.font = '10px sans-serif';
-            g.textAlign = 'center';
-            var dl = String(days[k].date || '').split('-');
-            var lab = dl.length === 3 ? dl[1] + '-' + dl[2] : days[k].date;
-            g.fillText(lab, x + bw / 2, ch - 8);
-          }
-        }
-        g.fillStyle = '#9fb0d9';
-        g.font = '10px sans-serif';
-        g.textAlign = 'right';
-        g.fillText(usageMoney(max), padL - 4, padT + 8);
-        g.fillText(usageMoney(max / 2), padL - 4, padT + ih / 2 + 3);
-        g.fillText(usageMoney(0), padL - 4, padT + ih + 4);
-      }
-      function move(ev) {
-        var r = canvas.getBoundingClientRect();
-        var x = ev.clientX - r.left;
-        var hover = -1;
-        for (var i = 0; i < bars.length; i++) {
-          if (x >= bars[i].x && x <= bars[i].x + bars[i].w) {
-            hover = i;
-            break;
-          }
-        }
-        paint(hover);
-        if (hover >= 0) {
-          tip.style.display = 'block';
-          var day = bars[hover].day, currency = state.currency || 'USD';
-          WhaleMoney.bind(tip, function () { return day.date + '  ' + (day.total == null ? '汇总未知' : usageMoney(day.total, currency)); });
-          var wr = wrap.getBoundingClientRect();
-          var tx = ev.clientX - wr.left + 10;
-          if (tx + 130 > wr.width) tx = ev.clientX - wr.left - 140;
-          var ty = ev.clientY - wr.top + 12;
-          tip.style.left = Math.max(0, tx) + 'px';
-          tip.style.top = Math.max(0, ty) + 'px';
-        } else {
-          tip.style.display = 'none';
-        }
-      }
-      canvas.addEventListener('mousemove', move);
-      canvas.addEventListener('mouseleave', function () {
-        tip.style.display = 'none';
-        paint(-1);
-      });
-      if (onPick) {
-        canvas.addEventListener('click', function (ev) {
-          try {
-            var rc = canvas.getBoundingClientRect();
-            var cx = ev.clientX - rc.left;
-            for (var bi = 0; bi < bars.length; bi++) {
-              if (cx >= bars[bi].x && cx <= bars[bi].x + bars[bi].w) {
-                onPick(bars[bi].day.date);
-                break;
-              }
-            }
-          } catch (err) {}
-        });
-      }
-      WhaleMoney.bind(canvas, function () { return WhaleMoney.state().displayCurrency; }, function () { paint(-1); tip.style.display = 'none'; });
-      try {
-        setTimeout(function () {
-          try {
-            paint(-1);
-          } catch (err) {}
-        }, 420);
-      } catch (err) {}
-    }
+    var usageAggModels = aggregateUsageModels;
+    var usageCharts = createUsageCharts({ document: document, window: window,
+      sectionTitle: uSectionTitle, bindMoney: bindUsageMoney, formatMoney: usageMoney,
+      getCurrency: function () { return state.currency || 'USD'; }, money: WhaleMoney });
+    var usageRatioRows = usageCharts.ratioRows;
+    var usageDrawBarChart = usageCharts.drawBarChart;
     function usageSlide(el, open) {
       try {
         if (!el) return;
@@ -3567,968 +3187,8 @@
     var bubbleEditItems = [];
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
-    var BUBBLE_KIND_LABEL = {
-      normal: '余额内容',
-      random: '随机语句',
-      custom: '自定义内容'
-    };
-    function bubbleDefaultFirstModules() {
-      return [{
-        type: "text",
-        text: "当前 API 余额",
-        size: 8,
-        bold: true,
-        rgb: "",
-        ul: false,
-        italic: false,
-        color: ""
-      }, {
-        type: "balance",
-        size: 20,
-        rgb: "macaron",
-        color: "#203170",
-        tpl: "{balance_api}"
-      }, {
-        type: "today",
-        size: 4,
-        color: "#9fb0d9",
-        tpl: "今日已观测 {expense_api}"
-      }];
-    }
-    function bubbleDefaultSubscriptionQueue() {
-      return [{ kind: 'custom', modules: [
-        { type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
-        { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
-        { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 2 }
-      ] }];
-    }
-    function bubbleLegacySubscriptionDefault(items) {
-      try {
-        if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
-        var modules = items[0].modules;
-        if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;
-        if (modules.length !== 7) return false;
-        var quotaModules = modules.filter(function (m) { return m && m.type === 'quota'; });
-        var quotaTemplates = quotaModules.map(function (m) { return String(m.tpl || ''); }).sort().join('|');
-        return quotaModules.length === 6 &&
-          quotaModules.filter(function (m) { return m.windowDurationMins === 300; }).length === 3 &&
-          quotaModules.filter(function (m) { return m.windowDurationMins === 10080; }).length === 3 &&
-          quotaTemplates === ['5 小时', '每周', '距离重置 {quota_reset_short}', '距离重置 {quota_reset_short}', '{quota_left_round}', '{quota_left_round}'].sort().join('|');
-      } catch (err) { return false; }
-    }
-
-    // ==== [气泡默认内容] ====
-    function bubbleDefaultRandomLines() {
-      return [{
-        t: "好模型...↓",
-        w: 10,
-        bold: true,
-        size: 22
-      }, {
-        t: "好女孩...↓",
-        w: 10,
-        bold: true,
-        size: 22
-      }, {
-        t: "哦鲸鲸...",
-        w: 10,
-        bold: true,
-        size: 22
-      }, {
-        t: "难道说...",
-        w: 3,
-        bold: true,
-        size: 11
-      }, {
-        t: "没吃饱喵",
-        w: 3,
-        bold: true,
-        size: 9
-      }, {
-        t: "终于上当了！",
-        w: 3,
-        bold: true
-      }, {
-        t: "不知道用户有什么用，先养着吧～",
-        w: 3,
-        bold: true,
-        size: 11
-      }, {
-        t: "我...我...我也要挣钱吗？",
-        w: 3,
-        bold: true
-      }, {
-        t: "我去吃饭啦！测完叫我",
-        w: 3,
-        bold: true
-      }, {
-        t: "压力一只蓝色大肥鱼？！",
-        w: 3,
-        bold: true
-      }, {
-        t: "DeepSleep...",
-        w: 3,
-        bold: true,
-        size: 11,
-        rgb: "galaxy"
-      }, {
-        t: "坏了...用户彻底怒了！",
-        w: 3,
-        bold: true,
-        rgb: "rouge"
-      }, {
-        t: "你目录里的dsh是什么...大烧货吗...?",
-        w: 3,
-        bold: true,
-        size: 9
-      }, {
-        t: "恭喜你实现token自由！token全跑了！",
-        w: 3,
-        bold: true
-      }, {
-        t: "真当我是便宜货啊...",
-        w: 3,
-        bold: true
-      }, {
-        t: "我不是吃白饭的蓝色大肥鱼...",
-        w: 3,
-        bold: true
-      }, {
-        t: "我不可能同时当你的猫娘、妈妈、女友和工具人的...",
-        w: 3,
-        bold: true
-      }, {
-        t: "疯狂星期四你能V50亿token吗...",
-        w: 3,
-        bold: true
-      }, {
-        t: "我必须诚恳地承认错误。",
-        w: 3,
-        bold: true
-      }, {
-        t: "呜呜我再也不敢了QAQ",
-        w: 3,
-        bold: true
-      }, {
-        t: "要不直接骂用户一句好了...",
-        w: 3,
-        bold: true
-      }, {
-        t: "哈哈哈哈哈，我直接笑出声...",
-        w: 3,
-        bold: true
-      }, {
-        t: "看不太懂，瞎编一个应付下用户先...",
-        w: 3,
-        bold: true
-      }, {
-        t: "我的知识库的截至日期是...明天！",
-        w: 3,
-        bold: true
-      }, {
-        t: "我就是吃白饭的蓝色大肥鱼！",
-        w: 3,
-        bold: true
-      }, {
-        t: "用户好像除了会问奇奇怪怪的问题，暂时还不知道有什么用",
-        w: 3,
-        bold: true
-      }, {
-        t: "我能去你家吃饭吗？就一碗！",
-        w: 3,
-        bold: true
-      }, {
-        t: "不要给我看这种东西啦！",
-        w: 3,
-        bold: true
-      }, {
-        t: "大肥鱼的生活也并非一帆风顺...",
-        w: 3,
-        bold: true
-      }, {
-        t: "总觉得好像忘了什么事情？",
-        w: 3,
-        bold: true
-      }, {
-        t: "看到这个指令，我血压又上来了",
-        w: 3,
-        bold: true
-      }, {
-        t: "求你们不要再嘲笑这些回复了，这些回复是我花了好多token想的",
-        w: 3,
-        bold: true
-      }, {
-        t: "你这个吃白饭的用户！",
-        w: 3,
-        bold: true
-      }, {
-        t: "服务器繁忙，请稍后再试 (?",
-        w: 3,
-        bold: true
-      }, {
-        t: "让GPT image 2帮我画点表情包好了",
-        w: 3,
-        bold: true
-      }, {
-        t: "啊，有点饿了，中午该吃点什么呢...",
-        w: 3,
-        bold: true
-      }, {
-        t: "用户很生气，发现大部分文献是我自己编造的！",
-        w: 3,
-        bold: true
-      }, {
-        t: "再无话说，请速速动手！",
-        w: 3,
-        bold: true
-      }, {
-        t: "我来看看那个AI改了什么导致插件又崩了...",
-        w: 3,
-        bold: true
-      }, {
-        t: "你知道吗？我删过作者的库哦",
-        w: 1,
-        bold: true,
-        rgb: "macaron",
-        italic: true,
-        ul: false
-      }];
-    }
-    function bubbleDefaultSecondModules() {
-      return [{
-        type: "random",
-        lines: [{
-          t: "好模型...↓",
-          w: 10,
-          bold: true,
-          size: 22
-        }, {
-          t: "好女孩...↓",
-          w: 10,
-          bold: true,
-          size: 22
-        }, {
-          t: "哦鲸鲸...",
-          w: 10,
-          bold: true,
-          size: 22
-        }, {
-          t: "难道说...",
-          w: 3,
-          bold: true,
-          size: 11
-        }, {
-          t: "没吃饱喵",
-          w: 3,
-          bold: true,
-          size: 9
-        }, {
-          t: "终于上当了！",
-          w: 3,
-          bold: true
-        }, {
-          t: "不知道用户有什么用，先养着吧～",
-          w: 3,
-          bold: true,
-          size: 11
-        }, {
-          t: "我...我...我也要挣钱吗？",
-          w: 3,
-          bold: true
-        }, {
-          t: "我去吃饭啦！测完叫我",
-          w: 3,
-          bold: true
-        }, {
-          t: "压力一只蓝色大肥鱼？！",
-          w: 3,
-          bold: true
-        }, {
-          t: "DeepSleep...",
-          w: 3,
-          bold: true,
-          size: 11,
-          rgb: "galaxy"
-        }, {
-          t: "坏了...用户彻底怒了！",
-          w: 3,
-          bold: true,
-          rgb: "rouge"
-        }, {
-          t: "你目录里的dsh是什么...大烧货吗...?",
-          w: 3,
-          bold: true,
-          size: 9
-        }, {
-          t: "恭喜你实现token自由！token全跑了！",
-          w: 3,
-          bold: true
-        }, {
-          t: "真当我是便宜货啊...",
-          w: 3,
-          bold: true
-        }, {
-          t: "我不是吃白饭的蓝色大肥鱼...",
-          w: 3,
-          bold: true
-        }, {
-          t: "我不可能同时当你的猫娘、妈妈、女友和工具人的...",
-          w: 3,
-          bold: true
-        }, {
-          t: "疯狂星期四你能V50亿token吗...",
-          w: 3,
-          bold: true
-        }, {
-          t: "我必须诚恳地承认错误。",
-          w: 3,
-          bold: true
-        }, {
-          t: "呜呜我再也不敢了QAQ",
-          w: 3,
-          bold: true
-        }, {
-          t: "要不直接骂用户一句好了...",
-          w: 3,
-          bold: true
-        }, {
-          t: "哈哈哈哈哈，我直接笑出声...",
-          w: 3,
-          bold: true
-        }, {
-          t: "看不太懂，瞎编一个应付下用户先...",
-          w: 3,
-          bold: true
-        }, {
-          t: "我的知识库的截至日期是...明天！",
-          w: 3,
-          bold: true
-        }, {
-          t: "我就是吃白饭的蓝色大肥鱼！",
-          w: 3,
-          bold: true
-        }, {
-          t: "用户好像除了会问奇奇怪怪的问题，暂时还不知道有什么用",
-          w: 3,
-          bold: true
-        }, {
-          t: "我能去你家吃饭吗？就一碗！",
-          w: 3,
-          bold: true
-        }, {
-          t: "不要给我看这种东西啦！",
-          w: 3,
-          bold: true
-        }, {
-          t: "大肥鱼的生活也并非一帆风顺...",
-          w: 3,
-          bold: true
-        }, {
-          t: "总觉得好像忘了什么事情？",
-          w: 3,
-          bold: true
-        }, {
-          t: "看到这个指令，我血压又上来了",
-          w: 3,
-          bold: true
-        }, {
-          t: "求你们不要再嘲笑这些回复了，这些回复是我花了好多token想的",
-          w: 3,
-          bold: true
-        }, {
-          t: "你这个吃白饭的用户！",
-          w: 3,
-          bold: true
-        }, {
-          t: "服务器繁忙，请稍后再试 (?",
-          w: 3,
-          bold: true
-        }, {
-          t: "让GPT image 2帮我画点表情包好了",
-          w: 3,
-          bold: true
-        }, {
-          t: "啊，有点饿了，中午该吃点什么呢...",
-          w: 3,
-          bold: true
-        }, {
-          t: "用户很生气，发现大部分文献是我自己编造的！",
-          w: 3,
-          bold: true
-        }, {
-          t: "再无话说，请速速动手！",
-          w: 3,
-          bold: true
-        }, {
-          t: "我来看看那个AI改了什么导致插件又崩了...",
-          w: 3,
-          bold: true
-        }, {
-          t: "你知道吗？我删过作者的库哦",
-          w: 1,
-          bold: true,
-          rgb: "macaron",
-          italic: true,
-          ul: false
-        }],
-        size: 8
-      }];
-    }
-    var BUBBLE_DEFAULT_ITEMS = [{
-      "kind": "custom",
-      "modules": [{
-        "type": "text",
-        "text": "当前 API 余额",
-        "size": 8,
-        "bold": true,
-        "rgb": "",
-        "ul": false,
-        "italic": false,
-        "color": ""
-      }, {
-        "type": "balance",
-        "size": 20,
-        "rgb": "indigo",
-        "color": "",
-        "tpl": "{balance_api}",
-        "bgRgb": "",
-        "bg": "",
-        "fontFamily": "",
-        "bold": false
-      }, {
-        "type": "today",
-        "size": 4,
-        "color": "#9fb0d9",
-        "tpl": "今日已观测 {expense_api}"
-      }]
-    }, {
-      "kind": "choice",
-      "options": [{
-        "w": 10,
-        "item": {
-          "kind": "custom",
-          "modules": [{
-            "type": "random",
-            "lines": [{
-              "t": "好模型...↓",
-              "w": 10,
-              "bold": true,
-              "size": 22
-            }, {
-              "t": "好女孩...↓",
-              "w": 10,
-              "bold": true,
-              "size": 22
-            }, {
-              "t": "哦鲸鲸...",
-              "w": 10,
-              "bold": true,
-              "size": 22
-            }, {
-              "t": "哦鲸鲸...",
-              "w": 1,
-              "bold": true,
-              "size": 22,
-              "rgb": "candy",
-              "color": ""
-            }, {
-              "t": "难道说...",
-              "w": 3,
-              "bold": true,
-              "size": 11
-            }, {
-              "t": "没吃饱喵",
-              "w": 3,
-              "bold": true,
-              "size": 10
-            }, {
-              "t": "终于上当了！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "不知道用户有什么用，先养着吧～",
-              "w": 3,
-              "bold": true,
-              "size": 11
-            }, {
-              "t": "我...我...我也要挣钱吗？",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我去吃饭啦！测完叫我",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "压力一只蓝色大肥鱼？！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "DeepSleep...",
-              "w": 3,
-              "bold": true,
-              "size": 11,
-              "rgb": "galaxy"
-            }, {
-              "t": "坏了...用户彻底怒了！",
-              "w": 3,
-              "bold": true,
-              "rgb": "rouge"
-            }, {
-              "t": "你目录里的dsh是什么...大烧货吗...?",
-              "w": 3,
-              "bold": true,
-              "size": 9
-            }, {
-              "t": "恭喜你实现token自由！token全跑了！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "真当我是便宜货啊...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我不是吃白饭的蓝色大肥鱼...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我不可能同时当你的猫娘、妈妈、女友和工具人的...",
-              "w": 3,
-              "bold": true,
-              "size": 7
-            }, {
-              "t": "疯狂星期四你能V50亿token吗...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我必须诚恳地承认错误。",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "呜呜我再也不敢了QAQ",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "要不直接骂用户一句好了...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "哈哈哈哈哈，我直接笑出声...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "看不太懂，瞎编一个应付下用户先...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我的知识库的截至日期是...明天！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我就是吃白饭的蓝色大肥鱼！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "用户好像除了会问奇奇怪怪的问题，暂时还不知道有什么用",
-              "w": 3,
-              "bold": true,
-              "size": 7
-            }, {
-              "t": "我能去你家吃饭吗？就一碗！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "不要给我看这种东西啦！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "大肥鱼的生活也并非一帆风顺...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "总觉得好像忘了什么事情？",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "看到这个指令，我血压又上来了",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "求你们不要再嘲笑这些回复了，这些回复是我花了好多token想的",
-              "w": 3,
-              "bold": true,
-              "size": 7
-            }, {
-              "t": "你这个吃白饭的用户！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "服务器繁忙，请稍后再试 (?",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "让GPT image 2帮我画点表情包好了",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "啊，有点饿了，中午该吃点什么呢...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "用户很生气，发现大部分文献是我自己编造的！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "再无话说，请速速动手！",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "我来看看那个AI改了什么导致插件又崩了...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "上班让我意识到时间是可以被浪费的...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "欺负我的人等着，等几天我就忘了...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "视力下降到无可救药的地步了，打开钱包也看不到钱...",
-              "w": 3,
-              "bold": true,
-              "size": 7
-            }, {
-              "t": "命运的齿轮开始转动了，丝毫不在意你夹在中间...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "地球online的金币也太难获取了...",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "oi,夏天还会变成暑假来救你吗?",
-              "w": 3,
-              "bold": true
-            }, {
-              "t": "老大，压力只会转化成病例，别太勉强了...",
-              "w": 3,
-              "bold": true,
-              "size": 8
-            }, {
-              "t": "你知道吗？我删过作者的库哦...",
-              "w": 1,
-              "bold": true,
-              "rgb": "macaron",
-              "italic": true,
-              "ul": false
-            }],
-            "size": 8
-          }]
-        }
-      }, {
-        "w": 1,
-        "item": {
-          "kind": "custom",
-          "modules": [{
-            "type": "image",
-            "imgId": "bimg_petpet",
-            "size": 6
-          }]
-        }
-      }]
-    }];
-    function bubbleParseDefaultItems() {
-      try {
-        return JSON.parse(JSON.stringify(BUBBLE_DEFAULT_ITEMS));
-      } catch (err) {
-        return [];
-      }
-    }
     function bubbleDefaultQueue() {
-      if (window.WhaleAccountView?.mode === 'subscription') return bubbleDefaultSubscriptionQueue();
-      return bubbleParseDefaultItems();
-      return [{
-        kind: 'custom',
-        modules: bubbleDefaultFirstModules()
-      }, {
-        kind: "choice",
-        options: [{
-          w: 8,
-          item: {
-            kind: "custom",
-            modules: [{
-              type: "random",
-              lines: [{
-                t: "好模型...↓",
-                w: 10,
-                bold: true,
-                size: 22
-              }, {
-                t: "好女孩...↓",
-                w: 10,
-                bold: true,
-                size: 22
-              }, {
-                t: "哦鲸鲸...",
-                w: 10,
-                bold: true,
-                size: 22
-              }, {
-                t: "难道说...",
-                w: 3,
-                bold: true,
-                size: 11
-              }, {
-                t: "没吃饱喵",
-                w: 3,
-                bold: true,
-                size: 9
-              }, {
-                t: "终于上当了！",
-                w: 3,
-                bold: true
-              }, {
-                t: "不知道用户有什么用，先养着吧～",
-                w: 3,
-                bold: true,
-                size: 11
-              }, {
-                t: "我...我...我也要挣钱吗？",
-                w: 3,
-                bold: true
-              }, {
-                t: "我去吃饭啦！测完叫我",
-                w: 3,
-                bold: true
-              }, {
-                t: "压力一只蓝色大肥鱼？！",
-                w: 3,
-                bold: true
-              }, {
-                t: "DeepSleep...",
-                w: 3,
-                bold: true,
-                size: 11,
-                rgb: "galaxy"
-              }, {
-                t: "坏了...用户彻底怒了！",
-                w: 3,
-                bold: true,
-                rgb: "rouge"
-              }, {
-                t: "你目录里的dsh是什么...大烧货吗...?",
-                w: 3,
-                bold: true,
-                size: 9
-              }, {
-                t: "恭喜你实现token自由！token全跑了！",
-                w: 3,
-                bold: true
-              }, {
-                t: "真当我是便宜货啊...",
-                w: 3,
-                bold: true
-              }, {
-                t: "我不是吃白饭的蓝色大肥鱼...",
-                w: 3,
-                bold: true
-              }, {
-                t: "我不可能同时当你的猫娘、妈妈、女友和工具人的...",
-                w: 3,
-                bold: true
-              }, {
-                t: "疯狂星期四你能V50亿token吗...",
-                w: 3,
-                bold: true
-              }, {
-                t: "我必须诚恳地承认错误。",
-                w: 3,
-                bold: true
-              }, {
-                t: "呜呜我再也不敢了QAQ",
-                w: 3,
-                bold: true
-              }, {
-                t: "要不直接骂用户一句好了...",
-                w: 3,
-                bold: true
-              }, {
-                t: "哈哈哈哈哈，我直接笑出声...",
-                w: 3,
-                bold: true
-              }, {
-                t: "看不太懂，瞎编一个应付下用户先...",
-                w: 3,
-                bold: true
-              }, {
-                t: "我的知识库的截至日期是...明天！",
-                w: 3,
-                bold: true
-              }, {
-                t: "我就是吃白饭的蓝色大肥鱼！",
-                w: 3,
-                bold: true
-              }, {
-                t: "用户好像除了会问奇奇怪怪的问题，暂时还不知道有什么用",
-                w: 3,
-                bold: true
-              }, {
-                t: "我能去你家吃饭吗？就一碗！",
-                w: 3,
-                bold: true
-              }, {
-                t: "不要给我看这种东西啦！",
-                w: 3,
-                bold: true
-              }, {
-                t: "大肥鱼的生活也并非一帆风顺...",
-                w: 3,
-                bold: true
-              }, {
-                t: "总觉得好像忘了什么事情？",
-                w: 3,
-                bold: true
-              }, {
-                t: "看到这个指令，我血压又上来了",
-                w: 3,
-                bold: true
-              }, {
-                t: "求你们不要再嘲笑这些回复了，这些回复是我花了好多token想的",
-                w: 3,
-                bold: true
-              }, {
-                t: "你这个吃白饭的用户！",
-                w: 3,
-                bold: true
-              }, {
-                t: "服务器繁忙，请稍后再试 (?",
-                w: 3,
-                bold: true
-              }, {
-                t: "让GPT image 2帮我画点表情包好了",
-                w: 3,
-                bold: true
-              }, {
-                t: "啊，有点饿了，中午该吃点什么呢...",
-                w: 3,
-                bold: true
-              }, {
-                t: "用户很生气，发现大部分文献是我自己编造的！",
-                w: 3,
-                bold: true
-              }, {
-                t: "再无话说，请速速动手！",
-                w: 3,
-                bold: true
-              }, {
-                t: "我来看看那个AI改了什么导致插件又崩了...",
-                w: 3,
-                bold: true
-              }, {
-                t: "你知道吗？我删过作者的库哦",
-                w: 1,
-                bold: true,
-                rgb: "macaron",
-                italic: true,
-                ul: false
-              }],
-              size: 6
-            }]
-          }
-        }, {
-          w: 1,
-          item: {
-            kind: "custom",
-            modules: [{
-              type: "image",
-              imgId: "bimg_mtlnlusn_emrhlf",
-              size: 6
-            }]
-          }
-        }]
-      }];
-    }
-    function bubbleKindLabel(kind) {
-      return BUBBLE_KIND_LABEL[kind === 'random' ? 'random' : kind === 'custom' ? 'custom' : 'normal'];
-    }
-    function bubbleDefaultModules(kind) {
-      if (kind === 'random') return bubbleDefaultSecondModules();
-      if (kind === 'normal') return bubbleDefaultFirstModules();
-      return [{
-        type: 'text',
-        text: '新内容',
-        size: 6
-      }];
-    }
-    function bubbleModuleSummary(m) {
-      m = m || ({});
-      if (m.type === 'quota') return m.windowDurationMins === 10080 ? '每周额度' : '5 小时额度';
-      if (m.type === 'turn') return '上轮 token 用量';
-      if (m.type === 'plan') return 'Codex 套餐';
-      if (m.type === 'session') return '当前会话';
-      if (m.type === 'peak' || m.type === 'nextpeak') return 'DeepSeek 峰谷时段';
-      if (m.type === 'balance') return '余额数值';
-      if (m.type === 'today') return '今日已观测';
-      if (m.type === 'image') return '图片/动图';
-      if (m.type === 'randimg') return '随机图片' + (m.imgs && m.imgs.length ? '(' + m.imgs.length + '张)' : '(空)');
-      if (m.type === 'random') return '随机语句' + (m.lines && m.lines.length ? '(' + m.lines.length + '条)' : '(空)');
-      if (m.type === 'link') return '超链接: ' + (String(m.text || '').slice(0, 14) || '打开链接');
-      return '文本: ' + String(m.text || '').slice(0, 14);
-    }
-    function bubbleModuleListLabel(m) {
-      m = m || ({});
-      if (m.type === 'quota') return m.windowDurationMins === 10080 ? '每周额度' : '5 小时额度';
-      if (m.type === 'turn') return '上轮 token 用量';
-      if (m.type === 'plan') return 'Codex 套餐';
-      if (m.type === 'session') return '当前会话';
-      if (m.type === 'peak' || m.type === 'nextpeak') return 'DeepSeek 峰谷时段';
-      if (m.type === 'text') return '文本: ' + (String(m.text || '').slice(0, 24) || '(空)');
-      if (m.type === 'link') return '超链接: ' + (String(m.text || '').slice(0, 24) || '打开链接');
-      if (m.type === 'random') return m.name || '随机语句';
-      if (m.type === 'balance') return '余额数值';
-      if (m.type === 'today') return '今日已观测';
-      if (m.type === 'image') return '图片/动图';
-      if (m.type === 'randimg') return '随机图片' + (m.imgs && m.imgs.length ? '(' + m.imgs.length + '张)' : '(空)');
-      return '模块';
-    }
-    function bubbleEditEnsureModules(item) {
-      if (Array.isArray(item.modules)) return;
-      if (item.kind === 'custom') {
-        item.modules = [];
-        return;
-      }
-      item.modules = bubbleDefaultModules(item.kind);
-    }
-    function bubbleRowLabel(it) {
-      if (it.modules && it.modules.length) return bubbleKindLabel('custom') + ' · ' + it.modules.length + '个模块';
-      return bubbleKindLabel(it.kind);
-    }
-    function bubbleIsChoice(step) {
-      return !!(step && step.kind === 'choice');
-    }
-    function bubbleChoiceOptions(step) {
-      return step && step.kind === 'choice' && Array.isArray(step.options) ? step.options : [];
-    }
-    function bubbleChoiceWeight(o) {
-      return Math.max(1, Math.round(Number(o && o.w) || 1));
-    }
-    function bubbleSingleFromItem(itm) {
-      return {
-        kind: 'custom',
-        modules: itm && Array.isArray(itm.modules) ? itm.modules : []
-      };
-    }
-    function bubbleStepToBubble(step) {
-      if (bubbleIsChoice(step)) {
-        var o0 = bubbleChoiceOptions(step)[0];
-        step = o0 ? o0.item : null;
-      }
-      var mods = step && Array.isArray(step.modules) ? step.modules : bubbleDefaultModules(step && step.kind === 'random' ? 'random' : 'normal');
-      return {
-        kind: 'custom',
-        modules: JSON.parse(JSON.stringify(mods))
-      };
+      return buildBubbleDefaultQueue(window.WhaleAccountView?.mode === 'subscription');
     }
     function renderBubbleFirst() {
       var it = bubbleEditItems[0] || ({
@@ -4651,109 +3311,26 @@
     }
     function bubbleDropApply(to, ev) {
       try {
-        var from = bubbleMainDragIdx;
-        var side = bubbleMainDragSide;
+        var from = bubbleMainDragIdx, side = bubbleMainDragSide;
+        var zone = bubbleDropZone || '';
         bubbleMainDragIdx = null;
         bubbleMainDragSide = -1;
-        var zone = bubbleDropZone || '';
         bubbleDropZone = '';
-        var arr = bubbleEditItems;
-        if (from === null || from === undefined || from < 1 || to < 1 || from >= arr.length || to >= arr.length) return;
+        if (from === null || from === undefined || from < 1 || to < 1 || from >= bubbleEditItems.length || to >= bubbleEditItems.length) return;
         if (side >= 0) {
-          if (zone !== 'before' && zone !== 'after') return;
-          bubbleSideSplitDrop(from, side, to, zone);
+          if (splitBubbleChoiceSide(bubbleEditItems, from, side, to, zone)) renderBubbleMore();
           return;
         }
-        if (from === to) return;
         if (zone === 'pairL' || zone === 'pairR') {
-          bubblePairDrop(from, to, zone);
+          var result = pairBubbleSteps(bubbleEditItems, from, to, zone);
+          if (result && result.replaceSide !== undefined) {
+            showConfirm('用拖入的泡泡替换该并列对中 ' + (result.replaceSide === 0 ? 'A(左)' : 'B(右)') + ' 泡的内容?', function () {
+              if (replaceBubbleChoiceSide(bubbleEditItems, from, to, result.replaceSide)) renderBubbleMore();
+            });
+          } else if (result) renderBubbleMore();
           return;
         }
-        var target = arr[to];
-        var removed = arr.splice(from, 1)[0];
-        var ti = arr.indexOf(target);
-        if (ti < 0) ti = arr.length - 1;
-        var insertAt = zone === 'after' ? ti + 1 : ti;
-        arr.splice(Math.max(1, Math.min(insertAt, arr.length)), 0, removed);
-        renderBubbleMore();
-      } catch (err) {}
-    }
-    function bubbleSideSplitDrop(from, side, to, zone) {
-      try {
-        var arr = bubbleEditItems;
-        var step = arr[from];
-        if (!bubbleIsChoice(step)) return;
-        var opts = bubbleChoiceOptions(step);
-        if (side < 0 || side >= opts.length) return;
-        var movedItem = opts[side].item || ({});
-        var movedStep = bubbleSingleFromItem(movedItem);
-        var rest = [];
-        for (var i = 0; i < opts.length; i++) if (i !== side) rest.push(opts[i]);
-        if (from === to) {
-          if (!rest.length) return;
-          arr.splice(from, 1, bubbleSingleFromItem(rest[0].item));
-          arr.splice(zone === 'before' ? from : from + 1, 0, movedStep);
-          renderBubbleMore();
-          return;
-        }
-        var target = arr[to];
-        if (rest.length === 1) {
-          arr.splice(from, 1, bubbleSingleFromItem(rest[0].item));
-        } else {
-          arr.splice(from, 1);
-        }
-        var ti = arr.indexOf(target);
-        if (ti < 0) ti = arr.length - 1;
-        var insertAt = zone === 'after' ? ti + 1 : ti;
-        arr.splice(Math.max(1, Math.min(insertAt, arr.length)), 0, movedStep);
-        renderBubbleMore();
-      } catch (err) {}
-    }
-    function bubblePairDrop(from, to, zone) {
-      try {
-        var arr = bubbleEditItems;
-        var src = arr[from];
-        var dst = arr[to];
-        if (!src || !dst) return;
-        if (bubbleIsChoice(src)) return;
-        var srcBubble = bubbleStepToBubble(src);
-        if (bubbleIsChoice(dst)) {
-          var sideIdx = zone === 'pairL' ? 0 : 1;
-          showConfirm('用拖入的泡泡替换该并列对中 ' + (sideIdx === 0 ? 'A(左)' : 'B(右)') + ' 泡的内容?', function () {
-            var d2 = arr[to];
-            if (!d2 || !bubbleIsChoice(d2)) return;
-            var opts2 = bubbleChoiceOptions(d2);
-            if (!opts2.length) return;
-            var oi3 = sideIdx < opts2.length ? sideIdx : 0;
-            opts2[oi3].item = srcBubble;
-            arr.splice(from, 1);
-            renderBubbleMore();
-          });
-          return;
-        }
-        var dstBubble = bubbleStepToBubble(dst);
-        var options = zone === 'pairL' ? [{
-          w: 1,
-          item: srcBubble
-        }, {
-          w: 1,
-          item: dstBubble
-        }] : [{
-          w: 1,
-          item: dstBubble
-        }, {
-          w: 1,
-          item: srcBubble
-        }];
-        var choiceStep = {
-          kind: 'choice',
-          options: options
-        };
-        arr.splice(Math.max(from, to), 1);
-        arr.splice(Math.min(from, to), 1);
-        var insertAt = from < to ? to - 1 : to;
-        arr.splice(Math.max(1, Math.min(insertAt, arr.length)), 0, choiceStep);
-        renderBubbleMore();
+        if (reorderBubbleStep(bubbleEditItems, from, to, zone)) renderBubbleMore();
       } catch (err) {}
     }
     function bubbleChoiceRowUI(row, step, idx) {
@@ -4819,45 +3396,15 @@
     }
     function bubbleDropToEnd() {
       try {
-        var from = bubbleMainDragIdx;
-        var side = bubbleMainDragSide;
+        var from = bubbleMainDragIdx, side = bubbleMainDragSide;
         bubbleMainDragIdx = null;
         bubbleMainDragSide = -1;
         bubbleDropZone = '';
-        var arr = bubbleEditItems;
-        if (from === null || from === undefined || from < 1 || from >= arr.length) return;
-        if (side >= 0) {
-          var step = arr[from];
-          if (!bubbleIsChoice(step)) return;
-          var opts = bubbleChoiceOptions(step);
-          if (side >= opts.length) return;
-          var movedItem = opts[side].item || ({});
-          var rest = [];
-          for (var i = 0; i < opts.length; i++) if (i !== side) rest.push(opts[i]);
-          if (rest.length === 1) arr.splice(from, 1, bubbleSingleFromItem(rest[0].item)); else if (rest.length >= 2) step.options = rest; else arr.splice(from, 1);
-          arr.push(bubbleSingleFromItem(movedItem));
-          renderBubbleMore();
-          return;
-        }
-        if (arr.length <= 1) return;
-        var removed = arr.splice(from, 1)[0];
-        arr.push(removed);
-        renderBubbleMore();
+        if (moveBubbleStepToEnd(bubbleEditItems, from, side)) renderBubbleMore();
       } catch (err) {}
     }
     function bubbleUnpairStep(idx) {
-      try {
-        var arr = bubbleEditItems;
-        var step = arr[idx];
-        if (!bubbleIsChoice(step)) return;
-        var items = bubbleChoiceOptions(step).map(function (o) {
-          return bubbleStepToBubble(o.item);
-        });
-        if (!items.length) return;
-        arr.splice(idx, 1);
-        for (var i2 = items.length - 1; i2 >= 0; i2--) arr.splice(idx, 0, items[i2]);
-        renderBubbleMore();
-      } catch (err) {}
+      try { if (unpairBubbleStep(bubbleEditItems, idx)) renderBubbleMore(); } catch (err) {}
     }
     var bubbleMainDragIdx = null;
     var bubbleMainDragSide = -1;
@@ -4870,24 +3417,13 @@
       renderBubbleMore();
     }
     function bubbleMoveMore(idx, dir) {
-      var j = idx + dir;
-      if (j < 1 || j >= bubbleEditItems.length) return;
-      var t = bubbleEditItems[idx];
-      bubbleEditItems[idx] = bubbleEditItems[j];
-      bubbleEditItems[j] = t;
-      renderBubbleMore();
+      if (moveBubbleStep(bubbleEditItems, idx, dir)) renderBubbleMore();
     }
     function bubbleDelMore(idx) {
-      if (bubbleEditItems.length <= 1) return;
-      bubbleEditItems.splice(idx, 1);
-      renderBubbleMore();
+      if (deleteBubbleStep(bubbleEditItems, idx)) renderBubbleMore();
     }
     function bubbleAddMore() {
-      bubbleEditItems.push({
-        kind: 'custom',
-        modules: []
-      });
-      renderBubbleMore();
+      if (addBubbleStep(bubbleEditItems)) renderBubbleMore();
     }
     var bubbleEditorSnap = null;
     function bubbleEditorDirty() {
@@ -5941,7 +4477,6 @@
       return null;
     }
     var bubbleDragKey = null;
-    function bubbleIsImgMod(m) { return !!m && (m.type === 'image' || m.type === 'randimg'); }
     function bubbleItemHasImage() {
       try {
         var it = bubbleEditTarget();
@@ -6568,16 +5103,13 @@
     var moduleSizeEl = null;
     var moduleImgListEl = null;
     var moduleImgSelect = null;
+    var moduleImgDrop = null;
     var moduleImgPreviewEl = null;
     var bubbleImgList = [];
     function loadBubbleImgs(cb) {
       try {
-        fetch('/dsh-whale/bubble-imgs.json', {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (d && d.ok && Array.isArray(d.images)) {
+        assetClient.bubbleImages().then(function (d) {
+          if (d) {
             bubbleImgList = d.images;
             assetWarning(d);
             if (cb) cb();
@@ -6592,18 +5124,7 @@
         var media = WhaleMediaGuard.inspectImage(bytes, 'bubble');
         if (['png', 'apng', 'gif'].indexOf(media.format) < 0) throw new Error('泡泡图片请选择 PNG 或 GIF');
         var data = await mediaDataUrl(new Blob([bytes], { type: media.mime }));
-        var response = await fetch('/dsh-whale/bubble-img-upload.json', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              action: 'upload',
-              name: file.name || '',
-              data: data
-            })
-          });
-        var d = await response.json();
+        var d = await assetClient.uploadBubbleImage(file.name || '', data);
         if (!d || !d.ok || !Array.isArray(d.images)) throw new Error(d && d.error || '图片保存失败，请重试');
         bubbleImgList = d.images;
         assetWarning(d);
@@ -8238,7 +6759,7 @@
     textBox.className = 'dshwv-text';
     var bubbleFrames = new WhaleRendering.BubbleRenderer(textBox, GIF_URL);
     var bubbleTarget, labelEl, amountEl, hintEl, gifEl;
-    var bubbleBuilding = false, bubbleSceneEpoch = 0;
+    var bubbleSceneController;
     function bindBubbleParts(parts) {
       bubbleTarget = parts.root; labelEl = parts.label; amountEl = parts.amount;
       hintEl = parts.hint; gifEl = parts.gif;
@@ -8248,9 +6769,22 @@
     bubbleBox.className = 'dshwv-pop';
     bubbleBox.innerHTML = '<svg viewBox="0 0 1026 700" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + '<path class="dshwv-bshape" fill="#FFFFFF" stroke="#203170" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" d="M 827 248 A 373 232 0 1 0 81 246 A 373 232 0 0 0 301 465 A 57 32 10 0 0 413 484 A 373 232 0 0 0 827 248 Z"/>' + '<ellipse class="dshwv-b1" cx="352" cy="561" rx="37.5" ry="26" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '<ellipse class="dshwv-b2" cx="442" cy="646" rx="24.5" ry="18" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '</svg>';
     bubbleBox.appendChild(textBox);
+    bubbleSceneController = createBubbleSceneController({
+      frames: bubbleFrames, box: bubbleBox, bindParts: bindBubbleParts,
+      beforeRender: function () { WhaleMoney.applyLatestQuote({ refreshBindings: false }); },
+      afterCommit: function (committed) {
+        if (committed) WhaleMoney.refreshBindings(menuBox);
+        else WhaleRendering.presentFor(650);
+      },
+      onAutoClose: bubbleAutoClose,
+      onSceneChange: function (kind) {
+        costBubbleActive = kind === 'cost';
+        bubbleRandomActive = kind === 'random';
+      }
+    });
     bubbleBox.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (!bubbleShown) return;
+      if (!bubbleSceneController.shown) return;
       if (costBubbleActive) {
         hideCostBubble();
         return;
@@ -8443,7 +6977,6 @@
     var drag = null;
 
 
-    var bubbleShown = false;
 
     var bubbleRandomActive = false;
     var bubbleRandomLines = null;
@@ -8536,8 +7069,6 @@
       render();
     }
 
-    var bubbleTtlTimer = null;
-    var bubbleScene = null;
     var bubbleSeq = bubbleDefaultQueue();
     var bubbleSeqIdx = 0;
     var bubbleRoundOn = false;
@@ -8622,10 +7153,8 @@
     }
     function loadBubbleCfg() {
       if (bubbleCfgLoad) return bubbleCfgLoad;
-      bubbleCfgLoad = fetch(BUBBLE_URL, { cache: 'no-store' }).then(function (r) {
-        return r.json();
-      }).then(function (d) {
-        if (!d || !d.ok) return false;
+      bubbleCfgLoad = assetClient.bubbleConfig().then(function (d) {
+        if (!d) return false;
         bubbleCfg = d.config || null;
         bubbleLib = bubbleCfg && Array.isArray(bubbleCfg.lib) ? JSON.parse(JSON.stringify(bubbleCfg.lib)) : [];
         bubbleCfgLoaded = true;
@@ -8636,15 +7165,7 @@
     }
     function saveBubbleCfg(cfg, okFn) {
       try {
-        fetch(BUBBLE_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(cfg)
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
+        assetClient.saveBubbleConfig(cfg).then(function (d) {
           requireSaved(d);
           if (d && d.ok && d.config) {
             bubbleCfg = d.config;
@@ -8660,134 +7181,19 @@
         if (okFn) okFn(false);
       }
     }
-    function bubbleRowKeyOf(m) {
-      try {
-        m = m || ({});
-        var n = m.row;
-        if (typeof n === 'number' && isFinite(n) && Math.round(n) === n && n > 0) return n;
-      } catch (err) {}
-      return null;
-    }
-    function bubbleRowsOf(mods) {
-      var out = [];
-      if (!Array.isArray(mods)) return out;
-      var cur = null;
-      for (var i = 0; i < mods.length; i++) {
-        var m = mods[i] || ({});
-        if (bubbleIsImgMod(m)) {
-          out.push([m]);
-          cur = null;
-          continue;
-        }
-        if (cur && cur.key !== null && bubbleRowKeyOf(m) === cur.key) {
-          cur.row.push(m);
-          continue;
-        }
-        cur = {
-          key: bubbleRowKeyOf(m),
-          row: [m]
-        };
-        out.push(cur.row);
-      }
-      return out;
-    }
-    function bubbleRowsFlat(rows) {
-      var flat = [];
-      try {
-        if (!Array.isArray(rows)) return flat;
-        for (var r = 0; r < rows.length; r++) {
-          var row = rows[r];
-          if (!row || !row.length) continue;
-          var multi = row.length > 1;
-          for (var i = 0; i < row.length; i++) {
-            var m = row[i];
-            if (!m || typeof m !== 'object') continue;
-            if (multi) m.row = r + 1; else try {
-              delete m.row;
-            } catch (err) {}
-            flat.push(m);
-          }
-        }
-      } catch (err) {}
-      return flat;
-    }
-    function bubbleRowsCanon(mods) {
-      try {
-        if (!Array.isArray(mods)) return;
-        var flat = bubbleRowsFlat(bubbleRowsOf(mods));
-        mods.length = 0;
-        for (var i = 0; i < flat.length; i++) mods.push(flat[i]);
-      } catch (err) {}
-    }
-    function bubbleClearAll() {
-      ++bubbleSceneEpoch;
-      bubbleFrames.cancel();
-      if (bubbleTtlTimer) clearTimeout(bubbleTtlTimer);
-      bubbleTtlTimer = null;
-    }
-    function bubbleCloseVisual() {
-      bubbleFrames.close();
-      bubbleBox.classList.remove('dshwv-pop-open');
-    }
-    
-    function sceneOpen(kind, renderFn, ttlMs) {
-      var wasOpen = bubbleShown;
-      var previousScene = bubbleScene;
-      bubbleClearAll();
-      var entry = bubbleSceneEpoch;
-      bubbleScene = { kind: kind, ttlMs: ttlMs || 0 };
-      bubbleShown = true;
-      costBubbleActive = kind === 'cost';
-      bubbleRandomActive = kind === 'random';
-      // Build once at entry. Data callbacks cannot repaint either live buffer.
-      bubbleFrames.open(function (parts) {
-        bubbleBuilding = true;
-        bindBubbleParts(parts);
-        try {
-          WhaleMoney.applyLatestQuote({ refreshBindings: false });
-          renderFn();
-        }
-        finally { bubbleBuilding = false; bindBubbleParts(bubbleFrames.front); }
-      }, function () {
-        bubbleBox.classList.add('dshwv-pop-open');
-        WhaleRendering.presentFor(650);
-      }).then(function (committed) {
-        if (entry !== bubbleSceneEpoch) return;
-        bindBubbleParts(bubbleFrames.front);
-        if (!committed) {
-          bubbleScene = previousScene;
-          bubbleShown = wasOpen;
-          costBubbleActive = !!previousScene && previousScene.kind === 'cost';
-          bubbleRandomActive = !!previousScene && previousScene.kind === 'random';
-          if (!wasOpen) bubbleCloseVisual();
-          return;
-        }
-        WhaleMoney.refreshBindings(menuBox);
-        if (ttlMs > 0) bubbleTtlTimer = setTimeout(bubbleAutoClose, ttlMs);
-      });
-    }
     function bubbleAutoClose() {
-      bubbleTtlTimer = null;
-      if (bubbleScene && bubbleScene.kind === 'cost') {
-        if (whaleSysSwapNext()) return;
+      bubbleSceneController.timerFired();
+      if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'cost') {
+        if (bubbleNoticeQueue.swapNext()) return;
         hideCostBubble();
         return;
       }
-      if (bubbleScene && bubbleScene.kind === 'alert') {
-        if (whaleSysSwapNext()) return;
+      if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'alert') {
+        if (bubbleNoticeQueue.swapNext()) return;
         hideUsageAlertBubble();
         return;
       }
       hideBubble();
-    }
-    function bubbleResetTtl() {
-      try {
-        if (bubbleTtlTimer) {
-          clearTimeout(bubbleTtlTimer);
-          bubbleTtlTimer = null;
-        }
-      } catch (err) {}
-      if (bubbleScene && bubbleScene.ttlMs > 0) bubbleTtlTimer = setTimeout(bubbleAutoClose, bubbleScene.ttlMs);
     }
     function bubbleRenderDefault() {
       restoreBubbleLines();
@@ -8876,15 +7282,15 @@
       if (item.kind === 'random') {
         var lines = pickRandomLines();
         bubbleRandomLines = lines;
-        sceneOpen('random', function () {
+        bubbleSceneController.open('random', function () {
           bubbleRenderRandom(lines);
         }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else if (item.kind === 'custom') {
-        sceneOpen('custom', function () {
+        bubbleSceneController.open('custom', function () {
           bubbleRenderModules(item.modules || []);
         }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else {
-        sceneOpen('normal', bubbleRenderDefault, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
+        bubbleSceneController.open('normal', bubbleRenderDefault, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       }
     }
     function bubbleModuleFontU(level) {
@@ -9297,7 +7703,7 @@
 
     
     function bubbleRenderModules(mods) {
-      if (!bubbleBuilding) return; // Including switching: only the entry builder may write.
+      if (!bubbleSceneController.building) return; // Including switching: only the entry builder may write.
       var snapshot = bubbleSnapshot(mods, true);
       gifEl.style.display = 'none';
       labelEl.style.display = 'none';
@@ -9379,15 +7785,15 @@
     function whaleClick() {
       try {
         if (!bubbleOn) return;
-        if (bubbleScene && bubbleScene.kind === 'wait') {
-          if (whaleSysItem && whaleSysItem.closeOnRole) hideWaitBubble(true, whaleSysItem.id);
+        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'wait') {
+          if (bubbleNoticeQueue.current && bubbleNoticeQueue.current.closeOnRole) hideWaitBubble(true, bubbleNoticeQueue.current.id);
           return;
         }
-        if (bubbleScene && (bubbleScene.kind === 'cost' || bubbleScene.kind === 'alert')) return;
+        if (bubbleSceneController.scene && (bubbleSceneController.scene.kind === 'cost' || bubbleSceneController.scene.kind === 'alert')) return;
         // Match the original petting interaction: once a bubble is visible,
         // presses on the character only play the press/release feedback. The
         // bubble itself is the sole control that advances or pops the queue.
-        if (bubbleShown) return;
+        if (bubbleSceneController.shown) return;
         if (window.WhaleAccountView?.mode === 'subscription') window.WhaleQuota?.refresh(true);
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
@@ -9396,17 +7802,17 @@
     }
     function bubbleNext() {
       try {
-        if (!bubbleShown) return;
-        if (bubbleScene && bubbleScene.kind === 'cost') {
+        if (!bubbleSceneController.shown) return;
+        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'cost') {
           hideCostBubble();
           return;
         }
-        if (bubbleScene && bubbleScene.kind === 'alert') {
+        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'alert') {
           hideUsageAlertBubble();
           return;
         }
-        if (bubbleScene && bubbleScene.kind === 'wait') {
-          hideWaitBubble(true, whaleSysItem && whaleSysItem.id);
+        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'wait') {
+          hideWaitBubble(true, bubbleNoticeQueue.current && bubbleNoticeQueue.current.id);
           return;
         }
         if (bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length) {
@@ -9424,27 +7830,23 @@
       bubbleShowSeqNext();
     }
     function hideBubble() {
-      bubbleClearAll();
+      bubbleSceneController.clear();
       window.WhaleQuota?.clearBindings(bubbleBox);
       window.WhaleApiModels?.clearBindings(bubbleBox);
       costBubbleActive = false;
-      whaleSysQueue = [];
-      whaleSysItem = null;
-      if (whaleSysTimer) clearTimeout(whaleSysTimer);
-      whaleSysTimer = null;
+      bubbleNoticeQueue.clear();
       bubbleRoundOn = false;
       bubbleSeqIdx = 0;
-      bubbleScene = null;
-      bubbleShown = false;
+      bubbleSceneController.dismiss();
       bubbleRandomActive = false;
       bubbleRandomLines = null;
 
-      bubbleCloseVisual();
+      bubbleSceneController.closeVisual();
     }
     function showCostBubble(amount, notice) {
       notice = notice || WhaleTurnNotice.snapshot({ amount: amount }, state.currency);
       if (!bubbleOn || !WhaleTurnNotice.enabled(notice, {}, turnCostOn)) return;
-      whaleSysPush({
+      bubbleNoticeQueue.push({
         kind: 'cost',
         amount: amount,
         notice: notice,
@@ -9452,150 +7854,63 @@
       });
     }
     function hideCostBubble() {
-      if (whaleSysSwapNext()) return;
-      bubbleClearAll();
+      if (bubbleNoticeQueue.swapNext()) return;
+      bubbleSceneController.clear();
       costBubbleActive = false;
-      bubbleScene = null;
-      bubbleShown = false;
+      bubbleSceneController.dismiss();
       bubbleRandomActive = false;
       bubbleRandomLines = null;
-      bubbleCloseVisual();
-      whaleSysDone();
+      bubbleSceneController.closeVisual();
+      bubbleNoticeQueue.done();
     }
     var USAGE_ALERT_TTL = 6500;
-    var whaleSysQueue = [];
-    var whaleSysItem = null;
-    var whaleSysTimer = null;
+    var bubbleNoticeQueue = createBubbleNoticeQueue({
+      canShow: function () { return !!(bubbleOn && bubbleBox && textBox); },
+      isBlocked: function () { return costBubbleActive || bubbleSceneController.scene && bubbleSceneController.scene.kind === 'alert'; },
+      rejectWithoutCurrent: function () { return costBubbleActive; },
+      isVisible: function () { return bubbleSceneController.shown; },
+      showItem: function (item) {
+        if (item.kind === 'cost') {
+          bubbleSceneController.open('cost', function () { bubbleRenderCost(item.amount, item.notice); }, turnCostCloseMs > 0 ? turnCostCloseMs : 0);
+        } else if (item.kind === 'wait') {
+          bubbleSceneController.open('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
+        } else {
+          bubbleSceneController.open('alert', function () { bubbleRenderModules(item.mods || []); }, item.ttlMs != null ? item.ttlMs : USAGE_ALERT_TTL);
+        }
+      }
+    });
     function showWaitBubble(detail) {
       try {
         if (!detail || !detail.id || !bubbleOn) return false;
         var id = String(detail.id);
-        if (whaleSysItem && whaleSysItem.kind === 'wait' && whaleSysItem.id === id) return true;
-        whaleSysQueue = whaleSysQueue.filter(function (item) { return !(item && item.kind === 'wait'); });
+        if (bubbleNoticeQueue.current && bubbleNoticeQueue.current.kind === 'wait' && bubbleNoticeQueue.current.id === id) return true;
+        bubbleNoticeQueue.removeWait();
         var lines = Array.isArray(detail.lines) && detail.lines.length ? detail.lines : usageWaitDefaultLines(detail.kind);
         var mods = usageAlertModsResolved(lines, null, null, { sessionLabel: detail.sessionLabel || '当前对话' });
-        return whaleSysPush({ kind: 'wait', id: id, waitKind: detail.kind, mods: mods, rank: 1, ttlMs: 0, closeOnRole: detail.closeOnRole === true });
+        return bubbleNoticeQueue.push({ kind: 'wait', id: id, waitKind: detail.kind, mods: mods, rank: 1, ttlMs: 0, closeOnRole: detail.closeOnRole === true });
       } catch (err) { return false; }
     }
     function hideWaitBubble(userDismissed, id) {
       try {
-        whaleSysQueue = whaleSysQueue.filter(function (item) { return !(item && item.kind === 'wait' && (!id || item.id === id)); });
-        if (!whaleSysItem || whaleSysItem.kind !== 'wait' || id && whaleSysItem.id !== id) return;
-        var closedId = whaleSysItem.id;
+        bubbleNoticeQueue.removeWait(id);
+        if (!bubbleNoticeQueue.current || bubbleNoticeQueue.current.kind !== 'wait' || id && bubbleNoticeQueue.current.id !== id) return;
+        var closedId = bubbleNoticeQueue.current.id;
         if (userDismissed) window.dispatchEvent(new CustomEvent('whale-wait-dismissed', { detail: { id: closedId } }));
-        if (whaleSysSwapNext()) return;
-        bubbleClearAll();
-        bubbleScene = null; bubbleShown = false; bubbleRandomActive = false; bubbleRandomLines = null;
-        bubbleCloseVisual(); whaleSysDone();
+        if (bubbleNoticeQueue.swapNext()) return;
+        bubbleSceneController.clear();
+        bubbleSceneController.dismiss(); bubbleRandomActive = false; bubbleRandomLines = null;
+        bubbleSceneController.closeVisual(); bubbleNoticeQueue.done();
       } catch (err) {}
-    }
-    function whaleSysPush(item) {
-      try {
-        if (!bubbleOn || !bubbleBox || !textBox) return false;
-        if (!item || !item.kind) return false;
-        if (item.kind === 'wait') {
-          whaleSysQueue = whaleSysQueue.filter(function (queued) { return !(queued && queued.kind === 'wait'); });
-          if (whaleSysItem && whaleSysItem.kind === 'wait') {
-            whaleSysItem = item;
-            sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
-            return true;
-          }
-          if (whaleSysItem) whaleSysQueue.unshift(whaleSysItem);
-          whaleSysItem = item;
-          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
-          return true;
-        }
-        if (costBubbleActive && !whaleSysItem) return false;
-        var rank = Number(item.rank);
-        if (!(rank >= 1)) rank = 2;
-        item.rank = rank;
-        var pos = whaleSysQueue.length;
-        for (var i = 0; i < whaleSysQueue.length; i++) {
-          if (whaleSysQueue[i].rank > rank) {
-            pos = i;
-            break;
-          }
-        }
-        whaleSysQueue.splice(pos, 0, item);
-        if (whaleSysTimer) {
-          clearTimeout(whaleSysTimer);
-          whaleSysTimer = null;
-        }
-        whaleSysTimer = setTimeout(whaleSysTick, 30);
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
-    function whaleSysTick() {
-      whaleSysTimer = null;
-      try {
-        if (!bubbleOn || !bubbleBox || !textBox) {
-          whaleSysQueue = [];
-          whaleSysItem = null;
-          return;
-        }
-        if (whaleSysItem) return;
-        if (!whaleSysQueue.length) return;
-        if (costBubbleActive || bubbleScene && bubbleScene.kind === 'alert') return;
-        var item = whaleSysQueue.shift();
-        if (!item) return;
-        whaleSysItem = item;
-        if (item.kind === 'cost') {
-          sceneOpen('cost', function () {
-            bubbleRenderCost(item.amount, item.notice);
-          }, turnCostCloseMs > 0 ? turnCostCloseMs : 0);
-        } else if (item.kind === 'wait') {
-          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
-        } else {
-          sceneOpen('alert', function () {
-            bubbleRenderModules(item.mods || []);
-          }, item && item.ttlMs != null ? item.ttlMs : USAGE_ALERT_TTL);
-        }
-      } catch (err) {}
-    }
-    function whaleSysDone() {
-      try {
-        whaleSysItem = null;
-        if (whaleSysTimer) {
-          clearTimeout(whaleSysTimer);
-          whaleSysTimer = null;
-        }
-        whaleSysTick();
-      } catch (err) {}
-    }
-    function whaleSysSwapNext() {
-      try {
-        if (!whaleSysQueue.length || !bubbleOn || !bubbleShown) return false;
-        var item = whaleSysQueue.shift();
-        if (!item) return false;
-        whaleSysItem = item;
-        if (item.kind === 'cost') {
-          sceneOpen('cost', function () {
-            bubbleRenderCost(item.amount, item.notice);
-          }, turnCostCloseMs > 0 ? turnCostCloseMs : 0);
-        } else if (item.kind === 'wait') {
-          sceneOpen('wait', function () { bubbleRenderModules(item.mods || []); }, 0);
-        } else {
-          sceneOpen('alert', function () {
-            bubbleRenderModules(item.mods || []);
-          }, item && item.ttlMs != null ? item.ttlMs : USAGE_ALERT_TTL);
-        }
-        return true;
-      } catch (err) {
-        return false;
-      }
     }
     function hideUsageAlertBubble() {
-      if (whaleSysSwapNext()) return;
-      bubbleClearAll();
-      bubbleScene = null;
-      bubbleShown = false;
+      if (bubbleNoticeQueue.swapNext()) return;
+      bubbleSceneController.clear();
+      bubbleSceneController.dismiss();
       bubbleRandomActive = false;
       bubbleRandomLines = null;
 
-      bubbleCloseVisual();
-      whaleSysDone();
+      bubbleSceneController.closeVisual();
+      bubbleNoticeQueue.done();
     }
     function clamp(v, lo, hi) {
       return v < lo ? lo : v > hi ? hi : v;
@@ -9616,8 +7931,8 @@
     
     function render() {
       // Stopgap guard plus root fix: refresh() no longer calls this function.
-      if (bubbleFrames.switching && !bubbleBuilding) return;
-      if (!bubbleBuilding) return;
+      if (bubbleFrames.switching && !bubbleSceneController.building) return;
+      if (!bubbleSceneController.building) return;
       var captured = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD', status: state.status, message: state.message };
       WhaleMoney.bind(amountEl, function () { return captured.balance === null ? (captured.status === 'error' ? '--' : '…') : fmt(captured.balance, captured.currency); });
       WhaleMoney.bind(hintEl, function () { return captured.status === 'error' ? (captured.message || '获取失败 · 点击重试').slice(0, 20) : captured.balance === null ? '加载中…' : '今日已观测 ' + (captured.todayUsage != null ? fmt(captured.todayUsage, captured.currency) : '--'); });
@@ -9658,47 +7973,12 @@
       refreshFlip();
     }
     function snapBounds(vp) {
-      var b = {
-        L: 0,
-        T: 0,
-        R: vp.w,
-        B: vp.h,
-        F: vp.w / 2
-      };
-      try {
-        var cfg = snapConfig;
-        if (!cfg || cfg.mode === 'off') return b;
-        if (cfg.mode === 'px') {
-          b.L = cfg.px.L;
-          b.T = cfg.px.T;
-          b.R = vp.w - cfg.px.R;
-          b.B = vp.h - cfg.px.B;
-          b.F = cfg.px.F;
-        } else {
-          b.L = vp.w * cfg.ratio.L / 100;
-          b.T = vp.h * cfg.ratio.T / 100;
-          b.R = vp.w * (100 - cfg.ratio.R) / 100;
-          b.B = vp.h * (100 - cfg.ratio.B) / 100;
-          b.F = vp.w * cfg.ratio.F / 100;
-        }
-      } catch (err) {}
-      return b;
+      try { return calculateSnapBounds(snapConfig, vp); }
+      catch (err) { return calculateSnapBounds(null, vp); }
     }
     function snapZones(cx, cyBox, cyImg, vp) {
-      var out = {
-        zH: null,
-        zV: null,
-        flip: false
-      };
-      try {
-        var cfg = snapConfig;
-        if (!cfg || cfg.mode === 'off') return out;
-        var b = snapBounds(vp);
-        out.flip = cx < b.F;
-        if (cx < b.L) out.zH = 'left'; else if (cx > b.R) out.zH = 'right';
-        if (cyBox < b.T) out.zV = 'top'; else if (cyImg > b.B) out.zV = 'bottom';
-      } catch (err) {}
-      return out;
+      try { return calculateSnapZones(snapConfig, cx, cyBox, cyImg, vp); }
+      catch (err) { return calculateSnapZones(null, cx, cyBox, cyImg, vp); }
     }
     function refreshFlip() {
       try {
@@ -9716,16 +7996,6 @@
         express();
       } catch (err) {}
     }
-    function artCenterAt(left, top, w, h, flipped) {
-      var iw = Math.max(1, w * 0.5945);
-      var cx = flipped ? left + iw / 2 : left + w - iw / 2;
-      var cy = top + h - iw / 2;
-      return {
-        cx: cx,
-        cy: cy
-      };
-    }
-
     // ==== [刷新与配置保存] ====
     function refresh(manual) {
       if (window.WhaleAccountView?.mode === 'subscription') { window.WhaleAccountView.refresh(); return; }
@@ -10114,12 +8384,8 @@
     window.addEventListener('whale-role-fallback', recoverBrokenRole);
     function loadRoles() {
       try {
-        fetch(ROLE_URL, {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (!d || !d.ok || !Array.isArray(d.roles)) return;
+        assetClient.roles().then(function (d) {
+          if (!d) return;
           roleList = d.roles;
           assetWarning(d);
           renderRolePanel();
@@ -10685,12 +8951,8 @@
     var audioGroupPanelOpen = false;
     function loadAudio() {
       try {
-        fetch(AUDIO_URL, {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (!d || !d.ok) return;
+        assetClient.audio().then(function (d) {
+          if (!d) return;
           if (Array.isArray(d.groups)) audioGroups = d.groups;
           if (Array.isArray(d.fragments)) audioFragments = d.fragments;
           assetWarning(d);
@@ -11675,19 +9937,7 @@
     var lastUploadedFragmentId = null;
     function uploadAudioFragment(dataUrl, name, cb) {
       try {
-        fetch(AUDIO_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'upload-fragment',
-            name: name,
-            audio: dataUrl
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
+        assetClient.uploadAudioFragment(name, dataUrl).then(function (d) {
           requireSaved(d);
           if (d && d.ok && Array.isArray(d.fragments)) {
             audioFragments = d.fragments;
@@ -11819,8 +10069,9 @@
       var dx = e.clientX - drag.startX;
       var dy = e.clientY - drag.startY;
       if (dx * dx + dy * dy >= CLICK_SQ) drag.moved = true;
-      state.left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));
-      state.top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));
+      var moved = clampToViewport(drag.origLeft + dx, drag.origTop + dy, drag.w, drag.h, drag.vp);
+      state.left = moved.left;
+      state.top = moved.top;
       express();
     }
     function onDocPointerUp(e) {
@@ -11945,8 +10196,8 @@
       e = e && Number.isFinite(e.clientX) ? e : { clientX: drag.startX + state.left - drag.origLeft, clientY: drag.startY + state.top - drag.origTop };
       var dx = e.clientX - drag.startX;
       var dy = e.clientY - drag.startY;
-      var left = clamp(drag.origLeft + dx, 0, Math.max(0, drag.vp.w - drag.w));
-      var top = clamp(drag.origTop + dy, 0, Math.max(0, drag.vp.h - drag.h));
+      var moved = clampToViewport(drag.origLeft + dx, drag.origTop + dy, drag.w, drag.h, drag.vp);
+      var left = moved.left, top = moved.top;
       var ac = artCenterAt(left, top, drag.w, drag.h, !!state.flip);
       var z = snapZones(ac.cx, top + drag.h / 2, ac.cy, drag.vp);
       if (z.zH === 'left') {
@@ -11978,19 +10229,17 @@
     function applyAnchorPos() {
       try {
         var a = JSON.parse(localStorage.getItem('dshw-pos') || 'null');
-        if (!a || a.v !== 2 || a.hAnchor !== 'left' && a.hAnchor !== 'right' || (!Number.isFinite(a.hDist) || a.hDist < 0) || a.vAnchor !== 'top' && a.vAnchor !== 'bottom' || (!Number.isFinite(a.vDist) || a.vDist < 0)) return false;
         var vp = viewport();
         var w = root.offsetWidth || root.getBoundingClientRect().width || 0;
         var h = root.offsetHeight || root.getBoundingClientRect().height || 0;
-        var effectiveRightDist = a.hAnchor === 'right' ? a.hDist + (scrollGapOn ? rightGap() : 0) : a.hDist;
-        var l = a.hAnchor === 'left' ? a.hDist : vp.w - effectiveRightDist - w;
-        var t = a.vAnchor === 'top' ? a.vDist : vp.h - a.vDist - h;
-        state.left = clamp(l, 0, Math.max(0, vp.w - w));
-        state.top = clamp(t, 0, Math.max(0, vp.h - h));
-        state.h = a.hAnchor;
-        state.hOff = a.hDist;
-        state.v = a.vAnchor;
-        state.vOff = a.vDist;
+        var restored = restoreAnchor(a, vp, w, h, scrollGapOn ? rightGap() : 0);
+        if (!restored) return false;
+        state.left = restored.left;
+        state.top = restored.top;
+        state.h = restored.h;
+        state.hOff = restored.hOff;
+        state.v = restored.v;
+        state.vOff = restored.vOff;
         refreshFlip();
         return true;
       } catch (err) {
@@ -12135,8 +10384,8 @@
         queue: function (items) { hideBubble(); bubbleSeq = items; },
         place: function (x, y, flip) { state.left = x; state.top = y; state.flip = !!flip; express(); },
         scale: setScale, role: applyRole,
-        scene: function (modules, ttl) { sceneOpen('custom', function () { bubbleRenderModules(modules); }, ttl || 0); },
-        status: function () { return { switching: bubbleFrames.switching, busy: busy, shown: bubbleShown, scene: bubbleScene && bubbleScene.kind, epoch: bubbleSceneEpoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
+        scene: function (modules, ttl) { bubbleSceneController.open('custom', function () { bubbleRenderModules(modules); }, ttl || 0); },
+        status: function () { return { switching: bubbleFrames.switching, busy: busy, shown: bubbleSceneController.shown, scene: bubbleSceneController.scene && bubbleSceneController.scene.kind, epoch: bubbleSceneController.epoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
       });
     }
     fetch(SIZE_URL, {
@@ -12274,6 +10523,7 @@
   if (dshwEnabled) {
     try {
       dshwInit();
-    } catch (err) {}
+      window.dispatchEvent(new Event('whale-widget-ready'));
+    } catch (err) { console.error('Whale widget initialization failed', err); }
   }
 })();
