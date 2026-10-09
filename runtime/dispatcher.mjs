@@ -12,6 +12,7 @@ import { createInsightsService } from './insights.mjs';
 import { pricingSchedule } from './pricing-schedule.mjs';
 import { importWorkshop, exportWorkshop } from '../lib/workshop.mjs';
 import { ApiModelRegistry } from './api-models.mjs';
+import { SoundSettingsService } from './sound-settings.mjs';
 
 export const UI_ORIGIN = 'whale://widget';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.gif': 'image/gif', '.mp3': 'audio/mpeg' };
@@ -26,6 +27,7 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
   const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
+  const soundSettings = new SoundSettingsService({ dataDir, whale });
   const displayModeFile = path.join(dataDir, 'display-mode.json');
   const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
   const routes = new Map(), effects = [];
@@ -112,6 +114,19 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         if (method !== 'GET') return jsonResult(405, { ok: false });
         return jsonResult(200, { ok: true, policy: MEDIA_POLICY });
       }
+      if (url.pathname === '/api/sound-settings') {
+        if (method !== 'GET' && method !== 'PUT') return jsonResult(405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+        try {
+          return jsonResult(200, method === 'GET' ? await soundSettings.load() : await soundSettings.save(parsed()));
+        } catch (error) {
+          const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 500;
+          return jsonResult(status, {
+            ok: false,
+            code: typeof error?.code === 'string' ? error.code : 'SETTINGS_OPERATION_FAILED',
+            error: error?.message || '音效设置操作失败',
+          });
+        }
+      }
       if (url.pathname === '/api/ui-state') {
         if (method === 'GET') return jsonResult(200, { ok: true, values: readJson(stateFile, {}) });
         if (method === 'PUT') {
@@ -124,7 +139,9 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       }
       if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
-      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/select-enhancer.js': 'select-enhancer.js', '/wait-notice.js': 'wait-notice.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js' };
+      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/select-enhancer.js': 'select-enhancer.js', '/wait-notice.js': 'wait-notice.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js',
+        '/services/request.js': 'services/request.js', '/services/sound-reference.js': 'services/sound-reference.js',
+        '/features/sound-settings/model.js': 'features/sound-settings/model.js', '/features/sound-settings/controller.js': 'features/sound-settings/controller.js', '/features/sound-settings/view.js': 'features/sound-settings/view.js' };
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';
@@ -173,5 +190,5 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
     })();
     return closeJob;
   }
-  return { dispatch, whale, watcher, close };
+  return { dispatch, whale, watcher, soundSettings, close };
 }

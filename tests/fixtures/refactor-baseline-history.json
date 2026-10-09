@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "description": "Synthetic session history for architecture regression checks; contains no user data or credentials.",
+  "sessions": [
+    {
+      "id": "fixture-main",
+      "events": [
+        { "type": "session_meta", "payload": { "id": "fixture-main", "session_id": "fixture-main", "source": "vscode" } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:00.000Z", "payload": { "type": "task_started", "turn_id": "fixture-turn" } },
+        { "type": "turn_context", "payload": { "turn_id": "fixture-turn", "root_turn_id": "fixture-turn", "model": "fixture-model" } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:01.000Z", "payload": { "type": "token_count", "info": { "total_token_usage": { "input_tokens": 120, "cached_input_tokens": 20, "output_tokens": 30 }, "last_token_usage": { "input_tokens": 120, "cached_input_tokens": 20, "output_tokens": 30 } } } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:02.000Z", "payload": { "type": "task_complete", "turn_id": "fixture-turn" } }
+      ]
+    },
+    {
+      "id": "fixture-child",
+      "events": [
+        { "type": "session_meta", "payload": { "id": "fixture-child", "session_id": "fixture-child", "source": "subagent", "thread_source": "subagent", "parent_thread_id": "fixture-main" } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:00.500Z", "payload": { "type": "task_started", "turn_id": "fixture-child-turn" } },
+        { "type": "turn_context", "payload": { "turn_id": "fixture-child-turn", "root_turn_id": "fixture-turn", "model": "fixture-model" } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:01.500Z", "payload": { "type": "token_count", "info": { "total_token_usage": { "input_tokens": 25, "cached_input_tokens": 0, "output_tokens": 5 }, "last_token_usage": { "input_tokens": 25, "cached_input_tokens": 0, "output_tokens": 5 } } } },
+        { "type": "event_msg", "timestamp": "2026-10-01T01:00:01.800Z", "payload": { "type": "task_complete", "turn_id": "fixture-child-turn" } }
+      ]
+    }
+  ]
+}

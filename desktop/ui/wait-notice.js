@@ -1,64 +1,112 @@
-(() => {
-  'use strict';
-  const waitUrl = '/dsh-whale/wait.json';
-  const usageUrl = '/dsh-whale/usage-settings.json';
-  let activeId = '', dismissedId = '', settings = null, settingsAt = 0, timer = 0;
-  const read = async url => {
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok || data.ok === false) throw Error(data.error || '读取失败');
-    return data;
-  };
-  const soundUrl = value => {
-    value = String(value || '');
-    if (value.startsWith('grp:')) return '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(value.slice(4));
-    if (value.startsWith('frag:')) return '/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(value.slice(5));
-    if (value.startsWith('preset:')) {
-      const [, group, event] = value.split(':');
-      return '/dsh-whale/sound/' + (event === 'release' ? 'release' : 'press') + '.mp3?set=' + encodeURIComponent(group);
-    }
-    return '';
-  };
-  function play(cfg) {
-    const url = soundUrl(cfg.sel); if (!url) return;
-    if (window.WhaleAudio) window.WhaleAudio.play({ channel: 'notice', url, volume: Math.max(0, Math.min(1, Number(cfg.vol) || 0)) });
-    else { const audio = new Audio(url); audio.volume = Math.max(0, Math.min(1, Number(cfg.vol) || 0)); audio.play().catch(() => {}); }
+import { requestJson } from './services/request.js';
+import { normalizeVolume, soundReferenceUrl } from './services/sound-reference.js';
+
+export class WaitNoticeController {
+  constructor(options = {}) {
+    this.window = options.windowRef || window;
+    this.request = options.request || requestJson;
+    this.usage = options.legacyUsage || (() => this.window.WhaleLegacyUsage);
+    this.schedule = options.schedule || ((fn, delay) => this.window.setTimeout(fn, delay));
+    this.cancelSchedule = options.cancelSchedule || (id => this.window.clearTimeout(id));
+    this.settings = null;
+    this.settingsAt = 0;
+    this.activeId = '';
+    this.dismissedId = '';
+    this.timer = 0;
+    this.started = false;
+    this.disposed = false;
+    this.abortController = new AbortController();
+    this.onDismissed = event => { this.dismissedId = String(event.detail?.id || this.activeId || ''); };
+    this.onSettings = event => {
+      this.settings = event.detail?.usage || null;
+      this.settingsAt = this.settings ? Date.now() : 0;
+      if (this.activeId && this.dismissedId !== this.activeId) this.usage()?.hideWait?.(this.activeId);
+      this.activeId = '';
+    };
   }
-  async function tick() {
+
+  start() {
+    if (this.started || this.disposed) return this;
+    this.started = true;
+    this.window.addEventListener('whale-wait-dismissed', this.onDismissed);
+    this.window.addEventListener('whale-sound-settings-applied', this.onSettings);
+    this.tick();
+    return this;
+  }
+
+  play(config) {
+    const url = soundReferenceUrl(config.sel);
+    if (!url) return;
+    const volume = normalizeVolume(config.vol, 1);
+    if (this.window.WhaleAudio) this.window.WhaleAudio.play({ channel: 'notice', url, volume });
+    else {
+      const audio = new this.window.Audio(url);
+      audio.volume = volume;
+      audio.play().catch(() => {});
+    }
+  }
+
+  async tick() {
+    if (this.disposed) return;
     try {
       const now = Date.now();
-      if (!settings || now - settingsAt > 3000) {
-        const usage = await read(usageUrl); settings = usage.settings || {}; settingsAt = now;
+      if (!this.settings || now - this.settingsAt > 3000) {
+        const snapshot = await this.request('/api/sound-settings', { signal: this.abortController.signal });
+        this.settings = snapshot.usage || {};
+        this.settingsAt = now;
       }
-      const state = await read(waitUrl), pending = state.pending;
+      const state = await this.request('/dsh-whale/wait.json', { signal: this.abortController.signal });
+      if (this.disposed) return;
+      const pending = state.pending;
       if (!pending) {
-        if (activeId) window.WhaleLegacyUsage?.hideWait?.(activeId);
-        activeId = ''; dismissedId = '';
+        if (this.activeId) this.usage()?.hideWait?.(this.activeId);
+        this.activeId = '';
+        this.dismissedId = '';
       } else {
-        const cfg = settings.events?.[pending.kind] || {};
-        if (pending.id !== activeId) {
-          if (activeId) window.WhaleLegacyUsage?.hideWait?.(activeId);
-          activeId = pending.id;
-          if (dismissedId !== activeId && cfg.on !== false) {
-            if (cfg.soundOn === true) play(cfg);
-            if (cfg.bubbleOn !== false) window.WhaleLegacyUsage?.showWait?.({
-              id: activeId, kind: pending.kind, sessionLabel: pending.sessionLabel || '当前对话',
-              lines: cfg.lines, closeOnRole: settings.wait?.charClose === true,
+        const config = this.settings.events?.[pending.kind] || {};
+        if (pending.id !== this.activeId) {
+          if (this.activeId) this.usage()?.hideWait?.(this.activeId);
+          this.activeId = pending.id;
+          if (this.dismissedId !== this.activeId && config.on !== false) {
+            if (config.soundOn === true) this.play(config);
+            if (config.bubbleOn !== false) this.usage()?.showWait?.({
+              id: this.activeId,
+              kind: pending.kind,
+              sessionLabel: pending.sessionLabel || '当前对话',
+              lines: config.lines,
+              closeOnRole: this.settings.wait?.charClose === true,
             });
           }
-        } else if (cfg.on === false || cfg.bubbleOn === false) {
-          window.WhaleLegacyUsage?.hideWait?.(activeId);
+        } else if (config.on === false || config.bubbleOn === false) {
+          this.usage()?.hideWait?.(this.activeId);
         }
       }
-    } catch (_) {}
-    timer = window.setTimeout(tick, document.hidden ? 2500 : 900);
+    } catch (error) {
+      if (this.disposed || error?.kind === 'aborted') return;
+    }
+    this.timer = this.schedule(() => this.tick(), this.window.document.hidden ? 2500 : 900);
   }
-  window.addEventListener('whale-wait-dismissed', event => { dismissedId = String(event.detail?.id || activeId || ''); });
-  window.addEventListener('whale-sound-settings-applied', () => {
-    settingsAt = 0;
-    if (activeId && dismissedId !== activeId) window.WhaleLegacyUsage?.hideWait?.(activeId);
-    activeId = '';
-  });
-  window.addEventListener('beforeunload', () => clearTimeout(timer), { once: true });
-  tick();
-})();
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.abortController.abort();
+    if (this.timer) this.cancelSchedule(this.timer);
+    this.window.removeEventListener('whale-wait-dismissed', this.onDismissed);
+    this.window.removeEventListener('whale-sound-settings-applied', this.onSettings);
+  }
+}
+
+export function startWaitNotice(options) {
+  return new WaitNoticeController(options).start();
+}
+
+let controller = null;
+function start() { controller ||= startWaitNotice(); }
+function dispose() { controller?.dispose(); controller = null; }
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+  window.addEventListener('beforeunload', dispose, { once: true });
+}

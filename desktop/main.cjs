@@ -278,7 +278,14 @@ else {
     window.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) recoverRenderer('load-' + code); });
     markStartup('windowCreated');
     window.once('ready-to-show', () => markStartup('frameReady'));
-    if (fixture) window.webContents.on('console-message', (_event, ...args) => { const d = args[0]; if (typeof d === 'object' ? d.level === 'error' : d === 3) rendererErrors.push(typeof d === 'object' ? d.message : args[1]); });
+    if (fixture) window.webContents.on('console-message', (_event, ...args) => {
+      const detail = args[0];
+      if (typeof detail === 'object' ? detail.level === 'error' : detail === 3) {
+        rendererErrors.push(typeof detail === 'object'
+          ? detail.message + (detail.sourceId ? ` @ ${detail.sourceId}:${detail.lineNumber || 0}` : '')
+          : args[1] + (args[3] ? ` @ ${args[3]}:${args[2] || 0}` : ''));
+      }
+    });
     if (!fixture) process.stdout.write(JSON.stringify({ overlayHandle: window.getNativeWindowHandle().readBigUInt64LE().toString() }) + '\n');
     window.setIgnoreMouseEvents(true, { forward: !usesWindowShape });
     window.on('show', () => { diagnose('window-shown'); invalidate(); sendCursor(true); });

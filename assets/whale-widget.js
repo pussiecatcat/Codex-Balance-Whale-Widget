@@ -390,6 +390,7 @@
     var usageRecBtn = document.createElement('button');
     usageRecBtn.type = 'button';
     usageRecBtn.className = 'dshwv-roleimport';
+    usageRecBtn.dataset.action = 'toggle-usage-records';
     usageRecBtn.textContent = '- = 小龙娘记账 = -';
     usageRecBtn.title = '打开小龙娘记账';
     usageRecBtn.addEventListener('click', function (e) {
@@ -965,6 +966,7 @@
     var apiSettingsBtn = document.createElement('button');
     apiSettingsBtn.type = 'button';
     apiSettingsBtn.className = 'dshwv-roleimport dshwv-api-open';
+    apiSettingsBtn.dataset.action = 'open-api-settings';
     apiSettingsBtn.dataset.accountApi = 'true';
     apiSettingsBtn.textContent = 'API 设置';
     apiSettingsBtn.addEventListener('click', function (e) {
@@ -1375,6 +1377,7 @@
       var add = document.createElement('button');
       add.type = 'button';
       add.className = 'dshwv-usage-more dshwv-book-add';
+      add.dataset.action = 'add-api-model';
       add.textContent = '＋ 添加模型（自定义 API）';
       add.addEventListener('click', function (event) {
         event.stopPropagation();
@@ -1387,7 +1390,7 @@
       usagePanel.appendChild(area);
       renderUsageModels(false);
     }
-    function usageAlertBudgetEditor(key, onSave, customConfig) {
+    function usageAlertBudgetEditor(key, onSave, customConfig, onCancel) {
       try {
         var isCost = key === 'turnCost';
         var isAlert = key === 'alert';
@@ -1561,7 +1564,8 @@
         });
         var btns = document.createElement('div');
         btns.className = 'dshwv-bubbtns';
-        function cleanup() {
+        var editorCompleted = false;
+        function cleanup(outcome) {
           try {
             WhaleMoney.clearBindings(mask);
             document.body.removeChild(mask);
@@ -1584,6 +1588,10 @@
             }
             window.__dshwRemindMask = null;
           } catch (err) {}
+          if (!editorCompleted) {
+            editorCompleted = true;
+            if (outcome !== 'saved' && onCancel) onCancel();
+          }
         }
         var noBtn = document.createElement('button');
         noBtn.type = 'button';
@@ -1617,7 +1625,7 @@
             ttlSec: isCost && !acChk.checked ? 0 : Math.max(0, Number(secInp.value) || 0)
           };
           if (!isCost && !isWait) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
-          cleanup();
+          cleanup('saved');
           if (onSave) onSave(o);
         });
         btns.appendChild(okBtn);
@@ -1890,6 +1898,7 @@
       var more = document.createElement('button');
       more.type = 'button';
       more.className = 'dshwv-usage-more dshwv-usage-history';
+      more.dataset.action = 'open-usage-history';
       more.textContent = '更多消费记录…';
       more.title = '打开窗口查看全部有记录的消费';
       more.addEventListener('click', function (e) {
@@ -10853,6 +10862,7 @@
       });
     }
     var editingAudioGroupId = null;
+    var audioEditorSession = null;
     var activeSlotPanel = null;
     function audioSlotValue(slot) {
       return slot === 'press' ? audioEditPressVal || 'ya1' : audioEditReleaseVal || 'ya2';
@@ -10979,11 +10989,35 @@
         });
       } catch (err) {}
     }
-    function hideAudioEditor() {
+    function hideAudioEditor(outcome, detail) {
       stopAudioEditPreview();
       audioEditMask.style.display = 'none';
       editingAudioGroupId = null;
       closeAudioSlotPanels();
+      if (audioEditorSession) {
+        var session = audioEditorSession;
+        audioEditorSession = null;
+        audioEditMask.style.zIndex = session.zIndex;
+        session.resolve(outcome === 'saved' ? Object.assign({ status: 'saved' }, detail || {}) : { status: 'cancelled' });
+      }
+    }
+    function openAudioEditorForFeature(options) {
+      options = options || {};
+      if (audioEditorSession) {
+        var previous = audioEditorSession;
+        audioEditorSession = null;
+        audioEditMask.style.zIndex = previous.zIndex;
+        previous.resolve({ status: 'cancelled' });
+      }
+      var group = null;
+      if (options.groupId) {
+        for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === options.groupId) group = audioGroups[i];
+      }
+      return new Promise(function (resolve) {
+        audioEditorSession = { resolve: resolve, zIndex: audioEditMask.style.zIndex };
+        audioEditMask.style.zIndex = '27000';
+        openAudioGroupEditor(group);
+      });
     }
     var audioEditPreviewEl = null;
     var audioEditPreviewRelease = null;
@@ -11127,7 +11161,10 @@
         }).then(function (d) {
           requireSaved(d);
           if (d && d.ok && Array.isArray(d.groups)) {
+            var openedFromFeature = !!audioEditorSession;
+            var selectedGroupId = editingAudioGroupId || '';
             audioGroups = d.groups;
+            if (Array.isArray(d.fragments)) audioFragments = d.fragments;
             renderAudioGroupPanel();
             refreshTaskEndAfterAudio();
             if (!editingAudioGroupId) {
@@ -11136,13 +11173,19 @@
               }).sort(function (a, b) {
                 return (b.pinnedAt || 0) - (a.pinnedAt || 0);
               })[0];
-              if (newest) setSoundSet(newest.id);
-            } else if (soundSet === editingAudioGroupId) {
+              if (newest) {
+                selectedGroupId = newest.id;
+                if (!openedFromFeature) setSoundSet(newest.id);
+              }
+            } else if (!openedFromFeature && soundSet === editingAudioGroupId) {
               try {
                 applySoundSet();
               } catch (err) { assetFailure(err); }
             }
-            hideAudioEditor();
+            hideAudioEditor('saved', {
+              selectedGroupId: selectedGroupId,
+              catalog: { groups: audioGroups.slice(), fragments: audioFragments.slice() }
+            });
           }
         }).catch(assetFailure);
       } catch (err) { assetFailure(err); }
@@ -11974,8 +12017,9 @@
       localStorage.setItem('dshw-pos', JSON.stringify({v:2,hAnchor:'right',hDist:12,vAnchor:'bottom',vDist:12}));
       applyAnchorPos(); settle();
     });
-    window.addEventListener('whale-sound-settings-applied', function (event) {
-      var saved = event.detail || {};
+    function applySoundSettingsSnapshot(snapshot) {
+      snapshot = snapshot || {};
+      var saved = snapshot.size || snapshot;
       soundOn = saved.sound !== false;
       soundVol = Math.max(0, Math.min(1, Number(saved.vol) || 0));
       soundSet = saved.soundSet || 'duck';
@@ -11985,12 +12029,19 @@
       setAudioBtnText(audioGroupName(soundSet)); applySoundSet();
       turnCostToggle.checked = turnCostOn;turnCostCloseInput.disabled = !turnCostOn;
       turnCostCloseInput.value = String(Math.round(turnCostCloseMs / 1000));
-      usageSet = usageSet || {};
-      usageSet.taskEnd = saved.taskEnd || usageSet.taskEnd || {};
+      if (snapshot.usage && typeof snapshot.usage === 'object') usageSet = snapshot.usage;
+      else {
+        usageSet = usageSet || {};
+        usageSet.taskEnd = saved.taskEnd || usageSet.taskEnd || {};
+      }
       taskEndToggle.checked = usageSet.taskEnd.on === true;
       taskEndSel.disabled = !taskEndToggle.checked;
       fillTaskEndOptions(usageSet.taskEnd);
       if (!turnCostOn) hideCostBubble();
+    }
+    window.addEventListener('whale-sound-settings-applied', function (event) {
+      if (event.detail && event.detail.schemaVersion === 1) return;
+      applySoundSettingsSnapshot(event.detail || {});
     });
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
@@ -12016,6 +12067,45 @@
       var detail = event.detail || {};
       usageAlertBudgetEditor('turnCost', detail.save, detail.config);
     });
+    var mountedSoundSettingsEntry = null;
+    var legacySoundRows = [row2, row3, row7, rowTaskEnd];
+    var legacySoundUi = Object.freeze({
+      mountMenuEntry: function (node) {
+        if (!node || !row2.parentNode) throw new Error('音效设置菜单尚未准备好');
+        if (mountedSoundSettingsEntry && mountedSoundSettingsEntry !== node) mountedSoundSettingsEntry.remove();
+        row2.parentNode.insertBefore(node, row2);
+        mountedSoundSettingsEntry = node;
+        for (var i = 0; i < legacySoundRows.length; i++) legacySoundRows[i].hidden = true;
+        var disposed = false;
+        return function () {
+          if (disposed) return;
+          disposed = true;
+          if (mountedSoundSettingsEntry === node) {
+            mountedSoundSettingsEntry = null;
+            node.remove();
+            for (var j = 0; j < legacySoundRows.length; j++) legacySoundRows[j].hidden = false;
+          }
+        };
+      },
+      audioEditor: Object.freeze({ open: openAudioEditorForFeature }),
+      promptEditor: Object.freeze({
+        open: function (options) {
+          options = options || {};
+          var kind = options.kind;
+          if (kind !== 'turnCost' && kind !== 'question' && kind !== 'approval') return Promise.reject(new Error('提示类型无效'));
+          return new Promise(function (resolve) {
+            usageAlertBudgetEditor(kind, function (config) {
+              resolve({ status: 'saved', config: config });
+            }, options.config, function () {
+              resolve({ status: 'cancelled' });
+            });
+          });
+        }
+      }),
+      applySettings: applySoundSettingsSnapshot
+    });
+    window.WhaleLegacySoundUi = legacySoundUi;
+    window.dispatchEvent(new CustomEvent('whale-legacy-sound-ready', { detail: legacySoundUi }));
     applySoundSet();
     setupHitTest(initRoleUrl);
     loadRoles();

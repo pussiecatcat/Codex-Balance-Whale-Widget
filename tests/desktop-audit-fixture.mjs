@@ -184,10 +184,11 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       fs.writeFileSync(path.join(output,'native-region.json'),JSON.stringify(region));
       checks.push('native Windows region excludes the empty Codex text area and includes the whale');
     }
-    await wait("!!document.querySelector('.whale-account-switch select')", 'visible account mode selector mounts after widget creation');
+    await wait("!!document.querySelector('.whale-account-switch .dshwv-custbtn')", 'visible account mode selector mounts after widget creation');
     for (const [x,y] of [[0,0],[520,0],[0,370],[520,370]]) {
       await ev(`window.__whaleRenderTest.place(${x},${y},false);document.querySelector('.dshwv-menu-btn').click()`); await delay(300);
-      assert.equal(await ev("(()=>{const r=document.querySelector('.dshwv-menu').getBoundingClientRect(),b=document.querySelector('.whale-account-switch select').getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.top>=r.top&&b.bottom<=r.bottom})()"),true,'corner menu and mode selector remain within viewport');
+      const geometry = await ev("(()=>{const r=document.querySelector('.dshwv-menu').getBoundingClientRect().toJSON(),b=document.querySelector('.whale-account-switch .dshwv-custbtn').getBoundingClientRect().toJSON();return {viewport:{width:innerWidth,height:innerHeight},menu:r,selector:b,ok:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.top>=r.top&&b.bottom<=r.bottom}})()");
+      assert.equal(geometry.ok,true,'corner menu and mode selector remain within viewport: '+JSON.stringify({position:{x,y},...geometry}));
       await ev("document.querySelector('.dshwv-menu-btn').click()");
     }
     await ev("document.querySelector('.dshwv-menu-btn').click()"); await delay(200);
@@ -201,19 +202,19 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("window.__shapeResizeStyle=document.createElement('style');__shapeResizeStyle.textContent='html.desktop .dshwv-menu{width:270px!important}';document.head.append(__shapeResizeStyle)");
     await wait("(()=>{const m=document.querySelector('.dshwv-menu').getBoundingClientRect();return __whaleShapeTest.status().rectangles.some(r=>r.x<=m.left&&r.y<=m.top&&r.x+r.width>=m.right&&r.y+r.height>=m.bottom)})()",'CSS-only layout changes update full native menu region');
     await ev("__shapeResizeStyle.remove()"); await delay(100);
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='API 设置').click()");
+    await ev("document.querySelector('[data-action=\"open-api-settings\"]').click()");
     await wait("document.querySelector('#settings-dialog').open",'settings entry opens');
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'an open dialog cannot intercept the transparent viewport corner');
     assert.equal(await ev("getComputedStyle(document.querySelector('#settings-dialog'),'::backdrop').backgroundColor"),'rgba(0, 0, 0, 0)');
     fs.writeFileSync(path.join(output,'api-settings.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('#settings-dialog').close();[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='查看 API 消费记录').click()");
-    await wait("document.querySelector('.dshwv-usage-more')",'usage overview loaded'); await delay(300);
-    await ev("document.querySelector('.dshwv-usage-more').click()");
+    await ev("document.querySelector('#settings-dialog').close();document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
+    await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
+    await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
     await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'history modal loaded');
     assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-mask')).backgroundColor"),'rgba(0, 0, 0, 0)');
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'a modal mask cannot intercept the transparent viewport corner');
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('.dshwv-usage-close').click();[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent.includes('返回控制面板')).click()"); await delay(300);
+    await ev("document.querySelector('.dshwv-usage-close').click();document.querySelector('[data-action=\"toggle-usage-records\"]').click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
     for(const label of ['数据显示','角色','大小','音效与提示','自定义泡泡','币种','刷新汇率','吸附与翻转','资源管理','API 设置','桌面驻留','素材包导入/导出'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);

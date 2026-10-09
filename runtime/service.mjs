@@ -138,34 +138,50 @@ export class WhaleService {
     return { todayTokens: Object.values(byModel).reduce((n, row) => n + row.input_tokens + row.output_tokens, 0), byModel, date: dayKey(now), source: 'local-session-tokens' };
   }
   readUsageSettings() {
-    const saved = readJson(this.usageSettingsFile, {});
+    return this.resolveUsageSettings(readJson(this.usageSettingsFile, {}));
+  }
+  resolveUsageSettings(saved = {}) {
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error('用量设置格式无效');
     const defaults = usageDefaults();
     defaults.alert.lines.find(line => line.type === 'link').url = this.config.resolve().dashboardUrl;
-    for (const key of Object.keys(defaults)) defaults[key] = { ...defaults[key], ...saved[key] };
-    for (const kind of Object.keys(defaults.events)) {
-      defaults.events[kind] = { ...usageDefaults().events[kind], ...(saved.events?.[kind] || {}) };
+    const result = { ...saved };
+    for (const key of Object.keys(defaults)) {
+      const value = saved[key];
+      result[key] = { ...defaults[key], ...(value && typeof value === 'object' && !Array.isArray(value) ? value : {}) };
     }
-    delete defaults.outcomeNotice;
-    return defaults;
+    for (const kind of Object.keys(defaults.events)) result.events[kind] = { ...usageDefaults().events[kind], ...(saved.events?.[kind] || {}) };
+    delete result.outcomeNotice;
+    return result;
   }
-  writeUsageSettings(patch) {
+  validateUsageSettings(result) {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('用量设置格式无效');
+    for (const kind of ['press', 'turnCost', 'question', 'approval']) {
+      const event = result.events?.[kind];
+      if (!event || !Number.isFinite(Number(event.vol)) || Number(event.vol) < 0 || Number(event.vol) > 1) throw new Error('提示音量须在 0% 到 100% 之间');
+      event.vol = Number(event.vol);
+      if (event.lines !== undefined && (!Array.isArray(event.lines) || event.lines.length > 64)) throw new Error('提示内容格式无效');
+    }
+    for (const [key, field] of [['alert', 'below'], ['budget', 'amount']]) if (!Number.isFinite(Number(result[key]?.[field])) || Number(result[key][field]) < 0) throw new Error('提醒阈值须为非负数字');
+    return result;
+  }
+  prepareUsageSettings(patch, { base } = {}) {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('用量设置格式无效');
-    const result = this.readUsageSettings();
+    const result = this.resolveUsageSettings(base === undefined ? readJson(this.usageSettingsFile, {}) : base);
     for (const key of Object.keys(result)) if (key !== 'events' && patch[key] && typeof patch[key] === 'object') result[key] = { ...result[key], ...patch[key] };
     if (patch.events && typeof patch.events === 'object' && !Array.isArray(patch.events)) {
       for (const kind of Object.keys(result.events)) if (patch.events[kind] && typeof patch.events[kind] === 'object') {
         result.events[kind] = { ...result.events[kind], ...patch.events[kind] };
       }
     }
-    for (const kind of ['press', 'turnCost', 'question', 'approval']) {
-      const event = result.events[kind];
-      if (!Number.isFinite(Number(event.vol)) || Number(event.vol) < 0 || Number(event.vol) > 1) throw new Error('提示音量须在 0% 到 100% 之间');
-      event.vol = Number(event.vol);
-      if (event.lines !== undefined && (!Array.isArray(event.lines) || event.lines.length > 64)) throw new Error('提示内容格式无效');
-    }
-    for (const [key, field] of [['alert', 'below'], ['budget', 'amount']]) if (!Number.isFinite(Number(result[key][field])) || Number(result[key][field]) < 0) throw new Error('提醒阈值须为非负数字');
-    writeJson(this.usageSettingsFile, result);
+    return this.validateUsageSettings(result);
+  }
+  commitUsageSettings(settings, { fs } = {}) {
+    const result = this.validateUsageSettings(structuredClone(settings));
+    writeJson(this.usageSettingsFile, result, fs ? { fs } : undefined);
     return { ok: true, settings: result };
+  }
+  writeUsageSettings(patch, options) {
+    return this.commitUsageSettings(this.prepareUsageSettings(patch), options);
   }
   updateWait(meta) {
     if (!meta || meta.isSubagent || !meta.sessionId || !meta.id) return;
