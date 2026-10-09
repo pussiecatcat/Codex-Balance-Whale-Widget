@@ -20,6 +20,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     throw new Error('Timed out: ' + message);
   };
   try {
+    await ev("window.__auditRejections=[];addEventListener('unhandledrejection',event=>__auditRejections.push(String(event.reason?.stack||event.reason)))");
     const area = screen.getPrimaryDisplay().workArea;
     const dip = { x: area.x + 24, y: area.y + 24, width: 700, height: 550 };
     await setHost({ hostAlive: true, hostPid: 123456, window: '0', visible: true, attached: true, bounds: screen.dipToScreenRect(null, dip) });
@@ -101,18 +102,19 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-audiomask')].filter(m=>m.style.display==='flex').map(m=>m.querySelector('.dshwv-audiotitle')?.textContent).includes('新建音效组')"), true);
     await ev("[...document.querySelectorAll('.dshwv-audiomask')].find(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组').querySelector('.dshwv-cropbtn-no').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].some(b=>b.textContent==='会员额度详情')"), false);
+    await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='取消')?.click()");
     await ev(`(async()=>{const original=window.fetch;window.__quotaFetches=[];window.fetch=async input=>{
       const url=String(input);
       window.__quotaFetches.push(url);
-      if(url.startsWith('/api/insights'))return new Response(JSON.stringify({subscription:{source:'codex-app-server',planType:'plus',observedAt:Date.now(),windows:[
+      if(url.startsWith('/api/quota'))return new Response(JSON.stringify({subscription:{available:true,status:'ready',source:'codex-app-server',planType:'plus',observedAt:Date.now(),windows:[
         {windowDurationMins:300,usedPercent:36.4,resetsAt:Date.now()+4876000},
         {windowDurationMins:10080,usedPercent:21,resetsAt:Date.now()+392876000}
       ]}}),{status:200,headers:{'Content-Type':'application/json'}});
       if(url==='/api/pricing')return new Response(JSON.stringify({visible:false}),{status:200,headers:{'Content-Type':'application/json'}});
       return original(input);
-    };await WhaleQuota.refresh(true);window.fetch=original;
+    };window.__quotaMockFetch=window.fetch;await WhaleQuota.refresh(true);window.fetch=original;
     if(document.querySelector('.dshwv-menu')?.classList.contains('dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click();
-    document.querySelectorAll('#toast,.whale-toast,.toast').forEach(element=>element.remove());
+    document.querySelectorAll('#toast,.whale-toast,.toast').forEach(element=>element.hidden=true);
     window.__whaleRenderTest.place(140,140,false);
     window.__whaleRenderTest.scene([
       {type:'plan',quotaStyle:'header',tpl:'{plan_name}'},
@@ -126,10 +128,28 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       {tone:'steady',label:'每周',fill:'79%'}
     ]);
     assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.includes(':')));
-    assert.ok(await ev("window.__quotaFetches.includes('/api/insights?refresh=1')"));
+    assert.ok(await ev("window.__quotaFetches.includes('/api/quota?refresh=1')"));
     await delay(500);
     fs.writeFileSync(path.join(output, 'quota-tide.png'), (await window.webContents.capturePage()).toPNG());
     checks.push('Codex five-hour and weekly quota render as compact tide gauges with live percentages, reset countdowns and accessible labels');
+    await ev(`(async()=>{const original=window.fetch;window.fetch=async()=>{throw Error('offline fixture')};await WhaleQuota.refresh(true);window.fetch=original;})()`);
+    assert.equal(await ev("[...document.querySelectorAll('.dshwv-quota-meter-number')].map(e=>e.textContent).join(',')"),'63.6,79');
+    assert.ok(await ev("[...document.querySelectorAll('.dshwv-quota-meter-reset-label')].every(e=>e.textContent.startsWith('上次'))"));
+    fs.writeFileSync(path.join(output, 'quota-offline.png'), (await window.webContents.capturePage()).toPNG());
+    await ev(`(async()=>{const original=window.fetch;window.fetch=window.__quotaMockFetch;await WhaleQuota.refresh(true);window.fetch=original;})()`);
+    assert.ok(await ev("[...document.querySelectorAll('.dshwv-quota-meter-reset-label')].every(e=>e.textContent.includes('更新'))"));
+    checks.push('temporary quota failure keeps both visible percentages with an explicit last-data label; recovery restores the live timestamp');
+    if (process.env.WHALE_QUOTA_AUDIT === '1') {
+      await ev(`(async()=>{window.__originalQuotaFetch=window.fetch;window.fetch=window.__quotaMockFetch;
+        __whaleRenderTest.close();await new Promise(r=>setTimeout(r,350));window.__quotaFetches=[];
+        __whaleRenderTest.open();await WhaleQuota.refresh(false);__whaleRenderTest.open();__whaleRenderTest.open();})()`);
+      assert.equal(await ev("__quotaFetches.filter(url=>url==='/api/quota?refresh=1').length"),1);
+      await ev('window.fetch=window.__originalQuotaFetch;void 0');
+      assert.deepEqual(await ev('window.__auditRejections'), []);
+      checks.push('actual renderer opens query once, repeated petting does not duplicate it');
+      fs.writeFileSync(path.join(output, 'desktop-audit.json'), JSON.stringify({ ok: true, scope: 'quota-only', checks }, null, 2));
+      app.quit(); return;
+    }
     await ev("window.__whaleRenderTest.close()"); await delay(320);
     await ev("WhaleAccountView.setMode('api')");
     await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='素材包导入/导出').click()"); await delay(100);
@@ -252,7 +272,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     app.quit();
   } catch (error) {
     const dialogs=await ev("[...document.querySelectorAll('dialog')].map(d=>({open:d.open,text:d.textContent.slice(0,1800)}))").catch(()=>[]);
-    fs.writeFileSync(path.join(output, 'desktop-audit.json'), JSON.stringify({ ok: false, checks, error: error.message, errors, dialogs, dataDir }, null, 2));
+    const rejections = await ev('window.__auditRejections || []').catch(()=>[]);
+    fs.writeFileSync(path.join(output, 'desktop-audit.json'), JSON.stringify({ ok: false, checks, error: error.message, errors, rejections, dialogs, dataDir }, null, 2));
     throw error;
   }
 }

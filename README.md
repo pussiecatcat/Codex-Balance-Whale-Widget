@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261009-bubble-open-refresh`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261009-quota-reliable`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -14,10 +14,12 @@
 
 - 通过本机 `codex app-server` 的 `account/rateLimits/read` 读取当前登录账号提供的额度窗口。
 - 自动识别五小时与每周额度，用双色“潮汐卡片”显示剩余百分比、水位进度珠和逐秒更新的重置倒计时。
-- 每次点击角色打开气泡都会跳过 30 秒快照缓存并强制读取官方额度；气泡先显示现有快照，读取完成后原地更新。手动刷新同样强制读取，每轮对话结束后还会在 1.5 秒与 8 秒各同步一次。
-- 卡片显示本次官方快照的更新时间；官方返回小数百分比时保留一位，官方只返回整数时不虚构额外精度。
-- 额度读取失败时回退到本机会话里的 `rate_limits` 事件；两种来源都不可用时明确显示“未观测”。
-- 数据过期、重置时间异常或扫描不完整时给出状态说明，不用 token 数虚构官方剩余额度。
+- 订阅模式启动后即预取，气泡关闭时约每 30 秒更新，打开期间约每 10 秒更新；点击角色打开气泡与手动刷新都会绕过缓存强制读取。
+- 复用本机 app-server 连接，瞬时故障重连重试一次；额度查询独立于本机会话扫描，先显示已有数据，读取完成后原地更新。
+- 每轮对话结束后在 0、3、8、15 秒触发同步，网络恢复时立即刷新；并发请求合并，持续失败时逐步延长重试间隔。
+- 卡片显示“正在同步”、成功接收时间或“上次数据”；官方返回小数百分比时保留一位，不虚构额外精度。接收时间不代表服务端重新结算的时间。
+- 查询失败保留上次成功的额度和原始时间；没有成功记录时才尝试本机 `rate_limits` 记录。确实没有数据时显示等待同步或具体状态，绝不以 0% 替代未知。
+- 数据过期或跨重置时间时保留明确标注的历史数值，不推算新额度；退出、切换账号和登录失效时清除旧数据，避免串号。
 - 当前 Plus 登录已在 Windows 实机验证；额度数值会实时变化，因此仓库不保存个人额度快照。
 
 ### 原版风格的气泡交互
@@ -175,11 +177,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 ## 验证状态
 
-- 263 项 Node 单元测试通过。
-- Windows Electron 紧凑菜单与 DSH 四段式音效页面审查通过。
-- Windows 原生区域、透明穿透和焦点专项验证通过。
-- 完整桌面烟测通过，包括宿主遮挡以及 72 次跟随移动/缩放。
-- 当前 Plus 登录的五小时和每周额度直读已验证。
+- 本次 273 项 Node 单元测试全部通过。
+- 本次 9 项 Electron 额度专项检查通过，包含断网保留、恢复更新、开泡强刷与正常退出。
+- 本次真实查询能够返回五小时和每周窗口，同时观察到瞬时失败；耗时小样本不构成稳定速度或成功率保证。
+- 紧凑菜单、DSH 音效页面、Windows 原生区域、透明穿透、焦点和完整桌面烟测属于历史验证，本次未重跑完整验收。
 - macOS 实机、跨额度重置点刷新和长期多设备稳定性仍待验证。
 
 完整证据与限制见 [验证记录](docs/VERIFICATION-0.3.md)，原版报告逐项覆盖情况见 [DSH 功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)。
@@ -208,7 +209,7 @@ npm test
 构建公开发行包：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.17
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
 ```
 
 构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。
