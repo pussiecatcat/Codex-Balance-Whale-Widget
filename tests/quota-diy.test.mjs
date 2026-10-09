@@ -58,11 +58,11 @@ test('DIY quota module counts down independently and labels missing or stale dat
   assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, { windows: [] }, now), /未观测/);
   assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, {
     source: 'local-session', windows: [{ windowDurationMins: 300, usedPercent: 40, resetsAt: now + 10000, observedAt: now - 16 * 60000 }],
-  }, now), /未观测.*数据已过期/);
+  }, now), /60\.0%.*上次数据，待同步/);
   assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, {
     source: 'codex-app-server', observedAt: now - 3 * 60000,
     windows: [{ windowDurationMins: 300, usedPercent: 40, resetsAt: now + 10000 }],
-  }, now), /未观测.*数据已过期/);
+  }, now), /60\.0%.*上次数据，待同步/);
 });
 
 test('quota tide state exposes remaining percentage and urgency tone', () => {
@@ -83,6 +83,7 @@ test('quota tide state exposes remaining percentage and urgency tone', () => {
 
 test('forced Codex insight refresh bypasses the thirty-second snapshot cache', async t => {
   const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-insights-'));
+  await fs.writeFile(path.join(codexHome, 'auth.json'), JSON.stringify({ auth_mode: 'chatgpt', tokens: { account_id: 'fixture', access_token: 'fixture' } }));
   t.after(() => fs.rm(codexHome, { recursive: true, force: true }));
   let now = 1_790_000_000_000, calls = 0;
   const config = { codexHome, resolve: () => ({ accountId: 'fixture', id: 'openai', key: null,
