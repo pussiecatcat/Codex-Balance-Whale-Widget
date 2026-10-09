@@ -65,6 +65,7 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         return jsonResult(200,{ok:true,mode:input.mode});
       }
       if (url.pathname === '/api/insights' && method === 'GET') return jsonResult(200, await insights.get({force:url.searchParams.get('refresh')==='1'}));
+      if (url.pathname === '/api/quota' && method === 'GET') return jsonResult(200, await insights.getQuota({force:url.searchParams.get('refresh')==='1'}));
       if (url.pathname === '/dsh-whale/wait.json' && method === 'GET') return jsonResult(200, whale.waitStatus());
       if (url.pathname === '/api/pricing' && method === 'GET') return jsonResult(200, {ok:true,...pricingSchedule(whale.config.resolve())});
       if (url.pathname === '/api/reconcile') {

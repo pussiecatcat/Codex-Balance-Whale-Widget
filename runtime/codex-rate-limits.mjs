@@ -87,3 +87,102 @@ export function readCodexRateLimits({ codexHome, executable = findCodexExecutabl
     } } });
   });
 }
+
+// One bounded, private stdio connection per widget. No credentials or raw RPC
+// errors leave the reader, and a failed transport is discarded before retry.
+export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs = 5000,
+  idleMs = 90000, spawnImpl = spawn, clock = Date.now } = {}) {
+  let connection = null, nextId = 1, idleTimer = null, closed = false;
+  const error = code => Object.assign(new Error('Codex 额度查询暂不可用'), { code });
+  function destroy(own, reason = error('UNAVAILABLE')) {
+    if (!own || own.dead) return;
+    own.dead = true;
+    if (connection === own) connection = null;
+    for (const job of own.jobs.values()) job.reject(reason);
+    own.jobs.clear();
+    own.child.stdin.destroy();
+    own.child.kill();
+  }
+  function rpc(own, method, params, signal) {
+    return new Promise((resolve, reject) => {
+      if (own.dead || signal?.aborted) return reject(error('ABORTED'));
+      const id = nextId++;
+      const finish = (failure, value) => {
+        clearTimeout(timer); signal?.removeEventListener('abort', abort);
+        own.jobs.delete(id); failure ? reject(failure) : resolve(value);
+      };
+      const abort = () => destroy(own, error('ABORTED'));
+      const timer = setTimeout(() => destroy(own, error('TIMEOUT')), timeoutMs);
+      timer.unref?.();
+      signal?.addEventListener('abort', abort, { once: true });
+      own.jobs.set(id, { resolve: value => finish(null, value), reject: failure => finish(failure) });
+      try { own.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); }
+      catch { destroy(own); }
+    });
+  }
+  function connect(signal) {
+    if (connection) return connection;
+    const child = spawnImpl(executable || findCodexExecutable(), ['app-server', '--stdio'], {
+      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
+      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
+    });
+    const own = { child, jobs: new Map(), dead: false, ready: null };
+    connection = own;
+    let buffer = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', chunk => {
+      if (own.dead) return;
+      buffer += chunk;
+      if (buffer.length > 2 * 1024 * 1024) return destroy(own);
+      let end;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
+        let message; try { message = JSON.parse(line); } catch { continue; }
+        const job = own.jobs.get(message.id);
+        if (!job) continue;
+        if (message.error) {
+          const authError = message.error.code === 401 || /unauthori[sz]ed|not authenticated|not logged in|requires.*login|authentication.*required|401\b/i.test(message.error.message || '');
+          job.reject(error(authError ? 'AUTH_REQUIRED' : 'UNAVAILABLE'));
+        } else if (message.result == null) job.reject(error('UNAVAILABLE'));
+        else job.resolve(message.result);
+      }
+    });
+    child.once('error', () => destroy(own));
+    child.once('close', () => destroy(own));
+    child.stdin.on('error', () => destroy(own));
+    own.ready = rpc(own, 'initialize', { clientInfo: {
+      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: '0.3.0',
+    } }, signal).then(() => {
+      if (own.dead) throw error('UNAVAILABLE');
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }) + '\n');
+    });
+    return own;
+  }
+  async function read({ signal } = {}) {
+    clearTimeout(idleTimer);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (closed || signal?.aborted) throw error('ABORTED');
+      let own;
+      try {
+        own = connect(signal); await own.ready;
+        const result = await rpc(own, 'account/rateLimits/read', {}, signal);
+        if (closed || own.dead || signal?.aborted) throw error('ABORTED');
+        const observedAt = clock();
+        return { windows: quotaFromAppServer(result, observedAt), observedAt,
+          planType: result.rateLimitsByLimitId?.codex?.planType || result.rateLimits?.planType || null };
+      } catch (failure) {
+        destroy(own);
+        if (closed || signal?.aborted || ['AUTH_REQUIRED', 'ABORTED'].includes(failure.code) || attempt === 1) throw failure;
+      } finally {
+        clearTimeout(idleTimer);
+        if (!closed && connection) {
+          const current = connection;
+          idleTimer = setTimeout(() => { if (!current.jobs.size) destroy(current); }, idleMs);
+          idleTimer.unref?.();
+        }
+      }
+    }
+  }
+  return { read, reset() { clearTimeout(idleTimer); destroy(connection, error('ABORTED')); },
+    close() { closed = true; clearTimeout(idleTimer); destroy(connection, error('ABORTED')); } };
+}

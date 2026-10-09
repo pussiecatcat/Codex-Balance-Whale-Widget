@@ -55,10 +55,11 @@
     const minutes = module?.windowDurationMins === 10080 ? 10080 : 300;
     const item = subscription?.windows?.find(value => value.windowDurationMins === minutes);
     const resetExpired = item && Number.isFinite(item.resetsAt) && timeValue(item.resetsAt) <= now;
-    const expired = item && (item.stale || resetExpired ||
+    const expired = item && (subscription?.stale || item.stale || resetExpired ||
       subscription?.source === 'local-session' && now - item.observedAt > 15 * 60000 ||
       subscription?.source === 'codex-app-server' && now - subscription.observedAt > 2 * 60000);
-    const valid = item && validPercent(item.usedPercent) && !expired;
+    // An old observation remains useful, but must never masquerade as a live value.
+    const valid = item && validPercent(item.usedPercent);
     const left = valid ? Math.max(0, 100 - item.usedPercent) : null;
     const observedAt = item?.observedAt || subscription?.observedAt || null;
     const map = {
@@ -69,13 +70,13 @@
       quota_updated_at: snapshotAt(observedAt),
       quota_source: subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : subscription?.source === 'local-session' ? '本机会话记录' : '正在读取额度',
     };
-    const tone = !valid ? 'unknown' : left <= 15 ? 'critical' : left <= 35 ? 'caution' : 'steady';
+    const tone = !valid || expired ? 'unknown' : left <= 15 ? 'critical' : left <= 35 ? 'caution' : 'steady';
     return { minutes, item, observedAt, expired, valid, left, map, tone };
   }
   function quotaText(module, subscription, now = Date.now()) {
     const state = quotaState(module, subscription, now);
     const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
-    return result + (state.expired ? '（数据已过期）' : '');
+    return result + (state.expired ? '（上次数据，待同步）' : '');
   }
   function planName(type) {
     const key = String(type || '').toLowerCase();
@@ -104,6 +105,7 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null, settledTimers = [];
+  let active = false, stopped = false, revision = 0, failures = 0, syncing = false, syncStatus = '', pricingAt = 0;
   const bindings = new Map();
   function ensureQuotaMeter(element) {
     if (element.querySelector('.dshwv-quota-meter-head')) return;
@@ -153,8 +155,10 @@
     number.textContent = percentNumber(state.left);
     unit.hidden = !state.valid;
     fill.style.width = state.valid ? Math.max(0, Math.min(100, state.left)) + '%' : '0%';
-    resetLabel.textContent = state.item ? snapshotAt(state.observedAt) + ' 更新' : '状态';
-    reset.textContent = state.expired ? '额度待刷新' : state.item ? '重置 ' + countdown(state.item.resetsAt) : '等待同步';
+    resetLabel.textContent = syncing ? '正在同步…' : state.expired ? '上次 ' + snapshotAt(state.observedAt) :
+      state.item ? snapshotAt(state.observedAt) + ' 更新' : '状态';
+    reset.textContent = state.item ? '重置 ' + countdown(state.item.resetsAt) : syncStatus || '首次同步中…';
+    element.title = state.expired ? '显示上次成功取得的额度；当前数值待同步。' : syncStatus;
     const spokenValue = state.valid ? percentNumber(state.left) + '%' : '未观测';
     element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + '，' + reset.textContent);
   }
@@ -165,9 +169,8 @@
       else element.textContent = moduleText(module, subscription, pricing);
       if (module?.type === 'peak' || module?.type === 'nextpeak') applyPeakStyle(element, module, pricing);
       element.title = module?.type === 'peak' || module?.type === 'nextpeak' ? (pricing?.note || 'DeepSeek 峰谷时段') :
-        subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : '本机会话额度记录';
+        (subscription?.stale ? '上次成功数据 · ' : '') + (syncStatus || '正在同步额度');
     }
-    if (!bindings.size && ticker) { clearInterval(ticker); ticker = null; }
   }
   function applyPeakStyle(element, module, pricing) {
     if (!pricing?.visible || pricing.phase === 'unknown') return;
@@ -186,47 +189,82 @@
     row.style.borderRadius = '7px'; row.style.fontVariantNumeric = 'tabular-nums';
   }
   async function refresh(force = false) {
+    if (stopped) return subscription;
     if (pending) {
       if (!force || pending.force) return pending.promise;
-      return pending.promise.then(() => refresh(true));
+      const queuedRevision = revision;
+      return pending.promise.then(() => queuedRevision === revision ? refresh(true) : subscription);
     }
-    if (!force && Date.now() - fetchedAt < 30000 && !(pricing?.nextChangeAt && pricing.nextChangeAt <= Date.now() && Date.now() - fetchedAt >= 1000)) return subscription;
-    const current = { force, promise: null };
+    const interval = failures ? Math.min(30000, 3000 * 2 ** (failures - 1)) : bindings.size ? 10000 : 30000;
+    if (!force && fetchedAt && Date.now() - fetchedAt < interval) return subscription;
+    const ownRevision = revision, current = { force, promise: null, abort: new AbortController() };
+    syncing = true; paint();
     current.promise = (async () => {
+      const timeout = setTimeout(() => current.abort.abort(), 22000);
       try {
-        const [insightResponse, pricingResponse] = await Promise.all([
-          fetch('/api/insights' + (force ? '?refresh=1' : ''), { cache: 'no-store' }), fetch('/api/pricing', { cache: 'no-store' })
-        ]);
-        if (insightResponse.ok) { const data = await insightResponse.json(); subscription = data.subscription || null; }
-        if (pricingResponse.ok) { const data = await pricingResponse.json(); pricing = data || null; }
-        fetchedAt = Date.now();
-      } catch { fetchedAt = Date.now(); }
-      paint();
+        const response = await fetch('/api/quota' + (force ? '?refresh=1' : ''), { cache: 'no-store', signal: current.abort.signal });
+        if (!response.ok) throw Error('unavailable');
+        const data = await response.json();
+        if (ownRevision !== revision || stopped) return subscription;
+        if (!data.subscription || data.ok === false) throw Error('unavailable');
+        const before = JSON.stringify(subscription?.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
+        subscription = data.subscription;
+        const after = JSON.stringify(subscription.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
+        const failed = ['stale', 'error'].includes(subscription.status);
+        failures = failed ? Math.min(5, failures + 1) : 0;
+        syncStatus = failed ? '同步失败，稍后重试' : subscription.status === 'unauthenticated' ? '请登录 Codex' :
+          !subscription.available ? subscription.reason || '暂无额度窗口' : before === after ? '已同步，额度未变化' : '额度已更新';
+      } catch {
+        if (ownRevision !== revision || stopped) return subscription;
+        failures = Math.min(5, failures + 1);
+        if (subscription) subscription = { ...subscription, stale: true };
+        syncStatus = '同步失败，稍后重试';
+      } finally {
+        clearTimeout(timeout);
+        if (ownRevision === revision) { fetchedAt = Date.now(); syncing = false; paint(); }
+      }
       return subscription;
     })().finally(() => { if (pending === current) pending = null; });
     pending = current;
+    // Pricing has its own cadence and cannot block quota rendering.
+    if (!pricingAt || Date.now() - pricingAt >= 60000) {
+      pricingAt = Date.now();
+      fetch('/api/pricing', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data && ownRevision === revision && !stopped) { pricing = data; paint(); }
+      }).catch(() => {});
+    }
     return current.promise;
   }
   function bind(element, module) {
     bindings.set(element, module);
     if (module?.type === 'quota' && module?.quotaStyle === 'meter' && !module?.apiModelId) paintQuotaMeter(element, module);
     else element.textContent = moduleText(module, subscription, pricing);
-    if (!ticker) ticker = setInterval(() => { paint(); if (bindings.size) refresh(); }, 1000);
+    startTicker();
     refresh();
   }
   function clearBindings(root) {
     for (const element of bindings.keys()) if (element === root || root.contains(element)) bindings.delete(element);
-    if (!bindings.size && ticker) { clearInterval(ticker); ticker = null; }
   }
   function settled() {
     for (const timer of settledTimers) clearTimeout(timer);
-    settledTimers = [1500, 8000].map(delay => setTimeout(() => refresh(true), delay));
+    settledTimers = [0, 3000, 8000, 15000].map(delay => setTimeout(() => refresh(true), delay));
+  }
+  function startTicker() {
+    if (!ticker && !stopped) ticker = setInterval(() => { paint(); if (active || bindings.size) refresh(); }, 1000);
   }
   window.addEventListener('whale-account-view', event => {
-    if (event.detail?.mode === 'subscription') return;
+    revision++; pending?.abort.abort(); pending = null; fetchedAt = 0; failures = 0; syncing = false;
+    active = event.detail?.mode === 'subscription'; subscription = null;
     for (const timer of settledTimers) clearTimeout(timer);
     settledTimers = [];
+    if (active) { startTicker(); refresh(true); }
+    else { clearInterval(ticker); ticker = null; paint(); }
   });
-  window.addEventListener('pagehide', () => { for (const timer of settledTimers) clearTimeout(timer); settledTimers = []; }, { once: true });
+  window.addEventListener('online', () => { if (active) refresh(true); });
+  window.addEventListener('focus', () => { if (active) refresh(); });
+  window.addEventListener('pagehide', () => {
+    stopped = true; revision++; pending?.abort.abort(); clearInterval(ticker);
+    for (const timer of settledTimers) clearTimeout(timer); settledTimers = [];
+  }, { once: true });
   window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, text: module => moduleText(module, subscription, pricing) };
 })();
