@@ -22,7 +22,7 @@ import { createBubbleNoticeQueue } from '/features/widget/bubble-notice-queue.js
 import { createBubbleInteraction } from '/features/widget/bubble-interaction.js';
 import { createAssetClient } from '/features/widget/asset-client.js';
 import { createResourceManager } from '/features/widget/resource-manager.js';
-import { createBubbleEditorView } from '/features/widget/bubble-editor-view.js';
+import { createBubbleEditorView, bubbleDropShadow } from '/features/widget/bubble-editor-view.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
 import { createCustomSelectController } from '/features/widget/custom-select.js';
@@ -1198,6 +1198,7 @@ import {
     var usageTurnCostLines = usageAlerts.usageTurnCostLines;
     var usageRemindLinesOf = usageAlerts.usageRemindLinesOf;
     var usageFillText = usageAlerts.usageFillText;
+    var usageAlertModsResolved = usageAlerts.usageAlertModsResolved;
     var checkUsageAlerts = usageAlerts.checkUsageAlerts;
     var showUsagePopup = usageAlerts.showUsagePopup;
     var usageAggModels = aggregateUsageModels;
@@ -1438,7 +1439,7 @@ import {
       qRow: qRow, qLabel: qLabel, bubbleFontEditRow: bubbleFontEditRow,
       qColorSelectBuild: qColorSelectBuild, renderBubblePv: renderBubblePv,
       qeditPlace: qeditPlace, getPreviewElement: function () { return bubblePvPrevEl; },
-      bubbleTplHelpToggle: bubbleTplHelpToggle
+      bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); }
     });
     var openQuickTextEditor = bubbleQuickEditors.openText;
     var openQuickModuleEditor = bubbleQuickEditors.openModule;

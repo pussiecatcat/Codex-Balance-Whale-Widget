@@ -226,5 +226,5 @@ export function createUsageAlerts(deps) {
     }
   return { usageTodayKeyStr, usageRemindDefaultLines, usageTurnCostDefaultLines,
     usageWaitDefaultLines, usageWaitLinesOf, usageTurnCostLines, usageRemindLinesOf,
-    usageFillText, checkUsageAlerts, showUsagePopup };
+    usageFillText, usageAlertModsResolved, checkUsageAlerts, showUsagePopup };
 }

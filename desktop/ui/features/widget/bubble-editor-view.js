@@ -3,6 +3,11 @@ import { addBubbleStep, deleteBubbleStep, moveBubbleStep, reorderBubbleStep, spl
   pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from './bubble-editor-commands.js';
 
 // Owns list rendering and the drag gesture; draft mutations live in commands.
+export function bubbleDropShadow(zone) {
+  return { before: '0 -3px 0 #203170', after: '0 3px 0 #203170',
+    pairL: 'inset 3px 0 0 #203170', pairR: 'inset -3px 0 0 #203170' }[zone] || '';
+}
+
 export function createBubbleEditorView({ document, getItems, getFirstChip, getMoreList, openItem, confirm }) {
   let dragIndex = null, dragSide = -1, dropZone = '';
   function rowZone(row, event) {
@@ -12,10 +17,6 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
     if (x < bounds.width * .22) return 'pairL';
     if (x > bounds.width * .78) return 'pairR';
     return event.clientY - bounds.top < bounds.height / 2 ? 'before' : 'after';
-  }
-  function dropShadow(zone) {
-    return { before: '0 -3px 0 #203170', after: '0 3px 0 #203170',
-      pairL: 'inset 3px 0 0 #203170', pairR: 'inset -3px 0 0 #203170' }[zone] || '';
   }
   function startDrag(index, side, event) {
     try { event.dataTransfer.setData('text/plain', side >= 0 ? `side:${index}:${side}` : `row:${index}`); } catch {}
@@ -94,7 +95,7 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
         if (dragIndex === index && dragSide < 0) { dropZone = ''; row.style.boxShadow = ''; return; }
         let zone = rowZone(row, event);
         if (dragSide >= 0 && (zone === 'pairL' || zone === 'pairR')) zone = '';
-        dropZone = zone; row.style.boxShadow = dropShadow(zone);
+        dropZone = zone; row.style.boxShadow = bubbleDropShadow(zone);
       });
       row.addEventListener('dragleave', () => { dropZone = ''; row.style.boxShadow = ''; });
       row.addEventListener('drop', event => { try { event.preventDefault(); } catch {} dropOn(index); });
