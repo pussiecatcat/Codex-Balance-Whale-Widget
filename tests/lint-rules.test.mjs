@@ -50,3 +50,23 @@ test('allows a read that follows its initialiser', () => {
   const code = 'var toggle = makeToggle();\nvar mod = createThing({ toggle: toggle });\n';
   assert.deepEqual(lint(code), []);
 });
+
+test('allows a pure write before the initialiser, which is not a read', () => {
+  assert.deepEqual(lint('function f() { v = 5; var v = 1; return v; }\n'), []);
+});
+
+test('allows a class field initialiser, which runs at construction, not definition', () => {
+  assert.deepEqual(lint('class A { x = v; }\nvar v = 1;\n'), []);
+});
+
+test('still reports inside a static block, which runs where the class is defined', () => {
+  const messages = lint('class A { static { use(v); } }\nvar v = 1;\n');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].message, /initialised on line 2/);
+});
+
+test('describes a let read-before-declaration as a TDZ throw, not as undefined', () => {
+  const messages = lint('function f() { use(v); let v = 1; }\n');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].message, /throws before that line runs/);
+});

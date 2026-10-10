@@ -24,29 +24,39 @@ export const noEagerUseBeforeInit = {
     docs: { description: 'disallow reading a variable before its initialiser in the same function' },
     schema: [],
     messages: {
-      eager: "'{{name}}' is read here but initialised on line {{line}} of the same function, so this runs with undefined.",
+      eagerVar: "'{{name}}' is read here but initialised on line {{line}} of the same function, so this runs with undefined.",
+      eagerTdz: "'{{name}}' is read here but declared on line {{line}} of the same function, so this throws before that line runs.",
     },
   },
   create(context) {
     const sourceCode = context.sourceCode;
-    const enclosingFunction = scope => {
+    // Scopes that defer execution. A class field initialiser must be here: it
+    // runs when an instance is constructed, not where the class is written, so a
+    // read inside one is not eager. Static blocks are deliberately absent — those
+    // do run where the class is defined.
+    const deferred = ['function', 'module', 'global', 'class-field-initializer'];
+    const boundary = scope => {
       let current = scope;
-      while (current && !['function', 'module', 'global'].includes(current.type)) current = current.upper;
+      while (current && !deferred.includes(current.type)) current = current.upper;
       return current;
     };
     return {
       'Program:exit'() {
         for (const scope of sourceCode.scopeManager.scopes) {
           for (const reference of scope.references) {
+            // `v = 5` before `var v = 1` is a write, not a read; nothing is
+            // observed, so there is no undefined to report.
+            if (!reference.isRead()) continue;
             const variable = reference.resolved;
             if (!variable || variable.defs.length !== 1) continue;
             const [def] = variable.defs;
             if (def.type !== 'Variable' || !def.node.init) continue;
-            if (enclosingFunction(reference.from) !== enclosingFunction(variable.scope)) continue;
+            if (boundary(reference.from) !== boundary(variable.scope)) continue;
             if (def.node.range[0] <= reference.identifier.range[0]) continue;
+            // var reads as undefined; let and const throw a TDZ ReferenceError.
             context.report({
               node: reference.identifier,
-              messageId: 'eager',
+              messageId: def.parent.kind === 'var' ? 'eagerVar' : 'eagerTdz',
               data: { name: reference.identifier.name, line: def.node.loc.start.line },
             });
           }
@@ -87,7 +97,12 @@ const browserGlobals = { ...globals.browser, ...appGlobals };
 
 export default [
   {
-    ignores: ['node_modules/**', 'vendor/**', 'archive/**', 'dist/**', 'packages/**', 'qa/**', 'qa-*/**'],
+    // Mirrors .gitignore's directories. ESLint does not read .gitignore, so a
+    // machine that has actually run the app — where desktop-runtime/ holds an
+    // installed Electron — would otherwise have `eslint .` descend into it.
+    ignores: ['node_modules/**', 'vendor/**', 'archive/**', 'dist/**', 'packages/**',
+      'qa/**', 'qa-*/**', 'qa-output/**', 'outputs/**', 'backups/**',
+      'desktop-runtime/**', 'desktop-profile/**', 'private-backup*/**'],
   },
 
   {
@@ -109,7 +124,7 @@ export default [
   },
 
   {
-    files: ['runtime/**/*.mjs', 'lib/**/*.mjs', 'scripts/**/*.mjs', 'tests/**/*.mjs', 'desktop/**/*.mjs', '*.mjs'],
+    files: ['runtime/**/*.mjs', 'lib/**/*.mjs', 'scripts/**/*.mjs', 'tests/**/*.mjs', 'desktop/**/*.mjs', '*.mjs', 'eslint.config.js'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node } },
   },
 
