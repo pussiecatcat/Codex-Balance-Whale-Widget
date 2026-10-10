@@ -16,6 +16,7 @@ import { SoundSettingsService } from './sound-settings.mjs';
 
 export const UI_ORIGIN = 'whale://widget';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.gif': 'image/gif', '.mp3': 'audio/mpeg' };
+const UI_DIR = path.join(ROOT, 'desktop', 'ui');
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
 const jsonResult = (status, payload) => ({ status, headers: { 'content-type': 'application/json; charset=utf-8' }, body: Buffer.from(JSON.stringify(payload)) });
 
@@ -129,51 +130,33 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       }
       if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
-      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/select-enhancer.js': 'select-enhancer.js', '/wait-notice.js': 'wait-notice.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js',
-        '/services/request.js': 'services/request.js', '/services/sound-reference.js': 'services/sound-reference.js',
-        '/features/sound-settings/model.js': 'features/sound-settings/model.js', '/features/sound-settings/controller.js': 'features/sound-settings/controller.js', '/features/sound-settings/view.js': 'features/sound-settings/view.js',
-        '/features/widget/default-content.js': 'features/widget/default-content.js', '/features/widget/bubble-layout.js': 'features/widget/bubble-layout.js',
-        '/features/widget/custom-select.js': 'features/widget/custom-select.js', '/features/widget/usage-charts.js': 'features/widget/usage-charts.js',
-        '/features/widget/bubble-editor-commands.js': 'features/widget/bubble-editor-commands.js',
-        '/features/widget/bubble-scene.js': 'features/widget/bubble-scene.js',
-        '/features/widget/bubble-notice-queue.js': 'features/widget/bubble-notice-queue.js',
-        '/features/widget/bubble-interaction.js': 'features/widget/bubble-interaction.js',
-        '/features/widget/input-policy.js': 'features/widget/input-policy.js',
-        '/features/widget/task-end-sound.js': 'features/widget/task-end-sound.js',
-        '/features/widget/name-marquee.js': 'features/widget/name-marquee.js',
-        '/features/widget/role-manager.js': 'features/widget/role-manager.js',
-        '/features/widget/character-interaction.js': 'features/widget/character-interaction.js',
-        '/features/widget/asset-client.js': 'features/widget/asset-client.js',
-        '/features/widget/anchors.js': 'features/widget/anchors.js',
-        '/features/widget/resource-manager.js': 'features/widget/resource-manager.js',
-        '/features/widget/menu-hover.js': 'features/widget/menu-hover.js',
-        '/features/widget/bubble-editor-view.js': 'features/widget/bubble-editor-view.js',
-        '/features/widget/bubble-editor-model.js': 'features/widget/bubble-editor-model.js',
-        '/features/widget/usage-records-view.js': 'features/widget/usage-records-view.js',
-        '/features/widget/usage-alerts.js': 'features/widget/usage-alerts.js',
-        '/features/widget/snap-editor.js': 'features/widget/snap-editor.js',
-        '/features/widget/bubble-color-select.js': 'features/widget/bubble-color-select.js',
-        '/features/widget/bubble-palette.js': 'features/widget/bubble-palette.js',
-        '/features/widget/bubble-quick-editors.js': 'features/widget/bubble-quick-editors.js',
-        '/features/widget/usage-models-view.js': 'features/widget/usage-models-view.js',
-        '/features/widget/usage-overview-view.js': 'features/widget/usage-overview-view.js',
-        '/features/widget/fx-controls.js': 'features/widget/fx-controls.js',
-        '/features/widget/usage-navigation.js': 'features/widget/usage-navigation.js',
-        '/features/widget/bubble-content.js': 'features/widget/bubble-content.js',
-        '/features/widget/bubble-template-help.js': 'features/widget/bubble-template-help.js',
-        '/features/widget/bubble-rows-view.js': 'features/widget/bubble-rows-view.js',
-        '/features/widget/turn-notice-poller.js': 'features/widget/turn-notice-poller.js' };
-      uiFiles['/account-view.js']='account-view.js';
-      uiFiles['/shape.js']='shape.js';
-      uiFiles['/whale-widget.css']='whale-widget.css';
-      let file;
-      if (Object.hasOwn(uiFiles, url.pathname)) file = path.join(ROOT, 'desktop', 'ui', uiFiles[url.pathname]);
-      else if (url.pathname.startsWith('/assets/')) {
+      // Resolve widget assets from desktop/ui/ by path rather than from an
+      // explicit table. Every new module used to need a hand-written entry here,
+      // and a forgotten one failed only at runtime, as a 404 inside the widget.
+      // desktop/ui/ holds only .js, .css and .html, and the extension must be one
+      // MIME knows, so the reachable set matches what the table allowed.
+      let file = null;
+      try {
+        const rel = decodeURIComponent(url.pathname === '/' ? 'widget.html' : url.pathname.slice(1));
+        if (rel && !rel.includes('\\') && !rel.split('/').some(part => !part || part === '.' || part === '..')) {
+          const candidate = path.resolve(UI_DIR, rel);
+          // The file must exist here, not later: an /assets/* request also resolves
+          // under desktop/ui/ by extension, and leaving file set would shadow the
+          // assets branch below.
+          if (candidate.startsWith(UI_DIR + path.sep) && MIME[path.extname(candidate)] &&
+              fs.existsSync(candidate) && fs.statSync(candidate).isFile()) file = candidate;
+        }
+      } catch {}
+      if (!file && url.pathname.startsWith('/assets/')) {
         const name = decodeURIComponent(url.pathname.slice(8));
         if (!/^[A-Za-z0-9_.-]+$/.test(name) || !MIME[path.extname(name)]) return jsonResult(404, { ok: false });
         file = path.join(ROOT, 'assets', name);
       }
-      if (file) return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
+      if (file) {
+        // A path that resolves but has no file behind it is a 404, not a throw.
+        if (!fs.existsSync(file) || !fs.statSync(file).isFile()) file = null;
+        else return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
+      }
       const handler = routes.get(url.pathname);
       if (!handler) return jsonResult(404, { ok: false, error: '未找到此功能' });
       if (/(?:role-pin|role-delete|bubble-img-upload)\.json$/.test(url.pathname) && !['POST', 'PUT'].includes(method)) return jsonResult(405, { ok: false });

@@ -169,3 +169,20 @@ test('ui-state is written only by the desktop host, not through a whale:// route
   assert.equal((await request('/api/ui-state')).status, 404);
   assert.equal((await request('/api/ui-state', 'PUT', { 'dshw-test': 'value' })).status, 404);
 });
+
+// Widget assets resolve by path under desktop/ui/ instead of through a hand-kept
+// table, so these are the checks that replaced the table's implicit allowlist.
+test('widget files resolve by path under desktop/ui and traversal out of it is refused', async t => {
+  const { server } = await setup(t);
+  const nested = await server.dispatch('/features/widget/anchors.js');
+  assert.equal(nested.status, 200);
+  assert.match(nested.headers['content-type'], /javascript/);
+  assert.equal((await server.dispatch('/ui.css')).status, 200);
+  assert.equal((await server.dispatch('/')).status, 200);
+  assert.match((await server.dispatch('/assets/DSniang1.png')).headers['content-type'], /image\/png/);
+
+  for (const route of ['/..%2fpackage.json', '/%2e%2e%2fpackage.json', '/..%5cpackage.json',
+    '/features/..%2f..%2fpackage.json', '/package.json', '/features', '/features/']) {
+    assert.equal((await server.dispatch(route)).status, 404, route + ' must not resolve');
+  }
+});
