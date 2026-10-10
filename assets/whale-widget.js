@@ -28,12 +28,10 @@ import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, art
 import { createCustomSelectController } from '/features/widget/custom-select.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
 import {
-  bubbleDefaultFirstModules, bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
-  bubbleDefaultRandomLines, bubbleDefaultSecondModules,
-  bubbleDefaultQueue as buildBubbleDefaultQueue, bubbleKindLabel, bubbleDefaultModules,
-  bubbleModuleSummary, bubbleModuleListLabel, bubbleEditEnsureModules,
+  bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
+  bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
+  bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
-  bubbleStepToBubble,
 } from '/features/widget/default-content.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
@@ -69,7 +67,6 @@ import {
     window.__dshWhaleInitLoading = true;
     var MIN_SCALE = 0.6;
     var MAX_SCALE = 2.5;
-    var STEP = 0.1;
     var CLICK_SQ = 9;
     var REFRESH_MS = 60000;
 
@@ -81,7 +78,6 @@ import {
     var SIZE_URL = '/dsh-whale/size.json';
     var IMG_URL = '/dsh-whale/image.png?v=2';
     var GIF_URL = '/dsh-whale/rua.gif';
-    var BUBBLE_URL = '/dsh-whale/bubble.json';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
     var assetWarnings = Object.create(null);
@@ -444,7 +440,6 @@ import {
     });
     var closeRolePanel = roleManager.close;
     var toggleRolePanel = roleManager.toggle;
-    var renderRolePanel = roleManager.render;
     var loadRoles = roleManager.load;
     var applyRole = roleManager.apply;
     roleBtn.addEventListener('click', function (e) {
@@ -982,95 +977,6 @@ import {
         renderBubblePv();
       } catch (err) {}
     }
-    function buildUsageSettingsArea(parentEl) {
-      parentEl = parentEl || usagePanel;
-      var S = usageSet || ({});
-      var stA = S.alert || ({
-        on: false,
-        below: 50
-      });
-      var stB = S.budget || ({
-        on: false,
-        amount: 20
-      });
-      function mkRow(labelTxt, key, stateFn, persist) {
-        var row = menuRow();
-        var lb = menuLabel(labelTxt);
-        lb.style.flex = '0 0 auto';
-        row.appendChild(lb);
-        var info = document.createElement('span');
-        info.className = 'dshwv-usage-hint';
-        info.style.flex = '1';
-        info.style.textAlign = 'right';
-        info.style.paddingRight = '6px';
-        info.style.whiteSpace = 'nowrap';
-        info.style.overflow = 'hidden';
-        info.style.textOverflow = 'ellipsis';
-        row.appendChild(info);
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'dshwv-roleimport';
-        btn.textContent = '编辑';
-        btn.title = '打开配置卡片(启用 / 数值 / 提醒文案)';
-        btn.addEventListener('click', function () {
-          usageAlertBudgetEditor(key, function (o) {
-            persist(o);
-            info.textContent = stateFn();
-          });
-        });
-        row.appendChild(btn);
-        parentEl.appendChild(row);
-        info.dataset.moneyRole = key;
-        WhaleMoney.bind(info, stateFn);
-      }
-      mkRow('余额预警', 'alert', function () {
-        var current = usageSet && usageSet.alert || {};
-        if (!current.on) return '已关闭';
-        return '余额 ≤ ' + usageMoney(current.below != null ? current.below : 50) + ' 时提醒';
-      }, function (o) {
-        stA.on = o.on;
-        stA.below = o.below;
-        stA.lines = o.lines;
-        stA.autoClose = o.autoClose !== false;
-        stA.ttlSec = o.ttlSec != null ? o.ttlSec : 6;
-        usageSet.alert = {
-          on: o.on,
-          below: o.below,
-          lines: o.lines,
-          autoClose: stA.autoClose,
-          ttlSec: stA.ttlSec
-        };
-        saveUsageSettings({
-          alert: usageSet.alert
-        });
-      });
-      mkRow('今日预算', 'budget', function () {
-        var current = usageSet && usageSet.budget || {};
-        if (!current.on) return '已关闭';
-        return '已用 ≥ ' + usageMoney(current.amount != null ? current.amount : 20) + ' 时提醒';
-      }, function (o) {
-        stB.on = o.on;
-        stB.amount = o.amount;
-        stB.lines = o.lines;
-        stB.autoClose = o.autoClose !== false;
-        stB.ttlSec = o.ttlSec != null ? o.ttlSec : 6;
-        usageSet.budget = {
-          on: o.on,
-          amount: o.amount,
-          lines: o.lines,
-          autoClose: stB.autoClose,
-          ttlSec: stB.ttlSec
-        };
-        saveUsageSettings({
-          budget: usageSet.budget
-        });
-      });
-      var reconcileRow = menuRow();
-      var reconcileLabel = menuLabel('余额对账'); reconcileLabel.style.flex = '1'; reconcileRow.appendChild(reconcileLabel);
-      var reconcileBtn = document.createElement('button'); reconcileBtn.type = 'button'; reconcileBtn.className = 'dshwv-roleimport';
-      reconcileBtn.textContent = '校正'; reconcileBtn.title = '用期初、充值、其他支出和期末余额校正今日已用';
-      reconcileBtn.addEventListener('click', usageReconcileEditor); reconcileRow.appendChild(reconcileBtn); parentEl.appendChild(reconcileRow);
-    }
     function usageReconcileEditor() {
       fetch('/api/reconcile', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (data) {
         if (!data || data.ok === false) throw new Error(data && data.error || '账本读取失败');
@@ -1249,8 +1155,6 @@ import {
       renderBubbleFirst();
       renderBubbleMore();
     }
-    function bubbleMoveMore(index, direction) { bubbleEditorView.move(index, direction); }
-    function bubbleDelMore(index) { bubbleEditorView.delete(index); }
     function bubbleAddMore() { bubbleEditorView.add(); }
     var bubbleEditorSnap = null;
     function bubbleEditorDirty() {
@@ -1699,10 +1603,6 @@ import {
       }
       return null;
     }
-    function bubblePvFont(level) {
-      var mult = bubbleModuleFontU(level);
-      return Math.max(10, Math.round(mult * 0.42));
-    }
 
     // ==== [气泡预览与样式] ====
     function renderBubblePv() {
@@ -2079,11 +1979,9 @@ import {
     var moduleOnSave = null;
     var moduleEditNew = false;
     var moduleTitleEl = null;
-    var moduleTypeLabelEl = null;
     var moduleBodyEl = null;
     var moduleColorEl = null;
     var moduleSizeEl = null;
-    var moduleImgListEl = null;
     var moduleImgSelect = null;
     var moduleImgDrop = null;
     var moduleImgPreviewEl = null;
@@ -2116,65 +2014,6 @@ import {
         if (cb) cb(false);
       }
     }
-    function cssToRgb(css) {
-      var s = String(css || '').trim();
-      var m = (/^#([0-9a-fA-F]{6})$/).exec(s);
-      if (m) {
-        var n = parseInt(m[1], 16);
-        return [n >> 16 & 255, n >> 8 & 255, n & 255];
-      }
-      m = (/^rgb(s*(d+)s*,s*(d+)s*,s*(d+)s*)$/i).exec(s);
-      if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
-      return [32, 49, 112];
-    }
-    function rgbToCss(r, g, b) {
-      return 'rgb(' + Math.max(0, Math.min(255, Math.round(r))) + ',' + Math.max(0, Math.min(255, Math.round(g))) + ',' + Math.max(0, Math.min(255, Math.round(b))) + ')';
-    }
-    function bubbleColorEdit(container, getCss, setCss, label) {
-      var row = document.createElement('div');
-      row.className = 'dshwv-audiorow';
-      var lb = document.createElement('span');
-      lb.textContent = label || '颜色';
-      row.appendChild(lb);
-      var inp = document.createElement('input');
-      inp.type = 'color';
-      inp.className = 'dshwv-colnat';
-      row.appendChild(inp);
-      var def = document.createElement('button');
-      def.type = 'button';
-      def.className = 'dshwv-snapbtn dshwv-snapbtn-no';
-      def.textContent = '默认色';
-      def.title = '恢复默认颜色';
-      def.addEventListener('click', function () {
-        setCss('');
-        sync();
-      });
-      row.appendChild(def);
-      container.appendChild(row);
-      function sync() {
-        try {
-          var v = getCss();
-          if ((/^#[0-9a-fA-F]{6}$/).test(v || '')) {
-            inp.value = v;
-            return;
-          }
-          if (v) {
-            var a = cssToRgb(v);
-            inp.value = '#' + ((1 << 24) + (a[0] << 16) + (a[1] << 8) + a[2]).toString(16).slice(1);
-            return;
-          }
-          inp.value = '#203170';
-        } catch (err) {}
-      }
-      inp.addEventListener('input', function () {
-        setCss(inp.value);
-      });
-      inp.addEventListener('change', function () {
-        setCss(inp.value);
-      });
-      sync();
-    }
-    var bubbleRgbOpenMenu = null;
     var bubbleFontOpenMenu = null;
     function visibleTopZ() {
       var top = 20500;
@@ -2300,69 +2139,6 @@ import {
       } catch (err) {
         if (onDone) onDone();
       }
-    }
-    function bubbleRgbSelect(current, cb) {
-      var wrap = document.createElement('div');
-      wrap.className = 'dshwv-rgbwrap';
-      var cur = current === true ? 'macaron' : current || '';
-      var opts = [['', '无'], ['macaron', '马卡龙'], ['candy', '糖果'], ['rouge', '酒红'], ['bamboo', '翠青'], ['aurora', '极光幻彩'], ['deepsea', '深海蓝调'], ['sunset', '落日熔金'], ['forest', '森林秘语'], ['champagne', '香槟鎏金'], ['lavender', '薰衣草梦境'], ['mint', '薄荷汽水'], ['lava', '岩浆熔岩'], ['galaxy', '银河星紫'], ['ink', '墨韵黑白'], ['indigo', '靛蓝夜曲']];
-      function labelOf(v) {
-        for (var i = 0; i < opts.length; i++) if (opts[i][0] === v) return opts[i][1];
-        return '无';
-      }
-      var head = document.createElement('button');
-      head.type = 'button';
-      head.className = 'dshwv-rgbhead';
-      head.textContent = labelOf(cur);
-      head.title = '选择跑马灯方案';
-      wrap.appendChild(head);
-      var menu = document.createElement('div');
-      menu.className = 'dshwv-rgbmenu';
-      function fillMenu() {
-        menu.innerHTML = '';
-        for (var i = 0; i < opts.length; i++) {
-          (function (v, lab) {
-            var o = document.createElement('div');
-            o.className = 'dshwv-rgbopt' + (v === cur ? ' dshwv-rgbcur' : '');
-            o.textContent = lab;
-            o.addEventListener('click', function (e) {
-              e.stopPropagation();
-              cur = v;
-              head.textContent = labelOf(cur);
-              closeRgbMenu();
-              cb(v);
-            });
-            menu.appendChild(o);
-          })(opts[i][0], opts[i][1]);
-        }
-      }
-      fillMenu();
-      wrap.appendChild(menu);
-      head.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (bubbleRgbOpenMenu === menu) {
-          closeRgbMenu();
-          return;
-        }
-        closeRgbMenu();
-        menu.classList.add('dshwv-rgbopen');
-        bubbleRgbOpenMenu = menu;
-      });
-      function closeRgbMenu() {
-        if (bubbleRgbOpenMenu) bubbleRgbOpenMenu.classList.remove('dshwv-rgbopen');
-        bubbleRgbOpenMenu = null;
-      }
-      if (!window.__dshwRgbDocBound) {
-        window.__dshwRgbDocBound = true;
-        document.addEventListener('pointerdown', function (e) {
-          if (!bubbleRgbOpenMenu) return;
-          try {
-            if (e.target && e.target.closest && e.target.closest('.dshwv-rgbwrap')) return;
-          } catch (err) {}
-          closeRgbMenu();
-        }, true);
-      }
-      return wrap;
     }
     function bubbleFontEditRow(getVal, setVal) {
       var FONT_OPTIONS = [['', '默认字体'], ['"Microsoft YaHei",sans-serif', '微软雅黑'], ['"PingFang SC","Microsoft YaHei",sans-serif', '苹方/雅黑'], ['DengXian,"Microsoft YaHei",sans-serif', '等线'], ['SimSun,serif', '宋体'], ['SimHei,sans-serif', '黑体'], ['KaiTi,serif', '楷体'], ['FangSong,serif', '仿宋'], ['STKaiti,KaiTi,serif', '华文楷体'], ['"Noto Sans SC",sans-serif', 'Noto Sans SC'], ['"Source Han Sans SC",sans-serif', '思源黑体'], ['"Segoe UI",sans-serif', 'Segoe UI'], ['Arial,Helvetica,sans-serif', 'Arial'], ['Helvetica,Arial,sans-serif', 'Helvetica'], ['Verdana,sans-serif', 'Verdana'], ['Tahoma,sans-serif', 'Tahoma'], ['"Trebuchet MS",sans-serif', 'Trebuchet MS'], ['"Times New Roman",serif', 'Times New Roman'], ['Georgia,serif', 'Georgia'], ['"Courier New",monospace', 'Courier New'], ['Consolas,monospace', 'Consolas'], ['Impact,fantasy', 'Impact'], ['"Comic Sans MS",cursive', 'Comic Sans MS']];
@@ -2640,101 +2416,6 @@ import {
         listEl.style.overflowY = 'auto';
         listEl.style.paddingRight = '2px';
         moduleBodyEl.appendChild(listEl);
-        function linePanel(l, box) {
-          box.innerHTML = '';
-          function lineVal(lv, mv, dft) {
-            return lv !== undefined && lv !== null ? lv : mv !== undefined && mv !== null ? mv : dft;
-          }
-          var r2 = document.createElement('div');
-          r2.className = 'dshwv-audiorow';
-          var c2 = document.createElement('span');
-          c2.textContent = '字号';
-          r2.appendChild(c2);
-          var ps = document.createElement('input');
-          ps.type = 'range';
-          ps.min = '1';
-          ps.max = '50';
-          ps.step = '1';
-          ps.className = 'dshwv-cropzoom';
-          ps.value = String(lineVal(l.size, m.size, 3));
-          r2.appendChild(ps);
-          var psNum = document.createElement('span');
-          psNum.className = 'dshwv-volpct';
-          psNum.textContent = String(lineVal(l.size, m.size, 3));
-          ps.addEventListener('input', function () {
-            l.size = Math.round(Number(ps.value) || 3);
-            psNum.textContent = ps.value;
-          });
-          r2.appendChild(psNum);
-          box.appendChild(r2);
-          box.appendChild(bubbleFontEditRow(function () {
-            return lineVal(l.fontFamily, m.fontFamily, '');
-          }, function (v) {
-            l.fontFamily = v || '';
-          }));
-          if (!l.rgb) bubbleColorEdit(box, function () {
-            return lineVal(l.color, m.color, '');
-          }, function (v) {
-            l.color = v;
-          }, '颜色');
-          var lbgV = l.bgRgb ? l.bgRgb : l.bg ? 'solid' : m.bgRgb ? m.bgRgb : m.bg ? 'solid' : 'none';
-          var lbgHex0 = l.bg || m.bg || '#dbe4f5';
-          var lbgc = qColorSelectBuild(lbgV, function (v) {
-            if (v === 'none') {
-              l.bgRgb = '';
-              l.bg = '';
-            } else if (v === 'solid') {
-              l.bgRgb = '';
-              if (!l.bg) l.bg = lbgHex0;
-            } else {
-              l.bgRgb = v;
-              l.bg = '';
-            }
-            lbgc.sync(v === 'none' ? 'none' : v, l.bg || lbgHex0, function (h) {
-              l.bg = h;
-            });
-          }, {
-            label: '底色',
-            defaultHex: lbgHex0,
-            defaultText: '默认',
-            allowNone: true
-          });
-          box.appendChild(lbgc.row);
-          lbgc.sync(lbgV, lbgHex0, function (h) {
-            l.bg = h;
-          });
-          var r3 = document.createElement('div');
-          r3.className = 'dshwv-audiorow';
-          function lb2(label, key) {
-            var la = document.createElement('label');
-            la.style.display = 'inline-flex';
-            la.style.alignItems = 'center';
-            la.style.gap = '3px';
-            la.style.marginRight = '10px';
-            var cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = !!lineVal(l[key], m[key], false);
-            cb.addEventListener('change', function () {
-              l[key] = cb.checked;
-            });
-            var tx = document.createElement('span');
-            tx.textContent = label;
-            la.appendChild(cb);
-            la.appendChild(tx);
-            return la;
-          }
-          r3.appendChild(lb2('加粗', 'bold'));
-          r3.appendChild(lb2('斜体', 'italic'));
-          r3.appendChild(lb2('下划线', 'ul'));
-          var r3l = document.createElement('span');
-          r3l.textContent = '跑马灯';
-          r3.appendChild(r3l);
-          r3.appendChild(bubbleRgbSelect(l.rgb, function (v) {
-            l.rgb = v;
-            linePanel(l, box);
-          }));
-          box.appendChild(r3);
-        }
         function renderLines() {
           listEl.innerHTML = '';
           for (var i = 0; i < m.lines.length; i++) {
@@ -3381,12 +3062,10 @@ import {
     gifCancelBtn.addEventListener('click', hideGifRoleModal);
     gifOkBtn.addEventListener('click', confirmGifRole);
     var gifRoleDataUrl = null;
-    var gifRoleFileName = '';
     var gifRoleAnimType = 'gif';
     function openGifRoleModal(dataUrl, fileName, animType) {
       gifRoleDataUrl = dataUrl;
       gifRoleAnimType = animType === 'apng' ? 'apng' : 'gif';
-      gifRoleFileName = (fileName || '').replace(/.[^.]+$/, '') || '新角色';
       if (gifRoleAnimType === 'apng') {
         gifTitle.textContent = '导入 APNG 动图角色';
         gifHint.textContent = 'APNG 动图不支持裁剪，将按原始尺寸原样导入';
@@ -3401,7 +3080,6 @@ import {
     function hideGifRoleModal() {
       gifMask.style.display = 'none';
       gifRoleDataUrl = null;
-      gifRoleFileName = '';
       gifRoleAnimType = 'gif';
       gifPreviewImg.src = '';
     }
@@ -3754,7 +3432,6 @@ import {
       onAutoClose: bubbleAutoClose,
       onSceneChange: function (kind) {
         costBubbleActive = kind === 'cost';
-        bubbleRandomActive = kind === 'random';
       }
     });
     bubbleBox.addEventListener('click', function (e) {
@@ -3774,8 +3451,6 @@ import {
     root.appendChild(menuBtn);
     document.body.appendChild(positioner);
     document.body.appendChild(menuBox);
-    var dshwCenterX = 44.25;
-    var dshwCenterY = 36;
     function measureBubbleCenter() {
       try {
         var svg = bubbleBox && bubbleBox.querySelector('svg');
@@ -3786,8 +3461,6 @@ import {
         var cx = (bb.x + bb.width / 2) / 1026 * 100;
         var cy = (bb.y + bb.height / 2) / 700 * 100;
         if (!isFinite(cx) || !isFinite(cy)) return;
-        dshwCenterX = cx;
-        dshwCenterY = cy;
         try {
           var s = document.documentElement.style;
           s.setProperty('--dshw-vx', cx + '%');
@@ -3953,8 +3626,6 @@ import {
 
 
 
-    var bubbleRandomActive = false;
-    var bubbleRandomLines = null;
     var BUBBLE_STYLE_CLASS = {
       A: 'dshwv-label',
       B: 'dshwv-amount',
@@ -4209,7 +3880,6 @@ import {
       }
       if (item.kind === 'random') {
         var lines = pickRandomLines();
-        bubbleRandomLines = lines;
         bubbleSceneController.open('random', function () {
           bubbleRenderRandom(lines);
         }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
@@ -4230,8 +3900,6 @@ import {
     var bubbleModuleFontU = bubbleContent.fontU;
     var bubbleTokenValue = bubbleContent.tokenValue;
     var bubbleTplHelpItems = bubbleContent.tplHelpItems;
-    var bubbleContentText = bubbleContent.text;
-    var bubblePickLine = bubbleContent.pickLine;
     var bubbleSnapshot = bubbleContent.snapshot;
     var bubbleTemplateHelp = createBubbleTemplateHelp({
       document: document, viewport: viewport, bubbleTplHelpItems: bubbleTplHelpItems
@@ -4270,13 +3938,6 @@ import {
     });
     var whaleClick = bubbleInteraction.whaleClick;
     var bubbleNext = bubbleInteraction.bubbleNext;
-    function showBubble() {
-      if (!bubbleOn) return;
-      if (costBubbleActive) return;
-      bubbleRoundOn = true;
-      bubbleSeqIdx = 0;
-      bubbleShowSeqNext();
-    }
     function hideBubble() {
       bubbleSceneController.clear();
       window.WhaleQuota?.clearBindings(bubbleBox);
@@ -4286,8 +3947,6 @@ import {
       bubbleRoundOn = false;
       bubbleSeqIdx = 0;
       bubbleSceneController.dismiss();
-      bubbleRandomActive = false;
-      bubbleRandomLines = null;
 
       bubbleSceneController.closeVisual();
     }
@@ -4306,8 +3965,6 @@ import {
       bubbleSceneController.clear();
       costBubbleActive = false;
       bubbleSceneController.dismiss();
-      bubbleRandomActive = false;
-      bubbleRandomLines = null;
       bubbleSceneController.closeVisual();
       bubbleNoticeQueue.done();
     }
@@ -4346,7 +4003,7 @@ import {
         if (userDismissed) window.dispatchEvent(new CustomEvent('whale-wait-dismissed', { detail: { id: closedId } }));
         if (bubbleNoticeQueue.swapNext()) return;
         bubbleSceneController.clear();
-        bubbleSceneController.dismiss(); bubbleRandomActive = false; bubbleRandomLines = null;
+        bubbleSceneController.dismiss();
         bubbleSceneController.closeVisual(); bubbleNoticeQueue.done();
       } catch (err) {}
     }
@@ -4354,8 +4011,6 @@ import {
       if (bubbleNoticeQueue.swapNext()) return;
       bubbleSceneController.clear();
       bubbleSceneController.dismiss();
-      bubbleRandomActive = false;
-      bubbleRandomLines = null;
 
       bubbleSceneController.closeVisual();
       bubbleNoticeQueue.done();
@@ -4540,11 +4195,6 @@ import {
         }));
       } catch (err) {}
     }
-    function setUsageMode(v) {
-      usageMode = 'ledger';
-      saveConfig();
-      refresh(false);
-    }
     function setBubbleOn(v) {
       bubbleOn = !!v;
       bubbleToggle.checked = bubbleOn;
@@ -4640,10 +4290,7 @@ import {
     var SQUISH = 'scaleY(0.88) scaleX(1.05)';
     var pressAudio = null;
     var releaseAudio = null;
-    var pressing = false;
-    var pressEnded = false;
     var releasePlayed = false;
-    var releaseTimer = null;
     function applySoundSet() {
       try {
         if (pressAudio) { pressAudio.pause(); pressAudio.removeAttribute('src'); pressAudio.load(); }
@@ -4691,12 +4338,12 @@ import {
     function pressDown() {
       if (window.WhaleGesture) window.WhaleGesture.apply(body, true, window.WhaleFeedback && window.WhaleFeedback.feel);
       else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
-      pressing = true; playPress();
+      playPress();
     }
     function pressUp() {
       if (window.WhaleGesture) window.WhaleGesture.apply(body, false, window.WhaleFeedback && window.WhaleFeedback.feel);
       else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
-      pressing = false; playRelease();
+      playRelease();
     }    var menuOpen = false;
     var menuPositionFrame = 0;
     new ResizeObserver(function () {
@@ -4817,52 +4464,6 @@ import {
       confirmCb = null;
     }
     var cropState = null;
-    function countGifFrames(bytes) {
-      try {
-        var head = '';
-        for (var i = 0; i < 6; i++) head += String.fromCharCode(bytes[i]);
-        if (head !== 'GIF87a' && head !== 'GIF89a') return 1;
-        var flags = bytes[10];
-        var hasGct = (flags & 0x80) !== 0;
-        var gctSize = 3 * (1 << (flags & 0x07) + 1);
-        var pos = 13 + (hasGct ? gctSize : 0);
-        var frames = 0;
-        while (pos + 1 < bytes.length) {
-          var b = bytes[pos];
-          if (b === 0x3b) break;
-          if (b === 0x2c) {
-            frames++;
-            var lctFlag = bytes[pos + 9] & 0x80;
-            var lctSize = lctFlag ? 3 * (1 << (bytes[pos + 9] & 0x07) + 1) : 0;
-            pos += 10 + lctSize;
-            if (pos >= bytes.length) break;
-            pos++;
-            while (pos < bytes.length) {
-              var sz = bytes[pos];
-              pos++;
-              if (sz === 0) break;
-              pos += sz;
-            }
-          } else if (b === 0x21) {
-            pos += 2;
-            while (pos < bytes.length) {
-              var sz2 = bytes[pos];
-              pos++;
-              if (sz2 === 0) break;
-              pos += sz2;
-            }
-          } else {
-            break;
-          }
-        }
-        return Math.max(1, frames);
-      } catch (err) {
-        return 1;
-      }
-    }
-    function isAnimatedPng(bytes) {
-      return WhaleMediaGuard.isAnimatedPng(bytes);
-    }
     async function onRoleFileChosen(input) {
       try {
         var f = input && input.files && input.files[0];
@@ -5252,9 +4853,6 @@ import {
     var editingAudioGroupId = null;
     var audioEditorSession = null;
     var activeSlotPanel = null;
-    function audioSlotValue(slot) {
-      return slot === 'press' ? audioEditPressVal || 'ya1' : audioEditReleaseVal || 'ya2';
-    }
     var audioEditPressVal = 'ya1';
     var audioEditReleaseVal = 'ya2';
     function audioSlotName(id) {
@@ -5586,7 +5184,6 @@ import {
     var audioCropTarget = null;
     var audioCropCtx = null;
     var audioCropBuffer = null;
-    var audioCropFileBase = '';
     var audioCropZoom = 1;
     var audioCropOffset = 0;
     audioEditPressImport.addEventListener('click', function () {
@@ -5608,7 +5205,6 @@ import {
     });
     function openAudioCrop(arrayBuf, fileName) {
       try {
-        audioCropFileBase = (fileName || '音频片段').replace(/.[^.]+$/, '');
         audioCropZoom = 1;
         audioCropOffset = 0;
         stopAudioCropPreview();
@@ -5926,7 +5522,6 @@ import {
       audioCropMask.style.display = 'none';
       audioCropBuffer = null;
       audioCropTarget = null;
-      audioCropFileBase = '';
       try {
         audioCropName.value = '';
       } catch (err) {}
@@ -6149,12 +5744,8 @@ import {
     });
     var setupHitTest = characterInteraction.setupHitTest;
     var whaleLayoutRect = characterInteraction.layoutRect;
-    var isWhaleHit = characterInteraction.isWhaleHit;
-    var endDrag = characterInteraction.endDrag;
-    var applyAnchorPos = characterInteraction.applyAnchorPosition;
     var resetMenuButtonHover = characterInteraction.resetMenuButtonHover;
     var showMenuButton = characterInteraction.showMenuButton;
-    var setWidgetCursor = characterInteraction.setWidgetCursor;
 
     function applySoundSettingsSnapshot(snapshot) {
       snapshot = snapshot || {};

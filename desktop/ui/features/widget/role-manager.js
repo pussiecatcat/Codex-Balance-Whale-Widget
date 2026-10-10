@@ -5,7 +5,6 @@ export function createRoleManager(deps) {
     assetClient, assetWarning, assetNotice, assetFailure, requireSaved,
     viewport, setupHitTest, makeNameCell, bindNameMarquee, confirm,
   } = deps;
-  const rolesUrl = '/dsh-whale/roles.json';
   let current = { id: 'default', name: '小鲸鱼', url: imageUrl };
   let roles = [];
   const badIds = Object.create(null);

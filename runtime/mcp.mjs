@@ -1,7 +1,6 @@
 import readline from 'node:readline';
-import path from 'node:path';
-import { ensureService, serviceRequest, launchDesktop } from './process.mjs';
-import { DATA_HOME, VERSION, readJson } from './paths.mjs';
+import { serviceRequest, launchDesktop } from './process.mjs';
+import { VERSION } from './paths.mjs';
 
 const toolSpecs = [
   { name: 'whale_balance', description: '查询当前 Codex API 服务商的余额、余额口径、币种及今日已观测用量。金额来源于当前 API；不会返回密钥，也不会将 ChatGPT 订阅配额当作 API 余额。', inputSchema: { type: 'object', properties: { refresh: { type: 'boolean', description: '立即从 API 刷新' } }, additionalProperties: false }, annotations: { readOnlyHint: true } },

@@ -160,7 +160,7 @@ export class ApiModelRegistry {
   async read(id,{probe=false,usage=null}={}) {
     const model=this.model(id);if(!model)throw Error('API 模型不存在');const t=API_TEMPLATES[model.template];if(!t)throw Error('未知服务商模板');
     if(!probe&&model.manualQuota) {
-      const q={...model.manualQuota},start=this.quotaPeriodStart(model),now=Date.now();
+      const q={...model.manualQuota},start=this.quotaPeriodStart(model);
       if(q.mode==='auto') {
         const renewed=q.period!=='none'&&start>q.baseAt;
         q.remaining=Math.max(0,(renewed?q.total:q.remaining)-(usage?.todayTokens||0));

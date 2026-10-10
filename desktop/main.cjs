@@ -44,7 +44,7 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'whale', privileges: { standard:
 fs.mkdirSync(path.join(dataDir, 'desktop-profile'), { recursive: true });
 app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
-let window, tray, dispatcher, bridge, lastHost = initialHost, owner = '', appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
+let window, tray, dispatcher, bridge, lastHost = initialHost, appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
 const rendererErrors = [];
 const fixtureOpenedLinks = [];
 let hostSequence = -1;
@@ -152,8 +152,6 @@ function flushCommands() {
   for (const command of pendingCommands.splice(0)) window.webContents.send('whale-command', command);
 }
 async function showStatusDialog() {
-  let provider = {};
-  try { provider = dispatcher?.whale?.config?.publicInfo() || {}; } catch {}
   const lines = [
     '平台：' + process.platform,
     '跟随模式：' + (lastHost?.followMode || (lastHost?.nativeFollowing ? 'native' : '等待 Codex')),
@@ -225,7 +223,6 @@ async function setHost(host) {
       appliedBounds = key; sendCursor(true);
     }
   }
-  owner = host.window || '';
   visibility();
   if (visibilityController.observeNativeVisibility()) diagnose('native-window-hidden');
 }

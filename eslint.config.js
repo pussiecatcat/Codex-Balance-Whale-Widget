@@ -1,6 +1,7 @@
-// Static analysis for shipped source. Two defect classes are covered: a name that
-// is neither defined nor imported (no-undef), and a dependency wired by value
-// before its initialiser runs (the rule below). Everything else the repo checks
+// Static analysis for shipped source. Three defect classes are covered: a name
+// that is neither defined nor imported (no-undef), a name that is defined but
+// no longer used (no-unused-vars), and a dependency wired by value before its
+// initialiser runs (the rule below). Everything else the repo checks
 // (architecture boundaries, package graph, privacy, release contents) lives in
 // scripts/refactor-metrics.mjs and scripts/build-release.py.
 import globals from 'globals';
@@ -92,7 +93,19 @@ export default [
   {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     plugins: { local: { rules: { 'no-eager-use-before-init': noEagerUseBeforeInit } } },
-    rules: { 'no-undef': 'error', ...localRules },
+    rules: {
+      'no-undef': 'error',
+      // Dead names: the extraction left behind hollowed wrappers, unused imports
+      // and write-only state that nothing reads. Enabled after clearing all of
+      // them, so the tree stays at zero.
+      //
+      // args: 'none' is deliberate. Checking trailing parameters would flag nine
+      // callbacks today and then tax every `.map((item, index) => …)` written
+      // from here on — recurring friction for a cosmetic win. caughtErrors:
+      // 'none' because `catch (err) {}` is this codebase's idiom (242 sites).
+      'no-unused-vars': ['error', { args: 'none', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      ...localRules,
+    },
   },
 
   {
