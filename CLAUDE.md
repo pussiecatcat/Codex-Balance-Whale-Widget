@@ -29,13 +29,13 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 
 | 要改的东西 | 主要文件 |
 |---|---|
-| 订阅额度（5h/周额度、倒计时、潮汐卡片） | `runtime/codex-rate-limits.mjs`、`runtime/session-monitor.mjs`、`desktop/ui/quota.js` |
-| API 余额、模型模板 | `runtime/api-models.mjs`、`runtime/providers.mjs`、`desktop/ui/api-models.js` |
-| 本地记账、金额显示 | `runtime/ledger.mjs`、`desktop/ui/money.js`、`runtime/pricing-schedule.mjs` |
+| 订阅额度（5h/周额度、倒计时、潮汐卡片） | `runtime/codex-rate-limits.mjs`、`runtime/session-parser.mjs`、`runtime/session-monitor.mjs`、`desktop/ui/quota.js` |
+| API 余额、模型模板 | `runtime/api-models.mjs`、`runtime/providers.mjs`、`runtime/balance-query.mjs`、`desktop/ui/api-models.js` |
+| 本地记账、金额显示、每轮结算 | `runtime/ledger.mjs`、`runtime/turn-accounting.mjs`、`runtime/pricing-schedule.mjs`、`desktop/ui/money.js` |
 | 汇率 | `runtime/fx.mjs` |
-| 角色、音效、气泡、素材上传 | `lib/widget-host.mjs`、`lib/resource-store.mjs`、`lib/media-validation.mjs`、`desktop/ui/audio-engine.js` |
+| 角色、音效、气泡、素材上传 | 前端在 `desktop/ui/features/widget/*`、`desktop/ui/features/sound-settings/*`、`desktop/ui/services/*`；后端在 `lib/widget-host.mjs`、`lib/resource-store.mjs`、`lib/media-validation.mjs`、`runtime/sound-settings.mjs`、`runtime/size-settings.mjs` |
 | 挂件外观、样式 | `desktop/ui/whale-widget.css`（经 `widget.html` 的 `<link>` 加载） |
-| 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
+| 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/host-state.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
 | 安装、回滚、发布 | `launchers/*.cmd`、`launchers/*.command`（用户双击入口）、`scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
 
 ## 文档
