@@ -1,10 +1,61 @@
-// Static analysis for shipped source. The only rule enabled is no-undef: the
-// widget monolith and its extracted modules are wired together by name, and a
-// name that is neither defined nor imported stays invisible until a user clicks
-// the feature that reaches it. Everything else the repo checks (architecture
-// boundaries, package graph, privacy) lives in scripts/refactor-metrics.mjs and
-// scripts/build-release.py.
+// Static analysis for shipped source. Two defect classes are covered: a name that
+// is neither defined nor imported (no-undef), and a dependency wired by value
+// before its initialiser runs (the rule below). Everything else the repo checks
+// (architecture boundaries, package graph, privacy, release contents) lives in
+// scripts/refactor-metrics.mjs and scripts/build-release.py.
 import globals from 'globals';
+
+// A dependency wired by value — `toggle: toggle` inside a createX({...}) call —
+// reads the variable at that moment, while its `var toggle = ...` may sit
+// hundreds of lines further down in the same function. The value passed is then
+// undefined and the feature fails only when a user reaches it. no-undef cannot
+// see this (the name is defined) and no-use-before-define is far too broad here
+// (243 hits, almost all of them legal uses inside callbacks).
+//
+// The discriminator is whether the read executes eagerly: if the reference sits
+// in the same function as the declaration, it runs at wiring time and the value
+// really is undefined. If it is inside a nested function, that function runs
+// later and the read is fine. Scope resolution also handles shadowing, so a
+// parameter of the same name is never reported.
+export const noEagerUseBeforeInit = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'disallow reading a variable before its initialiser in the same function' },
+    schema: [],
+    messages: {
+      eager: "'{{name}}' is read here but initialised on line {{line}} of the same function, so this runs with undefined.",
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode;
+    const enclosingFunction = scope => {
+      let current = scope;
+      while (current && !['function', 'module', 'global'].includes(current.type)) current = current.upper;
+      return current;
+    };
+    return {
+      'Program:exit'() {
+        for (const scope of sourceCode.scopeManager.scopes) {
+          for (const reference of scope.references) {
+            const variable = reference.resolved;
+            if (!variable || variable.defs.length !== 1) continue;
+            const [def] = variable.defs;
+            if (def.type !== 'Variable' || !def.node.init) continue;
+            if (enclosingFunction(reference.from) !== enclosingFunction(variable.scope)) continue;
+            if (def.node.range[0] <= reference.identifier.range[0]) continue;
+            context.report({
+              node: reference.identifier,
+              messageId: 'eager',
+              data: { name: reference.identifier.name, line: def.node.loc.start.line },
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
+const localRules = { 'local/no-eager-use-before-init': 'error' };
 
 // Cross-script globals the renderer creates at load time. The classic <script>
 // widgets are UMD: they assign host.WhaleX = api, so the monolith — now an ES
@@ -40,7 +91,8 @@ export default [
 
   {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
-    rules: { 'no-undef': 'error' },
+    plugins: { local: { rules: { 'no-eager-use-before-init': noEagerUseBeforeInit } } },
+    rules: { 'no-undef': 'error', ...localRules },
   },
 
   {
