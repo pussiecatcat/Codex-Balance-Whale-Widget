@@ -101,8 +101,15 @@ test('all original built-in images, animation, sound and script routes work', as
 test('original widget settings and bubble sequences survive save and reload', async t => {
   const { request } = await setup(t);
   const settings = { scale: 1.2, vol: 0.3, sound: true, soundSet: 'fx1', usageMode: 'ledger', bubbleOn: true, turnCostOn: true, turnCostCloseMs: 0, scrollGapOn: true, scrollGapPx: 25, menuBtnHide: false };
-  const saved = await (await request('/dsh-whale/size.json', 'PUT', settings)).json(); assert.equal(saved.ok, true);
-  const loaded = await (await request('/dsh-whale/size.json')).json();
+  // The combined endpoint owns both settings files and checks a revision, so a
+  // partial change reads the pair, merges, and sends it back as one update.
+  const before = await (await request('/api/sound-settings')).json();
+  const saved = await (await request('/api/sound-settings', 'PUT', {
+    schemaVersion: before.schemaVersion, revision: before.revision,
+    size: { ...before.size, ...settings }, usage: before.usage,
+  })).json();
+  assert.equal(saved.ok, true);
+  const loaded = (await (await request('/api/sound-settings')).json()).size;
   assert.equal(loaded.scale, 1.2); assert.equal(loaded.turnCostCloseMs, 0); assert.equal(loaded.vol, 0.3);
   const bubble = { v: 1, items: [{ kind: 'custom', modules: [{ type: 'text', text: '测试气泡' }, { type: 'balance', tpl: '{balance_api}' }] }], lib: [] };
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', bubble)).json()).ok, true);
@@ -120,8 +127,12 @@ test('original widget settings and bubble sequences survive save and reload', as
   const clickConfig = (await (await request('/dsh-whale/bubble.json')).json()).config;
   assert.equal(clickConfig.tapAdvance, true);
   assert.equal(clickConfig.subscriptionTapAdvance, false);
-  const usage = await (await request('/dsh-whale/usage-settings.json', 'PUT', { alert: { on: true, below: 2 }, budget: { on: true, amount: 3 } })).json();
-  assert.equal(usage.settings.alert.below, 2); assert.equal(usage.settings.budget.amount, 3);
+  const mid = await (await request('/api/sound-settings')).json();
+  const usage = await (await request('/api/sound-settings', 'PUT', {
+    schemaVersion: mid.schemaVersion, revision: mid.revision, size: mid.size,
+    usage: { ...mid.usage, alert: { ...mid.usage.alert, on: true, below: 2 }, budget: { ...mid.usage.budget, on: true, amount: 3 } },
+  })).json();
+  assert.equal(usage.usage.alert.below, 2); assert.equal(usage.usage.budget.amount, 3);
 });
 
 test('custom character upload, pin, image retrieval and deletion preserve the original workflow', async t => {

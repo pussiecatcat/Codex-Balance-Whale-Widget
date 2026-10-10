@@ -76,12 +76,40 @@ import {
     var FETCH_TIMEOUT_MS = 25000;
     var whaleMoneyTemplates = new WeakMap();
     var BALANCE_URL = '/dsh-whale/balance.json';
-    var SIZE_URL = '/dsh-whale/size.json';
+    var SETTINGS_URL = '/api/sound-settings';
     var IMG_URL = '/dsh-whale/image.png?v=2';
     var GIF_URL = '/dsh-whale/rua.gif';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
     var assetWarnings = Object.create(null);
+
+    // The combined settings endpoint owns both settings files and guards them
+    // with a revision, so a partial update has to read the pair, merge, and send
+    // both back. A 409 means something else wrote in between; the local change is
+    // the one the user just made, so re-read once and re-apply it rather than
+    // dropping the edit.
+    function updateSoundSettings(mutate, onSaved, attempt) {
+      attempt = attempt || 0;
+      return fetch(SETTINGS_URL, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (current) {
+        if (!current || current.ok !== true) throw new Error(current && current.error || '无法读取设置');
+        var next = mutate({ size: current.size, usage: current.usage });
+        return fetch(SETTINGS_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            schemaVersion: current.schemaVersion,
+            revision: current.revision,
+            size: next.size,
+            usage: next.usage
+          })
+        }).then(function (r) { return r.json().then(function (body) { return { status: r.status, body: body }; }); });
+      }).then(function (result) {
+        if (result.status === 409 && attempt < 1) return updateSoundSettings(mutate, onSaved, attempt + 1);
+        requireSaved(result.body);
+        if (onSaved) onSaved(result.body);
+        return result.body;
+      }).catch(assetFailure);
+    }
 
     // ==== [素材与媒体工具] ====
     function assetNotice(message) {
@@ -569,17 +597,16 @@ import {
     menuBox.appendChild(rowRes);
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
     var usageSet = null;
-    var USAGE_SET_URL = '/dsh-whale/usage-settings.json';
 
     // ==== [用量面板与设置] ====
     function loadUsageSettings(cb) {
       try {
-        fetch(USAGE_SET_URL, {
+        fetch(SETTINGS_URL, {
           cache: 'no-store'
         }).then(function (r) {
           return r.json();
         }).then(function (d) {
-          if (d && d.ok && d.settings) usageSet = d.settings;
+          if (d && d.ok && d.usage) usageSet = d.usage;
           if (cb) cb();
         }).catch(function () {
           if (cb) cb();
@@ -590,18 +617,11 @@ import {
     }
     function saveUsageSettings(patch) {
       try {
-        fetch(USAGE_SET_URL, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(patch || ({}))
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && d.settings) usageSet = d.settings;
-        }).catch(assetFailure);
+        updateSoundSettings(function (current) {
+          return { size: current.size, usage: Object.assign({}, current.usage, patch || {}) };
+        }, function (saved) {
+          if (saved && saved.usage) usageSet = saved.usage;
+        });
       } catch (err) { assetFailure(err); }
     }
     var apiSettingsBtn = document.createElement('button');
@@ -4164,24 +4184,23 @@ import {
     var menuBtnHide = false;
     function saveConfig() {
       try {
-        fetch(SIZE_URL, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            scale: state.scale,
-            sound: soundOn,
-            vol: soundVol,
-            soundSet: soundSet,
-            usageMode: usageMode,
-            bubbleOn: bubbleOn,
-            turnCostOn: turnCostOn,
-            turnCostCloseMs: turnCostCloseMs,
-            scrollGapOn: scrollGapOn,
-            scrollGapPx: scrollGapPx,
-            menuBtnHide: menuBtnHide
-          })
+        updateSoundSettings(function (current) {
+          return {
+            size: Object.assign({}, current.size, {
+              scale: state.scale,
+              sound: soundOn,
+              vol: soundVol,
+              soundSet: soundSet,
+              usageMode: usageMode,
+              bubbleOn: bubbleOn,
+              turnCostOn: turnCostOn,
+              turnCostCloseMs: turnCostCloseMs,
+              scrollGapOn: scrollGapOn,
+              scrollGapPx: scrollGapPx,
+              menuBtnHide: menuBtnHide
+            }),
+            usage: current.usage
+          };
         });
         var vp = viewport();
         var w = root.offsetWidth || root.getBoundingClientRect().width || 0;
@@ -5876,11 +5895,12 @@ import {
         status: function () { return { switching: bubbleFrames.switching, busy: busy, shown: bubbleSceneController.shown, scene: bubbleSceneController.scene && bubbleSceneController.scene.kind, epoch: bubbleSceneController.epoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
       });
     }
-    fetch(SIZE_URL, {
+    fetch(SETTINGS_URL, {
       cache: 'no-store'
     }).then(function (r) {
       return r.json();
-    }).then(function (d) {
+    }).then(function (payload) {
+      var d = payload && payload.ok ? payload.size : null;
       if (d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {
         state.scale = d.scale;
         root.style.setProperty('--dshw-scale', String(d.scale));

@@ -9,8 +9,8 @@
 | 路径或事件 | 负责人 | 当前用途 | 兼容状态 |
 |---|---|---|---|
 | `GET/PUT /api/sound-settings` | `SoundSettingsService` | 一次读取或提交 size 与 usage 的规范化快照；使用 revision 防止覆盖并发修改 | 新的唯一 renderer 写入口 |
-| `/dsh-whale/size.json` | `SizeSettingsStore` 经旧 widget host | 挂件大小、位置相关选项及旧客户端兼容 | 保留；新音效模块不调用 |
-| `/dsh-whale/usage-settings.json` | `WhaleService` 门面 | 旧用量设置调用 | 保留；新音效模块不调用 |
+| ~~`/dsh-whale/size.json`~~ | 已删除 | 旧 size 写入端点 | 已移除；renderer 改用 `GET/PUT /api/sound-settings` 做读-改-写 |
+| ~~`/dsh-whale/usage-settings.json`~~ | 已删除 | 旧 usage 写入端点 | 已移除；renderer 改用 `GET/PUT /api/sound-settings` 做读-改-写 |
 | `/dsh-whale/audio.json` | 旧音频素材库 | 音频组和片段的独立导入、编辑与目录读取 | 素材操作不进入设置事务 |
 | `/dsh-whale/wait.json` | `WhaleService` | 当前提问或授权等待状态 | 等待控制器只读 |
 | `whale-legacy-sound-ready` | legacy sound adapter | 通知 ESM 入口显式适配器已可用 | 迁移期事件 |
