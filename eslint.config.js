@@ -64,7 +64,7 @@ const localRules = { 'local/no-eager-use-before-init': 'error' };
 // the global object. Listing them here is deliberate: it makes the coupling
 // explicit and reviewable, and a new one must be added before lint passes.
 const appGlobals = Object.fromEntries([
-  'WhaleAccountView', 'WhaleApiModels', 'WhaleAudio', 'WhaleDashboard',
+  'WhaleAccountView', 'WhaleApiModels', 'WhaleAudio',
   'WhaleFeedback', 'WhaleFeedbackSources', 'WhaleGesture', 'WhaleLegacySoundUi',
   'WhaleLegacyUsage', 'WhaleMediaGuard', 'WhaleMoney', 'WhaleQuota',
   'WhaleRendering', 'WhaleSelect', 'WhaleTurnNotice', 'whaleToast',

@@ -16,7 +16,7 @@
 |---|---|
 | [v0.3 实施范围与来源](V0.3-PLAN-AND-PROVENANCE.md) | **数据口径的权威定义**：订阅额度、API 余额、本机观测 token 各自的确切语义与边界。另有 macOS 来源与本版限制 |
 | [空白点击设计决定](OUTSIDE-CLICK-DECISION.md) | 想加「点击空白关闭」之前必读 —— 记录为什么刻意不做 |
-| [紧凑菜单与原 B 版功能对照](DASHBOARD-B.md) | 要动菜单或面板布局之前必读；也解释了 `desktop/ui/dashboard.js` 为何是撤下未删的孤儿 |
+| [紧凑菜单与原 B 版功能对照](DASHBOARD-B.md) | 要动菜单或面板布局之前必读；记录了 B 版大面板撤下的产品决定，对应实现 `desktop/ui/dashboard.js` 已删除 |
 
 ## 当前版本的验收证据
 

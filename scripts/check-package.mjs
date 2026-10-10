@@ -13,7 +13,6 @@ for(const name of [
 }
 if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/account-view.js',import.meta.url))))throw new Error('Account view module is missing');
 if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/shape.js',import.meta.url))))throw new Error('Window region module is missing');
-if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/dashboard.js',import.meta.url))))throw new Error('Dashboard module is missing');
 await import('../runtime/dispatcher.mjs');
 await import('../runtime/process.mjs');
 await import('../runtime/size-settings.mjs');

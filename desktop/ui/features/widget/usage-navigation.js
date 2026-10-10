@@ -20,7 +20,6 @@ export function createUsageNavigation(deps) {
       } catch (err) {}
     }
     function showUsageSub() {
-      if (window.WhaleDashboard) { window.WhaleDashboard.select('usage'); return; }
       try {
         if (usageHideTimer) {
           clearTimeout(usageHideTimer);
@@ -97,7 +96,6 @@ export function createUsageNavigation(deps) {
       }, 10000);
     }
     function hideUsageSub() {
-      if (window.WhaleDashboard) { window.WhaleLegacyUsage.stop(); return; }
       if (usageRefreshTimer) {
         clearInterval(usageRefreshTimer);
         usageRefreshTimer = null;

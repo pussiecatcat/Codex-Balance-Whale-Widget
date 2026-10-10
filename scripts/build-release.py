@@ -135,7 +135,7 @@ for file in sorted(ROOT.rglob('*')):
 manifest = json.loads(files['.codex-plugin/plugin.json'].decode('utf-8-sig'))
 assert manifest['name'] == 'api-balance-whale' and manifest['version'].split('+')[0] == '0.3.0'
 assert manifest['author']['name'] == 'Yang-huai406'
-for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/dashboard.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
+for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']
 assert 'launchers/安装插件.cmd' in files and 'launchers/安装 Mac 自动跟随.command' in files, 'Launcher entrypoints missing'

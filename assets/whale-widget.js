@@ -55,7 +55,7 @@ import {
 //
 //  对外契约：与其他 desktop/ui/*.js 插件通过 window.* 通信
 //  （WhaleFeedback / WhaleAccountView / WhaleGesture / WhaleQuota /
-//    WhaleMoney / WhaleApiModels / WhaleDashboard）。改动前先确认调用方。
+//    WhaleMoney / WhaleApiModels）。改动前先确认调用方。
 // ────────────────────────────────────────────────────────────────────────────
 (function () {
   if (window.__dshWhaleWidget || window.__dshWhaleWidgetLoading) return;
