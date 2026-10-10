@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 import { deflateSync } from 'node:zlib';
 import { ConfigStore } from '../runtime/config.mjs';
 import { BalanceProvider, readBoundedJsonText } from '../runtime/providers.mjs';
@@ -25,8 +24,8 @@ function host(t, injectedFs = fs, root = fixture(t)) {
   const routes = new Map();
   createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, webServer: { register: entry => { routes.set(entry.path, entry.handler); return () => {}; }, tapIndex: () => () => {} }, effect: () => {} });
   return { root, async request(route, method = 'GET', body) {
-    const req = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
-    Object.assign(req, { url: route, method });
+    // The host hands the body over as a buffer; there is no stream to consume.
+    const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
     let status = 200, result, headers;
     const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
     await routes.get(route.split('?')[0])(req, res);

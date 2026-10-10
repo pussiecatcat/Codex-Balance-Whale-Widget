@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Readable, Writable } from 'node:stream';
 import { ROOT, DATA_HOME, VERSION, readJson, writeJson } from './paths.mjs';
 import { WhaleService } from './service.mjs';
 import { SessionMonitor } from './session-monitor.mjs';
@@ -162,18 +161,18 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       if (/(?:role-pin|role-delete|bubble-img-upload)\.json$/.test(url.pathname) && !['POST', 'PUT'].includes(method)) return jsonResult(405, { ok: false });
       if (url.pathname === '/dsh-whale/bubble.json' && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
       const requestBytes = Buffer.isBuffer(body) ? body : bytes;
-      const req = Readable.from(requestBytes.length ? [requestBytes] : []);
-      Object.assign(req, { url: route, method, headers: { 'content-type': 'application/json', ...headers } });
-      return await new Promise((resolve, reject) => {
-        const chunks = [], responseHeaders = {};
-        const res = new Writable({ write(chunk, _enc, done) { chunks.push(Buffer.from(chunk)); done(); } });
-        res.statusCode = 200; res.headersSent = false;
-        res.setHeader = (name, value) => { responseHeaders[name.toLowerCase()] = String(value); };
-        res.writeHead = (status, h = {}) => { res.statusCode = status; res.headersSent = true; for (const [k, v] of Object.entries(h)) res.setHeader(k, v); return res; };
-        res.on('finish', () => resolve({ status: res.statusCode, headers: responseHeaders, body: Buffer.concat(chunks) }));
-        req.on('error', reject); res.on('error', reject);
-        Promise.resolve(handler(req, res)).catch(reject);
-      });
+      const req = { url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes };
+      // Plain collectors rather than Writable/Readable: the widget host handlers
+      // only ever call writeHead and end, and the response is assembled from those.
+      const responseHeaders = {};
+      let status = 200, payload = Buffer.alloc(0);
+      const res = {
+        setHeader(name, value) { responseHeaders[String(name).toLowerCase()] = String(value); },
+        writeHead(code, headers = {}) { status = code; for (const [name, value] of Object.entries(headers)) res.setHeader(name, value); return res; },
+        end(value) { payload = value == null ? Buffer.alloc(0) : Buffer.isBuffer(value) ? value : Buffer.from(String(value)); },
+      };
+      await handler(req, res);
+      return { status, headers: responseHeaders, body: payload };
     } catch { return jsonResult(400, { ok: false, error: '操作失败，请检查设置或导入文件' }); }
   }
   function close() {
