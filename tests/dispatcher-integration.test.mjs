@@ -159,3 +159,13 @@ test('close removes the periodic balance refresh instead of starting more jobs a
   await server.close(); t.mock.timers.tick(60000); assert.equal(state.balances, 2);
   t.mock.timers.reset();
 });
+
+// ui-state.json has one writer: the desktop host, through UiStateStore over the
+// preload IPC. A whale:// route to the same file was the documented second
+// writer — it had no callers and is gone, so this pins the single-writer rule
+// rather than leaving it to a later reader to re-derive.
+test('ui-state is written only by the desktop host, not through a whale:// route', async t => {
+  const { request } = await setup(t);
+  assert.equal((await request('/api/ui-state')).status, 404);
+  assert.equal((await request('/api/ui-state', 'PUT', { 'dshw-test': 'value' })).status, 404);
+});

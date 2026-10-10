@@ -40,7 +40,6 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
     if (displayMode() === 'api') whale.getBalance().catch(() => {});
     fx.start().catch(() => {});
   }
-  const stateFile = path.join(dataDir, 'ui-state.json');
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
   let closing = false, closeJob = null;
 
@@ -127,16 +126,6 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
             error: error?.message || '音效设置操作失败',
           });
         }
-      }
-      if (url.pathname === '/api/ui-state') {
-        if (method === 'GET') return jsonResult(200, { ok: true, values: readJson(stateFile, {}) });
-        if (method === 'PUT') {
-          const input = parsed(), values = {};
-          if (!input || Array.isArray(input) || typeof input !== 'object') return jsonResult(400, { ok: false });
-          for (const [key, value] of Object.entries(input)) if (/^dshw[-v]/.test(key) && typeof value === 'string' && value.length < 1024 * 1024) values[key] = value;
-          writeJson(stateFile, values); return jsonResult(200, { ok: true });
-        }
-        return jsonResult(405, { ok: false });
       }
       if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
