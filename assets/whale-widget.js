@@ -1340,10 +1340,16 @@ import {
     });
     var qColorSelectBuild = bubbleColorSelect.build;
     var bubbleQuickEditors = createBubbleQuickEditors({
-      document: document, window: window, qeditClose: qeditClose, qeditEnsure: qeditEnsure,
+      document: document, window: window, qeditClose: qeditClose,
       qRow: qRow, qLabel: qLabel, bubbleFontEditRow: bubbleFontEditRow,
-      qColorSelectBuild: qColorSelectBuild, renderBubblePv: renderBubblePv,
-      qeditPlace: qeditPlace, getPreviewElement: function () { return bubblePvPrevEl; },
+      qColorSelectBuild: qColorSelectBuild, qeditPlace: qeditPlace,
+      // Resolved at call time, not here. usageAlertBudgetEditor swaps both
+      // bindings while it is open — qeditEnsure to lift the quick-edit box above
+      // that editor's mask, renderBubblePv to apply the alert-resolved modules —
+      // and a value captured now would miss the swap.
+      qeditEnsure: function () { return qeditEnsure(); },
+      renderBubblePv: function () { return renderBubblePv(); },
+      getPreviewElement: function () { return bubblePvPrevEl; },
       bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); }
     });
     var openQuickTextEditor = bubbleQuickEditors.openText;
