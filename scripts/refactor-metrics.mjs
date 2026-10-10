@@ -140,7 +140,9 @@ export function refactorBoundaryErrors(metrics) {
   if (!metrics.sound.combinedEndpointReferences.length) errors.push('The sound feature must use GET/PUT /api/sound-settings.');
   if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('sound-settings.js and wait-notice.js must load as ES modules.');
   if (metrics.sound.entryLines > 80) errors.push(`desktop/ui/sound-settings.js must remain a thin entry (<= 80 lines, found ${metrics.sound.entryLines}).`);
-  if (metrics.current.sourceSliceTestFileCount > metrics.baseline.sourceSliceTestFileCount) errors.push(`Source-slicing tests may not increase beyond the phase-0 baseline of ${metrics.baseline.sourceSliceTestFileCount} (found ${metrics.current.sourceSliceTestFileCount}).`);
+  if (metrics.current.whaleWidgetLines > 6500) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 6500 lines (found ${metrics.current.whaleWidgetLines}).`);
+  if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
+  if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
   return errors;
 }
 

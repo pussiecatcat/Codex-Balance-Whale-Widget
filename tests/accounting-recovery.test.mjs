@@ -243,7 +243,7 @@ test('high demand survives settlement and journal sanitization without saving er
   await waitFor(() => service.lastTurn().seq === 1);
   assert.equal(service.lastTurn().failureKind, 'high-demand');
   assert.equal(service.ledger.find(scope, meta).cost, 0.25);
-  assert.ok(!fs.readFileSync(service.lastFile, 'utf8').includes('SYNTHETIC-PRIVATE-ERROR'));
+  assert.ok(!fs.readFileSync(path.join(dir, 'last-turn.json'), 'utf8').includes('SYNTHETIC-PRIVATE-ERROR'));
 });
 
 test('cancel after a terminal overload replaces its queued phrase with neutral spending',async t=>{

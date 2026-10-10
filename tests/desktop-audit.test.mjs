@@ -8,6 +8,8 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createBubbleInteraction } from '../desktop/ui/features/widget/bubble-interaction.js';
+import { createRoleHitPreparer, pointerPressAccepted } from '../desktop/ui/features/widget/input-policy.js';
 const require = createRequire(import.meta.url);
 const { shutdownCompanion } = require('../desktop/lifecycle.cjs');
 const { externalWebUrl } = require('../desktop/external-links.cjs');
@@ -110,54 +112,51 @@ test('long or unsupported animations keep a bounded clickable fallback instead o
 });
 
 test('broken saved role requests fallback once, then announces readiness only for a loaded replacement', async () => {
-  const source = await fs.readFile(new URL('../desktop/ui/input.js', import.meta.url), 'utf8');
-  const begin = source.indexOf('  async function prepare()'), end = source.indexOf("  pet.addEventListener('load'");
   const events = [], bridgeCalls = [];
-  const box = { pet: { complete: true, naturalWidth: 0, currentSrc: 'broken-role' }, failedRoleSources: new Set(), ready: false,
-    rendering: { hitCache: { prepare: async () => ({}) } }, bridge: { ready: () => bridgeCalls.push('ready') }, request() {},
-    window: { dispatchEvent: event => events.push(event) }, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
-  vm.createContext(box); vm.runInContext(source.slice(begin, end), box);
-  await vm.runInContext('prepare(); prepare()', box);
+  const pet = { complete: true, naturalWidth: 0, currentSrc: 'broken-role' };
+  const preparer = createRoleHitPreparer({
+    pet, rendering: { hitCache: { prepare: async () => ({}) } },
+    bridge: { ready: () => bridgeCalls.push('ready') }, request() {}, document: {},
+    window: { dispatchEvent: event => events.push(event) },
+    CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+  });
+  await preparer.prepare(); await preparer.prepare();
   assert.equal(events.length, 1); assert.equal(events[0].type, 'whale-role-fallback'); assert.equal(bridgeCalls.length, 0);
-  box.pet.currentSrc = 'default-role'; box.pet.naturalWidth = 100;
-  await vm.runInContext('prepare()', box);
+  pet.currentSrc = 'default-role'; pet.naturalWidth = 100;
+  await preparer.prepare();
   assert.deepEqual(bridgeCalls, ['ready']);
 });
 
 test('an earlier accepted press retains native input after the squish makes its pixel transparent', async () => {
-  const source = await fs.readFile(new URL('../desktop/ui/input.js', import.meta.url), 'utf8');
-  const start = source.indexOf("  document.addEventListener('pointerdown'"), end = source.indexOf('  function release(');
-  let handler, captured = true;
-  const enabled = [], box = { releaseEpoch: 0, point: null, heldPointer: null,
-    root: { hasPointerCapture: id => captured && id === 1 }, hit: () => false,
-    document: { addEventListener: (_name, callback) => { handler = callback; } },
-    update: () => enabled.push(box.heldPointer !== null) };
-  vm.createContext(box); vm.runInContext(source.slice(start, end), box);
-  handler({ pointerId: 1, clientX: 20, clientY: 30 });
-  assert.equal(box.heldPointer, 1); assert.deepEqual(enabled, [true]);
-  box.heldPointer = null; captured = false;
-  handler({ pointerId: 2, clientX: 100, clientY: 100 });
-  assert.equal(box.heldPointer, null); assert.deepEqual(enabled, [true, false], 'an unaccepted transparent-area press still passes through');
+  let captured = true;
+  const root = { hasPointerCapture: id => captured && id === 1 };
+  assert.equal(pointerPressAccepted(root, { pointerId: 1 }, () => false, { x: 20, y: 30 }), true);
+  captured = false;
+  assert.equal(pointerPressAccepted(root, { pointerId: 2 }, () => false, { x: 100, y: 100 }), false,
+    'an unaccepted transparent-area press still passes through');
+  assert.equal(pointerPressAccepted(root, { pointerId: 3 }, () => true, { x: 5, y: 5 }), true);
 });
 
-test('petting an open character bubble never advances or closes its queue', async () => {
-  const source = await fs.readFile(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-  const start = source.indexOf('    function whaleClick()');
-  const end = source.indexOf('    function bubbleNext()', start);
-  assert.ok(start >= 0 && end > start, 'whaleClick source is available');
-  const box = {
-    bubbleOn: true, bubbleSceneController: { scene: null, shown: false }, bubbleNoticeQueue: { current: null }, bubbleRoundOn: false, bubbleSeqIdx: 8,
-    opens: 0, quotaRefreshes: 0,
-    window: { WhaleAccountView: { mode: 'subscription' }, WhaleQuota: { refresh: force => { assert.equal(force, true); box.quotaRefreshes++; } } },
-  };
-  box.bubbleShowSeqNext = () => { box.opens++; };
-  vm.createContext(box);
-  vm.runInContext(source.slice(start, end), box);
-  vm.runInContext('whaleClick()', box);
-  assert.equal(box.opens, 1); assert.equal(box.quotaRefreshes, 1); assert.equal(box.bubbleRoundOn, true); assert.equal(box.bubbleSeqIdx, 0);
-  box.bubbleSceneController.shown = true; box.bubbleSeqIdx = 1;
-  vm.runInContext('whaleClick(); whaleClick(); whaleClick()', box);
-  assert.equal(box.opens, 1); assert.equal(box.quotaRefreshes, 1); assert.equal(box.bubbleSeqIdx, 1, 'open bubble remains on its current item');
+test('petting an open character bubble never advances or closes its queue', () => {
+  const state = { enabled: true, scene: null, shown: false, round: false, index: 8, opens: 0, quotaRefreshes: 0 };
+  const interaction = createBubbleInteraction({
+    isEnabled: () => state.enabled,
+    getScene: () => state.scene,
+    isShown: () => state.shown,
+    getCurrentNotice: () => null,
+    closeWait() {},
+    isSubscription: () => true,
+    refreshQuota: () => { state.quotaRefreshes++; },
+    startRound: () => { state.round = true; state.index = 0; state.opens++; },
+    canAdvance: () => false,
+    showNext: () => { state.opens++; },
+    closeCost() {}, closeAlert() {}, closeBubble() {},
+  });
+  interaction.whaleClick();
+  assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.round, true); assert.equal(state.index, 0);
+  state.shown = true; state.index = 1;
+  interaction.whaleClick(); interaction.whaleClick(); interaction.whaleClick();
+  assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.index, 1, 'open bubble remains on its current item');
 });
 
 test('failed task registration leaves a running installation untouched and cannot print success', { skip: process.platform !== 'win32' }, async t => {

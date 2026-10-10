@@ -148,6 +148,12 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         '/features/widget/bubble-editor-commands.js': 'features/widget/bubble-editor-commands.js',
         '/features/widget/bubble-scene.js': 'features/widget/bubble-scene.js',
         '/features/widget/bubble-notice-queue.js': 'features/widget/bubble-notice-queue.js',
+        '/features/widget/bubble-interaction.js': 'features/widget/bubble-interaction.js',
+        '/features/widget/input-policy.js': 'features/widget/input-policy.js',
+        '/features/widget/task-end-sound.js': 'features/widget/task-end-sound.js',
+        '/features/widget/name-marquee.js': 'features/widget/name-marquee.js',
+        '/features/widget/role-manager.js': 'features/widget/role-manager.js',
+        '/features/widget/character-interaction.js': 'features/widget/character-interaction.js',
         '/features/widget/asset-client.js': 'features/widget/asset-client.js',
         '/features/widget/anchors.js': 'features/widget/anchors.js',
         '/features/widget/resource-manager.js': 'features/widget/resource-manager.js',
@@ -156,7 +162,18 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         '/features/widget/bubble-editor-model.js': 'features/widget/bubble-editor-model.js',
         '/features/widget/usage-records-view.js': 'features/widget/usage-records-view.js',
         '/features/widget/usage-alerts.js': 'features/widget/usage-alerts.js',
-        '/features/widget/snap-editor.js': 'features/widget/snap-editor.js' };
+        '/features/widget/snap-editor.js': 'features/widget/snap-editor.js',
+        '/features/widget/bubble-color-select.js': 'features/widget/bubble-color-select.js',
+        '/features/widget/bubble-palette.js': 'features/widget/bubble-palette.js',
+        '/features/widget/bubble-quick-editors.js': 'features/widget/bubble-quick-editors.js',
+        '/features/widget/usage-models-view.js': 'features/widget/usage-models-view.js',
+        '/features/widget/usage-overview-view.js': 'features/widget/usage-overview-view.js',
+        '/features/widget/fx-controls.js': 'features/widget/fx-controls.js',
+        '/features/widget/usage-navigation.js': 'features/widget/usage-navigation.js',
+        '/features/widget/bubble-content.js': 'features/widget/bubble-content.js',
+        '/features/widget/bubble-template-help.js': 'features/widget/bubble-template-help.js',
+        '/features/widget/bubble-rows-view.js': 'features/widget/bubble-rows-view.js',
+        '/features/widget/turn-notice-poller.js': 'features/widget/turn-notice-poller.js' };
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createTurnNoticePoller } from '../desktop/ui/features/widget/turn-notice-poller.js';
 import { SessionParser, SessionReader, SessionMonitor } from '../runtime/session-monitor.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
@@ -178,9 +179,6 @@ test('worker starts asynchronously and reports matching main completion after ch
 });
 
 test('actual frontend polling suppresses startup replay, duplicates, children and overlapping requests', async () => {
-  const source = fs.readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-  const begin = source.indexOf("    var LAST_TURN_URL = "), end = source.indexOf('    setInterval(pollLastTurn, 1000);', begin);
-  assert.ok(begin > 0 && end > begin);
   const stored = new Map(); let fetches = 0, sounds = 0, bubbles = 0, release;
   const pending = [], sandbox = { state: {}, Date, Number, isFinite,
     window: { dispatchEvent() {} }, CustomEvent: class { constructor(type, options) { this.type=type;this.detail=options.detail; } },
@@ -189,27 +187,37 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
     playTaskEndSound: () => sounds++, showCostBubble: () => bubbles++ };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(new URL('../desktop/ui/turn-notice.js', import.meta.url), 'utf8'), sandbox);
-  vm.runInContext(source.slice(begin, end), sandbox);
+  let lastTurnNotice = null;
+  const turnNoticePoller = createTurnNoticePoller({
+    window: sandbox.window, localStorage: sandbox.localStorage, fetch: sandbox.fetch,
+    WhaleTurnNotice: sandbox.WhaleTurnNotice, CustomEvent: sandbox.CustomEvent,
+    getCurrency: () => sandbox.state.currency,
+    setLastTurnNotice: notice => { lastTurnNotice = notice; },
+    playTaskEndSound: sandbox.playTaskEndSound,
+    getFeedbackVolume: () => 1,
+    showCostBubble: sandbox.showCostBubble,
+  });
+  const pollLastTurn = () => turnNoticePoller.poll();
   const respond = async data => { release = pending.shift(); assert.ok(release); release({ json: async () => data }); await tick(); };
   const notice = (seq, id, extra = {}) => ({ ok: true, seq, id, turn: id, ts: Date.now() + 10, amount: 1, outcome: 'completed', notify: true, ...extra });
-  sandbox.pollLastTurn(); sandbox.pollLastTurn(); assert.equal(fetches, 1);
+  pollLastTurn(); pollLastTurn(); assert.equal(fetches, 1);
   await respond(notice(5, 'old', { ts: Date.now() - 10000 })); assert.equal(sounds, 0);
   for (const data of [notice(6, 'new'), notice(7, 'new'), notice(8, 'failed', { notify: false }), notice(9, 'child', { isSubagent: true }), notice(10, 'next')]) {
-    sandbox.pollLastTurn(); await respond(data);
+    pollLastTurn(); await respond(data);
   }
   assert.equal(sounds, 2); assert.equal(bubbles, 2); assert.equal(stored.get('dshw-last-turn-id'), 'next');
   for (const data of [notice(11, 'failed-notice', { outcome: 'failed', completionKind: 'failed', amount: null, costState: 'pending' }),
     notice(12, 'cancelled-notice', { outcome: 'aborted', completionKind: 'cancelled', amount: null, costState: 'unknown' }),
     notice(12, 'cancelled-notice', { outcome: 'aborted', completionKind: 'cancelled', amount: 2, costState: 'observed' })]) {
-    sandbox.pollLastTurn(); await respond(data);
+    pollLastTurn(); await respond(data);
   }
   assert.equal(sounds, 2); assert.equal(bubbles, 4);
-  sandbox.pollLastTurn(); await respond(notice(13, 'busy', { outcome: 'failed', completionKind: 'failed', failureKind: 'high-demand' }));
+  pollLastTurn(); await respond(notice(13, 'busy', { outcome: 'failed', completionKind: 'failed', failureKind: 'high-demand' }));
   assert.equal(sounds, 2); assert.equal(bubbles, 5);
   let subscriptionNotices = 0, quotaSettles = 0;
   sandbox.window.WhaleAccountView = { mode: 'subscription', notice: () => subscriptionNotices++ };
   sandbox.window.WhaleQuota = { settled: () => quotaSettles++ };
-  sandbox.pollLastTurn(); await respond(notice(14, 'subscription-success', { tokens: 4321 }));
+  pollLastTurn(); await respond(notice(14, 'subscription-success', { tokens: 4321 }));
   assert.equal(sounds, 3); assert.equal(bubbles, 6); assert.equal(subscriptionNotices, 1); assert.equal(quotaSettles, 1);
-  assert.equal(sandbox.lastTurnNotice.tokens, 4321);
+  assert.equal(lastTurnNotice.tokens, 4321);
 });

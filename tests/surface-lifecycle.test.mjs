@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { createInputHitTester } from '../desktop/ui/features/widget/input-policy.js';
 
 const shapeSource = await readFile(new URL('../desktop/ui/shape.js', import.meta.url), 'utf8');
-const inputSource = await readFile(new URL('../desktop/ui/input.js', import.meta.url), 'utf8');
 
 function surface(classes, x = 100, y = 100) {
   const names = new Set(classes.split(' '));
@@ -40,7 +40,7 @@ function animation(endTime = 500, playState = 'running') {
   return value;
 }
 
-function browser(nodes, { input = false, platform = 'win32' } = {}) {
+function browser(nodes, { platform = 'win32' } = {}) {
   const frames = new Map(); let sequence = 0, mutation;
   const bridge = { platform, testMode: true, shape() {}, interactive() {}, keyboardFocus() {}, onCursor() {} };
   const document = {
@@ -55,7 +55,7 @@ function browser(nodes, { input = false, platform = 'win32' } = {}) {
     WhaleRendering: { onFrame() {}, presentFor() {}, mirrorScale: () => 1, hitCache: { hit: () => false } },
     addEventListener() {},
   };
-  runInNewContext(input ? inputSource : shapeSource, {
+  runInNewContext(shapeSource, {
     window, document, innerWidth: 1000, innerHeight: 800,
     requestAnimationFrame: callback => { const id = ++sequence; frames.set(id, callback); return id; },
     cancelAnimationFrame: id => frames.delete(id),
@@ -65,7 +65,7 @@ function browser(nodes, { input = false, platform = 'win32' } = {}) {
     setInterval() {},
   });
   return {
-    api: input ? window.__whaleInputTest : window.__whaleShapeTest,
+    api: window.__whaleShapeTest,
     mutation: () => mutation(), pending: () => frames.size,
     frame() { const callbacks = [...frames.values()]; frames.clear(); for (const callback of callbacks) callback(); },
   };
@@ -127,16 +127,26 @@ test('exit pixels and hover-only space never become input surfaces', () => {
   const pet = surface('dshwv-img', 700, 600), root = surface('dshwv-root');
   const menu = surface('dshwv-menu dshwv-menu-open'), button = surface('dshwv-menu-btn dshwv-menu-btn-visible', 300);
   const panel = surface('dshwv-usagepanel'); panel.parent = menu;
-  const env = browser([pet, root, menu, button, panel], { input: true });
-  assert.equal(env.api.hit({ x: 150, y: 150 }), true);
+  const nodes = [pet, root, menu, button, panel];
+  const document = {
+    querySelectorAll: selector => nodes.filter(element => element.isConnected && element.matches(selector)),
+    elementFromPoint: () => null,
+  };
+  const { hit } = createInputHitTester({
+    document, pet, root,
+    rendering: { hitCache: { hit: () => false }, mirrorScale: () => 1 },
+    getComputedStyle: element => ({ pointerEvents: element.pointerEvents }),
+    viewport: () => ({ width: 1000, height: 800 }),
+  });
+  assert.equal(hit({ x: 150, y: 150 }), true);
   menu.names.delete('dshwv-menu-open');
-  assert.equal(env.api.hit({ x: 150, y: 150 }), false, 'a child panel cannot re-enable its closing menu');
-  assert.equal(env.api.hit({ x: 350, y: 150 }), true);
+  assert.equal(hit({ x: 150, y: 150 }), false, 'a child panel cannot re-enable its closing menu');
+  assert.equal(hit({ x: 350, y: 150 }), true);
   button.names.delete('dshwv-menu-btn-visible');
-  assert.equal(env.api.hit({ x: 350, y: 150 }), false, 'the fading button is not clickable');
+  assert.equal(hit({ x: 350, y: 150 }), false, 'the fading button is not clickable');
   button.names.add('dshwv-menu-btn-visible'); button.names.add('dshwv-menu-btn-hidden');
-  assert.equal(env.api.hit({ x: 350, y: 150 }), false, 'the hide-button preference wins over visible class');
+  assert.equal(hit({ x: 350, y: 150 }), false, 'the hide-button preference wins over visible class');
   button.names.delete('dshwv-menu-btn-hidden'); button.pointerEvents = 'none';
-  assert.equal(env.api.hit({ x: 350, y: 150 }), false);
-  assert.equal(env.api.hit({ x: 250, y: 150 }), false, 'space between bounded surfaces passes through');
+  assert.equal(hit({ x: 350, y: 150 }), false);
+  assert.equal(hit({ x: 250, y: 150 }), false, 'space between bounded surfaces passes through');
 });

@@ -141,9 +141,11 @@ export class SessionMonitor {
     // Do not hand the mutable worker snapshot to HTTP callers. This is a
     // monitoring DTO, never a route to parser or accounting internals.
     const { watching = 0, error = '', initializing = false, catchingUp = false, recoverySeen = [] } = this.snapshot;
+    const runtime = this.service.monitorStatus?.() || {};
+    const recovery = runtime.recovery && typeof runtime.recovery === 'object' ? runtime.recovery : {};
     return { watching, error, initializing, catchingUp, recoverySeen: [...recoverySeen],
-      activeTurns: [...this.service.turns.values()].filter(turn => !turn.isSubagent).length,
-      recovery: { pending: this.service.journal?.entries.size || 0,
-        error: this.service.journal?.error || this.service.recoveryError || '' }, worker: !this.stopped };
+      activeTurns: Number.isSafeInteger(runtime.activeTurns) && runtime.activeTurns >= 0 ? runtime.activeTurns : 0,
+      recovery: { pending: Number.isSafeInteger(recovery.pending) && recovery.pending >= 0 ? recovery.pending : 0,
+        error: typeof recovery.error === 'string' ? recovery.error : '' }, worker: !this.stopped };
   }
 }

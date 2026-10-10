@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 // Owns balance request ordering, cache identity, and the currently observed
 // account/currency scope. It never owns a turn or a notification.
 export class BalanceQuery {
+  #activeScope = null;
+
   constructor({ config, provider, ledger, clock = Date.now }) {
     this.config = config;
     this.provider = provider;
@@ -13,10 +15,10 @@ export class BalanceQuery {
     this.latestSamples = new Map();
     this.latestQueries = new Map();
     this.balanceSequence = 0;
-    this.activeScope = null;
     this.closed = false;
   }
   close() { this.closed = true; }
+  getActiveScope() { return this.#activeScope; }
   scope(c, currency) { return c.accountId + '-' + currency; }
   balanceIdentity(c) {
     const s = c.setting || {};
@@ -98,7 +100,7 @@ export class BalanceQuery {
   decorate(c, payload, { activate = true } = {}) {
     const scope = this.scope(c, payload.currency);
     const records = this.ledger.records(scope);
-    if (activate && this.isCurrentBalanceContext(c)) this.activeScope = scope;
+    if (activate && this.isCurrentBalanceContext(c)) this.#activeScope = scope;
     return { ...payload, todayUsage: records.today.total, observedSince: records.today.since, usageMode: 'ledger', usageNote: records.note };
   }
 }

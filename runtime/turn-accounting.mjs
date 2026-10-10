@@ -1,4 +1,4 @@
-import { readJson, writeJson, rounded } from './paths.mjs';
+import { rounded } from './paths.mjs';
 import { TurnJournal, safeSample, safeTurn, safeUsage } from './turn-journal.mjs';
 
 // Owns live turns, durable recovery, pending cost checks, and ledger writes.
@@ -80,6 +80,12 @@ export class TurnAccounting {
     for (const meta of waiting) this.finishTurn({ ...meta, historical: true, notify: false, statusNotify: false }).catch(() => {});
     return [...this.recoveryActive];
   }
+  status() {
+    return { activeTurns: [...this.turns.values()].filter(turn => !turn.isSubagent).length,
+      allTurns: this.turns.size, settling: this.settling.size, pendingCosts: this.pendingCosts.size,
+      recovery: { pending: this.journal.entries.size, error: this.journal.error || this.recoveryError || '' },
+      closed: this.closed };
+  }
   finishMissingRecovery(seenIds = []) {
     const seen = new Set(seenIds);
     for (const id of this.recoveryActive) {
@@ -147,10 +153,11 @@ export class TurnAccounting {
     if (meta.historical && amount === null) note = '已恢复任务状态及可用 token 记录；任务结束时没有可靠余额采样，不能把停机期间其他扣费归入本轮。';
     const label = source === 'configured-pricing-estimate' ? '上一轮消耗（估算）:' : source === 'shared-key-interval' ? (turn.partial ? '本轮已观测期间扣费:' : '上一轮期间 API 扣费:') : '上一轮 token 用量:';
     const tokens = tokenTotal(combined);
-    if(this.notice.cancelledOutcomes.has(meta.id)){outcome='aborted';base.outcome='aborted';base.failureKind=null;}
+    const outcomeCancelled = this.notice.isOutcomeCancelled(meta.id);
+    if(outcomeCancelled){outcome='aborted';base.outcome='aborted';base.failureKind=null;}
     const completionKind = outcome === 'completed' ? 'success' : ['failed','interrupted','superseded'].includes(outcome) ? 'failed' : outcome === 'aborted' ? 'cancelled' : null;
     const event = { ...base, ok: true, turn: meta.turnId || meta.id, amount, cost: amount, costState, tokens, currency, source, label, note,
-      completionKind, notify: !meta.historical && !!completionKind && (outcome === 'completed' ? meta.notify !== false : meta.statusNotify === true || outcome === 'aborted' && this.notice.cancelledOutcomes.has(meta.id)),
+      completionKind, notify: !meta.historical && !!completionKind && (outcome === 'completed' ? meta.notify !== false : meta.statusNotify === true || outcome === 'aborted' && outcomeCancelled),
       concurrent: !!turn.concurrent, childTurns: children.length, ownByModel: ownUsage, byModel: combined,
       pricing: context.setting.models };
     const scope = this.balance.scope(context, currency);
@@ -194,8 +201,7 @@ export class TurnAccounting {
   reviseRecord(scope, id, patch) {
     const event = this.ledger.revise(scope, id, patch);
     if (!event) return;
-    const last = readJson(this.notice.lastFile, { seq: 0 });
-    if (last.id === id) writeJson(this.notice.lastFile, { ...last, ...event, seq: last.seq, amount: event.cost });
+    this.notice.reviseLastTurn(id, { ...event, amount: event.cost });
   }
   markCostUnknown(scope, id) {
     const event = this.ledger.find(scope, { id });

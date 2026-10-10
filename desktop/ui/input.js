@@ -1,3 +1,5 @@
+import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '/features/widget/input-policy.js';
+
 (() => {
   'use strict';
   function initialize() {
@@ -5,33 +7,11 @@
   if (!bridge || !rendering) return;
   const pet = document.querySelector('.dshwv-img'), root = document.querySelector('.dshwv-root');
   if (!pet || !root) return;
-  const failedRoleSources = new Set();
   let pointerEventAt=0;
-  let point = { x: -1, y: -1 }, heldPointer = null, releaseEpoch = 0, interactive = false, keyboardFocus = false, ready = false, lastStorage = '', externalDrag = false;
-  const surfaces = '.whale-account-card,dialog[open],.dshwv-menu-open,.dshwv-menu-btn-visible:not(.dshwv-menu-btn-hidden),.dshwv-rolelist,.dshwv-audiolist,.dshwv-qedit,.dshwv-usagepanel,.dshwv-custmenu,.dshwv-custbtn,.dshwv-tplhelp,.dshwv-fx-info,#toast:not([hidden])';
+  let point = { x: -1, y: -1 }, heldPointer = null, releaseEpoch = 0, interactive = false, keyboardFocus = false, lastStorage = '', externalDrag = false;
   const keyboardSurfaces = 'dialog[open],.dshwv-menu-open,.dshwv-rolelist,.dshwv-audiolist,[class*="mask"],.dshwv-qedit,.dshwv-usagepanel,.dshwv-custmenu,.dshwv-fx-info';
-  function visible(el) { return !!el?.isConnected && !el.hidden && el.checkVisibility({ opacityProperty: true, visibilityProperty: true }); }
-  function acceptsInput(el) {
-    if (!visible(el) || el.closest('[inert]') || getComputedStyle(el).pointerEvents === 'none') return false;
-    // Child panels may remain painted during the parent menu's exit animation.
-    const menu = el.closest('.dshwv-menu');
-    return !menu || menu.classList.contains('dshwv-menu-open');
-  }
-  function contains(el, p) { const r = el.getBoundingClientRect(); return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom; }
-  function hit(p) {
-    for (const el of document.querySelectorAll(surfaces)) if (acceptsInput(el) && contains(el, p)) return true;
-    // Transparent modal backdrops are not input surfaces. Only the bounded
-    // content card may intercept the host pointer, matching the native region.
-    function cardHit(el,depth=0){
-      if(!visible(el))return false;const r=el.getBoundingClientRect();
-      if(depth<3&&r.width>=innerWidth*.95&&r.height>=innerHeight*.95)return [...el.children].some(c=>cardHit(c,depth+1));
-      return acceptsInput(el)&&contains(el,p);
-    }
-    for(const mask of document.querySelectorAll('[class*="mask"]'))if(visible(mask)&&[...mask.children].some(c=>cardHit(c)))return true;
-    const target = document.elementFromPoint(p.x, p.y);
-    if (target?.closest('.dshwv-pop-open') && !target.closest('[inert]')) return true;
-    return visible(pet) && rendering.hitCache.hit(pet, p.x, p.y, rendering.mirrorScale(root) < 0);
-  }
+  const { hit } = createInputHitTester({ document, pet, root, rendering, getComputedStyle,
+    viewport: () => ({ width: innerWidth, height: innerHeight }) });
   function update() {
     const next = heldPointer !== null || !externalDrag && hit(point);
     if (next !== interactive) { interactive = next; bridge.interactive(next); }
@@ -55,9 +35,7 @@
     // The widget's earlier capture listener may already accept this press and
     // start the squish animation. Its pending pointer capture is authoritative:
     // testing the now-moving alpha again must not discard the accepted gesture.
-    let accepted = false;
-    try { accepted = root.hasPointerCapture(e.pointerId); } catch {}
-    if (accepted || hit(point)) heldPointer = e.pointerId;
+    if (pointerPressAccepted(root, e, hit, point)) heldPointer = e.pointerId;
     update();
   }, true);
   function release(e) {
@@ -89,35 +67,13 @@
     if (e.target.closest('.dshwv-root,.dshwv-position')) rendering.presentFor(600);
   }, true);
   window.addEventListener('resize', () => rendering.presentFor(220));
-  async function prepare() {
-    if (!pet.complete) return;
-    if (!pet.naturalWidth) { fallbackRole(); return; }
-    const source = pet.currentSrc || pet.src;
-    await rendering.hitCache.prepare(source);
-    if (!pet.complete || !pet.naturalWidth || (pet.currentSrc || pet.src) !== source) return;
-    if (!ready) { ready = true; bridge.ready(); }
-    request();
-  }
-  function fallbackRole() {
-    const source = pet.currentSrc || pet.src;
-    if (!source || failedRoleSources.has(source)) return;
-    failedRoleSources.add(source);
-    if (/\/dsh-whale\/image\.png(?:\?|$)/.test(source)) {
-      // Network-independent visible emergency art: do not wait forever for ready.
-      const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 160;
-      const c = canvas.getContext('2d'); c.fillStyle = '#6184cf'; c.beginPath(); c.ellipse(78, 95, 60, 42, 0, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.moveTo(125, 94); c.lineTo(158, 65); c.lineTo(154, 112); c.closePath(); c.fill();
-      c.fillStyle = 'white'; c.beginPath(); c.arc(53, 86, 8, 0, Math.PI * 2); c.fill(); c.fillStyle = '#203170'; c.beginPath(); c.arc(51, 86, 4, 0, Math.PI * 2); c.fill();
-      pet.src = canvas.toDataURL('image/png'); pet.alt = '小鲸鱼恢复占位图';
-      if (!ready) { ready = true; bridge.ready(); }
-      window.whaleToast?.('内置角色无法读取，已使用恢复占位图。可重新选择角色或修复安装。');
-      request(); return;
-    }
-    window.dispatchEvent(new CustomEvent('whale-role-fallback', { detail: { src: source, reason: 'decode-failed' } }));
-  }
-  pet.addEventListener('load', prepare);
-  pet.addEventListener('error', fallbackRole);
-  prepare();
+  const roleHit = createRoleHitPreparer({
+    pet, rendering, bridge, window, CustomEvent, document, request,
+    toast: message => window.whaleToast?.(message),
+  });
+  pet.addEventListener('load', roleHit.prepare);
+  pet.addEventListener('error', roleHit.fallback);
+  roleHit.prepare();
   function save() {
     const values = Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)]));
     const encoded = JSON.stringify(values);

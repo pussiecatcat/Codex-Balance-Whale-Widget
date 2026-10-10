@@ -8,10 +8,11 @@ function normalizeHostState(packet, { platform = process.platform } = {}) {
   const bounds = rect && typeof rect === 'object' && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(rect[key]))
     && rect.width >= 0 && rect.height >= 0
     ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+  const diagnostics = normalizeDiagnostics(packet.visualDiagnostics);
   return {
-    ...packet,
     hostAlive: packet.hostAlive,
     hostPid: Number.isSafeInteger(packet.hostPid) && packet.hostPid > 0 ? packet.hostPid : 0,
+    hostSession: typeof packet.hostSession === 'string' ? packet.hostSession.slice(0, 160) : '',
     window: String(packet.window ?? '0'),
     visible: packet.visible === true,
     modal: packet.modal === true,
@@ -24,7 +25,33 @@ function normalizeHostState(packet, { platform = process.platform } = {}) {
     visibilityRevision: Number.isSafeInteger(packet.visibilityRevision) ? packet.visibilityRevision : null,
     mouseButtons: Number.isSafeInteger(packet.mouseButtons) && packet.mouseButtons >= 0 ? packet.mouseButtons : 0,
     mouseSampleAt: Number.isFinite(packet.mouseSampleAt) && packet.mouseSampleAt >= 0 ? packet.mouseSampleAt : 0,
+    serial: Number.isSafeInteger(packet.serial) && packet.serial >= 0 ? packet.serial : null,
+    monitorExit: packet.monitorExit === true,
+    mode: packet.mode === 'standalone' ? 'standalone' : packet.mode === 'follow-codex' ? 'follow-codex' : null,
+    visualDiagnostics: diagnostics,
   };
 }
 
-module.exports = { normalizeHostState };
+function normalizeDiagnostics(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = {};
+  for (const key of ['exists', 'visible', 'iconic', 'ownerMatches', 'hostForeground', 'overlayForeground',
+    'aboveHost', 'orderKnown', 'topmost', 'toolWindow', 'transparent', 'cloakKnown', 'cloaked']) {
+    if (typeof value[key] === 'boolean') result[key] = value[key];
+  }
+  for (const key of ['sampledAt', 'regionType']) if (Number.isFinite(value[key])) result[key] = value[key];
+  for (const key of ['regionBounds', 'bounds']) {
+    const rect = value[key];
+    if (rect && typeof rect === 'object' && ['left', 'top', 'right', 'bottom'].every(name => Number.isFinite(rect[name]))) {
+      result[key] = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    }
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function parseInitialHostState(value, options) {
+  try { return normalizeHostState(JSON.parse(value || 'null'), options); }
+  catch { return null; }
+}
+
+module.exports = { normalizeHostState, parseInitialHostState };

@@ -24,10 +24,19 @@ export class WhaleService {
   }
   get turns() { return this.turnAccounting.turns; }
   get journal() { return this.turnAccounting.journal; }
-  get lastFile() { return this.noticePublisher.lastFile; }
-  get activeScope() { return this.balanceQuery.activeScope; }
-  get recoveryError() { return this.turnAccounting.recoveryError || this.noticePublisher.recoveryError; }
+  get activeScope() { return this.balanceQuery.getActiveScope(); }
+  get recoveryError() { return this.monitorStatus().recovery.error; }
   get closed() { return this.turnAccounting.closed; }
+  accountingStatus() {
+    const status = this.turnAccounting.status();
+    return { ...status, recovery: { ...status.recovery } };
+  }
+  monitorStatus() {
+    const accounting = this.accountingStatus(), publication = this.noticePublisher.status();
+    return { activeTurns: accounting.activeTurns,
+      recovery: { pending: accounting.recovery.pending,
+        error: accounting.recovery.error || publication.recoveryError || '' } };
+  }
   scope(...args) { return this.balanceQuery.scope(...args); }
   balanceIdentity(...args) { return this.balanceQuery.balanceIdentity(...args); }
   isCurrentBalanceContext(...args) { return this.balanceQuery.isCurrentBalanceContext(...args); }

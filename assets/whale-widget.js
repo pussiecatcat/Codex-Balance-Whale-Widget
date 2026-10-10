@@ -1,12 +1,27 @@
+import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
+import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
+import { createTaskEndSound } from '/features/widget/task-end-sound.js';
+import { createNameMarquee } from '/features/widget/name-marquee.js';
+import { createRoleManager } from '/features/widget/role-manager.js';
+import { createCharacterInteraction } from '/features/widget/character-interaction.js';
+import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
+import { createBubbleContent } from '/features/widget/bubble-content.js';
+import { createUsageNavigation } from '/features/widget/usage-navigation.js';
+import { createFxControls } from '/features/widget/fx-controls.js';
+import { createUsageOverviewView } from '/features/widget/usage-overview-view.js';
+import { createUsageModelsView } from '/features/widget/usage-models-view.js';
+import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.js';
+import { createBubblePalette } from '/features/widget/bubble-palette.js';
+import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
 import { createSnapEditor } from '/features/widget/snap-editor.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
 import { createBubbleSceneController } from '/features/widget/bubble-scene.js';
 import { createBubbleNoticeQueue } from '/features/widget/bubble-notice-queue.js';
+import { createBubbleInteraction } from '/features/widget/bubble-interaction.js';
 import { createAssetClient } from '/features/widget/asset-client.js';
 import { createResourceManager } from '/features/widget/resource-manager.js';
-import { createMenuHover } from '/features/widget/menu-hover.js';
 import { createBubbleEditorView } from '/features/widget/bubble-editor-view.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
@@ -45,12 +60,13 @@ import {
 //    WhaleMoney / WhaleApiModels / WhaleDashboard）。改动前先确认调用方。
 // ────────────────────────────────────────────────────────────────────────────
 (function () {
-  if (window.__dshWhaleWidget) return;
-  window.__dshWhaleWidget = true;
+  if (window.__dshWhaleWidget || window.__dshWhaleWidgetLoading) return;
+  window.__dshWhaleWidgetLoading = true;
   var dshwEnabled = true;
   function dshwInit() {
-    if (window.__dshWhaleInit) return;
-    window.__dshWhaleInit = true;
+    if (window.__dshWhaleInit) return true;
+    if (window.__dshWhaleInitLoading) return false;
+    window.__dshWhaleInitLoading = true;
     var MIN_SCALE = 0.6;
     var MAX_SCALE = 2.5;
     var STEP = 0.1;
@@ -66,6 +82,7 @@ import {
     var IMG_URL = '/dsh-whale/image.png?v=2';
     var GIF_URL = '/dsh-whale/rua.gif';
     var BUBBLE_URL = '/dsh-whale/bubble.json';
+    var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
     var assetWarnings = Object.create(null);
 
@@ -204,12 +221,9 @@ import {
       openAudioGroupEditor(null);
     });
     document.body.appendChild(audioGroupPanel);
-    function soundOpt(value, label) {
-      var o = document.createElement('option');
-      o.value = value;
-      o.textContent = label;
-      return o;
-    }
+    var nameMarquee = createNameMarquee({ document: document });
+    var makeNameCell = nameMarquee.makeCell;
+    var bindNameMarquee = nameMarquee.bind;
     var customSelect = createCustomSelectController({ document: document, window: window,
       dropOpen: dshwDropOpen, makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee });
     var dshwCustSel = customSelect.enhance;
@@ -265,173 +279,19 @@ import {
     });
 
     // ==== [任务结束音效] ====
-    function fillTaskEndOptions(pref) {
-      var prefSel = usageSet && usageSet.taskEnd && usageSet.taskEnd.sel || pref && pref.sel || '';
-      var cur = taskEndSel.value || prefSel || '';
-      taskEndSel.innerHTML = '';
-      var seen = {};
-      var seenLbl = {};
-      function add(v, lab) {
-        if (seen[v]) return;
-        if (seenLbl[lab]) return;
-        seen[v] = 1;
-        seenLbl[lab] = 1;
-        taskEndSel.appendChild(soundOpt(v, lab));
-      }
-      var grps = Array.isArray(audioGroups) ? audioGroups : [];
-      for (var gi = 0; gi < grps.length; gi++) {
-        var gg = grps[gi];
-        if (!gg || !gg.id) continue;
-        var gv = 'grp:' + gg.id;
-        if (seen[gv]) continue;
-        seen[gv] = 1;
-        taskEndSel.appendChild(soundOpt(gv, String(gg.name || audioGroupName(gg.id)) + '（点按）'));
-      }
-      var pre = [['preset:duck:press', '小黄鸭·按下'], ['preset:duck:release', '小黄鸭·松开'], ['preset:fx1:press', '音效1·按下'], ['preset:fx1:release', '音效1·松开']];
-      pre.forEach(function (o) {
-        add(o[0], o[1]);
-      });
-      var frags = Array.isArray(audioFragments) ? audioFragments : [];
-      frags.forEach(function (f) {
-        if (!f || !f.id) return;
-        if (f.preset) return;
-        add('frag:' + f.id, String(f.name || f.id));
-      });
-      var fragN = 0;
-      for (var fi = 0; fi < taskEndSel.options.length; fi++) if (String(taskEndSel.options[fi].value).indexOf('frag:') === 0) fragN++;
-      var found = false;
-      for (var i = 0; i < taskEndSel.options.length; i++) if (taskEndSel.options[i].value === cur) {
-        taskEndSel.value = cur;
-        found = true;
-        break;
-      }
-      if (!found) {
-        if (cur && String(cur).indexOf('frag:') === 0 && fragN === 0) {
-          taskEndSel.value = '';
-          if (taskEndDrop) taskEndDrop.refresh();
-          return;
-        }
-        if (cur && String(cur).indexOf('grp:') === 0 && (!Array.isArray(audioGroups) || audioGroups.length === 0)) {
-          taskEndSel.value = '';
-          if (taskEndDrop) taskEndDrop.refresh();
-          return;
-        }
-        var chosen = 'preset:duck:press';
-        for (var j = 0; j < taskEndSel.options.length; j++) {
-          var v = taskEndSel.options[j].value;
-          if (v.indexOf('frag:') === 0) {
-            chosen = v;
-            if (String(taskEndSel.options[j].textContent || '') === 'entity') break;
-          }
-        }
-        taskEndSel.value = chosen;
-        usageSet = usageSet || ({});
-        usageSet.taskEnd = usageSet.taskEnd || ({
-          on: false,
-          sel: ''
-        });
-        usageSet.taskEnd.sel = chosen;
-      }
-      if (pref && pref.sel) {
-        for (var k = 0; k < taskEndSel.options.length; k++) if (taskEndSel.options[k].value === pref.sel) taskEndSel.value = pref.sel;
-      }
-      var seen2 = {};
-      for (var di = taskEndSel.options.length - 1; di >= 0; di--) {
-        var dv = taskEndSel.options[di].value;
-        if (seen2[dv]) {
-          try {
-            taskEndSel.remove(di);
-          } catch (err) {}
-        } else seen2[dv] = 1;
-      }
-      if (taskEndDrop) taskEndDrop.refresh();
-    }
-    function refreshTaskEndAfterAudio() {
-      try {
-        fillTaskEndOptions(usageSet && usageSet.taskEnd || null);
-      } catch (err) {}
-    }
-    function playTaskEndSound() {
-      try {
-        if (!usageSet || !usageSet.taskEnd || !usageSet.taskEnd.on || soundOn === false) return;
-        var sel = usageSet.taskEnd.sel || taskEndSel.value || '';
-        var taskVolume = usageSet.taskEnd.volSet === true && isFinite(Number(usageSet.taskEnd.vol))
-          ? Math.max(0, Math.min(1, Number(usageSet.taskEnd.vol))) : soundVol;
-        var url = '';
-        if (sel.indexOf('grp:') === 0) {
-          if (window.WhaleFeedback) { window.WhaleFeedback.play('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(sel.slice(4)), taskVolume); return; }
-          playTaskEndGroupClick(sel.slice(4), taskVolume);
-          return;
-        }
-        if (sel.indexOf('frag:') === 0) url = '/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(sel.slice(5)); else if (sel.indexOf('preset:') === 0) {
-          var parts = sel.split(':');
-          url = '/dsh-whale/sound/' + (parts[2] === 'release' ? 'release' : 'press') + '.mp3?set=' + parts[1];
-        }
-        if (!url) return;
-        if (window.WhaleFeedback) { window.WhaleFeedbackSources = window.WhaleFeedbackSources || {}; window.WhaleFeedbackSources.success = url; window.WhaleFeedback.play('success', url, taskVolume); return; }
-        var a = new Audio(url);
-        try {
-          a.volume = taskVolume;
-        } catch (err) {}
-        a.play().catch(function () {});
-      } catch (err) {}
-    }
-    function playTaskEndGroupClick(groupId, volume) {
-      try {
-        if (!groupId) return;
-        var g = null;
-        for (var gi = 0; gi < audioGroups.length; gi++) if (audioGroups[gi] && audioGroups[gi].id === groupId) {
-          g = audioGroups[gi];
-          break;
-        }
-        var pressEmpty = !!(g && g.press === '');
-        var releaseEmpty = !!(g && g.release === '');
-        if (pressEmpty && releaseEmpty) return;
-        var vol = Number.isFinite(Number(volume)) ? Number(volume) : soundVol;
-        if (pressEmpty) {
-          if (!releaseEmpty) {
-            var relOnly = new Audio('/dsh-whale/sound/release.mp3?set=' + encodeURIComponent(groupId));
-            try {
-              relOnly.volume = vol;
-            } catch (err) {}
-            relOnly.currentTime = 0;
-            var pr = relOnly.play();
-            if (pr && pr.catch) pr.catch(function () {});
-          }
-          return;
-        }
-        var press = new Audio('/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(groupId));
-        try {
-          press.volume = vol;
-        } catch (err) {}
-        if (releaseEmpty) {
-          press.currentTime = 0;
-          var pp = press.play();
-          if (pp && pp.catch) pp.catch(function () {});
-          return;
-        }
-        var release = new Audio('/dsh-whale/sound/release.mp3?set=' + encodeURIComponent(groupId));
-        try {
-          release.volume = vol;
-        } catch (err) {}
-        var relPlayed = false;
-        function playRel() {
-          if (relPlayed) return;
-          relPlayed = true;
-          try {
-            release.currentTime = 0;
-            var p = release.play();
-            if (p && p.catch) p.catch(function () {});
-          } catch (err) {}
-        }
-        press.onended = function () {
-          playRel();
-        };
-        press.currentTime = 0;
-        var p0 = press.play();
-        if (p0 && p0.catch) p0.catch(function () {});
-      } catch (err) {}
-    }
+    var taskEndSound = createTaskEndSound({
+      document: document, window: window, Audio: Audio, taskEndSelect: taskEndSel,
+      getTaskEndDrop: function () { return taskEndDrop; },
+      getUsageSettings: function () { return usageSet; },
+      setUsageSettings: function (settings) { usageSet = settings; },
+      getAudioGroups: function () { return audioGroups; },
+      getAudioFragments: function () { return audioFragments; },
+      audioGroupName: audioGroupName,
+      getSoundState: function () { return { on: soundOn, volume: soundVol }; }
+    });
+    var fillTaskEndOptions = taskEndSound.fillOptions;
+    var refreshTaskEndAfterAudio = taskEndSound.refreshAfterAudio;
+    var playTaskEndSound = taskEndSound.play;
     var bubbleToggle = document.createElement('input');
     bubbleToggle.type = 'checkbox';
     bubbleToggle.className = 'dshwv-check';
@@ -574,6 +434,19 @@ import {
     roleFileInput.type = 'file';
     roleFileInput.accept = 'image/*';
     roleFileInput.style.display = 'none';
+    var roleManager = createRoleManager({
+      document: document, window: window, localStorage: localStorage, location: location, Image: Image,
+      rendering: WhaleRendering, imageElement: img, roleButton: roleBtn, roleButtonLabel: roleBtnLabel,
+      rolePanel: rolePanel, imageUrl: IMG_URL, assetClient: assetClient, assetWarning: assetWarning,
+      assetNotice: assetNotice, assetFailure: assetFailure, requireSaved: requireSaved,
+      viewport: viewport, setupHitTest: function (url) { return characterInteraction.setupHitTest(url); }, makeNameCell: makeNameCell,
+      bindNameMarquee: bindNameMarquee, confirm: showConfirm
+    });
+    var closeRolePanel = roleManager.close;
+    var toggleRolePanel = roleManager.toggle;
+    var renderRolePanel = roleManager.render;
+    var loadRoles = roleManager.load;
+    var applyRole = roleManager.apply;
     roleBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       toggleRolePanel();
@@ -647,75 +520,14 @@ import {
     fxRefreshRow.appendChild(fxInfoBtn); menuBox.appendChild(fxRefreshRow);
 
     // ==== [汇率显示] ====
-    function closeFxInfo(restoreFocus) {
-      if (!currencyNote || currencyNote.hidden) return;
-      currencyNote.hidden = true; fxInfoBtn.setAttribute('aria-expanded', 'false');
-      if (restoreFocus) fxInfoBtn.focus({ preventScroll: true });
-    }
-    function positionFxInfo() {
-      if (currencyNote.hidden) return;
-      var anchor = fxInfoBtn.getBoundingClientRect(), width = currencyNote.offsetWidth, height = currencyNote.offsetHeight;
-      var left = Math.max(8, Math.min(anchor.right - width, window.innerWidth - width - 8));
-      var below = anchor.bottom + 7, above = anchor.top - height - 7;
-      var top = below + height <= window.innerHeight - 8 ? below : Math.max(8, above);
-      currencyNote.style.left = left + 'px';
-      currencyNote.style.top = Math.max(8, Math.min(top, window.innerHeight - height - 8)) + 'px';
-    }
-    fxInfoBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (!currencyNote.hidden) { closeFxInfo(true); return; }
-      dshwCustSelClose(); closeRolePanel(); closeAudioGroupPanel();
-      currencyNote.hidden = false; fxInfoBtn.setAttribute('aria-expanded', 'true');
-      positionFxInfo(); currencyNote.focus({ preventScroll: true });
+    var fxControls = createFxControls({
+      document: document, window: window, WhaleMoney: WhaleMoney, currencyNote: currencyNote,
+      fxInfoBtn: fxInfoBtn, fxRefreshBtn: fxRefreshBtn, currencySel: currencySel,
+      currencyDrop: currencyDrop, dshwCustSelClose: dshwCustSelClose,
+      closeRolePanel: closeRolePanel, closeAudioGroupPanel: closeAudioGroupPanel,
+      assetNotice: assetNotice
     });
-    document.addEventListener('pointerdown', function (e) {
-      if (!currencyNote.hidden && !currencyNote.contains(e.target) && !fxInfoBtn.contains(e.target)) closeFxInfo();
-    }, true);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !currencyNote.hidden) { e.preventDefault(); e.stopPropagation(); closeFxInfo(true); }
-    }, true);
-    window.addEventListener('resize', function () { closeFxInfo(); });
-    function fxTime(value) {
-      var date = new Date(value);
-      return value && isFinite(date.getTime()) ? date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '尚未成功获取';
-    }
-    function updateFxButton() {
-      var moneyState = WhaleMoney.state();
-      var seconds = Math.ceil((moneyState.cooldownRemainingMs || 0) / 1000);
-      fxRefreshBtn.disabled = !!moneyState.refreshing || seconds > 0;
-      fxRefreshBtn.textContent = moneyState.refreshing ? '检查中…' : seconds > 0 ? seconds + ' 秒后刷新' : '刷新汇率';
-    }
-    fxRefreshBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      WhaleMoney.refreshQuote({ force: true, apply: true, reason: 'manual' }).then(function (ok) {
-        assetNotice(ok ? '参考汇率已检查，金额显示已同步' : '本次汇率检查未成功，继续使用可用汇率');
-      }).catch(function (error) { assetNotice(error.message); });
-      updateFxButton();
-    });
-    setInterval(updateFxButton, 1000);
-    WhaleMoney.onChange(function (moneyState) {
-      currencySel.value = moneyState.displayCurrency;
-      currencySel.disabled = ['USD', 'CNY'].indexOf(moneyState.nativeCurrency) < 0;
-      currencyDrop.refresh();
-      var fx = moneyState.quote;
-      var latest = moneyState.latestQuote || fx;
-      currencyNote.textContent = (fx ? '1 美元 = ' + fx.usdCny + ' 人民币\nFrankfurter · 汇率日期 ' + fx.date : '正在获取参考汇率…') +
-        (latest && latest.stale ? ' · 离线缓存' : '') +
-        '\n最近成功获取：' + fxTime(latest && latest.retrievedAt) +
-        '\n最近检查：' + fxTime(moneyState.checkedAt) + '（北京时间）' +
-        '\n每天 00:15 检查；休市日可能沿用上个交易日' +
-        (moneyState.hasPendingQuote ? '\n新汇率已就绪，下次打开或切换气泡时应用' : '') +
-        (moneyState.error ? '\n' + moneyState.error : '');
-      currencyNote.title = latest ? (latest.source || 'Frankfurter') + '；API 原始金额和记账币种不变。手动刷新立即应用，自动刷新保留当前气泡快照。' : '';
-      updateFxButton();
-      positionFxInfo();
-    });
-    currencySel.addEventListener('change', function () {
-      var next = currencySel.value;
-      currencySel.value = WhaleMoney.state().displayCurrency;
-      currencyDrop.refresh();
-      WhaleMoney.setDisplayCurrency(next).catch(function () {});
-    });
+    var closeFxInfo = fxControls.close;
     menuBox.appendChild(menuSep1);
     menuBox.appendChild(row9);
     var rowSnap = menuRow();
@@ -825,258 +637,35 @@ import {
     usageRecBtn.style.width = '100%';
     usageNavRow.appendChild(usageRecBtn);
     menuBox.appendChild(usageNavRow);
-    var usagePanelOpen = false;
-    var usageRefreshTimer = null;
     var usageMainEl = null;
-    var usageModelListEl = null;
-    var usageModelRefreshBtn = null;
-    var usageModelRenderSeq = 0;
-    function toggleUsagePanel() {
-      if (usagePanelOpen) {
-        hideUsageSub();
-        return;
-      }
-      showUsageSub();
-    }
-    function dshwvPlayViewIn(el) {
-      if (!el) return;
-      el.classList.remove('dshwv-view-in');
-      void el.offsetWidth;
-      el.classList.add('dshwv-view-in');
-    }
-    var usageHideTimer = null;
-    var usageShowTimer = null;
-    function setUsageNavBtn(inUsage) {
-      try {
-        usageRecBtn.textContent = inUsage ? '‹ 返回' : '- = 小龙娘记账 = -';
-        usageRecBtn.title = inUsage ? '返回' : '打开小龙娘记账';
-      } catch (err) {}
-    }
-    function showUsageSub() {
-      if (window.WhaleDashboard) { window.WhaleDashboard.select('usage'); return; }
-      try {
-        if (usageHideTimer) {
-          clearTimeout(usageHideTimer);
-          usageHideTimer = null;
-        }
-      } catch (err) {}
-      usagePanelOpen = true;
-      var w0 = 300;
-      var h0 = 360;
-      try {
-        var mb = menuBox.getBoundingClientRect();
-        if (mb.width > 0) w0 = Math.round(mb.width);
-        if (mb.height > 0) h0 = Math.round(mb.height);
-      } catch (err) {}
-      menuBox.classList.add('dshwv-ledger-open');
-      menuBox.style.width = w0 + 'px';
-      menuBox.style.maxWidth = w0 + 'px';
-      menuBox.style.height = h0 + 'px';
-      menuBox.style.overflow = 'hidden';
-      menuBox.style.display = 'flex';
-      menuBox.style.flexDirection = 'column';
-      try {
-        if (menuRootView && usageArea) {
-          if (menuRootView.parentNode !== usageArea) usageArea.appendChild(menuRootView);
-        }
-      } catch (err) {}
-      usageArea.style.display = 'block';
-      usagePanel.style.display = 'block';
-      usagePanel.style.position = 'absolute';
-      usagePanel.style.top = '0';
-      usagePanel.style.left = '0';
-      usagePanel.style.width = '100%';
-      usagePanel.style.height = '100%';
-      usagePanel.style.maxHeight = 'none';
-      usagePanel.style.overflowY = 'auto';
-      usagePanel.style.overscrollBehavior = 'contain';
-      usagePanel.scrollTop = 0;
-      usagePanel.style.zIndex = '1';
-      usagePanel.style.transform = 'translateY(100%)';
-      usagePanel.style.transition = 'none';
-      if (menuRootView) {
-        menuRootView.style.display = 'block';
-        menuRootView.style.position = 'absolute';
-        menuRootView.style.top = '0';
-        menuRootView.style.left = '0';
-        menuRootView.style.width = '100%';
-        menuRootView.style.height = '100%';
-        menuRootView.style.zIndex = '2';
-        menuRootView.style.transform = 'translateY(0)';
-        menuRootView.style.transition = 'none';
-      }
-      setUsageNavBtn(true);
-      renderUsagePanel();
-      try {
-        void usageArea.offsetHeight;
-      } catch (err) {}
-      usagePanel.style.transition = 'transform .22s ease';
-      usagePanel.style.transform = 'translateY(0)';
-      if (menuRootView) {
-        menuRootView.style.transition = 'transform .22s ease';
-        menuRootView.style.transform = 'translateY(-100%)';
-      }
-      usageShowTimer = setTimeout(function () {
-        try {
-          if (menuRootView) menuRootView.style.display = 'none';
-        } catch (err) {}
-      }, 240);
-      if (usageRefreshTimer) {
-        clearInterval(usageRefreshTimer);
-        usageRefreshTimer = null;
-      }
-      usageRefreshTimer = setInterval(function () {
-        if (usagePanelOpen) renderUsagePanel();
-      }, 10000);
-    }
-    function hideUsageSub() {
-      if (window.WhaleDashboard) { window.WhaleLegacyUsage.stop(); return; }
-      if (usageRefreshTimer) {
-        clearInterval(usageRefreshTimer);
-        usageRefreshTimer = null;
-      }
-      if (usageHideTimer) {
-        clearTimeout(usageHideTimer);
-        usageHideTimer = null;
-      }
-      if (usageShowTimer) {
-        clearTimeout(usageShowTimer);
-        usageShowTimer = null;
-      }
-      if (!usagePanelOpen) {
-        setUsageNavBtn(false);
-        return;
-      }
-      usagePanelOpen = false;
-      if (!usagePanel) {
-        setUsageNavBtn(false);
-        return;
-      }
-      setUsageNavBtn(false);
-      try {
-        if (menuRootView && usageArea) {
-          if (menuRootView.parentNode !== usageArea) usageArea.appendChild(menuRootView);
-        }
-      } catch (err) {}
-      usagePanel.style.position = 'absolute';
-      usagePanel.style.top = '0';
-      usagePanel.style.left = '0';
-      usagePanel.style.width = '100%';
-      usagePanel.style.height = '100%';
-      usagePanel.style.zIndex = '2';
-      usagePanel.style.transform = 'translateY(0)';
-      usagePanel.style.transition = 'none';
-      if (menuRootView) {
-        menuRootView.style.display = 'block';
-        menuRootView.style.position = 'absolute';
-        menuRootView.style.top = '0';
-        menuRootView.style.left = '0';
-        menuRootView.style.width = '100%';
-        menuRootView.style.height = '100%';
-        menuRootView.style.zIndex = '1';
-        menuRootView.style.transform = 'translateY(-100%)';
-        menuRootView.style.transition = 'none';
-      }
-      try {
-        void usageArea.offsetHeight;
-      } catch (err) {}
-      usagePanel.style.transition = 'transform .22s ease';
-      usagePanel.style.transform = 'translateY(100%)';
-      if (menuRootView) {
-        menuRootView.style.transition = 'transform .22s ease';
-        menuRootView.style.transform = 'translateY(0)';
-      }
-      usageHideTimer = setTimeout(function () {
-        usageHideTimer = null;
-        try {
-          usagePanel.style.display = 'none';
-        } catch (err) {}
-        try {
-          usagePanel.style.transform = '';
-          usagePanel.style.transition = '';
-          usagePanel.style.width = '';
-          usagePanel.style.height = '';
-          usagePanel.style.maxHeight = '';
-          usagePanel.style.position = '';
-          usagePanel.style.top = '';
-          usagePanel.style.left = '';
-          usagePanel.style.zIndex = '';
-          usagePanel.style.overflowY = '';
-          usagePanel.style.overscrollBehavior = '';
-        } catch (err) {}
-        if (menuRootView && usageArea) {
-          try {
-            if (usageArea.contains(menuRootView)) menuBox.insertBefore(menuRootView, usageArea);
-            menuRootView.style.transform = '';
-            menuRootView.style.transition = '';
-            menuRootView.style.position = '';
-            menuRootView.style.top = '';
-            menuRootView.style.left = '';
-            menuRootView.style.width = '';
-            menuRootView.style.height = '';
-            menuRootView.style.zIndex = '';
-          } catch (err) {}
-        }
-        try {
-          usageArea.style.display = '';
-        } catch (err) {}
-        if (menuBox) {
-          menuBox.classList.remove('dshwv-ledger-open');
-          menuBox.style.width = '';
-          menuBox.style.maxWidth = '';
-          menuBox.style.height = '';
-          menuBox.style.overflow = '';
-          menuBox.style.display = '';
-          menuBox.style.flexDirection = '';
-        }
-      }, 230);
-    }
-    function closeUsagePanel() {
-      hideUsageSub();
-    }
+    var usageNavigation = createUsageNavigation({
+      window: window, menuBox: menuBox, menuRootView: menuRootView,
+      usageArea: usageArea, usagePanel: usagePanel, usageRecBtn: usageRecBtn,
+      renderUsagePanel: renderUsagePanel
+    });
+    var toggleUsagePanel = usageNavigation.toggle;
+    var closeUsagePanel = usageNavigation.close;
     window.WhaleLegacyUsage = {
-      start: function () {
-        usagePanelOpen = true;
-        usagePanel.style.cssText = 'display:block;position:static;width:100%;height:auto;max-height:none;overflow:visible;transform:none';
-        renderUsagePanel();
-        if (!usageRefreshTimer) usageRefreshTimer = setInterval(function () { if (usagePanelOpen) renderUsagePanel(); }, 10000);
-      },
-      stop: function () { usagePanelOpen = false; clearInterval(usageRefreshTimer); usageRefreshTimer = null; },
+      start: usageNavigation.startLegacy,
+      stop: usageNavigation.stopLegacy,
       records: function () { openUsageRecordsWindow(); },
       showWait: function (detail) { return showWaitBubble(detail || {}); },
       hideWait: function (id) { hideWaitBubble(false, id); }
     };
-    function whaleCurrencySymbol() {
-      return WhaleMoney.symbol();
-    }
-    function usageMoney(x, currency) {
-      if (x == null) return '—';
-      var text = WhaleMoney.formatMoney(x, currency || state && state.currency || 'USD');
-      return String(text).replace(/^([$¥])\s*/, '$1\u00a0');
-    }
-    function usageMoneyText(x, currency) {
-      var nativeCurrency = currency || state && state.currency || 'USD';
-      return function () { return usageMoney(x, nativeCurrency); };
-    }
-    function bindUsageMoney(element, x, currency) {
-      element.classList.add('dshwv-usage-money');
-      element.classList.toggle('dshwv-usage-money-unknown', x == null);
-      return WhaleMoney.bind(element, usageMoneyText(x, currency));
-    }
-    function usageDayLabel(day) {
-      try {
-        var d = day.split('-');
-        if (d.length !== 3) return day;
-        var now = new Date();
-        var cur = String(now.getFullYear()) + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-        if (day === cur) return '今天';
-        return d[1] + '-' + d[2];
-      } catch (err) {
-        return day;
-      }
-    }
+    var usageOverviewView = createUsageOverviewView({
+      document: document, WhaleMoney: WhaleMoney,
+      getCurrency: function () { return state.currency || 'USD'; },
+      getMain: function () { return usageMainEl; }, getPanel: function () { return usagePanel; },
+      openRecords: openUsageRecordsWindow
+    });
+    var whaleCurrencySymbol = usageOverviewView.currencySymbol;
+    var usageMoney = usageOverviewView.money;
+    var usageMoneyText = usageOverviewView.moneyText;
+    var bindUsageMoney = usageOverviewView.bindMoney;
+    var uSectionTitle = usageOverviewView.sectionTitle;
+    var fillUsagePanel = usageOverviewView.fill;
     function renderUsagePanel() {
-      if (usageMainEl && usagePanelOpen && usageSet !== null) {
+      if (usageMainEl && usageNavigation.isOpen() && usageSet !== null) {
         renderUsageModels(false);
         refreshUsageMain();
         return;
@@ -1095,134 +684,12 @@ import {
       usageMainEl.className = 'dshwv-usagebody';
       usagePanel.appendChild(usageMainEl);
     }
-    function usageApiModelSummary(model, value) {
-      if (!value) return '加载中…';
-      if (value.error) return '暂不可用';
-      var windows = Array.isArray(value.windows) ? value.windows : [];
-      var quota = windows.length ? windows[0] : null;
-      if (quota && typeof quota.usedPercent === 'number' && isFinite(quota.usedPercent) && !(quota.resetsAt && Number(quota.resetsAt) <= Date.now())) {
-        return '剩余 ' + Math.max(0, 100 - quota.usedPercent).toFixed(1) + '%';
-      }
-      if (model.kind === 'quota') return '额度（未观测）';
-      if (typeof value.balance === 'number' && isFinite(value.balance)) {
-        return '余额 ' + WhaleMoney.formatMoney(value.balance, value.currency || model.currency || 'USD');
-      }
-      if (typeof value.todayEstimate === 'number' && isFinite(value.todayEstimate)) {
-        return '今日 ' + WhaleMoney.formatMoney(value.todayEstimate, value.currency || model.currency || 'USD');
-      }
-      if (value.noBalanceApi || value.available === false || model.noBalanceApi) return '余额（无接口）';
-      if (model.kind === 'codex') return '本机统计';
-      return '余额（待同步）';
-    }
-    function renderUsageModels(force) {
-      if (!usageModelListEl) return;
-      var list = usageModelListEl;
-      var button = usageModelRefreshBtn;
-      var seq = ++usageModelRenderSeq;
-      if (button) button.disabled = true;
-      list.innerHTML = '';
-      var loading = document.createElement('div');
-      loading.className = 'dshwv-book-model-empty';
-      loading.textContent = '正在读取模型…';
-      list.appendChild(loading);
-      if (!window.WhaleApiModels || typeof window.WhaleApiModels.load !== 'function') {
-        loading.textContent = 'API 模型模块未加载';
-        if (button) button.disabled = false;
-        return;
-      }
-      window.WhaleApiModels.load(!!force).then(function (data) {
-        var models = data && Array.isArray(data.models) ? data.models : [];
-        return Promise.all(models.map(function (model) {
-          return window.WhaleApiModels.refresh(model.id, !!force).then(function (value) {
-            return { model: model, value: value };
-          }).catch(function (error) {
-            return { model: model, value: { error: error && error.message || '读取失败' } };
-          });
-        }));
-      }).then(function (items) {
-        if (seq !== usageModelRenderSeq || list !== usageModelListEl) return;
-        list.innerHTML = '';
-        if (!items.length) {
-          var empty = document.createElement('div');
-          empty.className = 'dshwv-book-model-empty';
-          empty.textContent = '还没有 API 模型';
-          list.appendChild(empty);
-          return;
-        }
-        items.forEach(function (entry) {
-          var row = document.createElement('div');
-          row.className = 'dshwv-book-model-row';
-          var name = document.createElement('span');
-          name.className = 'dshwv-book-model-name';
-          name.textContent = entry.model.name || 'API 模型';
-          name.title = name.textContent;
-          row.appendChild(name);
-          var value = document.createElement('span');
-          value.className = 'dshwv-book-model-value';
-          value.textContent = usageApiModelSummary(entry.model, entry.value);
-          value.title = value.textContent;
-          row.appendChild(value);
-          var settings = document.createElement('button');
-          settings.type = 'button';
-          settings.className = 'dshwv-roleimport dshwv-book-model-setting';
-          settings.textContent = '设置';
-          settings.title = '设置 ' + name.textContent + ' 的接口、预算、提醒与额度';
-          settings.addEventListener('click', function (event) {
-            event.stopPropagation();
-            window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: entry.model.id } }));
-          });
-          row.appendChild(settings);
-          list.appendChild(row);
-        });
-      }).catch(function (error) {
-        if (seq !== usageModelRenderSeq || list !== usageModelListEl) return;
-        list.innerHTML = '';
-        var failed = document.createElement('div');
-        failed.className = 'dshwv-book-model-empty';
-        failed.textContent = error && error.message || '模型读取失败';
-        list.appendChild(failed);
-      }).finally(function () {
-        if (seq === usageModelRenderSeq && button === usageModelRefreshBtn && button) button.disabled = false;
-      });
-    }
-    function buildUsageModelArea() {
-      var area = document.createElement('section');
-      area.className = 'dshwv-book-models';
-      var head = document.createElement('div');
-      head.className = 'dshwv-book-model-head';
-      var title = document.createElement('strong');
-      title.className = 'dshwv-book-model-title';
-      title.textContent = '模型（提醒 / 预算 / 额度）';
-      head.appendChild(title);
-      usageModelRefreshBtn = document.createElement('button');
-      usageModelRefreshBtn.type = 'button';
-      usageModelRefreshBtn.className = 'dshwv-palchip dshwv-book-model-refresh';
-      usageModelRefreshBtn.textContent = '刷新';
-      usageModelRefreshBtn.addEventListener('click', function (event) {
-        event.stopPropagation();
-        renderUsageModels(true);
-      });
-      head.appendChild(usageModelRefreshBtn);
-      area.appendChild(head);
-      usageModelListEl = document.createElement('div');
-      usageModelListEl.className = 'dshwv-book-model-list';
-      area.appendChild(usageModelListEl);
-      var add = document.createElement('button');
-      add.type = 'button';
-      add.className = 'dshwv-usage-more dshwv-book-add';
-      add.dataset.action = 'add-api-model';
-      add.textContent = '＋ 添加模型（自定义 API）';
-      add.addEventListener('click', function (event) {
-        event.stopPropagation();
-        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: null } }));
-      });
-      area.appendChild(add);
-      var divider = document.createElement('div');
-      divider.className = 'dshwv-book-divider';
-      area.appendChild(divider);
-      usagePanel.appendChild(area);
-      renderUsageModels(false);
-    }
+    var usageModelsView = createUsageModelsView({
+      document: document, window: window, WhaleMoney: WhaleMoney,
+      getPanel: function () { return usagePanel; }
+    });
+    var renderUsageModels = usageModelsView.render;
+    var buildUsageModelArea = usageModelsView.build;
     function usageAlertBudgetEditor(key, onSave, customConfig, onCancel) {
       try {
         var isCost = key === 'turnCost';
@@ -1658,91 +1125,8 @@ import {
         usageMainEl.textContent = '记录加载失败';
       });
     }
-    function uSectionTitle(leftTxt, rightTxt, rightValue) {
-      var h = document.createElement('div');
-      h.className = 'dshwv-usage-sec';
-      var l = document.createElement('span');
-      l.textContent = leftTxt;
-      h.appendChild(l);
-      var r = document.createElement('span');
-      r.className = 'dshwv-usage-total';
-      if (arguments.length > 2) bindUsageMoney(r, rightValue);
-      else if (typeof rightTxt === 'function') WhaleMoney.bind(r, rightTxt);
-      else r.textContent = rightTxt;
-      h.appendChild(r);
-      return h;
-    }
-    function fillUsagePanel(d) {
-      var hostEl = usageMainEl || usagePanel;
-      hostEl.innerHTML = '';
-      var wrap = document.createElement('div');
-      wrap.className = 'dshwv-usagebody';
-      if (!d || !d.ok) {
-        wrap.textContent = '记录加载失败';
-        hostEl.appendChild(wrap);
-        return;
-      }
-      var today = d.today || ({});
-      var todayModels = today.models || [];
-      var hasEvToday = todayModels.length > 0;
-      wrap.appendChild(uSectionTitle('本机模型费用', null, today.total));
-      var todayBox = document.createElement('div');
-      todayBox.className = 'dshwv-usage-scroll dshwv-usage-today';
-      if (hasEvToday) {
-        todayModels.forEach(function (row) {
-          var r = document.createElement('div');
-          r.className = 'dshwv-usage-row';
-          var n = document.createElement('span');
-          n.textContent = row.model || '未知';
-          n.className = 'dshwv-usage-model';
-          r.appendChild(n);
-          var c = document.createElement('span');
-          bindUsageMoney(c, row.cost);
-          r.appendChild(c);
-          todayBox.appendChild(r);
-        });
-      } else if ((today.total || 0) > 0) {
-        var noM = document.createElement('div');
-        noM.className = 'dshwv-usage-hint';
-        noM.textContent = '今日总额来自余额差值,暂不含模型明细(启用会话记录后将按模型展示)';
-        todayBox.appendChild(noM);
-      } else {
-        var empty = document.createElement('div');
-        empty.className = 'dshwv-usage-hint';
-        empty.textContent = '今日暂无消费记录';
-        todayBox.appendChild(empty);
-      }
-      wrap.appendChild(todayBox);
-      wrap.appendChild(uSectionTitle(d.total7Complete === false ? '近7天使用记录（已知小计）' : '近7天使用记录', null, d.total7));
-      var daysBox = document.createElement('div');
-      daysBox.className = 'dshwv-usage-scroll dshwv-usage-days';
-      (d.days7 || []).forEach(function (row) {
-        var r = document.createElement('div');
-        r.className = 'dshwv-usage-row';
-        var n = document.createElement('span');
-        n.textContent = usageDayLabel(row.date);
-        r.appendChild(n);
-        var c = document.createElement('span');
-        bindUsageMoney(c, row.total);
-        r.appendChild(c);
-        daysBox.appendChild(r);
-      });
-      wrap.appendChild(daysBox);
-      var more = document.createElement('button');
-      more.type = 'button';
-      more.className = 'dshwv-usage-more dshwv-usage-history';
-      more.dataset.action = 'open-usage-history';
-      more.textContent = '更多消费记录…';
-      more.title = '打开窗口查看全部有记录的消费';
-      more.addEventListener('click', function (e) {
-        e.stopPropagation();
-        openUsageRecordsWindow();
-      });
-      wrap.appendChild(more);
-      (usageMainEl || usagePanel).appendChild(wrap);
-    }
     window.addEventListener('whale-api-model-changed', function () {
-      if (usagePanelOpen && usageModelListEl) renderUsageModels(true);
+      if (usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true);
     });
     window.addEventListener('whale-open-balance-reconcile', function () {
       usageReconcileEditor();
@@ -1778,9 +1162,7 @@ import {
       document: document, client: assetClient, confirm: showConfirm,
       requireSaved: requireSaved, onError: assetFailure,
       onRoleDelete: function (id, data) {
-        roleList = data.roles;
-        renderRolePanel();
-        if (currentRole && currentRole.id === id) applyRole('default', '小鲸鱼', IMG_URL);
+        roleManager.handleDeleted(id, data.roles);
       },
       onBubbleImageDelete: function (id, data) { bubbleImgList = data.images; },
       onAudioGroupDelete: function (id, data) {
@@ -1800,7 +1182,8 @@ import {
     // Bubble and usage views call the same alert controller, including its day-level dedupe.
     var usageAlerts = createUsageAlerts({
       document: document, window: window, WhaleMoney: WhaleMoney,
-      whaleMoneyTemplates: whaleMoneyTemplates, fmt: fmt, bubbleTokenValue: bubbleTokenValue,
+      whaleMoneyTemplates: whaleMoneyTemplates, fmt: fmt,
+      bubbleTokenValue: function (value) { return bubbleTokenValue(value); },
       whaleCurrencySymbol: whaleCurrencySymbol, getUsageSet: function () { return usageSet; },
       getLastTurnNotice: function () { return lastTurnNotice; },
       getCurrency: function () { return state.currency || 'USD'; },
@@ -1994,8 +1377,6 @@ import {
       if (bubbleItemSideEl) bubbleItemSideEl.innerHTML = '';
     }
     var qeditEl = null;
-    var qeditCtx = null;
-    var QC_SCHEMES = [['macaron', '马卡龙'], ['candy', '糖果'], ['rouge', '酒红'], ['bamboo', '翠青'], ['aurora', '极光幻彩'], ['deepsea', '深海蓝调'], ['sunset', '落日熔金'], ['forest', '森林秘语'], ['champagne', '香槟鎏金'], ['lavender', '薰衣草梦境'], ['mint', '薄荷汽水'], ['lava', '岩浆熔岩'], ['galaxy', '银河星紫'], ['ink', '墨韵黑白'], ['indigo', '靛蓝夜曲']];
     function qeditEnsure() {
       if (qeditEl) return qeditEl;
       qeditEl = document.createElement('div');
@@ -2017,7 +1398,6 @@ import {
     }
     function qeditClose() {
       if (qeditEl) qeditEl.style.display = 'none';
-      qeditCtx = null;
     }
     function qRow() {
       var d = document.createElement('div');
@@ -2049,796 +1429,30 @@ import {
     }
 
     // ==== [快速编辑器与调色板] ====
-    function qColorSelectBuild(current, onPick, opts) {
-      opts = opts || ({});
-      var allowNone = !!opts.allowNone;
-      var oLabel = opts.label || '颜色';
-      var oHex = opts.defaultHex || '#203170';
-      var oText = opts.defaultText || '默认色';
-      var row = qRow();
-      row.appendChild(qLabel(oLabel));
-      var wrap = document.createElement('div');
-      wrap.className = 'dshwv-rgbwrap dshwv-qcolwrap';
-      var head = document.createElement('button');
-      head.type = 'button';
-      head.className = 'dshwv-rgbhead';
-      head.title = '颜色:纯色或跑马灯';
-      wrap.appendChild(head);
-      var menu = document.createElement('div');
-      menu.className = 'dshwv-rgbmenu dshwv-qcolmenu';
-      wrap.appendChild(menu);
-      var sw = document.createElement('span');
-      sw.className = 'dshwv-qcolorhost';
-      function modeOf(v) {
-        if (v === 'none') return allowNone ? 'none' : 'solid';
-        if (v === 'solid' || isScheme(v)) return v;
-        return allowNone ? 'none' : 'solid';
-      }
-      var curMode = modeOf(current);
-      function isScheme(v) {
-        for (var i = 0; i < QC_SCHEMES.length; i++) if (QC_SCHEMES[i][0] === v) return true;
-        return false;
-      }
-      function labelOf(v) {
-        if (v === 'none') return '无';
-        if (v === 'solid') return '纯色';
-        for (var i = 0; i < QC_SCHEMES.length; i++) if (QC_SCHEMES[i][0] === v) return QC_SCHEMES[i][1];
-        return allowNone ? '无' : '纯色';
-      }
-      function renderSolid(hex, onSet) {
-        sw.innerHTML = '';
-        var ci = document.createElement('input');
-        ci.type = 'color';
-        ci.value = hex;
-        ci.title = '选择纯色';
-        ci.addEventListener('input', function () {
-          if (onSet) onSet(ci.value);
-        });
-        ci.addEventListener('change', function () {
-          if (onSet) onSet(ci.value);
-        });
-        sw.appendChild(ci);
-        var def = document.createElement('button');
-        def.type = 'button';
-        def.className = 'dshwv-bubmini';
-        def.textContent = oText;
-        def.title = '恢复为' + oText + '色值';
-        def.style.width = 'auto';
-        def.style.padding = '0 6px';
-        def.addEventListener('click', function () {
-          if (onSet) onSet(oHex);
-        });
-        sw.appendChild(def);
-      }
-      function fill() {
-        menu.innerHTML = '';
-        function add(v, lab) {
-          var o = document.createElement('div');
-          o.className = 'dshwv-rgbopt' + (v === curMode ? ' dshwv-rgbcur' : '');
-          if (v !== 'solid' && v !== 'none') {
-            o.classList.add('optgrad');
-            o.classList.add('opt-' + v);
-          }
-          o.textContent = (v === curMode ? '✓ ' : '') + lab;
-          o.addEventListener('click', function () {
-            curMode = v;
-            closeMenu();
-            if (onPick) onPick(v);
-          });
-          menu.appendChild(o);
-        }
-        if (allowNone) add('none', '无');
-        add('solid', '纯色');
-        for (var i = 0; i < QC_SCHEMES.length; i++) add(QC_SCHEMES[i][0], QC_SCHEMES[i][1]);
-      }
-      var hexSetter = null;
-      function sync(mode, hex, onSet) {
-        curMode = modeOf(mode);
-        hexSetter = onSet || null;
-        head.textContent = labelOf(curMode);
-        if (curMode === 'solid') renderSolid(hex || oHex, function (h) {
-          if (hexSetter) hexSetter(h);
-        }); else sw.innerHTML = '';
-        fill();
-      }
-      function closeMenu() {
-        menu.classList.remove('dshwv-rgbopen');
-        bubbleColorOpenMenu = null;
-      }
-      head.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (bubbleColorOpenMenu === menu) {
-          closeMenu();
-          return;
-        }
-        if (bubbleColorOpenMenu) bubbleColorOpenMenu.classList.remove('dshwv-rgbopen');
-        fill();
-        bubbleColorOpenMenu = menu;
-        dshwDropOpen(menu, head);
-      });
-      if (!window.__dshwColorBound) {
-        window.__dshwColorBound = true;
-        document.addEventListener('pointerdown', function (e) {
-          if (!bubbleColorOpenMenu) return;
-          try {
-            if (e.target && e.target.closest && (e.target.closest('.dshwv-qcolwrap') || e.target.closest('.dshwv-rgbmenu'))) return;
-          } catch (err) {}
-          bubbleColorOpenMenu.classList.remove('dshwv-rgbopen');
-          bubbleColorOpenMenu = null;
-        }, true);
-      }
-      row.appendChild(wrap);
-      row.appendChild(sw);
-      fill();
-      return {
-        row: row,
-        sync: sync
-      };
-    }
-    function qStyleChecksBuild(getBool, setBool) {
-      var row = qRow();
-      [['加粗', 'bold'], ['斜体', 'italic'], ['下划线', 'ul']].forEach(function (item) {
-        var lab = document.createElement('label');
-        lab.style.display = 'inline-flex';
-        lab.style.alignItems = 'center';
-        lab.style.gap = '3px';
-        var cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = !!getBool(item[1]);
-        cb.addEventListener('change', function () {
-          setBool(item[1], cb.checked);
-        });
-        lab.appendChild(cb);
-        lab.appendChild(document.createTextNode(item[0]));
-        row.appendChild(lab);
-      });
-      return row;
-    }
-    function openQuickTextEditor(m) {
-      if (!m || m.type !== 'text' && m.type !== 'link') return;
-      qeditClose();
-      var box = qeditEnsure();
-      box.innerHTML = '';
-      qeditCtx = {
-        kind: m.type === 'link' ? 'link' : 'text',
-        m: m
-      };
-      function changed() {
-        try {
-          renderBubblePv();
-        } catch (err) {}
-      }
-      var r0 = qRow();
-      r0.appendChild(qLabel(m.type === 'link' ? '链接文字' : '内容'));
-      var tx = document.createElement('input');
-      tx.type = 'text';
-      tx.maxLength = 60;
-      tx.className = 'dshwv-qedit-content';
-      tx.value = m.text || '';
-      tx.addEventListener('input', function () {
-        m.text = tx.value || ' ';
-        changed();
-      });
-      r0.appendChild(tx);
-      box.appendChild(r0);
-      if (m.type === 'link') {
-        var rUrl = qRow();
-        rUrl.appendChild(qLabel('链接'));
-        var uInp = document.createElement('input');
-        uInp.type = 'text';
-        uInp.className = 'dshwv-qedit-content';
-        uInp.value = m.url || '';
-        uInp.placeholder = 'https:// …';
-        uInp.title = '点击打开;需以 http:// 或 https:// 开头';
-        uInp.addEventListener('input', function () {
-          m.url = uInp.value || '';
-        });
-        rUrl.appendChild(uInp);
-        box.appendChild(rUrl);
-      }
-      box.appendChild(bubbleFontEditRow(function () {
-        return m.fontFamily || '';
-      }, function (v) {
-        m.fontFamily = v || '';
-        changed();
-      }));
-      var r1 = qRow();
-      r1.appendChild(qLabel('字号'));
-      var sz = document.createElement('input');
-      sz.type = 'range';
-      sz.min = '1';
-      sz.max = '50';
-      sz.step = '1';
-      sz.className = 'dshwv-range';
-      sz.style.flex = '1';
-      sz.value = String(Math.max(1, Math.min(50, Math.round(Number(m.size) || 6))));
-      var szNum = document.createElement('span');
-      szNum.className = 'dshwv-volpct';
-      szNum.textContent = sz.value;
-      sz.addEventListener('input', function () {
-        m.size = Math.round(Number(sz.value) || 3);
-        szNum.textContent = sz.value;
-        changed();
-      });
-      r1.appendChild(sz);
-      r1.appendChild(szNum);
-      box.appendChild(r1);
-      box.appendChild(qStyleChecksBuild(function (k) {
-        return m[k] === true;
-      }, function (k, v) {
-        m[k] = v;
-        changed();
-      }));
-      var grpT = document.createElement('div');
-      grpT.className = 'dshwv-stylerow';
-      var curColor = m.rgb ? m.rgb : 'solid';
-      var cc = qColorSelectBuild(curColor, function (v) {
-        onPick(v);
-      });
-      grpT.appendChild(cc.row);
-      function onPick(v) {
-        if (v === 'solid') {
-          m.rgb = '';
-          if (!m.color) m.color = '#203170';
-        } else {
-          m.rgb = v;
-          m.color = '';
-        }
-        cc.sync(v === 'solid' ? 'solid' : v, m.color, function (hex) {
-          m.color = hex;
-          changed();
-        });
-        changed();
-      }
-      var bgCurT = m.bgRgb ? m.bgRgb : m.bg ? 'solid' : 'none';
-      var bgt = qColorSelectBuild(bgCurT, function (v) {
-        if (v === 'none') {
-          m.bgRgb = '';
-          m.bg = '';
-        } else if (v === 'solid') {
-          m.bgRgb = '';
-          if (!m.bg) m.bg = '#dbe4f5';
-        } else {
-          m.bgRgb = v;
-          m.bg = '';
-        }
-        bgt.sync(v === 'none' ? 'none' : v, m.bg, function (hex) {
-          m.bg = hex;
-          changed();
-        });
-        changed();
-      }, {
-        label: '底色',
-        defaultHex: '#dbe4f5',
-        defaultText: '默认',
-        allowNone: true
-      });
-      grpT.appendChild(bgt.row);
-      box.appendChild(grpT);
-      cc.sync(curColor, m.color || '#203170', function (hex) {
-        m.color = hex;
-        changed();
-      });
-      bgt.sync(bgCurT, m.bg || '#dbe4f5', function (hex) {
-        m.bg = hex;
-        changed();
-      });
-      try {
-        var pr = bubblePvPrevEl.getBoundingClientRect();
-        qeditPlace(pr, Math.max(230, Math.round(pr.width - 24)), true);
-      } catch (err) {
-        qeditPlace({
-          left: 40,
-          right: 360,
-          top: 200,
-          bottom: 300,
-          width: 320
-        }, 320, false);
-      }
-    }
-    function openQuickModuleEditor(m) {
-      if (!m || m.type === 'image' || m.type === 'random' || m.type === 'text') return;
-      qeditClose();
-      var box = qeditEnsure();
-      box.innerHTML = '';
-      qeditCtx = {
-        kind: 'module',
-        m: m
-      };
-      function changed() {
-        try {
-          renderBubblePv();
-        } catch (err) {}
-      }
-      function sizeRow() {
-        var r = qRow();
-        r.appendChild(qLabel('字号'));
-        var sz = document.createElement('input');
-        sz.type = 'range';
-        sz.min = '1';
-        sz.max = '50';
-        sz.step = '1';
-        sz.className = 'dshwv-range';
-        sz.style.flex = '1';
-        sz.value = String(Math.max(1, Math.min(50, Math.round(Number(m.size) || 6))));
-        var num = document.createElement('span');
-        num.className = 'dshwv-volpct';
-        num.textContent = sz.value;
-        sz.addEventListener('input', function () {
-          m.size = Math.round(Number(sz.value) || 3);
-          num.textContent = sz.value;
-          changed();
-        });
-        r.appendChild(sz);
-        r.appendChild(num);
-        box.appendChild(r);
-      }
-      function glyphRow() {
-        box.appendChild(qStyleChecksBuild(function (k) {
-          return m[k] === true;
-        }, function (k, v) {
-          m[k] = v;
-          changed();
-        }));
-      }
-      function tplRow() {
-        var r = qRow();
-        r.appendChild(qLabel('内容'));
-        var inp = document.createElement('input');
-        inp.type = 'text';
-        inp.className = 'dshwv-qedit-content';
-        inp.value = m.tpl || '';
-        inp.placeholder = m.type === 'balance' ? '例: {balance_api}' : m.type === 'today' ? '例: 今日已观测 {expense_api}' : m.type === 'quota' ? '例: 剩余 {quota_left_round} · {quota_reset_short}' : m.type === 'turn' ? '例: 上轮使用 {turn_tokens} tokens' : m.type === 'session' ? '例: 当前会话 {session_name}' : m.type === 'plan' ? '例: {plan_name}' : m.type === 'peak' || m.type === 'nextpeak' ? '例: {peak_phase} · {peak_countdown}' : '自定义内容';
-        inp.title = '可用占位符(英文): ' + (m.type === 'balance' ? '{balance_api}' : m.type === 'today' ? '{expense_api}' : m.type === 'turn' ? '{turn_tokens} {turn_input} {turn_output} {turn_cached} {turn_reasoning}' : m.type === 'session' ? '{session_name}' : m.type === 'plan' ? '{plan_name} {plan_type}' : m.type === 'peak' || m.type === 'nextpeak' ? '{peak_phase} {peak_countdown} {peak_switch_at} {peak_note}' : '{quota_left} {quota_left_round} {quota_used} {quota_reset} {quota_reset_short} {quota_reset_at} {quota_updated_at} {quota_bar}');
-        inp.addEventListener('input', function () {
-          m.tpl = inp.value;
-          changed();
-        });
-        r.appendChild(inp);
-        var qb2 = document.createElement('button');
-        qb2.type = 'button';
-        qb2.className = 'dshwv-tplq';
-        qb2.textContent = '?';
-        qb2.title = '可用占位符用法';
-        qb2.style.marginLeft = '4px';
-        qb2.addEventListener('click', function (e) {
-          e.stopPropagation();
-          bubbleTplHelpToggle(m, qb2);
-        });
-        r.appendChild(qb2);
-        box.appendChild(r);
-      }
-      if (m.type === 'balance' || m.type === 'today' || m.type === 'quota') {
-        var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));
-        var apiModelSelect = document.createElement('select'); apiModelSelect.className = 'dshwv-sound';
-        apiModelRow.appendChild(apiModelSelect); box.appendChild(apiModelRow);
-        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) {
-          m.apiModelId = value || '';
-          if (m.apiModelId && m.type === 'quota') delete m.quotaStyle;
-          changed(); qeditClose(); openQuickModuleEditor(m);
-        });
-      }
-      if (m.type === 'quota') {
-        var windowRow = qRow();
-        windowRow.appendChild(qLabel('额度窗口'));
-        var windowSelect = document.createElement('select');
-        windowSelect.className = 'dshwv-sound';
-        (m.apiModelId ? [['primary','当前周期'],['rolling','滚动窗口'],['weekly','每周'],['monthly','每月']] : [['300', '5 小时'], ['10080', '每周']]).forEach(function (entry) {
-          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; windowSelect.appendChild(option);
-        });
-        windowSelect.value = m.apiModelId ? m.quotaKey || 'primary' : String(m.windowDurationMins === 10080 ? 10080 : 300);
-        windowSelect.addEventListener('change', function () { if(m.apiModelId)m.quotaKey=windowSelect.value;else m.windowDurationMins = Number(windowSelect.value); changed(); });
-        windowRow.appendChild(windowSelect); box.appendChild(windowRow);
-        var presetRow = qRow(); presetRow.appendChild(qLabel('内容样式'));
-        var preset = document.createElement('select'); preset.className = 'dshwv-sound';
-        var quotaPresets = m.apiModelId ? [['', '自定义']] : [['__meter__', '潮汐卡片']];
-        quotaPresets = quotaPresets.concat([['{quota_left_round}', '仅剩余百分比'], ['{quota_label} 剩余 {quota_left_round}', '窗口 + 剩余'], ['距离重置 {quota_reset_short}', '重置倒计时'], ['{quota_bar} {quota_left_round}', '进度条 + 剩余'], ['{quota_label} · {quota_left_round} · {quota_reset_short}', '完整信息']]);
-        if (!quotaPresets.some(function (entry) { return entry[0] === ''; })) quotaPresets.unshift(['', '自定义']);
-        quotaPresets.forEach(function (entry) {
-          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; preset.appendChild(option);
-        });
-        preset.value = !m.apiModelId && m.quotaStyle === 'meter' ? '__meter__' : Array.from(preset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
-        preset.addEventListener('change', function () {
-          if (preset.value === '__meter__') {
-            m.quotaStyle = 'meter';
-          } else {
-            delete m.quotaStyle;
-            if (preset.value) m.tpl = preset.value;
-          }
-          changed(); qeditClose(); openQuickModuleEditor(m);
-        });
-        presetRow.appendChild(preset); box.appendChild(presetRow);
-      } else if (m.type === 'turn') {
-        var turnPresetRow = qRow(); turnPresetRow.appendChild(qLabel('内容样式'));
-        var turnPreset = document.createElement('select'); turnPreset.className = 'dshwv-sound';
-        [['', '自定义'], ['上轮使用 {turn_tokens} tokens', '总 token'], ['输入 {turn_input} · 输出 {turn_output}', '输入/输出'], ['缓存 {turn_cached} · 推理 {turn_reasoning}', '缓存/推理'], ['上轮 {turn_tokens} tokens · 输入 {turn_input} / 输出 {turn_output}', '完整信息']].forEach(function (entry) {
-          var option = document.createElement('option'); option.value = entry[0]; option.textContent = entry[1]; turnPreset.appendChild(option);
-        });
-        turnPreset.value = Array.from(turnPreset.options).some(function (option) { return option.value === m.tpl; }) ? m.tpl : '';
-        turnPreset.addEventListener('change', function () { if (turnPreset.value) m.tpl = turnPreset.value; changed(); qeditClose(); openQuickModuleEditor(m); });
-        turnPresetRow.appendChild(turnPreset); box.appendChild(turnPresetRow);
-      } else if (m.type === 'peak' || m.type === 'nextpeak') {
-        var peakPresetRow = qRow(); peakPresetRow.appendChild(qLabel('显示样式'));
-        var peakPreset = document.createElement('select'); peakPreset.className = 'dshwv-sound';
-        [['default','默认'],['liangwen','梁文峰谷'],['qiangqiang','!?强强?!'],['count','倒计时'],['mini','简洁(峰/谷)']].forEach(function(entry){
-          var option=document.createElement('option');option.value=entry[0];option.textContent=entry[1];peakPreset.appendChild(option);
-        });
-        peakPreset.value=m.type==='nextpeak'?'count':m.peakStyle||'default';
-        peakPreset.addEventListener('change',function(){m.peakStyle=peakPreset.value;m.tpl=peakPreset.value==='count'?'{peak_countdown}':'{peak_phase}';changed();qeditClose();openQuickModuleEditor(m);});
-        peakPresetRow.appendChild(peakPreset);box.appendChild(peakPresetRow);
-        [['peak','高峰','#e0433f','#fbe7e6'],['off','空闲','#2fa24c','#e4f3e7']].forEach(function(entry){
-          var prefix=entry[0],group=document.createElement('div');group.className='dshwv-peakrow';
-          var colorKey=prefix+'Color',rgbKey=prefix+'Rgb',bgKey=prefix+'Bg',bgRgbKey=prefix+'BgRgb';
-          var color=qColorSelectBuild(m[rgbKey]||'solid',function(value){
-            m[rgbKey]=value==='solid'?'':value;m[colorKey]=value==='solid'?m[colorKey]||entry[2]:'';
-            color.sync(value,m[colorKey],function(hex){m[colorKey]=hex;changed();});changed();
-          },{label:entry[1]+'色',defaultHex:entry[2]});
-          group.appendChild(color.row);
-          var bg=qColorSelectBuild(m[bgRgbKey]||(m[bgKey]?'solid':'none'),function(value){
-            m[bgRgbKey]=value==='none'||value==='solid'?'':value;m[bgKey]=value==='solid'?m[bgKey]||entry[3]:'';
-            bg.sync(value,m[bgKey]||entry[3],function(hex){m[bgKey]=hex;changed();});changed();
-          },{label:'底色',defaultHex:entry[3],allowNone:true});
-          group.appendChild(bg.row);box.appendChild(group);
-          color.sync(m[rgbKey]||'solid',m[colorKey]||entry[2],function(hex){m[colorKey]=hex;changed();});
-          bg.sync(m[bgRgbKey]||(m[bgKey]?'solid':'none'),m[bgKey]||entry[3],function(hex){m[bgKey]=hex;changed();});
-        });
-      }
-      tplRow();
-      {
-        box.appendChild(bubbleFontEditRow(function () {
-          return m.fontFamily || '';
-        }, function (v) {
-          m.fontFamily = v || '';
-          changed();
-        }));
-        sizeRow();
-        glyphRow();
-        var grp2 = document.createElement('div');
-        grp2.className = 'dshwv-stylerow';
-        var curC = m.rgb ? m.rgb : 'solid';
-        var ccA = qColorSelectBuild(curC, function (v) {
-          if (v === 'solid') {
-            m.rgb = '';
-            if (!m.color) m.color = '#203170';
-          } else {
-            m.rgb = v;
-            m.color = '';
-          }
-          ccA.sync(v === 'solid' ? 'solid' : v, m.color, function (hex) {
-            m.color = hex;
-            changed();
-          });
-          changed();
-        });
-        grp2.appendChild(ccA.row);
-        var bgCur = m.bgRgb ? m.bgRgb : m.bg ? 'solid' : 'none';
-        var bgcA = qColorSelectBuild(bgCur, function (v) {
-          if (v === 'none') {
-            m.bgRgb = '';
-            m.bg = '';
-          } else if (v === 'solid') {
-            m.bgRgb = '';
-            if (!m.bg) m.bg = '#dbe4f5';
-          } else {
-            m.bgRgb = v;
-            m.bg = '';
-          }
-          bgcA.sync(v === 'none' ? 'none' : v, m.bg, function (hex) {
-            m.bg = hex;
-            changed();
-          });
-          changed();
-        }, {
-          label: '底色',
-          defaultHex: '#dbe4f5',
-          defaultText: '默认',
-          allowNone: true
-        });
-        grp2.appendChild(bgcA.row);
-        box.appendChild(grp2);
-        ccA.sync(curC, m.color || '#203170', function (hex) {
-          m.color = hex;
-          changed();
-        });
-        bgcA.sync(bgCur, m.bg || '#dbe4f5', function (hex) {
-          m.bg = hex;
-          changed();
-        });
-      }
-      try {
-        var pr = bubblePvPrevEl.getBoundingClientRect();
-        qeditPlace(pr, Math.max(260, Math.round(pr.width - 16)), true);
-      } catch (err) {
-        qeditPlace({
-          left: 40,
-          right: 360,
-          top: 200,
-          bottom: 300,
-          width: 320
-        }, 320, false);
-      }
-    }
-    function openQuickSentenceEditor(line, mod, rowTx, anchorBtn) {
-      if (!line) return;
-      qeditClose();
-      var box = qeditEnsure();
-      box.innerHTML = '';
-      qeditCtx = {
-        kind: 'line',
-        line: line,
-        mod: mod
-      };
-      function lv(lk, mk, dft) {
-        var v = line[lk];
-        if (v !== undefined && v !== null) return v;
-        var mv = mod[lk];
-        if (mv !== undefined && mv !== null) return mv;
-        return dft;
-      }
-      var r0 = qRow();
-      r0.appendChild(qLabel('句子'));
-      var tx = document.createElement('input');
-      tx.type = 'text';
-      tx.className = 'dshwv-qedit-content';
-      tx.value = line.t || '';
-      tx.addEventListener('input', function () {
-        line.t = tx.value || ' ';
-        try {
-          if (rowTx) rowTx.value = tx.value || '';
-        } catch (err) {}
-      });
-      r0.appendChild(tx);
-      box.appendChild(r0);
-      box.appendChild(bubbleFontEditRow(function () {
-        return lv('fontFamily', 'fontFamily', '') || '';
-      }, function (v) {
-        line.fontFamily = v || '';
-      }));
-      var r1 = qRow();
-      r1.appendChild(qLabel('字号'));
-      var sz = document.createElement('input');
-      sz.type = 'range';
-      sz.min = '1';
-      sz.max = '50';
-      sz.step = '1';
-      sz.className = 'dshwv-range';
-      sz.style.flex = '1';
-      sz.value = String(Math.max(1, Math.min(50, Math.round(Number(lv('size', 'size', 6))))));
-      var szNum = document.createElement('span');
-      szNum.className = 'dshwv-volpct';
-      szNum.textContent = sz.value;
-      sz.addEventListener('input', function () {
-        line.size = Math.round(Number(sz.value) || 3);
-        szNum.textContent = sz.value;
-      });
-      r1.appendChild(sz);
-      r1.appendChild(szNum);
-      box.appendChild(r1);
-      box.appendChild(qStyleChecksBuild(function (k) {
-        return !!lv(k, k, false);
-      }, function (k, v) {
-        line[k] = v;
-      }));
-      var curColor = lv('rgb', 'rgb', '') || 'solid';
-      var cc = qColorSelectBuild(curColor, function (v) {
-        onPick(v);
-      });
-      box.appendChild(cc.row);
-      function onPick(v) {
-        if (v === 'solid') {
-          line.rgb = '';
-          if (!line.color) line.color = '#203170';
-        } else {
-          line.rgb = v;
-          line.color = '';
-        }
-        cc.sync(v === 'solid' ? 'solid' : v, line.color, function (hex) {
-          line.color = hex;
-        });
-      }
-      cc.sync(curColor, line.color || mod.color || '#203170', function (hex) {
-        line.color = hex;
-      });
-      var lineBgV = line.bgRgb ? line.bgRgb : line.bg ? 'solid' : mod.bgRgb ? mod.bgRgb : mod.bg ? 'solid' : 'none';
-      var lineBgHex0 = line.bg || mod.bg || '#dbe4f5';
-      var bgcc2 = qColorSelectBuild(lineBgV, function (v) {
-        if (v === 'none') {
-          line.bgRgb = '';
-          line.bg = '';
-        } else if (v === 'solid') {
-          line.bgRgb = '';
-          if (!line.bg) line.bg = lineBgHex0;
-        } else {
-          line.bgRgb = v;
-          line.bg = '';
-        }
-        bgcc2.sync(v === 'none' ? 'none' : v, line.bg || lineBgHex0, function (h) {
-          line.bg = h;
-        });
-      }, {
-        label: '底色',
-        defaultHex: lineBgHex0,
-        defaultText: '默认',
-        allowNone: true
-      });
-      box.appendChild(bgcc2.row);
-      bgcc2.sync(lineBgV, lineBgHex0, function (h) {
-        line.bg = h;
-      });
-      var r = anchorBtn ? anchorBtn.getBoundingClientRect() : {
-        left: 40,
-        right: 360,
-        top: 200,
-        bottom: 260,
-        width: 320
-      };
-      qeditPlace(r, 340, false);
-    }
-    function renderBubblePal() {
-      bubblePalEl.innerHTML = '';
-      var defs = [{
-        key: 'text',
-        label: '文本',
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'text',
-            text: '新内容',
-            size: 6,
-            bold: true
-          });
-        }
-      }, {
-        key: 'balance',
-        label: '余额数值',
-        pin: true,
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'balance',
-            size: 11,
-            tpl: '{balance_api}'
-          });
-        }
-      }, {
-        key: 'today',
-        label: '今日已观测',
-        pin: true,
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'today',
-            size: 1,
-            tpl: '今日已观测 {expense_api}'
-          });
-        }
-      }, {
-        key: 'quota5',
-        label: '5 小时额度',
-        pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('quota5')); }
-      }, {
-        key: 'quotaWeek',
-        label: '每周额度',
-        pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('quotaWeek')); }
-      }, {
-        key: 'turn',
-        label: '上轮 token',
-        pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('turn')); }
-      }, {
-        key: 'plan', label: 'Codex 套餐', pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('plan')); }
-      }, {
-        key: 'session', label: '当前会话', pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('session')); }
-      }, {
-        key: 'peak', label: '峰谷时段', pin: true,
-        cb: function () { bubbleModuleAdd(bubblePaletteModule('peak')); }
-      }, {
-        key: 'random',
-        label: '随机语句',
-        cb: function () {
-          bubbleModuleAdd(bubbleCloneModule(bubbleDefaultSecondModules()[0]));
-        }
-      }, {
-        key: 'link',
-        label: '超链接',
-        cb: function () {
-          bubbleModuleAdd(bubblePaletteModule('link'));
-        }
-      }, {
-        key: 'image',
-        label: '图片/动图',
-        cb: function () {
-          bubblePickImageToAdd();
-        }
-      }, {
-        key: 'randimg',
-        label: '随机图片',
-        cb: function () {
-          bubbleModuleNew({ type: 'randimg', imgs: [], imgScale: 1 });
-        }
-      }];
-      for (var i = 0; i < defs.length; i++) {
-        (function (d) {
-          var chip = document.createElement('div');
-          chip.className = 'dshwv-palchip';
-          chip.textContent = d.label;
-          chip.title = d.pin ? '自动数据模块（模板和样式均可自定义）' : '点击加入泡泡';
-          chip.draggable = true;
-          chip.addEventListener('click', function (e) {
-            e.stopPropagation();
-            d.cb();
-          });
-          chip.addEventListener('dragstart', function (e) {
-            try {
-              e.dataTransfer.setData('text/plain', d.key);
-            } catch (err) {}
-            bubbleDragKey = d.key;
-          });
-          bubblePalEl.appendChild(chip);
-        })(defs[i]);
-      }
-      for (var li = 0; li < bubbleLib.length; li++) {
-        (function (lb) {
-          var chip = document.createElement('div');
-          chip.className = 'dshwv-libchip';
-          chip.title = '从模块库加入: ' + lb.name;
-          var body = document.createElement('div');
-          body.className = 'dshwv-palchip';
-          body.textContent = '▦ ' + lb.name;
-          body.draggable = true;
-          body.addEventListener('click', function (e) {
-            e.stopPropagation();
-            bubbleModuleAdd(bubbleCloneModule(lb.module));
-          });
-          body.addEventListener('dragstart', function (e) {
-            try {
-              e.dataTransfer.setData('text/plain', 'lib:' + lb.id);
-            } catch (err) {}
-            bubbleDragKey = 'lib:' + lb.id;
-          });
-          chip.appendChild(body);
-          var del = document.createElement('button');
-          del.type = 'button';
-          del.className = 'dshwv-libdel';
-          del.textContent = '✕';
-          del.title = '从模块库删除: ' + lb.name;
-          del.addEventListener('click', function (e) {
-            e.stopPropagation();
-            showConfirm('从模块库删除「' + lb.name + '」?', function () {
-              bubbleLibDel(lb.id);
-              if (bubblePalEl) renderBubblePal();
-            });
-          });
-          chip.appendChild(del);
-          bubblePalEl.appendChild(chip);
-        })(bubbleLib[li]);
-      }
-      var newChip = document.createElement('div');
-      newChip.className = 'dshwv-paladd';
-      newChip.textContent = '+ 新建模块';
-      newChip.title = '新建模块(先选类型:文本/随机语句/图片动图/随机图片)';
-      newChip.draggable = true;
-      newChip.addEventListener('click', function (e) {
-        e.stopPropagation();
-        bubbleModuleWizard();
-      });
-      newChip.addEventListener('dragstart', function (e) {
-        try {
-          e.dataTransfer.setData('text/plain', 'wizard');
-        } catch (err) {}
-        bubbleDragKey = 'wizard';
-      });
-      bubblePalEl.appendChild(newChip);
-    }
-    function bubbleModuleWizard() {
-      bubbleModuleAdd({
-        type: 'text',
-        text: '新内容',
-        size: 6,
-        bold: true
-      });
-    }
+    var bubbleColorSelect = createBubbleColorSelect({
+      document: document, qRow: qRow, qLabel: qLabel, dshwDropOpen: dshwDropOpen
+    });
+    var qColorSelectBuild = bubbleColorSelect.build;
+    var bubbleQuickEditors = createBubbleQuickEditors({
+      document: document, window: window, qeditClose: qeditClose, qeditEnsure: qeditEnsure,
+      qRow: qRow, qLabel: qLabel, bubbleFontEditRow: bubbleFontEditRow,
+      qColorSelectBuild: qColorSelectBuild, renderBubblePv: renderBubblePv,
+      qeditPlace: qeditPlace, getPreviewElement: function () { return bubblePvPrevEl; },
+      bubbleTplHelpToggle: bubbleTplHelpToggle
+    });
+    var openQuickTextEditor = bubbleQuickEditors.openText;
+    var openQuickModuleEditor = bubbleQuickEditors.openModule;
+    var openQuickSentenceEditor = bubbleQuickEditors.openSentence;
+    var bubblePalette = createBubblePalette({
+      document: document, getPaletteElement: function () { return bubblePalEl; },
+      getLibrary: function () { return bubbleLib; },
+      setDragKey: function (key) { bubbleDragKey = key; },
+      bubbleModuleAdd: bubbleModuleAdd, bubbleModuleNew: bubbleModuleNew,
+      bubblePickImageToAdd: bubblePickImageToAdd, bubblePaletteModule: bubblePaletteModule,
+      bubbleCloneModule: bubbleCloneModule, bubbleDefaultSecondModules: bubbleDefaultSecondModules,
+      showConfirm: showConfirm, bubbleLibDel: bubbleLibDel
+    });
+    var renderBubblePal = bubblePalette.render;
     function bubbleLibById(id) {
       for (var i = 0; i < bubbleLib.length; i++) if (bubbleLib[i].id === id) return bubbleLib[i];
       return null;
@@ -3561,7 +2175,6 @@ import {
     }
     var bubbleRgbOpenMenu = null;
     var bubbleFontOpenMenu = null;
-    var bubbleColorOpenMenu = null;
     function visibleTopZ() {
       var top = 20500;
       var cand = [bubbleMask, bubbleItemMask, moduleMask, usageMoreMask, qeditEl, window.__dshwRemindMask];
@@ -4815,13 +3428,7 @@ import {
         }).then(function (d) {
           requireSaved(d);
           if (d && d.ok && Array.isArray(d.roles)) {
-            roleList = d.roles;
-            renderRolePanel();
-            var newest = null;
-            for (var i = 0; i < roleList.length; i++) {
-              if (roleList[i].id !== 'default' && (!newest || roleList[i].createdAt > newest.createdAt)) newest = roleList[i];
-            }
-            if (newest) applyRole(newest.id, newest.name, roleUrl(newest.id));
+            roleManager.useImported(d.roles);
             hideGifRoleModal();
           }
         }).catch(assetFailure);
@@ -5212,6 +3819,7 @@ import {
       message: '',
       flip: false
     };
+    var drag = { active: false };
     var SNAP_KEY = 'dshw-snap';
     var SNAP_VER = 3;
     var SNAP_DEFAULTS = {
@@ -5341,7 +3949,6 @@ import {
     var busy = false;
 
 
-    var drag = null;
 
 
 
@@ -5660,535 +4267,55 @@ import {
         bubbleSceneController.open('normal', bubbleRenderDefault, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       }
     }
-    function bubbleModuleFontU(level) {
-      var n = Number(level) || 6;
-      n = Math.max(1, Math.min(50, Math.round(n)));
-      return Math.round(40 + (n - 1) * 200 / 49);
-    }
-    function bubbleAmountText() {
-      return state.balance === null ? '…' : fmt(state.balance, state.currency);
-    }
-    function bubbleTodayText() {
-      return '今日已观测 ' + (state.todayUsage !== null && state.todayUsage !== undefined ? fmt(state.todayUsage, state.currency) : '--');
-    }
-    function bubbleTokenValue(value) {
-      return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value).toLocaleString('en-US') : '暂无';
-    }
-    function bubbleContentTokenMap(m, snapshot) {
-      m = m || ({});
-      var values = snapshot || state;
-      var v = '';
-      var map = {};
-      if (m.type === 'balance') {
-        v = values.balance === null ? '…' : fmt(values.balance, values.currency);
-        map['balance_ds'] = v;
-        map['balance_api'] = v;
-      } else if (m.type === 'today') {
-        v = values.todayUsage !== null && values.todayUsage !== undefined ? fmt(values.todayUsage, values.currency) : '--';
-        map['expense_ds'] = v;
-        map['expense_api'] = v;
-      } else if (m.type === 'turn') {
-        map['turn_tokens'] = bubbleTokenValue(values && values.tokens);
-        map['turn_input'] = bubbleTokenValue(values && values.inputTokens);
-        map['turn_output'] = bubbleTokenValue(values && values.outputTokens);
-        map['turn_cached'] = bubbleTokenValue(values && values.cachedInputTokens);
-        map['turn_reasoning'] = bubbleTokenValue(values && values.reasoningOutputTokens);
-      } else if (m.type === 'session') {
-        map['session_name'] = values && values.sessionLabel ? String(values.sessionLabel) : '当前会话';
-      }
-      return map;
-    }
-    function bubbleTplHelpItems(m) {
-      m = m || ({});
-      var arr = [];
-      function add(k, d) {
-        arr.push({
-          k: '{' + k + '}',
-          d: d
-        });
-      }
-      if (m.type === 'balance') add('balance_ds', '余额数值'); else if (m.type === 'today') add('expense_ds', '今日已观测金额');
-      else if (m.type === 'quota') {
-        add('quota_left', '剩余百分比（1 位小数）'); add('quota_left_round', '剩余百分比（整数）'); add('quota_used', '已用百分比');
-        add('quota_reset', '精确重置倒计时'); add('quota_reset_short', '简洁重置倒计时'); add('quota_reset_at', '重置时间'); add('quota_updated_at', '快照更新时间');
-        add('quota_bar', '剩余额度条'); add('quota_label', '额度窗口名称');
-        add('quota_source', '额度数据来源');
-      } else if (m.type === 'turn') {
-        add('turn_tokens', '上轮总 token'); add('turn_input', '输入 token'); add('turn_output', '输出 token');
-        add('turn_cached', '缓存输入 token'); add('turn_reasoning', '推理输出 token');
-      } else if (m.type === 'session') add('session_name', '当前 Codex 项目或工作区名称');
-      else if (m.type === 'plan') { add('plan_name', 'Codex 套餐名称'); add('plan_type', '套餐原始标识'); }
-      else if (m.type === 'peak' || m.type === 'nextpeak') {
-        add('peak_phase', '当前峰谷状态'); add('peak_countdown', '距离下次切换'); add('peak_switch_at', '下次切换时间'); add('peak_note', '峰谷规则说明');
-      }
-      return arr;
-    }
-    var dshwvTplHelpEl = null;
-    function bubbleTplHelpToggle(m, anchor) {
-      try {
-        if (!dshwvTplHelpEl) {
-          dshwvTplHelpEl = document.createElement('div');
-          dshwvTplHelpEl.className = 'dshwv-tplhelp';
-          document.body.appendChild(dshwvTplHelpEl);
-          document.addEventListener('pointerdown', function (e) {
-            if (!dshwvTplHelpEl || dshwvTplHelpEl.style.display === 'none') return;
-            try {
-              if (e.target && e.target.closest && (e.target.closest('.dshwv-tplq') || e.target.closest('.dshwv-tplhelp'))) return;
-            } catch (err) {}
-            dshwvTplHelpEl.style.display = 'none';
-          }, true);
-          document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') dshwvTplHelpEl.style.display = 'none';
-          });
-        }
-        if (dshwvTplHelpEl.style.display === 'block') {
-          dshwvTplHelpEl.style.display = 'none';
-          return;
-        }
-        var items = bubbleTplHelpItems(m);
-        var html = '<div style="font-weight:600;margin-bottom:4px">可用占位符(替换到内容里)</div>';
-        if (!items.length) html += '<div style="opacity:.8">该模块无自动内容占位</div>';
-        for (var i = 0; i < items.length; i++) html += '<div style="margin:1px 0"><b style="color:#2f4488">' + items[i].k + '</b> — ' + items[i].d + '</div>';
-        html += '<div style="margin-top:5px;opacity:.65">其余文字原样显示;留空=默认自动内容</div>';
-        dshwvTplHelpEl.innerHTML = html;
-        dshwvTplHelpEl.style.display = 'block';
-        var r = anchor ? anchor.getBoundingClientRect() : {
-          left: 60,
-          top: 120,
-          right: 180,
-          width: 100
-        };
-        var w = 252;
-        var vp = viewport();
-        var left = Math.max(4, Math.min(r.right - w, vp.w - w - 4));
-        var top = r.bottom + 4;
-        var h = dshwvTplHelpEl.offsetHeight || 120;
-        if (top + h > vp.h - 4) top = Math.max(4, r.top - h - 4);
-        dshwvTplHelpEl.style.left = Math.round(left) + 'px';
-        dshwvTplHelpEl.style.top = Math.round(top) + 'px';
-      } catch (err) {}
-    }
-    function bubbleContentText(m, autoTxt, snapshot) {
-      m = m || ({});
-      if (!m.tpl || !String(m.tpl).length) return autoTxt;
-      var map = bubbleContentTokenMap(m, snapshot);
-      var s = String(m.tpl);
-      var keys = Object.keys(map).sort(function (a, b) {
-        return b.length - a.length;
-      });
-      for (var i = 0; i < keys.length; i++) s = s.split('{' + keys[i] + '}').join(String(map[keys[i]]));
-      return s;
-    }
-    function bubbleMarqueeDur() {
-      return Math.round(1500 + Math.random() * 3000) + 'ms';
-    }
-    function bubblePickLine(lines, avoidIdx) {
-      if (!Array.isArray(lines) || !lines.length) return null;
-      if (lines.length === 1) return 0;
-      var total = 0;
-      for (var i = 0; i < lines.length; i++) total += Math.max(1, Number(lines[i].w) || 1);
-      var pick;
-      for (var guard = 0; guard < 6; guard++) {
-        var r = Math.random() * total;
-        var acc = 0;
-        pick = lines.length - 1;
-        for (var j = 0; j < lines.length; j++) {
-          acc += Math.max(1, Number(lines[j].w) || 1);
-          if (r < acc) {
-            pick = j;
-            break;
-          }
-        }
-        if (pick !== avoidIdx) break;
-      }
-      return pick;
-    }
-    
-    function bubbleRowContentOf(mod) {
-      mod = mod || ({});
-      if (mod.apiModelId && (mod.type === 'balance' || mod.type === 'today' || mod.type === 'quota' || mod.type === 'plan')) {
-        var apiModelText = function () { return window.WhaleApiModels?.text(mod) || 'API 模型加载中…'; };
-        return { txt: apiModelText(), line: null, apiModelText: apiModelText };
-      }
-      if (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak') {
-        var quotaText = function () { return window.WhaleQuota?.text(mod) || '额度加载中…'; };
-        return { txt: quotaText(), line: null, quotaText: quotaText };
-      }
-      if (mod.type === 'turn') {
-        var defaultTurnText = lastTurnNotice && lastTurnNotice.tokens != null ? '上轮使用 ' + bubbleTokenValue(lastTurnNotice.tokens) + ' tokens' : '暂无上轮用量';
-        return { txt: bubbleContentText(mod, defaultTurnText, lastTurnNotice || {}), line: null };
-      }
-      if (mod.type === 'session') {
-        var defaultSessionText = lastTurnNotice && lastTurnNotice.sessionLabel ? '当前会话 · ' + lastTurnNotice.sessionLabel : '当前会话';
-        return { txt: bubbleContentText(mod, defaultSessionText, lastTurnNotice || {}), line: null };
-      }
-      if (mod.type === 'balance' || mod.type === 'today') {
-        var captured = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD' };
-        var moneyText = function () {
-          var value = mod.type === 'balance' ? captured.balance === null ? '…' : fmt(captured.balance, captured.currency) :
-            '今日已观测 ' + (captured.todayUsage != null ? fmt(captured.todayUsage, captured.currency) : '--');
-          return bubbleContentText(mod, value, captured);
-        };
-        return { txt: moneyText(), line: null, moneyText: moneyText };
-      }
-      var reminder = whaleMoneyTemplates.get(mod);
-      function reminderText(template) {
-        return function () { return usageFillText(template, reminder.below, reminder.amount, reminder.currency, reminder.notice); };
-      }
-      if (mod.type === 'random' && Array.isArray(mod.lines)) {
-        var pi = bubblePickLine(mod.lines, mod._lastPick);
-        if (pi !== null && pi !== undefined && mod.lines[pi]) {
-          mod._lastPick = pi;
-          var selectedText = mod.lines[pi].t;
-          var selectedMoney = reminder ? reminderText(selectedText) : null;
-          return {
-            txt: selectedMoney ? selectedMoney() : selectedText,
-            line: mod.lines[pi],
-            moneyText: selectedMoney
-          };
-        }
-        return {
-          txt: '',
-          line: null
-        };
-      }
-      var templateText = reminder ? reminderText(reminder.template) : null;
-      return { txt: templateText ? templateText() : mod.text || '', line: null, moneyText: templateText };
-    }
-    function bubbleRowsTo(parentEl, mods, frozenRows) {
-      if (!parentEl || !Array.isArray(mods)) return;
-      if (!frozenRows) { var preview = bubbleSnapshot(mods, false); mods = preview.modules; frozenRows = preview.rows; }
-      var old = parentEl.querySelectorAll('.dshwv-trow, .dshwv-mimg');
-      for (var i = 0; i < old.length; i++) {
-        try {
-          WhaleMoney.clearBindings(old[i]);
-          window.WhaleQuota?.clearBindings(old[i]);
-          window.WhaleApiModels?.clearBindings(old[i]);
-          parentEl.removeChild(old[i]);
-        } catch (err) {}
-      }
-      var ROW_MAX = 6;
-      var MOD_MAX = 6;
-      function blockOf(m, rowContent) {
-        var line = rowContent ? rowContent.line : null;
-        var fSize = m.size;
-        var fColor = m.color;
-        var fBold = m.bold;
-        var fItalic = m.italic;
-        var fUl = m.ul;
-        var fRgb = m.rgb;
-        if (line) {
-          if (line.size) fSize = line.size;
-          if (line.color) fColor = line.color;
-          if (line.bold === false) fBold = false; else if (line.bold === true) fBold = true;
-          if (line.italic === false) fItalic = false; else if (line.italic === true) fItalic = true;
-          if (line.ul === false) fUl = false; else if (line.ul === true) fUl = true;
-          if (line.rgb) fRgb = line.rgb;
-        }
-        if (m.type === 'random' && fBold !== false) fBold = true;
-        var effBg = '';
-        var effBgRgb = '';
-        {
-          if (line && line.bgRgb) effBgRgb = String(line.bgRgb); else if (line && line.bg) effBg = String(line.bg);
-          if (!effBgRgb && !effBg) {
-            if (m.bgRgb) effBgRgb = String(m.bgRgb); else if (m.bg) effBg = String(m.bg);
-          }
-        }
-        if (effBgRgb === 'true') effBgRgb = 'macaron';
-        var needBg = !!(effBgRgb || effBg);
-        var row = document.createElement('div');
-        row.className = 'dshwv-trow';
-        if (m.type === 'quota' && m.quotaStyle === 'meter' && !m.apiModelId) row.classList.add('dshwv-quota-shell');
-        if (m.type === 'plan' && m.quotaStyle === 'header') row.classList.add('dshwv-quota-heading');
-        var tx = row;
-        if (needBg) {
-          row.style.padding = '1px 6px';
-          row.style.borderRadius = '7px';
-          row.style.textShadow = 'none';
-          tx = document.createElement('span');
-          tx.className = 'dshwv-trowtx';
-          row.appendChild(tx);
-        }
-        tx.textContent = String(rowContent.txt);
-        if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
-        if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
-        if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
-        row.style.fontSize = 'calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + ')';
-        if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
-        if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
-        if (fItalic) row.style.fontStyle = 'italic';
-        if (fUl) row.style.textDecoration = 'underline';
-        var fFont = m.fontFamily || '';
-        if (line && line.fontFamily) fFont = line.fontFamily;
-        if (fFont) row.style.fontFamily = fFont;
-        var marquee = fRgb;
-        function applyTextGradient(target, g) {
-          target.classList.add('dshwv-rgb');
-          var scheme = g === true ? 'macaron' : String(g || 'macaron');
-          if (scheme === 'candy' || scheme === 'rouge' || scheme === 'bamboo' || scheme === 'aurora' || scheme === 'deepsea' || scheme === 'sunset' || scheme === 'forest' || scheme === 'champagne' || scheme === 'lavender' || scheme === 'mint' || scheme === 'lava' || scheme === 'galaxy' || scheme === 'ink' || scheme === 'indigo') target.classList.add('dshwv-rgb-' + scheme);
-        }
-        if (marquee) {
-          var mt = needBg ? tx : row;
-          applyTextGradient(mt, marquee);
-          mt.style.animationDuration = bubbleMarqueeDur();
-        } else if (fColor) {
-          row.style.color = fColor;
-        }
-        if (needBg) {
-          if (effBgRgb) {
-            row.classList.add('dshwv-bgrgb');
-            if (effBgRgb === 'candy' || effBgRgb === 'rouge' || effBgRgb === 'bamboo' || effBgRgb === 'aurora' || effBgRgb === 'deepsea' || effBgRgb === 'sunset' || effBgRgb === 'forest' || effBgRgb === 'champagne' || effBgRgb === 'lavender' || effBgRgb === 'mint' || effBgRgb === 'lava' || effBgRgb === 'galaxy' || effBgRgb === 'ink' || effBgRgb === 'indigo' || effBgRgb === 'macaron') row.classList.add('dshwv-bgrgb-' + effBgRgb);
-            row.style.animationDuration = bubbleMarqueeDur();
-          } else if (effBg) {
-            row.style.background = effBg;
-          }
-        }
-        return {
-          el: row,
-          tx: tx,
-          fSize: fSize,
-          mod: m,
-          bg: needBg
-        };
-      }
-      function maybeWrap(blk) {
-        if (!blk) return;
-        try {
-          var compFs = window.getComputedStyle ? parseFloat(window.getComputedStyle(blk.el).fontSize) : 0;
-          var multNow = bubbleModuleFontU(blk.fSize);
-          var capPx = compFs && multNow ? 560 * compFs / multNow : 0;
-          if (capPx > 0 && blk.el.scrollWidth > capPx + 2) {
-            blk.el.style.maxWidth = capPx + 'px';
-            blk.el.style.whiteSpace = 'normal';
-            blk.el.style.overflowWrap = 'anywhere';
-            blk.el.style.wordBreak = 'break-word';
-          } else {
-            blk.el.style.whiteSpace = 'nowrap';
-          }
-        } catch (err) {}
-      }
-      function enableLinkRun(blk2) {
-        try {
-          var lmd = blk2 && blk2.mod;
-          if (!lmd || lmd.type !== 'link') return;
-          if (!parentEl || parentEl !== bubbleTarget) return;
-          var u0 = String(lmd.url || '').trim();
-          if (!(/^https?:\/\//i).test(u0)) return;
-          var lel = blk2.el;
-          lel.style.cursor = 'pointer';
-          lel.style.pointerEvents = 'auto';
-          lel.title = u0;
-          lel.addEventListener('click', function (e) {
-            try {
-              e.preventDefault();
-            } catch (err) {}
-            try {
-              e.stopPropagation();
-            } catch (err) {}
-            try {
-              if (window.whaleDesktop && window.whaleDesktop.openExternal) window.whaleDesktop.openExternal(u0);
-              else window.open(u0, '_blank', 'noopener');
-            } catch (err) {}
-          });
-        } catch (err) {}
-      }
-      var groups = bubbleRowsOf(mods);
-      var rows = 0;
-      var imgDone = false;
-      for (var g = 0; g < groups.length; g++) {
-        var grp = groups[g];
-        if (!grp || !grp.length) continue;
-        if (bubbleIsImgMod(grp[0])) {
-          var md = grp[0];
-          if (imgDone || !md.imgId) continue;
-          var im = document.createElement('img');
-          im.className = 'dshwv-mimg';
-          var scV2 = Number(md.imgScale);
-          if (isFinite(scV2) && scV2 > 0) im.style.maxWidth = 'calc(var(--dshw-u) * ' + 540 * Math.max(0.1, Math.min(1, scV2)) + ')';
-          im.src = '/dsh-whale/bubble-img.png?id=' + encodeURIComponent(md.imgId);
-          im.alt = '';
-          im.draggable = false;
-          parentEl.appendChild(im);
-          imgDone = true;
-          continue;
-        }
-        for (var s = 0; s < grp.length && rows < ROW_MAX; s += MOD_MAX) {
-          var chunk = [];
-          for (var c = s; c < grp.length && c < s + MOD_MAX; c++) {
-            var cm = grp[c] || ({});
-            var rowContent = frozenRows.get(cm);
-            if (!rowContent || rowContent.txt === '' || rowContent.txt === undefined || rowContent.txt === null) continue;
-            chunk.push(blockOf(cm, rowContent));
-          }
-          if (!chunk.length) continue;
-          if (chunk.length === 1) {
-            var blk1 = chunk[0];
-            parentEl.appendChild(blk1.el);
-            enableLinkRun(blk1);
-            maybeWrap(blk1);
-            rows++;
-            continue;
-          }
-          var capPx2 = 0;
-          try {
-            var uCss2 = window.getComputedStyle ? window.getComputedStyle(parentEl).getPropertyValue('--dshw-u') : '';
-            var uVal2 = parseFloat(uCss2);
-            if (uVal2 > 0) capPx2 = 560 * uVal2;
-          } catch (err) {}
-          var para = document.createElement('div');
-          para.className = 'dshwv-trow dshwv-trowline';
-          para.style.textAlign = 'center';
-          if (capPx2 > 0) para.style.maxWidth = capPx2 + 'px';
-          for (var p = 0; p < chunk.length; p++) {
-            var pr = chunk[p];
-            var pe = pr.el;
-            pe.style.display = 'inline';
-            pe.style.verticalAlign = 'baseline';
-            pe.style.margin = '0 calc(var(--dshw-u) * 6) 0 0';
-            if (!pr.bg) {
-              pe.style.padding = '1px 0';
-            }
-            if (pr.bg) {
-              pe.style.boxDecorationBreak = 'clone';
-              pe.style.webkitBoxDecorationBreak = 'clone';
-            }
-            {
-              pe.style.whiteSpace = 'normal';
-              pe.style.overflowWrap = 'anywhere';
-              pe.style.wordBreak = 'break-word';
-              pe.style.maxWidth = '';
-            }
-            para.appendChild(pe);
-            enableLinkRun(pr);
-          }
-          parentEl.appendChild(para);
-          for (var p2 = 0; p2 < chunk.length; p2++) {}
-          rows++;
-        }
-      }
-    }
-
-    
-    function bubbleRenderModules(mods) {
-      if (!bubbleSceneController.building) return; // Including switching: only the entry builder may write.
-      var snapshot = bubbleSnapshot(mods, true);
-      gifEl.style.display = 'none';
-      labelEl.style.display = 'none';
-      amountEl.style.display = 'none';
-      hintEl.style.display = 'none';
-      bubbleRowsTo(bubbleTarget, snapshot.modules, snapshot.rows);
-    }
-    var bubblePreviousPicks = new WeakMap();
-    var bubblePreviousImagePicks = new WeakMap();
-    function bubbleSnapshot(mods, remember) {
-      var rows = new Map();
-      var copies = (Array.isArray(mods) ? mods : []).map(function (original) {
-        var copy = bubbleCloneModule(original);
-        if (copy.type === 'random') copy._lastPick = remember && original && typeof original === 'object' ? bubblePreviousPicks.get(original) : undefined;
-        if (copy.type === 'randimg') {
-          var pool = (Array.isArray(copy.imgs) ? copy.imgs : []).filter(function (item) { return item && item.imgId; });
-          var lastImage = remember && original && typeof original === 'object' ? bubblePreviousImagePicks.get(original) : undefined;
-          var pickedImage = bubblePickLine(pool, lastImage);
-          copy.imgId = pickedImage != null && pool[pickedImage] ? pool[pickedImage].imgId : '';
-          if (remember && original && typeof original === 'object' && pickedImage != null) bubblePreviousImagePicks.set(original, pickedImage);
-        }
-        var content = bubbleRowContentOf(copy);
-        if (remember && copy.type === 'random' && original && typeof original === 'object') bubblePreviousPicks.set(original, copy._lastPick);
-        rows.set(copy, Object.freeze(content));
-        return copy;
-      });
-      return { modules: copies, rows: rows };
-    }
-    function bubblePreviewInto(container, mods, widthPx) {
-      try {
-        if (!container) return;
-        WhaleMoney.clearBindings(container);
-        container.innerHTML = '';
-        var B = Math.max(120, root && (root.offsetWidth || root.getBoundingClientRect().width) || 300);
-        var hostW = Math.max(120, container.parentNode && (container.parentNode.clientWidth || container.parentNode.getBoundingClientRect().width) || 408);
-        var W = Math.max(120, Math.min(B, hostW));
-        container.style.width = W + 'px';
-        container.style.transform = 'none';
-        container.style.transformOrigin = '';
-        container.style.setProperty('--dshw-u', W / 1026 + 'px');
-        var halfGap = Math.max(0, (hostW - W) / 2);
-        var shiftR = Math.min(10, Math.max(0, Math.round(halfGap)));
-        container.style.marginLeft = Math.max(0, Math.round(halfGap)) + shiftR + 'px';
-        container.style.marginRight = Math.max(0, Math.round(halfGap) - shiftR) + 'px';
-        var pop = document.createElement('div');
-        pop.className = 'dshwv-minipop';
-        pop.style.aspectRatio = 'auto';
-        var cropTop = Math.max(2, Math.round(W * 0.012));
-        pop.style.height = Math.round(W * 560 / 1026) + cropTop + 'px';
-        pop.style.overflow = 'hidden';
-        var stage = document.createElement('div');
-        stage.style.position = 'absolute';
-        stage.style.left = '0';
-        stage.style.top = cropTop + 'px';
-        stage.style.width = '100%';
-        stage.style.height = Math.round(W * 700 / 1026) + 'px';
-        try {
-          var svgEl = bubbleBox.querySelector('svg');
-          if (svgEl) stage.innerHTML = svgEl.outerHTML;
-        } catch (err) {}
-        try {
-          var tailEls = stage.querySelectorAll('.dshwv-b1, .dshwv-b2');
-          for (var t1 = 0; t1 < tailEls.length; t1++) {
-            try {
-              tailEls[t1].style.display = 'none';
-            } catch (err) {}
-          }
-        } catch (err) {}
-        var tb = document.createElement('div');
-        tb.className = 'dshwv-text';
-        tb.style.opacity = '1';
-        tb.style.transition = 'none';
-        stage.appendChild(tb);
-        pop.appendChild(stage);
-        container.appendChild(pop);
-        bubbleRowsTo(tb, mods || []);
-      } catch (err) {}
-    }
-    function whaleClick() {
-      try {
-        if (!bubbleOn) return;
-        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'wait') {
-          if (bubbleNoticeQueue.current && bubbleNoticeQueue.current.closeOnRole) hideWaitBubble(true, bubbleNoticeQueue.current.id);
-          return;
-        }
-        if (bubbleSceneController.scene && (bubbleSceneController.scene.kind === 'cost' || bubbleSceneController.scene.kind === 'alert')) return;
-        // Match the original petting interaction: once a bubble is visible,
-        // presses on the character only play the press/release feedback. The
-        // bubble itself is the sole control that advances or pops the queue.
-        if (bubbleSceneController.shown) return;
-        if (window.WhaleAccountView?.mode === 'subscription') window.WhaleQuota?.refresh(true);
+    var bubbleContent = createBubbleContent({
+      window: window, getState: function () { return state; },
+      getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
+      whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
+      bubbleCloneModule: bubbleCloneModule
+    });
+    var bubbleModuleFontU = bubbleContent.fontU;
+    var bubbleTokenValue = bubbleContent.tokenValue;
+    var bubbleTplHelpItems = bubbleContent.tplHelpItems;
+    var bubbleContentText = bubbleContent.text;
+    var bubblePickLine = bubbleContent.pickLine;
+    var bubbleSnapshot = bubbleContent.snapshot;
+    var bubbleTemplateHelp = createBubbleTemplateHelp({
+      document: document, viewport: viewport, bubbleTplHelpItems: bubbleTplHelpItems
+    });
+    var bubbleTplHelpToggle = bubbleTemplateHelp.toggle;
+    var bubbleRowsView = createBubbleRowsView({
+      document: document, window: window, WhaleMoney: WhaleMoney,
+      bubbleSnapshot: bubbleSnapshot, bubbleModuleFontU: bubbleModuleFontU,
+      bubbleRowsOf: bubbleRowsOf, bubbleIsImgMod: bubbleIsImgMod,
+      whaleMoneyTemplates: whaleMoneyTemplates,
+      getBubbleTarget: function () { return bubbleTarget; },
+      getSceneController: function () { return bubbleSceneController; },
+      getVisuals: function () { return { gifEl: gifEl, labelEl: labelEl, amountEl: amountEl, hintEl: hintEl }; },
+      getRoot: function () { return root; }, getBubbleBox: function () { return bubbleBox; }
+    });
+    var bubbleRenderModules = bubbleRowsView.render;
+    var bubblePreviewInto = bubbleRowsView.preview;
+    var bubbleInteraction = createBubbleInteraction({
+      isEnabled: function () { return bubbleOn; },
+      getScene: function () { return bubbleSceneController.scene; },
+      isShown: function () { return bubbleSceneController.shown; },
+      getCurrentNotice: function () { return bubbleNoticeQueue.current; },
+      closeWait: hideWaitBubble,
+      isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
+      refreshQuota: function () { window.WhaleQuota?.refresh(true); },
+      startRound: function () {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
-      } catch (err) {}
-    }
-    function bubbleNext() {
-      try {
-        if (!bubbleSceneController.shown) return;
-        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'cost') {
-          hideCostBubble();
-          return;
-        }
-        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'alert') {
-          hideUsageAlertBubble();
-          return;
-        }
-        if (bubbleSceneController.scene && bubbleSceneController.scene.kind === 'wait') {
-          hideWaitBubble(true, bubbleNoticeQueue.current && bubbleNoticeQueue.current.id);
-          return;
-        }
-        if (bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length) {
-          bubbleShowSeqNext();
-          return;
-        }
-        hideBubble();
-      } catch (err) {}
-    }
+      },
+      canAdvance: function () { return bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length; },
+      showNext: bubbleShowSeqNext,
+      closeCost: hideCostBubble,
+      closeAlert: hideUsageAlertBubble,
+      closeBubble: hideBubble
+    });
+    var whaleClick = bubbleInteraction.whaleClick;
+    var bubbleNext = bubbleInteraction.bubbleNext;
     function showBubble() {
       if (!bubbleOn) return;
       if (costBubbleActive) return;
@@ -6715,287 +4842,12 @@ import {
         menuBox.style.transformOrigin = onLeft ? 'bottom left' : 'bottom right';
       } catch (err) {}
     }
-    var ROLE_URL = '/dsh-whale/roles.json';
-    var currentRole = {
-      id: 'default',
-      name: '小鲸鱼',
-      url: IMG_URL
-    };
-    var roleList = [];
-    var badRoleIds = Object.create(null);
-    var fallbackInProgress = false;
-    function recoverBrokenRole() {
-      if (fallbackInProgress || img.complete && img.naturalWidth > 0) return;
-      var failedId = currentRole.id;
-      try { failedId = localStorage.getItem('dshw-role') || failedId; } catch (err) {}
-      if (failedId && failedId !== 'default') badRoleIds[failedId] = true;
-      if (new URL(img.currentSrc || img.src, location.href).href === new URL(IMG_URL, location.href).href) {
-        assetNotice('内置小鲸鱼图片加载失败，请重启挂件或重新安装');
-        return;
-      }
-      fallbackInProgress = true;
-      applyRole('default', '小鲸鱼', IMG_URL, true);
-    }
-    window.addEventListener('whale-role-fallback', recoverBrokenRole);
-    function loadRoles() {
-      try {
-        assetClient.roles().then(function (d) {
-          if (!d) return;
-          roleList = d.roles;
-          assetWarning(d);
-          renderRolePanel();
-          if (fallbackInProgress) return;
-          var saved = '';
-          try {
-            saved = localStorage.getItem('dshw-role') || '';
-          } catch (err) {}
-          var found = null;
-          for (var i = 0; i < roleList.length; i++) {
-            if (roleList[i].id === saved) {
-              found = roleList[i];
-              break;
-            }
-          }
-          if (found && !badRoleIds[found.id]) {
-            if (currentRole.id !== found.id) applyRole(found.id, found.name, found.url); else renderRolePanel();
-          } else if (saved && saved !== 'default') {
-            applyRole('default', '小鲸鱼', IMG_URL);
-          }
-        }).catch(function () {});
-      } catch (err) {}
-    }
-    function setRoleBtnText(t) {
-      try {
-        roleBtnLabel.textContent = t;
-      } catch (err) {}
-    }
     function setAudioBtnText(t) {
       try {
         audioGroupBtnLabel.textContent = t;
       } catch (err) {}
     }
-    var MARQ_SPEED = 40;
-    function bindNameMarquee(item, nameEl) {
-      try {
-        if (!item || !nameEl) return;
-        var timer = null;
-        function stop() {
-          try {
-            if (timer) {
-              clearTimeout(timer);
-              timer = null;
-            }
-            var t = nameEl.querySelector('.dshwv-nameinner');
-            if (!t) return;
-            t.style.transitionTimingFunction = '';
-            t.style.transitionDuration = '';
-            t.style.transform = '';
-            while (t.children && t.children.length > 1) t.removeChild(t.children[t.children.length - 1]);
-          } catch (err) {}
-        }
-        function distOf() {
-          try {
-            var t = nameEl.querySelector('.dshwv-nameinner');
-            if (!t) return 0;
-            return t.scrollWidth / 2;
-          } catch (err) {
-            return 0;
-          }
-        }
-        function textWOf() {
-          try {
-            var t = nameEl.querySelector('.dshwv-nameinner');
-            if (!t || !t.children || !t.children.length) return 0;
-            return t.children[0].offsetWidth || 0;
-          } catch (err) {
-            return 0;
-          }
-        }
-        function ensureDup() {
-          var t = nameEl.querySelector('.dshwv-nameinner');
-          if (!t || !t.children || t.children.length >= 2) return t;
-          var first = t.children[0];
-          var c = document.createElement('span');
-          c.className = 'dshwv-namecopy';
-          c.textContent = first.textContent;
-          t.appendChild(c);
-          return t;
-        }
-        function cycle() {
-          var dist = distOf();
-          var dur = Math.max(200, dist / MARQ_SPEED * 1000);
-          timer = setTimeout(function () {
-            try {
-              cycle();
-            } catch (err) {}
-          }, dur + 40);
-          var t = nameEl.querySelector('.dshwv-nameinner');
-          if (!t) return;
-          t.style.transitionTimingFunction = 'linear';
-          t.style.transitionDuration = '0ms';
-          t.style.transform = 'translateX(0px)';
-          void t.offsetWidth;
-          t.style.transitionDuration = dur + 'ms';
-          t.style.transform = 'translateX(' + -dist + 'px)';
-        }
-        item.addEventListener('mouseenter', function () {
-          try {
-            stop();
-            if (textWOf() <= nameEl.clientWidth + 1) return;
-            ensureDup();
-            cycle();
-          } catch (err) {}
-        });
-        item.addEventListener('mouseleave', stop);
-      } catch (err) {}
-    }
-    function makeNameCell(className, text) {
-      var outer = document.createElement('span');
-      outer.className = className;
-      var inner = document.createElement('span');
-      inner.className = 'dshwv-nameinner';
-      var c = document.createElement('span');
-      c.className = 'dshwv-namecopy';
-      c.textContent = text;
-      inner.appendChild(c);
-      outer.appendChild(inner);
-      return outer;
-    }
-    var roleLoadGeneration = 0;
-    function applyRole(id, name, url, isFallback) {
-      var generation = ++roleLoadGeneration;
-      var readyImage = new Image();
-      readyImage.src = url;
-      return Promise.all([readyImage.decode(), WhaleRendering.hitCache.prepare(url)]).then(function () {
-        if (generation !== roleLoadGeneration) return false;
-        currentRole = {
-        id: id,
-        name: name,
-        url: url
-      };
-      img.src = url;
-      setRoleBtnText(name);
-      try {
-        localStorage.setItem('dshw-role', id);
-      } catch (err) {}
-      setupHitTest(url);
-      closeRolePanel();
-      renderRolePanel();
-        WhaleRendering.presentFor(200);
-        delete badRoleIds[id];
-        fallbackInProgress = false;
-        if (isFallback) assetNotice('原角色图片无法显示，已切回小鲸鱼；可在角色菜单重新选择');
-        return true;
-      }).catch(function () {
-        if (generation !== roleLoadGeneration) return false;
-        badRoleIds[id] = true;
-        fallbackInProgress = false;
-        assetNotice(isFallback ? '内置小鲸鱼图片加载失败，请重启挂件或重新安装' : '角色图片无法读取，已保留原角色');
-        if (!isFallback) recoverBrokenRole();
-        return false;
-      });
-    }
-    function roleUrl(id) {
-      if (id === 'default') return IMG_URL;
-      return '/dsh-whale/role-image.png?id=' + encodeURIComponent(id);
-    }
-    function toggleRolePanel() {
-      if (rolePanel.classList.contains('dshwv-rolelist-open')) {
-        closeRolePanel();
-        return;
-      }
-      try {
-        var b = roleBtn.getBoundingClientRect();
-        var vp = viewport();
-        var panelW = Math.max(200, Math.round(b.width));
-        rolePanel.style.width = panelW + 'px';
-        rolePanel.style.left = Math.max(4, Math.min(b.left, vp.w - panelW - 4)) + 'px';
-        rolePanel.style.top = b.bottom + 6 + 'px';
-        rolePanel.style.display = 'block';
-        rolePanel.classList.add('dshwv-rolelist-open');
-      } catch (err) {}
-    }
-    function closeRolePanel() {
-      rolePanel.classList.remove('dshwv-rolelist-open');
-      rolePanel.style.display = 'none';
-    }
-
     // ==== [角色面板与裁图确认] ====
-    function renderRolePanel() {
-      try {
-        rolePanel.innerHTML = '';
-        roleList.forEach(function (r) {
-          var item = document.createElement('div');
-          item.className = 'dshwv-roleitem' + (currentRole.id === r.id ? ' dshwv-roleitem-cur' : '');
-          var thumb = document.createElement('img');
-          thumb.className = 'dshwv-rolethumb';
-          thumb.src = r.url;
-          thumb.alt = '';
-          thumb.draggable = false;
-          var name = makeNameCell('dshwv-rolename', r.name);
-          var nameWrap = document.createElement('span');
-          nameWrap.className = 'dshwv-rolenamewrap';
-          if (r.format === 'gif' || r.format === 'apng') {
-            var gifTag = document.createElement('span');
-            gifTag.className = 'dshwv-roleGifTag';
-            gifTag.textContent = r.format === 'apng' ? 'APNG' : 'GIF';
-            nameWrap.appendChild(gifTag);
-          }
-          nameWrap.appendChild(name);
-          item.appendChild(thumb);
-          item.appendChild(nameWrap);
-          var pin = document.createElement('button');
-          pin.type = 'button';
-          pin.className = 'dshwv-rolepin' + (r.pinned ? ' on' : '');
-          pin.textContent = '📌';
-          pin.title = r.pinned ? '取消置顶' : '置顶';
-          pin.addEventListener('click', function (e) {
-            e.stopPropagation();
-            togglePin(r.id, !r.pinned);
-          });
-          item.appendChild(pin);
-          if (r.id !== 'default') {
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'dshwv-roledel';
-            del.textContent = '✕';
-            del.title = '删除角色';
-            del.addEventListener('click', function (e) {
-              e.stopPropagation();
-              deleteRole(r.id);
-            });
-            item.appendChild(del);
-          }
-          item.addEventListener('click', function () {
-            applyRole(r.id, r.name, roleUrl(r.id));
-          });
-          bindNameMarquee(item, name);
-          rolePanel.appendChild(item);
-        });
-      } catch (err) {}
-    }
-    function togglePin(id, pinned) {
-      try {
-        fetch('/dsh-whale/role-pin.json', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            id: id,
-            pinned: pinned
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.roles)) {
-            roleList = d.roles;
-            renderRolePanel();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
     var confirmCb = null;
     function showConfirm(text, cb, okLabel) {
       confirmCb = cb || null;
@@ -7009,35 +4861,6 @@ import {
     function hideConfirm() {
       confirmMask.style.display = 'none';
       confirmCb = null;
-    }
-    function deleteRole(id) {
-      var r = null;
-      for (var i = 0; i < roleList.length; i++) if (roleList[i].id === id) {
-        r = roleList[i];
-        break;
-      }
-      showConfirm('确定删除角色「' + (r ? r.name : id) + '」吗？', function () {
-        try {
-          fetch('/dsh-whale/role-delete.json', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              id: id
-            })
-          }).then(function (res) {
-            return res.json();
-          }).then(function (d) {
-          requireSaved(d);
-            if (d && d.ok && Array.isArray(d.roles)) {
-              roleList = d.roles;
-              renderRolePanel();
-              if (currentRole.id === id) applyRole('default', '小鲸鱼', IMG_URL);
-            }
-          }).catch(assetFailure);
-        } catch (err) { assetFailure(err); }
-      });
     }
     var cropState = null;
     function countGifFrames(bytes) {
@@ -7283,13 +5106,7 @@ import {
         }).then(function (d) {
           requireSaved(d);
           if (d && d.ok && Array.isArray(d.roles)) {
-            roleList = d.roles;
-            renderRolePanel();
-            var newest = null;
-            for (var i = 0; i < roleList.length; i++) {
-              if (roleList[i].id !== 'default' && (!newest || roleList[i].createdAt > newest.createdAt)) newest = roleList[i];
-            }
-            if (newest) applyRole(newest.id, newest.name, roleUrl(newest.id));
+            roleManager.useImported(d.roles);
             hideCropModal();
           }
         }).catch(assetFailure);
@@ -8362,222 +6179,29 @@ import {
       toggleAudioSlotPanel('release');
     });
 
-    function setupHitTest(url) {
-      WhaleRendering.hitCache.prepare(url || IMG_URL);
-    }
-    function whaleLayoutRect() {
-      var origin = positioner.getBoundingClientRect();
-      var width = root.offsetWidth, height = root.offsetHeight;
-      return { left: origin.left, top: origin.top, right: origin.left + width, bottom: origin.top + height, width: width, height: height };
-    }
-    function isWhaleHit(e) {
-      return !!e && WhaleRendering.hitCache.hit(img, e.clientX, e.clientY, WhaleRendering.mirrorScale(root) < 0);
-    }
+    var characterInteraction = createCharacterInteraction({
+      document: document, window: window, localStorage: localStorage, rendering: WhaleRendering,
+      root: root, image: img, positioner: positioner, menuButton: menuBtn, state: state, dragStatus: drag,
+      clickDistanceSq: CLICK_SQ, imageUrl: IMG_URL, viewport: viewport, rightGap: rightGap,
+      clampToViewport: clampToViewport, artCenterAt: artCenterAt, snapZones: snapZones,
+      restoreAnchor: restoreAnchor, express: express, settle: settle, saveConfig: saveConfig,
+      refreshFlip: refreshFlip, pressDown: pressDown, pressUp: pressUp, whaleClick: whaleClick,
+      refresh: refresh, closeMenu: closeMenu, toggleMenu: toggleMenu, closeRolePanel: closeRolePanel,
+      closeAudioGroupPanel: closeAudioGroupPanel, hideBubble: hideBubble,
+      applyBubbleConfig: applyBubbleCfgSeq, positionMenu: positionMenu,
+      isMenuOpen: function () { return menuOpen; },
+      isMenuButtonHidden: function () { return menuBtnHide; },
+      isScrollGapEnabled: function () { return scrollGapOn; }
+    });
+    var setupHitTest = characterInteraction.setupHitTest;
+    var whaleLayoutRect = characterInteraction.layoutRect;
+    var isWhaleHit = characterInteraction.isWhaleHit;
+    var endDrag = characterInteraction.endDrag;
+    var applyAnchorPos = characterInteraction.applyAnchorPosition;
+    var resetMenuButtonHover = characterInteraction.resetMenuButtonHover;
+    var showMenuButton = characterInteraction.showMenuButton;
+    var setWidgetCursor = characterInteraction.setWidgetCursor;
 
-    // ==== [拖拽与锚点定位] ====
-    function onDocPointerDown(e) {
-      if (e.target && e.target.closest) {
-        if (e.target.closest('.dshwv-fx-info')) return;
-        if (e.target.closest('.dshwv-pop') || e.target.closest('.dshwv-menu-btn')) return;
-        if (e.target.closest('.dshwv-rolelist') || e.target.closest('.dshwv-audiolist') || e.target.closest('.dshwv-cropmask') || e.target.closest('.dshwv-confirmmask') || e.target.closest('.dshwv-audiomask') || e.target.closest('.dshwv-snapmask') || e.target.closest('.dshwv-bubmask') || e.target.closest('.dshwv-qedit') || e.target.closest('.dshwv-usagepanel') || e.target.closest('.dshwv-usage-mask') || e.target.closest('.dshwv-resmask') || e.target.closest('.dshwv-custmenu') || e.target.closest('.dshwv-custbtn')) return;
-        if (e.target.closest('.dshwv-rolebtn') || e.target.closest('.dshwv-audiobtn') || e.target.closest('.dshwv-roleimport') || e.target.closest('.dshwv-audioimport')) return;
-        if (e.target.closest('.dshwv-menu,.whale-account-card')) {
-          closeRolePanel();
-          closeAudioGroupPanel();
-          return;
-        }
-      }
-      if (menuOpen) {
-        closeMenu();
-        return;
-      }
-      if (e.button !== 0 && e.pointerType === 'mouse') return;
-      if (!isWhaleHit(e)) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      var vp = viewport();
-      var rect = positioner.getBoundingClientRect();
-      try { root.setPointerCapture(e.pointerId); } catch (err) {}
-    drag = {
-        active: true,
-        startX: e.clientX,
-        startY: e.clientY,
-        origLeft: rect.left,
-        origTop: rect.top,
-        w: root.offsetWidth,
-        h: root.offsetHeight,
-        moved: false,
-        vp: vp
-      };
-      root.classList.add('dshwv-dragging');
-      positioner.style.transition = 'none';
-      pressDown();
-      setWidgetCursor('grabbing');
-      document.addEventListener('pointermove', onDocPointerMove, true);
-      document.addEventListener('pointerup', onDocPointerUp, true);
-      document.addEventListener('pointercancel', onDocPointerCancel, true);
-    }
-    function onDocPointerMove(e) {
-      if (!drag || !drag.active) return;
-      var dx = e.clientX - drag.startX;
-      var dy = e.clientY - drag.startY;
-      if (dx * dx + dy * dy >= CLICK_SQ) drag.moved = true;
-      var moved = clampToViewport(drag.origLeft + dx, drag.origTop + dy, drag.w, drag.h, drag.vp);
-      state.left = moved.left;
-      state.top = moved.top;
-      express();
-    }
-    function onDocPointerUp(e) {
-      try {
-        if (isWhaleHit(e)) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      } catch (err) {}
-      endDrag(e, true);
-    }
-    function onDocPointerCancel(e) {
-      endDrag(e, false);
-    }
-    function onDocClickStopper(e) {
-      if (e.target && e.target.closest) {
-        if (e.target.closest('.dshwv-fx-info')) return;
-        if (e.target.closest('.dshwv-pop') || e.target.closest('.dshwv-menu,.whale-account-card') || e.target.closest('.dshwv-menu-btn') || e.target.closest('.dshwv-rolelist') || e.target.closest('.dshwv-cropmask') || e.target.closest('.dshwv-confirmmask') || e.target.closest('.dshwv-audiolist') || e.target.closest('.dshwv-audiomask') || e.target.closest('.dshwv-snapmask') || e.target.closest('.dshwv-bubmask') || e.target.closest('.dshwv-qedit') || e.target.closest('.dshwv-usagepanel') || e.target.closest('.dshwv-usage-mask') || e.target.closest('.dshwv-resmask') || e.target.closest('.dshwv-custmenu') || e.target.closest('.dshwv-custbtn')) return;
-      }
-      if (!isWhaleHit(e)) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-    }
-    function onDocContextMenu(e) {
-      try {
-        if (!menuBtnHide) return;
-        if (e.target && e.target.closest) {
-          if (e.target.closest('.dshwv-pop') || e.target.closest('.dshwv-menu,.whale-account-card') || e.target.closest('.dshwv-menu-btn') || e.target.closest('.dshwv-rolelist') || e.target.closest('.dshwv-audiolist') || e.target.closest('.dshwv-cropmask') || e.target.closest('.dshwv-confirmmask') || e.target.closest('.dshwv-audiomask') || e.target.closest('.dshwv-snapmask') || e.target.closest('.dshwv-bubmask') || e.target.closest('.dshwv-qedit') || e.target.closest('.dshwv-usagepanel') || e.target.closest('.dshwv-usage-mask') || e.target.closest('.dshwv-resmask') || e.target.closest('.dshwv-custmenu') || e.target.closest('.dshwv-custbtn')) return;
-        }
-        if (!isWhaleHit(e)) return;
-        e.preventDefault();
-        toggleMenu();
-      } catch (err) {}
-    }
-    document.addEventListener('pointerdown', onDocPointerDown, true);
-    document.addEventListener('click', onDocClickStopper, true);
-    document.addEventListener('contextmenu', onDocContextMenu, true);
-    // Hover retention is visual only. Input still uses the sprite's alpha and
-    // actual controls; crossing transparent space must never steal host clicks.
-    var menuHover = createMenuHover({
-      document: document, image: img, button: menuBtn,
-      isWhaleHit: isWhaleHit, isDragging: function () { return !!(drag && drag.active); },
-      isMenuOpen: function () { return menuOpen; }, isButtonHidden: function () { return menuBtnHide; }
-    });
-    function resetMenuButtonHover() { menuHover.reset(); }
-    function showMenuButton() { menuHover.show(); }
-    function setWidgetCursor(value) { menuHover.setCursor(value); }
-    function onDocPointerMoveCursor(event) { menuHover.pointerMove(event); }
-    document.addEventListener('pointermove', onDocPointerMoveCursor, true);
-    document.addEventListener('mousemove', onDocPointerMoveCursor, true);
-    window.addEventListener('whale-hover', function (e) { onDocPointerMoveCursor({ clientX: e.detail.x, clientY: e.detail.y }); });
-    root.addEventListener('lostpointercapture', function (e) { endDrag(e, false); });
-    window.addEventListener('blur', function () { endDrag(null, false); });
-    window.addEventListener('whale-mode-changing', function () { endDrag(null,false); closeMenu(); resetMenuButtonHover(); hideBubble(); window.getSelection()?.removeAllRanges(); setWidgetCursor(''); });
-    window.addEventListener('whale-desktop-mode', function () { endDrag(null,false); closeMenu(); resetMenuButtonHover(); hideBubble(); settle(); window.getSelection()?.removeAllRanges(); setWidgetCursor(''); });
-    window.addEventListener('whale-account-view', function () {
-      // A display-mode switch updates this menu in place, retaining its open state.
-      hideBubble(); applyBubbleCfgSeq(); refresh(true);
-      requestAnimationFrame(function () { if (menuOpen) positionMenu(); });
-    });
-    function endDrag(e, clickAllowed) {
-      if (!drag || !drag.active) return;
-      drag.active = false;
-    try { if (e && root.hasPointerCapture(e.pointerId)) root.releasePointerCapture(e.pointerId); } catch (err) {}
-      document.removeEventListener('pointermove', onDocPointerMove, true);
-      document.removeEventListener('pointerup', onDocPointerUp, true);
-      document.removeEventListener('pointercancel', onDocPointerCancel, true);
-      pressUp();
-      root.classList.remove('dshwv-dragging');
-      positioner.style.transition = '';
-      setWidgetCursor(isWhaleHit(e) ? 'grab' : '');
-      if (clickAllowed && !drag.moved) {
-        whaleClick();
-        refresh(true);
-        return;
-      }
-      e = e && Number.isFinite(e.clientX) ? e : { clientX: drag.startX + state.left - drag.origLeft, clientY: drag.startY + state.top - drag.origTop };
-      var dx = e.clientX - drag.startX;
-      var dy = e.clientY - drag.startY;
-      var moved = clampToViewport(drag.origLeft + dx, drag.origTop + dy, drag.w, drag.h, drag.vp);
-      var left = moved.left, top = moved.top;
-      var ac = artCenterAt(left, top, drag.w, drag.h, !!state.flip);
-      var z = snapZones(ac.cx, top + drag.h / 2, ac.cy, drag.vp);
-      if (z.zH === 'left') {
-        state.h = 'left';
-        state.hOff = 0;
-      } else if (z.zH === 'right') {
-        state.h = 'right';
-        state.hOff = 0;
-      } else {
-        state.h = null;
-        state.hOff = left;
-      }
-      if (z.zV === 'top') {
-        state.v = 'top';
-        state.vOff = 0;
-      } else if (z.zV === 'bottom') {
-        state.v = 'bottom';
-        state.vOff = 0;
-      } else {
-        state.v = null;
-        state.vOff = top;
-      }
-      state.flip = z.zH === 'left' ? true : z.zH === 'right' ? false : z.flip;
-      state.left = left;
-      state.top = top;
-      settle();
-      saveConfig();
-    }
-    function applyAnchorPos() {
-      try {
-        var a = JSON.parse(localStorage.getItem('dshw-pos') || 'null');
-        var vp = viewport();
-        var w = root.offsetWidth || root.getBoundingClientRect().width || 0;
-        var h = root.offsetHeight || root.getBoundingClientRect().height || 0;
-        var restored = restoreAnchor(a, vp, w, h, scrollGapOn ? rightGap() : 0);
-        if (!restored) return false;
-        state.left = restored.left;
-        state.top = restored.top;
-        state.h = restored.h;
-        state.hOff = restored.hOff;
-        state.v = restored.v;
-        state.vOff = restored.vOff;
-        refreshFlip();
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
-    window.addEventListener('resize', function () {
-      // A shrinking viewport can put the old position wholly outside its new
-      // region. Commit the clamped location directly, without interpolating
-      // through invisible coordinates during desktop/follow or DPI changes.
-      positioner.style.transition = 'none';
-      if (!(state.h === null && state.v === null && applyAnchorPos())) settle();
-      void positioner.getBoundingClientRect();
-      requestAnimationFrame(function () { positioner.style.transition = ''; });
-    });
-    // Resolve the intended anchor before the first frame, rather than painting
-    // at the CSS wrapper origin and moving after the asynchronous size request.
-    state.left = Math.max(0, viewport().w - root.offsetWidth - rightGap());
-    state.top = Math.max(0, viewport().h - root.offsetHeight);
-    applyAnchorPos();
-    express();
-    window.addEventListener('whale-reset-position', function () {
-      endDrag(null, false); closeMenu(); hideBubble();
-      localStorage.setItem('dshw-pos', JSON.stringify({v:2,hAnchor:'right',hDist:12,vAnchor:'bottom',vDist:12}));
-      applyAnchorPos(); settle();
-    });
     function applySoundSettingsSnapshot(snapshot) {
       snapshot = snapshot || {};
       var saved = snapshot.size || snapshot;
@@ -8785,57 +6409,36 @@ import {
     window.addEventListener('whale-refresh', function () {
       refresh(true);
     });
-    var LAST_TURN_URL = '/dsh-whale/last-turn.json';
-    var lastCostSeq = 0;
-    var lastCostAligned = false;
-    var lastCostId = '';
-    var lastCostPending = false;
-    var costPollingStartedAt = Date.now();
-    try {
-      var lastCostStored = Number(localStorage.getItem('dshw-last-seq') || 0);
-      if (isFinite(lastCostStored) && lastCostStored >= 0) lastCostSeq = lastCostStored;
-      lastCostId = localStorage.getItem('dshw-last-turn-id') || '';
-    } catch (err) {}
+    var turnNoticePoller = createTurnNoticePoller({
+      window: window, localStorage: localStorage, fetch: fetch,
+      WhaleTurnNotice: WhaleTurnNotice, CustomEvent: CustomEvent,
+      getCurrency: function () { return state.currency; },
+      setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
+      playTaskEndSound: playTaskEndSound,
+      getFeedbackVolume: function () { return soundOn ? soundVol : 0; },
+      showCostBubble: showCostBubble
+    });
     function pollLastTurn() {
-      if (lastCostPending) return;
-      lastCostPending = true;
-      try {
-        fetch(LAST_TURN_URL, {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (!d || !d.ok || typeof d.seq !== 'number') return;
-          if (d.seq < lastCostSeq) return;
-          var firstPoll = !lastCostAligned;
-          lastCostAligned = true;
-          var fresh = WhaleTurnNotice.shouldNotify(d, { seq: lastCostSeq, id: lastCostId, firstPoll: firstPoll, startedAt: costPollingStartedAt });
-          lastCostSeq = d.seq;
-          if (d.id) lastCostId = d.id;
-          try {
-            localStorage.setItem('dshw-last-seq', String(lastCostSeq));
-            localStorage.setItem('dshw-last-turn-id', lastCostId);
-          } catch (err) {}
-          var notice = WhaleTurnNotice.snapshot(d, state.currency);
-          lastTurnNotice = notice;
-          if (!fresh) return;
-          window.dispatchEvent(new CustomEvent('whale-turn-notice', {detail:notice}));
-          if (notice.completionKind === 'success') playTaskEndSound();
-          else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && typeof window !== 'undefined' && window.WhaleFeedback) window.WhaleFeedback.play(notice.completionKind, '', soundOn ? soundVol : 0);
-          if (typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription') {
-            window.WhaleAccountView.notice(notice);
-            window.WhaleQuota?.settled();
-          }
-          showCostBubble(notice.amount, notice);
-        }).catch(function () {}).finally(function () { lastCostPending = false; });
-      } catch (err) { lastCostPending = false; }
+      return turnNoticePoller.poll();
     }
     setInterval(pollLastTurn, 1000);
+    window.__dshWhaleInit = true;
+    window.__dshWhaleInitLoading = false;
+    return true;
   }
   if (dshwEnabled) {
     try {
-      dshwInit();
+      if (!dshwInit()) throw new Error('Whale widget initialization is already in progress');
+      window.__dshWhaleWidget = true;
+      window.__dshWhaleWidgetLoading = false;
       window.dispatchEvent(new Event('whale-widget-ready'));
-    } catch (err) { console.error('Whale widget initialization failed', err); }
+    } catch (err) {
+      window.__dshWhaleWidget = false;
+      window.__dshWhaleWidgetLoading = false;
+      window.__dshWhaleInit = false;
+      window.__dshWhaleInitLoading = false;
+      window.dispatchEvent(new CustomEvent('whale-widget-failed', { detail: { message: String(err && err.message || err) } }));
+      console.error('Whale widget initialization failed', err);
+    }
   }
 })();
