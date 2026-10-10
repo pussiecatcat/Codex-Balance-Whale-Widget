@@ -1,4 +1,4 @@
-# 提交门禁：把仓库已有的两道检查自动化。
+# 提交门禁：把仓库已有的检查自动化。
 #
 # 在这之前，`npm test` 与 `python scripts/build-release.py` 只写在 CLAUDE.md 和
 # docs/GITHUB_PUBLISHING.md 里靠手工执行，没有任何自动化。后果是真实的：发布构建
@@ -6,6 +6,10 @@
 # 只有等到手工打包时才会以 `Unexpected file` 失败 —— 而打包的人可能已经忘了这回事。
 #
 # 这个工作流不改变任何检查内容，只是让它们在任何一次 push/PR 上真的跑起来。
+#
+# Lint 也是同样的道理：`npm run check:architecture` 的上限值（入口行数、经典脚本
+# 标签数、源码截取测试数）只有在有人手动跑时才生效，而 ESLint 的 no-undef 是唯一
+# 能发现「模块搬走了但调用点没跟上」这类问题的检查 —— 重构分支上已经因此漏过三次。
 name: Verify
 
 on:
@@ -33,19 +37,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # package.json 没有依赖项，测试只用 Node 内置模块，所以不需要 npm install。
-      # 版本下限见 package.json 的 engines（>=24）。
+      # Node 版本下限见 package.json 的 engines（>=24）。
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+
+      # 唯一的依赖是 devDependency 里的 ESLint；单元测试仍然只用 Node 内置模块，
+      # 发行包也不包含 node_modules（见 scripts/build-release.py 的 blocked 集合）。
+      - name: Install dev dependencies
+        run: npm ci
 
       # scripts/build-release.py 需要 Python 3.10+（见 docs/GITHUB_PUBLISHING.md）。
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # no-undef：把「引用了但既没定义也没导入」的名字挡在合并之前。
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
         run: npm test
+
+      # 维护指标上限：入口行数、经典脚本标签数、源码截取测试数、音效边界的禁止依赖。
+      - name: Architecture boundaries
+        run: npm run check:architecture
 
       # 一次跑完：公开文件白名单、隐私扫描、Markdown 相对链接检查、ZIP 完整性，
       # 以及发行包必须包含的运行时依赖与入口脚本断言。

@@ -7,6 +7,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - 需要 Node.js 24+。
 - `npm start` 启动挂件（= `node scripts/control.mjs open`）；`npm run desktop` 为独立桌面模式。
 - 测试：`npm test`（= `node --test tests/*.test.mjs`）。
+- 静态检查：`npm ci` 一次性装好 devDependency（只有 ESLint），然后 `npm run lint`、`npm run check:package`、`npm run check:architecture`；`npm run verify` 串起全部检查加发布包构建。
 - 自检：`node scripts/control.mjs status | balance | usage | stop`。
 
 ## 架构
@@ -55,4 +56,4 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
 - **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。`.github/workflows/verify.yml` 会在 push/PR 上跑这道检查，所以忘了登记会在 CI 上直接红，不必等到打包。
 - `vendor/`（smol-toml，运行时依赖，进发布包）与 `archive/`（0.2.x 归档，不进发布包）是第三方或历史产物，一般不动。历史发布包只放 Release 页，已不再提交进仓库（`.gitignore` 含 `/packages/`）。
-- 提交前跑 `npm test` 与 `python scripts/build-release.py`；`main` 已放开 PR 强制（仍禁强推与删除分支）。
+- 提交前跑 `npm run verify`（lint + 单测 + 包依赖 + 架构边界 + 发布包）；`.github/workflows/verify.yml` 会在每次 push/PR 上跑同一套，所以忘了本地跑也会在 CI 上红。`main` 已放开 PR 强制（仍禁强推与删除分支）。
