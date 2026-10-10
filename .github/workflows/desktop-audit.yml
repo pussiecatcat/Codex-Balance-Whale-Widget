@@ -1,0 +1,51 @@
+# 手动触发的桌面审计。
+#
+# 这条审计驱动真实的 Electron 窗口，检查原生窗口区域、点击穿透、跟随位移和
+# 额度界面——也就是单元测试碰不到的那一层。它刻意不挂在 push / PR 上：
+#
+#   - 它需要先下载 Electron 运行时（约 100 MB），并且要开真实窗口；
+#   - 原生窗口几何与穿透断言依赖合成器和显示环境，在 CI 虚拟机上容易因为环境
+#     而不是因为代码变红。
+#
+# 一个会偶发变红的门禁比没有门禁更糟：它会训练人忽略红色。所以它留在需要时
+# 手动跑的位置。要把它变成每次提交的硬门槛，需要先在 CI 上连续观察若干次，
+# 确认稳定之后再改 `on:`。
+name: Desktop audit
+
+on:
+  workflow_dispatch:
+
+# 只需要读仓库；审计产物写到 qa-*/ 下的临时目录，不发布任何东西。
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dev dependencies
+        run: npm ci
+
+      # 桌面组件不在 npm 依赖里：安装器会把它放到数据目录下，审计按同一位置查找。
+      - name: Install the Electron desktop runtime
+        run: node scripts/install-desktop.mjs
+
+      # 输出目录用 qa- 前缀，与 .gitignore 的 qa-*/ 一致，不会污染工作区。
+      - name: Desktop audit
+        run: node tests/desktop-audit-smoke.mjs qa-desktop-audit
+
+      - name: Upload audit output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-audit-output
+          path: qa-desktop-audit
+          if-no-files-found: ignore
