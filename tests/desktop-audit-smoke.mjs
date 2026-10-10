@@ -49,7 +49,7 @@ const timeout = setTimeout(() => child.kill(), process.env.WHALE_SURFACE_AUDIT =
 const [code] = await once(child, 'close'); clearTimeout(timeout);
 const reportFile = path.join(output, 'desktop-audit.json');
 const report = fs.existsSync(reportFile) ? JSON.parse(fs.readFileSync(reportFile, 'utf8')) : { ok: false, error: diagnostics, dataDir };
-assert.equal(code, 0, JSON.stringify(report)); assert.equal(report.ok, true, JSON.stringify(report));
+assert.equal(code, 0, JSON.stringify({ report, diagnostics })); assert.equal(report.ok, true, JSON.stringify(report));
 const shutdown = JSON.parse(fs.readFileSync(path.join(dataDir, 'desktop-shutdown.json'), 'utf8'));
 assert.equal(shutdown.stages.find(stage => stage.name === 'renderer-state').status, process.env.WHALE_SURFACE_AUDIT === '1' || process.argv.includes('--quota-only') ? 'complete' : 'timeout');
 assert.equal(shutdown.stages.find(stage => stage.name === 'service-close').status, 'complete');

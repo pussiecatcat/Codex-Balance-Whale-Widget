@@ -21,6 +21,16 @@ test('asset client requests explicit local catalogues and preserves upload paylo
   ]);
   assert.deepEqual(JSON.parse(calls[5][1].body), { action: 'upload', name: 'a.png', data: 'data:image/png;base64,AA==' });
   assert.deepEqual(JSON.parse(calls[6][1].body), { action: 'upload-fragment', name: 'a.wav', audio: 'data:audio/wav;base64,AA==' });
+  await client.deleteRole('role-a');
+  await client.deleteBubbleImage('image-a');
+  await client.deleteAudioGroup('group-a');
+  await client.deleteAudioFragment('fragment-a');
+  assert.deepEqual(calls.slice(7).map(([url, options]) => [url, JSON.parse(options.body)]), [
+    ['/dsh-whale/role-delete.json', { id: 'role-a' }],
+    ['/dsh-whale/bubble-img-upload.json', { action: 'delete', id: 'image-a' }],
+    ['/dsh-whale/audio.json', { action: 'delete-group', id: 'group-a' }],
+    ['/dsh-whale/audio.json', { action: 'delete-fragment', id: 'fragment-a' }],
+  ]);
 });
 
 test('asset client rejects malformed catalogues before views receive them', async () => {

@@ -149,7 +149,14 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         '/features/widget/bubble-scene.js': 'features/widget/bubble-scene.js',
         '/features/widget/bubble-notice-queue.js': 'features/widget/bubble-notice-queue.js',
         '/features/widget/asset-client.js': 'features/widget/asset-client.js',
-        '/features/widget/anchors.js': 'features/widget/anchors.js' };
+        '/features/widget/anchors.js': 'features/widget/anchors.js',
+        '/features/widget/resource-manager.js': 'features/widget/resource-manager.js',
+        '/features/widget/menu-hover.js': 'features/widget/menu-hover.js',
+        '/features/widget/bubble-editor-view.js': 'features/widget/bubble-editor-view.js',
+        '/features/widget/bubble-editor-model.js': 'features/widget/bubble-editor-model.js',
+        '/features/widget/usage-records-view.js': 'features/widget/usage-records-view.js',
+        '/features/widget/usage-alerts.js': 'features/widget/usage-alerts.js',
+        '/features/widget/snap-editor.js': 'features/widget/snap-editor.js' };
       uiFiles['/account-view.js']='account-view.js';
       uiFiles['/shape.js']='shape.js';
       uiFiles['/dashboard.js']='dashboard.js';

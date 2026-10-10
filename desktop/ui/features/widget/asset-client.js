@@ -31,5 +31,9 @@ export function createAssetClient(fetchImpl = fetch) {
     uploadAudioFragment(name, dataUrl) {
       return request('/dsh-whale/audio.json', { action: 'upload-fragment', name, audio: dataUrl });
     },
+    deleteRole(id) { return request('/dsh-whale/role-delete.json', { id }); },
+    deleteBubbleImage(id) { return request('/dsh-whale/bubble-img-upload.json', { action: 'delete', id }); },
+    deleteAudioGroup(id) { return request('/dsh-whale/audio.json', { action: 'delete-group', id }); },
+    deleteAudioFragment(id) { return request('/dsh-whale/audio.json', { action: 'delete-fragment', id }); },
   };
 }

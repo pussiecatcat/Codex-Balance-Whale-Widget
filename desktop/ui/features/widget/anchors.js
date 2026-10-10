@@ -45,3 +45,11 @@ export function restoreAnchor(anchor, viewport, width, height, rightGap = 0) {
   return { ...clampToViewport(left, top, width, height, viewport),
     h: anchor.hAnchor, hOff: anchor.hDist, v: anchor.vAnchor, vOff: anchor.vDist };
 }
+
+export function settlePosition(state, viewport, width, height, rightGap = 0) {
+  const left = state.h === 'right' ? viewport.w - width - state.hOff - rightGap
+    : state.h === 'left' ? state.hOff : state.left;
+  const top = state.v === 'bottom' ? viewport.h - height - state.vOff
+    : state.v === 'top' ? state.vOff : state.top;
+  return clampToViewport(left, top, width, height, viewport, rightGap);
+}

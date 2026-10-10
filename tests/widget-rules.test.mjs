@@ -4,6 +4,7 @@ import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble 
 import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
 import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
 import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
+import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '../desktop/ui/features/widget/bubble-editor-model.js';
 
 test('default bubble drafts are independent and subscription quota windows remain distinct', () => {
   const first = bubbleDefaultQueue(false);
@@ -64,4 +65,22 @@ test('bubble draft commands preserve order when pairing, splitting and replacing
   assert.equal(pairBubbleSteps(draft, 1, 2, 'pairL'), true);
   assert.equal(unpairBubbleStep(draft, 1), true);
   assert.deepEqual(draft.slice(1).map(step => step.modules[0].text), ['C', 'A']);
+});
+
+test('editor draft isolates saved content and preserves the other account mode', () => {
+  const config = {
+    items: [{ kind: 'normal' }],
+    subscriptionItems: [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300 }] }],
+    lib: [{ id: 'one', name: 'Original', module: { type: 'text', text: 'A' } }],
+    subscriptionTapAdvance: false,
+  };
+  const draft = loadBubbleEditorDraft(config, true);
+  draft.library[0].name = 'Changed';
+  draft.items[0].modules[0].windowDurationMins = 10080;
+  assert.equal(config.lib[0].name, 'Original');
+  assert.equal(config.subscriptionItems[0].modules[0].windowDurationMins, 300);
+  const saved = saveBubbleEditorDraft(draft.items, draft.library, config, true);
+  assert.deepEqual(saved.items, config.items);
+  assert.equal(saved.subscriptionItems[0].modules[0].windowDurationMins, 10080);
+  assert.equal(saved.subscriptionTapAdvance, false);
 });
