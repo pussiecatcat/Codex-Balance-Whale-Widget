@@ -4179,54 +4179,7 @@ import {
     function bubbleRenderCost(amount, notice) {
       notice = notice || WhaleTurnNotice.snapshot({ amount: amount }, state.currency);
       var configured = usageTurnCostLines();
-      if (configured && configured.length) {
-        bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
-        return;
-      }
-      var subscriptionTurn = typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription';
-      labelEl.style.display = '';
-      labelEl.className = 'dshwv-label';
-      labelEl.textContent = subscriptionTurn
-        ? (notice.failureKind === 'high-demand' ? '本轮未完成' : notice.completionKind === 'cancelled' ? '本轮已取消' : notice.completionKind === 'failed' ? '本轮失败' : '本轮已完成')
-        : notice.label;
-      labelEl.style.color = '';
-      labelEl.style.width = '100%';
-      labelEl.style.maxWidth = '100%';
-      labelEl.style.whiteSpace = 'normal';
-      labelEl.style.overflowWrap = 'anywhere';
-      labelEl.style.fontSize = 'calc(var(--dshw-u) * 40)';
-      labelEl.style.lineHeight = '1.2';
-      labelEl.style.letterSpacing = '.02em';
-      amountEl.style.display = '';
-      amountEl.className = 'dshwv-amount';
-      if (subscriptionTurn) {
-        try { WhaleMoney.clearBindings(amountEl); } catch (err) {}
-        amountEl.textContent = notice.tokens === null ? '用量待更新' : notice.tokens.toLocaleString('en-US') + ' tokens';
-      }
-      else if (notice.amount === null) amountEl.textContent = notice.costState === 'pending' ? '待记账' : '金额未知';
-      else {
-        WhaleMoney.bind(amountEl, function () { return fmt(notice.amount, notice.currency); });
-      }
-      amountEl.title = notice.note;
-      amountEl.style.color = subscriptionTurn ? '#4059b3' : '#e0433f';
-      hintEl.style.display = '';
-      hintEl.textContent = subscriptionTurn
-        ? (notice.inputTokens !== null || notice.outputTokens !== null
-          ? '输入 ' + bubbleTokenValue(notice.inputTokens) + ' · 输出 ' + bubbleTokenValue(notice.outputTokens) +
-            (notice.cachedInputTokens ? ' · 缓存 ' + bubbleTokenValue(notice.cachedInputTokens) : '')
-          : '已计入本机统计 · 官方额度窗口持续刷新')
-        : (notice.tokens === null ? '' : notice.tokens.toLocaleString('en-US') + ' tokens · ') +
-          (notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' :
-            notice.costState === 'estimated' ? '配置价格估算' : '同密钥区间观测');
-      hintEl.title = notice.note;
-      hintEl.style.color = '';
-      hintEl.style.width = '100%';
-      hintEl.style.maxWidth = '100%';
-      hintEl.style.whiteSpace = 'normal';
-      hintEl.style.overflowWrap = 'anywhere';
-      hintEl.style.fontSize = 'calc(var(--dshw-u) * 34)';
-      hintEl.style.lineHeight = '1.2';
-      hintEl.style.minHeight = '0';
+      bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
     }
     function bubblePickChoiceStep(step) {
       var opts = bubbleChoiceOptions(step);
