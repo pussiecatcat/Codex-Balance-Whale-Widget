@@ -11,36 +11,17 @@ export function createBubblePalette(deps) {
       var defs = [{
         key: 'text',
         label: '文本',
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'text',
-            text: '新内容',
-            size: 6,
-            bold: true
-          });
-        }
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('text')); }
       }, {
         key: 'balance',
         label: '余额数值',
         pin: true,
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'balance',
-            size: 11,
-            tpl: '{balance_api}'
-          });
-        }
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('balance')); }
       }, {
         key: 'today',
         label: '今日已观测',
         pin: true,
-        cb: function () {
-          bubbleModuleAdd({
-            type: 'today',
-            size: 1,
-            tpl: '今日已观测 {expense_api}'
-          });
-        }
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('today')); }
       }, {
         key: 'quota5',
         label: '5 小时额度',
@@ -87,7 +68,7 @@ export function createBubblePalette(deps) {
         key: 'randimg',
         label: '随机图片',
         cb: function () {
-          bubbleModuleNew({ type: 'randimg', imgs: [], imgScale: 1 });
+          bubbleModuleNew(bubblePaletteModule('randimg'));
         }
       }];
       for (var i = 0; i < defs.length; i++) {
@@ -164,12 +145,7 @@ export function createBubblePalette(deps) {
       bubblePalEl.appendChild(newChip);
     }
     function bubbleModuleWizard() {
-      bubbleModuleAdd({
-        type: 'text',
-        text: '新内容',
-        size: 6,
-        bold: true
-      });
+      bubbleModuleAdd(bubblePaletteModule('text'));
     }
   return { render: renderBubblePal };
 }
