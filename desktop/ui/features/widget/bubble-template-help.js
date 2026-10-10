@@ -29,11 +29,15 @@ export function createBubbleTemplateHelp({ document, viewport, bubbleTplHelpItem
         html += '<div style="margin-top:5px;opacity:.65">其余文字原样显示;留空=默认自动内容</div>';
         dshwvTplHelpEl.innerHTML = html;
         dshwvTplHelpEl.style.display = 'block';
+        // height matters: without a bottom the popover's top computes to NaNpx and
+        // the browser drops the assignment, leaving it wherever it was.
         var r = anchor ? anchor.getBoundingClientRect() : {
           left: 60,
           top: 120,
           right: 180,
-          width: 100
+          bottom: 150,
+          width: 100,
+          height: 30
         };
         var w = 252;
         var vp = viewport();
