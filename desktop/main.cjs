@@ -2,6 +2,10 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, globalShor
 const path = require('node:path');
 const fs = require('node:fs');
 const { UiStateStore } = require('./ui-state-store.cjs');
+// The host shares the service layer's atomic write instead of keeping a second
+// one. Electron is installed at a pinned version (install-desktop.mjs asks for
+// 44.3.0), whose Node can require an ES module by path.
+const { writeFileAtomicSync } = require('../lib/atomic-write.mjs');
 const { shutdownCompanion } = require('./lifecycle.cjs');
 const { externalWebUrl } = require('./external-links.cjs');
 const { syncNativeViewport } = require('./native-viewport.cjs');
@@ -51,7 +55,7 @@ let hostSequence = -1;
 let appliedNativeSize = '';
 const stateFile = path.join(dataDir, 'ui-state.json');
 const read = (f, fallback = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; } };
-const save = (file, value) => { const temp = file + '.' + process.pid + '.tmp'; fs.writeFileSync(temp, JSON.stringify(value, null, 2)); fs.renameSync(temp, file); };
+const save = (file, value) => writeFileAtomicSync(file, JSON.stringify(value, null, 2));
 let desktopMode = read(path.join(dataDir, 'follow-config.json')).mode === 'standalone' ? 'standalone' : 'follow-codex';
 let desktopBoundsApplied = false, modePending = false;
 let recoveryAttempts = 0, recoveryTimer = null, readyTimer = null;

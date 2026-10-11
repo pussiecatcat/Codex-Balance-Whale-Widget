@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { writeFileAtomic } from '../lib/atomic-write.mjs';
+import { readBoundedBodyText } from './bounded-body.mjs';
 
 export const FX_URL = 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=CNY';
 const SOURCE = 'Frankfurter · 每日参考汇率';
@@ -29,31 +30,20 @@ function abortable(promise, signal) {
   return Promise.race([promise, cancelled]).finally(() => signal.removeEventListener('abort', abort));
 }
 async function boundedJson(response, signal) {
-  const declared = Number(response.headers?.get?.('content-length'));
-  if (Number.isFinite(declared) && declared > FX_POLICY.maxBytes) {
-    response.body?.cancel?.().catch(() => {}); throw new Error('FX response too large');
-  }
-  if (!response.body?.getReader) {
-    // In-process adapter/test responses may expose JSON without a byte stream.
-    if (typeof response.json !== 'function') throw new Error('FX response has no body');
-    const value = await abortable(Promise.resolve().then(() => response.json()), signal);
-    if (Buffer.byteLength(JSON.stringify(value) || '') > FX_POLICY.maxBytes) throw new Error('FX response too large');
-    return value;
-  }
-  const reader = response.body.getReader(), chunks = []; let length = 0, complete = false;
-  try {
-    while (true) {
-      const item = await abortable(reader.read(), signal);
-      if (item.done) { complete = true; break; }
-      length += item.value.byteLength;
-      if (length > FX_POLICY.maxBytes) throw new Error('FX response too large');
-      chunks.push(Buffer.from(item.value));
-    }
-    return JSON.parse(Buffer.concat(chunks, length).toString('utf8').replace(/^\uFEFF/, ''));
-  } finally {
-    if (!complete) reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
+  const text = await readBoundedBodyText(response, {
+    maxBytes: FX_POLICY.maxBytes,
+    race: promise => abortable(promise, signal),
+    tooLarge: () => new Error('FX response too large'),
+    unsupported: () => new Error('FX response has no body'),
+    streamless: async r => {
+      // In-process adapter and test responses may expose JSON without a byte stream.
+      if (typeof r.json !== 'function') throw new Error('FX response has no body');
+      const body = JSON.stringify(await r.json()) ?? '';
+      if (Buffer.byteLength(body) > FX_POLICY.maxBytes) throw new Error('FX response too large');
+      return body;
+    },
+  });
+  return JSON.parse(text);
 }
 
 // The fixed public endpoint never receives the API provider's credentials.
@@ -89,21 +79,11 @@ export function createFxService({ dataDir, fetchImpl = fetch, now = Date.now, ti
   }
   async function persist() {
     if (!cached || closed) return;
-    const temp = file + '.' + process.pid + '.' + randomUUID() + '.tmp';
+    // A persistence failure must not discard a validated in-memory quote, and a
+    // shutdown part way through abandons the write rather than publishing it.
     try {
-      await fs.mkdir(dataDir, { recursive: true });
-      if (closed) return;
-      await fs.writeFile(temp, JSON.stringify({ ...cached, checkedAt: new Date(checkedAt).toISOString(), lastAttemptFailed, lastManualAt }, null, 2), { mode: 0o600 });
-      for (let attempt = 0; ; attempt++) {
-        if (closed) break;
-        try { await fs.rename(temp, file); return; }
-        catch (error) {
-          if (attempt >= 3 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) break;
-          await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));
-        }
-      }
-    } catch {} // A persistence failure must not discard a validated in-memory quote.
-    finally { await fs.unlink(temp).catch(() => {}); }
+      await writeFileAtomic(file, JSON.stringify({ ...cached, checkedAt: new Date(checkedAt).toISOString(), lastAttemptFailed, lastManualAt }, null, 2), { fs, abandon: () => closed });
+    } catch {}
   }
   async function get({ force = false, reason = 'request' } = {}) {
     await loaded;
