@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
 import { bubbleDropShadow } from '../desktop/ui/features/widget/bubble-editor-view.js';
-import { bubbleLegacySubscriptionDefault, bubbleDefaultSubscriptionQueue } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleLegacySubscriptionDefault, bubbleDefaultSubscriptionQueue, bubbleUpgradeLegacySteps } from '../desktop/ui/features/widget/default-content.js';
 
 // The widget monolith destructures these by name; a member dropped from the
 // module's return leaves the monolith calling an unbound identifier at runtime.
@@ -70,4 +70,32 @@ test('the old six-line quota default is recognised, and only it', () => {
   assert.equal(bubbleLegacySubscriptionDefault(edited), false, 'an edited bubble belongs to the user and stays untouched');
   assert.equal(bubbleLegacySubscriptionDefault([{ kind: 'custom', modules: [{ type: 'quota', tpl: '{quota_source}' }] }]), true,
     'the older shape that printed its own source is still caught wherever it appears');
+});
+
+// A real queue holds the built-in quota bubble beside steps the user added, so the
+// swap happens per step: the whole-queue test this replaced only matched a
+// single-step queue, which is why a two-step one kept its seven-line bubble.
+test('the upgrade swaps only the built-in step, wherever it sits in the queue', () => {
+  const legacyStep = () => ({ kind: 'custom', modules: [
+    { type: 'plan', tpl: '{plan_name}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '5 小时' },
+    { type: 'quota', windowDurationMins: 300, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '距离重置 {quota_reset_short}' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '每周' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '距离重置 {quota_reset_short}' },
+  ] });
+  const mine = { kind: 'custom', modules: [{ type: 'text', text: '我自己的' }] };
+
+  const upgraded = bubbleUpgradeLegacySteps([legacyStep(), mine]);
+  assert.equal(upgraded.length, 2, 'the queue keeps its length');
+  assert.equal(upgraded[0].modules.length, 3, 'the built-in bubble became the header plus two meters');
+  assert.equal(upgraded[1], mine, 'the user’s own step is the very same object');
+
+  const untouched = [mine];
+  assert.equal(bubbleUpgradeLegacySteps(untouched), untouched, 'a queue with nothing to swap comes back as it was');
+
+  const edited = [structuredClone(legacyStep())];
+  edited[0].modules[2].tpl = '{quota_left} 剩余';
+  assert.equal(bubbleUpgradeLegacySteps(edited)[0].modules.length, 7, 'a bubble edited since is left alone');
 });

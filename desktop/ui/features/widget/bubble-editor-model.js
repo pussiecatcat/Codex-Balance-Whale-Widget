@@ -1,4 +1,4 @@
-import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
+import { bubbleDefaultQueue, bubbleUpgradeLegacySteps,
   bubbleDefaultSecondModules, bubbleChoiceWeight, bubbleSingleFromItem,
   bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules, bubbleParseDefaultItems } from './default-content.js';
 import { bubbleRowsCanon } from './bubble-layout.js';
@@ -8,7 +8,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 export function loadBubbleEditorDraft(config, subscriptionMode) {
   const library = Array.isArray(config?.lib) ? clone(config.lib) : [];
   let saved = subscriptionMode ? config?.subscriptionItems : config?.items;
-  if (subscriptionMode && bubbleLegacySubscriptionDefault(saved)) saved = bubbleDefaultSubscriptionQueue();
+  if (subscriptionMode) saved = bubbleUpgradeLegacySteps(saved);
   const source = Array.isArray(saved) && saved.length ? saved : bubbleDefaultQueue(subscriptionMode);
   const items = [];
   for (const step of source) {

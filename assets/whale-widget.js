@@ -28,7 +28,7 @@ import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, art
 import { createCustomSelectController } from '/features/widget/custom-select.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
 import {
-  bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
+  bubbleUpgradeLegacySteps,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
@@ -3806,7 +3806,7 @@ import {
     function applyBubbleCfgSeq() {
       try {
         var configured = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
-        if (window.WhaleAccountView?.mode === 'subscription' && bubbleLegacySubscriptionDefault(configured)) configured = bubbleDefaultSubscriptionQueue();
+        if (window.WhaleAccountView?.mode === 'subscription') configured = bubbleUpgradeLegacySteps(configured);
         if (!Array.isArray(configured) || !configured.length) { bubbleSeq = bubbleDefaultQueue(); return; }
         var seq = [];
         for (var i = 0; i < configured.length; i++) {

@@ -34,10 +34,15 @@ export function bubbleDefaultSubscriptionQueue() {
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 2 }
   ] }];
 }
-export function bubbleLegacySubscriptionDefault(items) {
+// The quota bubble the first release shipped: a header and, for each window, a
+// label, the remaining value and a countdown. A queue can hold other steps around
+// it, so this is asked of one step rather than of a whole queue - the earlier
+// whole-queue test only matched a single-step queue, which is why a two-step one
+// kept its seven-line bubble.
+export function bubbleLegacyQuotaStep(step) {
   try {
-    if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
-    var modules = items[0].modules;
+    if (!step || !Array.isArray(step.modules)) return false;
+    var modules = step.modules;
     if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;
     if (modules.length !== 7) return false;
     var quotaModules = modules.filter(function (m) { return m && m.type === 'quota'; });
@@ -47,6 +52,22 @@ export function bubbleLegacySubscriptionDefault(items) {
       quotaModules.filter(function (m) { return m.windowDurationMins === 10080; }).length === 3 &&
       quotaTemplates === ['5 小时', '每周', '距离重置 {quota_reset_short}', '距离重置 {quota_reset_short}', '{quota_left_round}', '{quota_left_round}'].sort().join('|');
   } catch (err) { return false; }
+}
+export function bubbleLegacySubscriptionDefault(items) {
+  return Array.isArray(items) && items.length === 1 && bubbleLegacyQuotaStep(items[0]);
+}
+// Swaps only the steps that still hold that built-in bubble and returns the array
+// untouched otherwise, so every other step - and every step someone has edited,
+// which no longer matches the templates above - stays exactly as the user left it.
+export function bubbleUpgradeLegacySteps(items) {
+  if (!Array.isArray(items)) return items;
+  var changed = false;
+  var upgraded = items.map(function (step) {
+    if (!bubbleLegacyQuotaStep(step)) return step;
+    changed = true;
+    return bubbleDefaultSubscriptionQueue()[0];
+  });
+  return changed ? upgraded : items;
 }
 
 // ==== [气泡默认内容] ====
