@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, VERSION, readJson } from './paths.mjs';
 import { createComposition } from './composition.mjs';
-import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, collectResponse, withSecurityHeaders } from './http-shim.mjs';
-import { createCoreRoutes, applyWidgetRoutePolicy } from './routes/core.mjs';
+import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, withSecurityHeaders } from './http-shim.mjs';
+import { createCoreRoutes } from './routes/core.mjs';
+import { stripRetiredModules } from './migration.mjs';
+import { toResponse } from '../lib/route-response.mjs';
 import { DomainError } from '../lib/errors.mjs';
 import { createFaultLog } from './faults.mjs';
 
@@ -86,15 +88,20 @@ export function createDispatcher(options = {}) {
         else return { status: 200, headers: { 'content-type': mimeFor(file) }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) };
       }
 
-      const widget = app.widgetRoutes.get(url.pathname);
-      if (!widget) return jsonResult(404, { ok: false, error: '未找到此功能' });
-      const policy = applyWidgetRoutePolicy(url.pathname, method, bytes);
-      if (policy.reject) return policy.reject;
-      // Plain collectors rather than Writable/Readable: the widget host handlers
-      // only ever call writeHead and end, and the response is assembled from those.
-      const { res, read } = collectResponse();
-      await widget({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: policy.body ?? bytes }, res);
-      return read();
+      // The host declares each route: the methods it answers, how large a body it
+      // accepts, and whether its payload passes the migration filter. Those three
+      // rules used to sit between a path regex here and the handlers themselves,
+      // so a route could answer a method it never meant to answer.
+      const declaration = app.widgetRoutes.get(url.pathname);
+      if (!declaration) return jsonResult(404, { ok: false, error: '未找到此功能' });
+      if (!declaration.methods.includes(method)) return jsonResult(405, { ok: false });
+      if (declaration.bodyLimit && bytes.length > declaration.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
+      const requestBody = declaration.stripRetired && ['POST', 'PUT'].includes(method)
+        ? Buffer.from(JSON.stringify(stripRetiredModules(JSON.parse(bytes.toString('utf8') || '{}'))))
+        : bytes;
+      // The handler answers with a value, and lib/route-response.mjs is the one
+      // place that turns a value into a status, headers and body.
+      return toResponse(await declaration.handler({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBody }), method);
     } catch (error) {
       // A DomainError is something the caller can act on and carries its own
       // status. Anything else is a defect here: it must not be reported as a bad
