@@ -1,36 +1,21 @@
 import { rounded } from './paths.mjs';
+import { readBoundedBodyText } from './bounded-body.mjs';
 
 export class ProviderError extends Error {
   constructor(code, message, transient = false) { super(message); this.code = code; this.transient = transient; }
 }
 
+// The ceiling and the streaming loop now live in runtime/bounded-body.mjs. What
+// stays here is how this caller reports: a body past the ceiling is a shape
+// problem, and any other read failure is transient and must not repeat what the
+// server said.
 export async function readBoundedJsonText(response, maxBytes = 1024 * 1024) {
-  const cancel = async () => { try { await response.body?.cancel(); } catch {} };
-  const length = Number(response.headers.get('content-length'));
-  if (Number.isFinite(length) && length > maxBytes) { await cancel(); throw new ProviderError('SHAPE', '余额响应过大'); }
-  // Real Node/Electron responses expose Web Streams. Do not silently fall
-  // back to response.text(), which allocates an unlimited body first.
-  if (!response.body) return '';
-  if (typeof response.body.getReader !== 'function') { await cancel(); throw new ProviderError('SHAPE', '余额接口返回了不支持的响应流'); }
-  const reader = response.body.getReader(), chunks = [];
-  let count = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      count += value.byteLength;
-      if (count > maxBytes) {
-        try { await reader.cancel(); } catch {}
-        throw new ProviderError('SHAPE', '余额响应过大');
-      }
-      chunks.push(Buffer.from(value));
-    }
-    return Buffer.concat(chunks, count).toString('utf8');
-  } catch (error) {
-    try { await reader.cancel(); } catch {}
-    if (error instanceof ProviderError) throw error;
-    throw new ProviderError('NETWORK', '余额响应中断，请稍后刷新', true);
-  } finally { reader.releaseLock(); }
+  return readBoundedBodyText(response, {
+    maxBytes,
+    tooLarge: () => new ProviderError('SHAPE', '余额响应过大'),
+    unsupported: () => new ProviderError('SHAPE', '余额接口返回了不支持的响应流'),
+    translate: error => (error instanceof ProviderError ? error : new ProviderError('NETWORK', '余额响应中断，请稍后刷新', true)),
+  });
 }
 
 function numeric(value) {

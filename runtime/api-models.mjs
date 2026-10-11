@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
+import { readBoundedBodyText } from './bounded-body.mjs';
 
 const noBalance = (name, currency, keyEnv, probeUrl = '', matchIds = []) => ({ name, currency, keyEnv, noBalanceApi: true, probeUrl, matchIds });
 export const API_TEMPLATES = Object.freeze({
@@ -138,11 +139,9 @@ export class ApiModelRegistry {
     try {
       const response=await this.fetch(target,{headers,signal:controller.signal,redirect:'error'});
       if(!response.ok)throw Error('HTTP '+response.status);
-      const limit=2*1024*1024,declared=Number(response.headers?.get?.('content-length'));
-      if(declared>limit)throw Error('响应过大');
-      let text;
-      if(response.body?.getReader){const reader=response.body.getReader(),chunks=[];let length=0;try{for(;;){const {done,value}=await reader.read();if(done)break;length+=value.byteLength;if(length>limit){await reader.cancel();throw Error('响应过大');}chunks.push(Buffer.from(value));}text=Buffer.concat(chunks).toString('utf8');}finally{reader.releaseLock();}}
-      else{text=await response.text();if(Buffer.byteLength(text)>limit)throw Error('响应过大');}
+      const limit=2*1024*1024;
+      const text=await readBoundedBodyText(response,{maxBytes:limit,tooLarge:()=>Error('响应过大'),unsupported:()=>Error('响应过大'),
+        streamless:async r=>{const body=await r.text();if(Buffer.byteLength(body)>limit)throw Error('响应过大');return body;}});
       const data=JSON.parse(text);
       if(data?.success===false||data?.is_available===false||data?.error)throw Error('服务商返回业务错误');
       return data;
