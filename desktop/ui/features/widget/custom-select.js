@@ -3,6 +3,7 @@
 export function createCustomSelectController({ document, window, dropOpen, makeNameCell, bindNameMarquee, now = Date.now }) {
   var dshwCustSelOpen = null;
   var dshwCustSuppressAt = 0;
+  const nameDisposers = [];
   function dshwCustSelClose() {
     var o = dshwCustSelOpen;
     dshwCustSelOpen = null;
@@ -82,6 +83,7 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       } catch (err) {}
     }
     function fill() {
+      for (const dispose of nameDisposers.splice(0)) { try { dispose(); } catch (error) {} }
       menu.innerHTML = '';
       var cur = sel.value;
       for (var i = 0; i < sel.options.length; i++) {
@@ -94,7 +96,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
             d.className = 'dshwv-rgbopt dshwv-custrow' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
             var nm = makeNameCell('dshwv-custnm', lab);
             d.appendChild(nm);
-            bindNameMarquee(d, nm);
+            const releaseName = bindNameMarquee(d, nm);
+            if (typeof releaseName === 'function') nameDisposers.push(releaseName);
           } else {
             d.className = 'dshwv-rgbopt' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
             var txt = document.createElement('span');

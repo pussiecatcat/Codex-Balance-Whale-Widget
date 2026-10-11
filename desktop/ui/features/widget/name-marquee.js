@@ -1,7 +1,7 @@
 export function createNameMarquee({ document, speed = 40 }) {
   function bind(item, nameElement) {
     try {
-      if (!item || !nameElement) return;
+      if (!item || !nameElement) return () => {};
       let timer = null;
       function stop() {
         try {
@@ -33,6 +33,11 @@ export function createNameMarquee({ document, speed = 40 }) {
         return track;
       }
       function cycle() {
+        // The row this was bound to may have been replaced while the pointer was
+        // still over it, and a replaced row never fires mouseleave. A detached
+        // node has nothing to animate, so release it rather than keep the
+        // closure — and this timer — alive for the life of the widget.
+        if (nameElement.isConnected === false) { stop(); return; }
         const track = nameElement.querySelector('.dshwv-nameinner');
         if (!track) return;
         const distance = track.scrollWidth / 2;
@@ -45,16 +50,26 @@ export function createNameMarquee({ document, speed = 40 }) {
         track.style.transitionDuration = duration + 'ms';
         track.style.transform = 'translateX(' + -distance + 'px)';
       }
-      item.addEventListener('mouseenter', () => {
+      const onEnter = () => {
         try {
           stop();
           if (textWidth() <= nameElement.clientWidth + 1) return;
           ensureDuplicate();
           cycle();
         } catch (error) {}
-      });
+      };
+      item.addEventListener('mouseenter', onEnter);
       item.addEventListener('mouseleave', stop);
-    } catch (error) {}
+      // Callers that rebuild a list should call this rather than hoping the
+      // pointer leaves first.
+      return () => {
+        stop();
+        try {
+          item.removeEventListener('mouseenter', onEnter);
+          item.removeEventListener('mouseleave', stop);
+        } catch (error) {}
+      };
+    } catch (error) { return () => {}; }
   }
 
   function makeCell(className, text) {
