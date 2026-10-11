@@ -26,9 +26,7 @@ function host(t, injectedFs = fs, root = fixture(t)) {
   return { root, async request(route, method = 'GET', body) {
     // The host hands the body over as a buffer; there is no stream to consume.
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
-    let status = 200, result, headers;
-    const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
-    await routes.get(route.split('?')[0]).handler(req, res);
+    const { status, headers, body: result } = await routes.get(route.split('?')[0]).handler(req);
     let payload; try { payload = JSON.parse(result); } catch {}
     return { status, headers, payload, bytes: Buffer.isBuffer(result) ? result : Buffer.from(result || '') };
   } };
@@ -118,7 +116,7 @@ test('JPEG and WebP imports retain their actual format and response MIME', async
     const role = uploaded.payload.roles.find(item => item.name === mime);
     assert.ok(fs.existsSync(path.join(app.root, 'whale-roles', role.id + '.' + extension)));
     const response = await app.request('/dsh-whale/role-image.png?id=' + role.id);
-    assert.equal(response.headers['Content-Type'], mime); assert.deepEqual(response.bytes, bytes);
+    assert.equal(response.headers['content-type'], mime); assert.deepEqual(response.bytes, bytes);
   }
 });
 

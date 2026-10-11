@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { createInputHitTester } from '../desktop/ui/features/widget/input-policy.js';
+import { createInputHitTester } from '../desktop/ui/features/character/input-policy.js';
 
 const shapeSource = await readFile(new URL('../desktop/ui/shape.js', import.meta.url), 'utf8');
 

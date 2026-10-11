@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
+import { createUsageAlerts } from '../desktop/ui/features/usage/usage-alerts.js';
 
 function fixture() {
   const queued = [];

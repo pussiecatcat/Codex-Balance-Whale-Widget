@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
-import { bubbleDropShadow } from '../desktop/ui/features/widget/bubble-editor-view.js';
+import { createUsageAlerts } from '../desktop/ui/features/usage/usage-alerts.js';
+import { bubbleDropShadow } from '../desktop/ui/features/bubble/bubble-editor-view.js';
 
 // The widget monolith destructures these by name; a member dropped from the
 // module's return leaves the monolith calling an unbound identifier at runtime.

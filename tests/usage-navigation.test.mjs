@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createUsageNavigation } from '../desktop/ui/features/widget/usage-navigation.js';
+import { createUsageNavigation } from '../desktop/ui/features/usage/usage-navigation.js';
 
 function element() {
   return {

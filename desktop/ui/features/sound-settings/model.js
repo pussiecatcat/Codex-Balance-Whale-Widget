@@ -1,4 +1,5 @@
 import { normalizeVolume, soundOptions } from '../../services/sound-reference.js';
+import { settingsCommand } from '../../services/settings-client.js';
 
 export const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -96,7 +97,6 @@ export function buildSoundSave(bundle, draft) {
   if (!Number.isInteger(seconds) || seconds < 0 || seconds > 3600) {
     throw new Error('请输入 0 到 3600 之间的整数秒数');
   }
-  const originalSize = bundle.size || {};
   const originalUsage = bundle.usage || {};
   const originalEvents = originalUsage.events || {};
   const size = {
@@ -127,8 +127,5 @@ export function buildSoundSave(bundle, draft) {
   // with them. The server compares the two, so a setting changed elsewhere while
   // this panel was open no longer blocks a save that never touched it — and a
   // change to one of these fields is still caught.
-  const base = { size: {}, usage: {} };
-  for (const key of Object.keys(size)) base.size[key] = originalSize[key];
-  for (const key of Object.keys(usage)) base.usage[key] = originalUsage[key];
-  return { schemaVersion: 2, base, patch: { size, usage } };
+  return settingsCommand(bundle, { size, usage });
 }

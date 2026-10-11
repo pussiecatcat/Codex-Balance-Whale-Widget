@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBubbleContent } from '../desktop/ui/features/widget/bubble-content.js';
+import { createBubbleContent } from '../desktop/ui/features/bubble/bubble-content.js';
 
 function content(random = () => .5) {
   return createBubbleContent({

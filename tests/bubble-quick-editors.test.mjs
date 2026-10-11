@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleQuickEditors } from '../desktop/ui/features/widget/bubble-quick-editors.js';
+import { createBubbleQuickEditors } from '../desktop/ui/features/bubble/bubble-quick-editors.js';
 
 function element(tag = 'div') {
   const node = {

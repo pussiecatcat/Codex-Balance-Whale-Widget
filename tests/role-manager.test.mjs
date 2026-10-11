@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRoleManager } from '../desktop/ui/features/widget/role-manager.js';
+import { createRoleManager } from '../desktop/ui/features/roles/role-manager.js';
 
 // apply() resolves through an inner promise chain and load()/useImported() do not
 // await it, so a single microtask tick is not enough to observe the result.
@@ -22,6 +22,7 @@ function element() {
     getBoundingClientRect() { return { width: 240, left: 100, bottom: 300, top: 260 }; },
     appendChild(child) { this.children.push(child); return child; },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     click() { for (const fn of this.listeners.click || []) fn({ stopPropagation() {} }); },
   };
   return node;
@@ -46,6 +47,7 @@ function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}
   const managerWindow = {
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type) { for (const fn of this.listeners[type] || []) fn(); },
     fetch: () => Promise.reject(new Error('unused')),
   };
@@ -235,4 +237,18 @@ test('rebuilding the role list releases the marquee of every row it replaces', a
   assert.equal(calls.marqueeReleases, 1, 'the row from the previous list is released');
   manager.replace([]);
   assert.equal(calls.marqueeReleases, 3, 'and both rows of the second list');
+});
+
+
+test('dispose invalidates an in-flight image change and releases fallback listeners and list resources', async () => {
+  const fx = fixture({ roleData: { ok: true, roles: SAVED_ROLES } });
+  await fx.manager.load(); await flush();
+  const before = fx.imageElement.src;
+  const pending = fx.manager.apply('late', 'late image', '/late.png');
+  fx.manager.dispose(); fx.manager.dispose();
+  assert.equal(await pending, false);
+  assert.equal(fx.imageElement.src, before);
+  assert.equal(fx.rolePanel.children.length, 0);
+  assert.ok(fx.calls.marqueeReleases > 0);
+  assert.equal(fx.managerWindow.listeners['whale-role-fallback'].length, 0);
 });

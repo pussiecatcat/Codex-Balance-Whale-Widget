@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createNameMarquee } from '../desktop/ui/features/widget/name-marquee.js';
+import { createNameMarquee } from '../desktop/ui/components/name-marquee.js';
 
 function fixture({ textWidth = 100, clientWidth = 50, speed } = {}) {
   const track = {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleEditorView } from '../desktop/ui/features/widget/bubble-editor-view.js';
+import { createBubbleEditorView } from '../desktop/ui/features/bubble/bubble-editor-view.js';
 
 function element(tag = 'div') {
   const node = {

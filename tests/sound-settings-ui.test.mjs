@@ -64,7 +64,8 @@ test('sound draft cancel is isolated and one save command preserves unknown fiel
   // The values those fields were read from travel with them, so the server can
   // tell a field that changed underneath from one that did not.
   assert.equal(output.base.size.vol, .9);
-  assert.equal(output.base.usage.events, original.usage.events);
+  assert.equal(output.base.usage.events.question.soundOn, original.usage.events.question.soundOn);
+  assert.equal('vol' in output.patch.usage.events.question, false, 'untouched sibling settings are not written');
 });
 
 test('sound controller mounts explicitly, cancel writes nothing and save performs one combined PUT', async () => {

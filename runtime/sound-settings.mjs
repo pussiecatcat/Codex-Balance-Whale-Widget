@@ -129,6 +129,14 @@ export class SoundSettingsService {
   // because that is what the client was handed and what it sent back as base.
   assertFieldsUnchanged(domain, patch, base, current) {
     for (const key of Object.keys(patch)) {
+      if (['__proto__', 'prototype', 'constructor'].includes(key) || !Object.hasOwn(base || {}, key)) {
+        throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '设置基础字段缺失或无效', 400);
+      }
+      if (plainObject(patch[key])) {
+        if (!plainObject(base[key])) throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '设置基础字段无效', 400);
+        this.assertFieldsUnchanged(domain + '.' + key, patch[key], base[key], current?.[key] || {});
+        continue;
+      }
       if (JSON.stringify(current[key] ?? null) === JSON.stringify(base[key] ?? null)) continue;
       throw new SoundSettingsError('SETTINGS_CONFLICT',
         '音效设置已在其他位置更改（' + domain + '.' + key + '），请重新载入后再保存', 409);

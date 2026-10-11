@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createTurnNoticePoller } from '../desktop/ui/features/widget/turn-notice-poller.js';
+import { createTurnNoticePoller } from '../desktop/ui/features/usage/turn-notice-poller.js';
 import { SessionParser, SessionReader, SessionMonitor } from '../runtime/session-monitor.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { ConfigStore } from '../runtime/config.mjs';

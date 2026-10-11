@@ -69,7 +69,7 @@ test('the dependency gate is clean on the tree as it stands, and its numbers are
   assert.equal(metrics.staleReads.length, 0, 'every frozen read is still present; a stale one means the baseline should be lowered');
   assert.equal(metrics.crossFeatureImports.length, 0);
   assert.equal(metrics.globalStorage.length, 0);
-  assert.equal(metrics.directRequests.length, 2, 'the two role-manager fetches the next migration round removes');
+  assert.equal(metrics.directRequests.length, 0, 'all extracted modules use the shared request layer');
 });
 
 test('an extracted module reaching for a leftover global is refused, and so is a wider read of a frozen one', t => {
@@ -79,14 +79,14 @@ test('an extracted module reaching for a leftover global is refused, and so is a
   assert.match(evaluate(fresh).join('\n'), /fresh\.js reaches for window\.WhaleQuota/);
 
   const wider = fixture(t, {
-    'desktop/ui/features/widget/usage-alerts.js': 'const a = window.WhaleAccountView?.mode;\nconst b = window.WhaleAccountView?.mode;\n',
+    'desktop/ui/features/usage/usage-alerts.js': 'const a = window.WhaleAccountView?.mode;\nconst b = window.WhaleAccountView?.mode;\n',
   });
   assert.match(evaluate(wider).join('\n'), /usage-alerts\.js reads window\.WhaleAccountView 2 times, above the frozen 1/);
 });
 
 test('a module that stopped reading a global lowers the baseline instead of failing the gate', t => {
   const quiet = fixture(t, {
-    'desktop/ui/features/widget/usage-alerts.js': 'export const mode = view => view.mode;\n',
+    'desktop/ui/features/usage/usage-alerts.js': 'export const mode = view => view.mode;\n',
   });
   const metrics = collectDependencyMetrics({ root: quiet });
   assert.deepEqual(dependencyErrors(metrics), [], 'migrating the last read is not a violation');
@@ -153,4 +153,28 @@ test('the preload bridge is allowed by name, a new window global is not', t => {
     'desktop/ui/thing.js': 'window.WhaleGesture = window.WhaleGesture || {};\n',
   });
   assert.deepEqual(evaluate(known), [], 'republishing a name already on the surface is not a new edge');
+});
+
+
+test('syntax boundaries cover aliases, computed globals and all import forms without matching comments', t => {
+  const root = fixture(t, {
+    'desktop/ui/features/roles/a.js': `import '../audio/editor.js';
+export * from '../bubble/model.js';
+const later = () => import('/features/usage/view.js');
+const { fetch: send } = window; send('/api/test');
+const w = window; w['WhaleUnexpected'] = {};
+const store = localStorage; store.setItem('k', 'v');`,
+    'desktop/ui/services/upward.js': `import '../features/roles/a.js';`,
+  });
+  const metrics = collectDependencyMetrics({ root });
+  assert.equal(metrics.crossFeatureImports.length, 4);
+  assert.ok(metrics.directRequests.length > 0);
+  assert.ok(metrics.globalStorage.length > 0);
+  assert.ok(metrics.publishedGlobals.includes('WhaleUnexpected'));
+  const clean = fixture(t, {
+    'desktop/ui/features/roles/a.js': `// window.WhaleGhost = {}; fetch('x')
+const sample = "import '../audio/a.js'; window.localStorage";
+export const use = ({ fetch, localStorage }) => [fetch(sample), localStorage.getItem('k')];`,
+  });
+  assert.deepEqual(evaluate(clean), []);
 });

@@ -66,6 +66,9 @@ jobs:
       - name: Architecture boundaries
         run: npm run check:architecture
 
+      - name: Package imports
+        run: npm run check:package
+
       # 一次跑完：公开文件白名单、隐私扫描、Markdown 相对链接检查、ZIP 完整性，
       # 以及发行包必须包含的运行时依赖与入口脚本断言。
       - name: Release build checks

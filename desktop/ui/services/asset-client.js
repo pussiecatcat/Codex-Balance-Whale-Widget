@@ -1,12 +1,8 @@
+import { requestJson } from './request.js';
 // Browser-side data boundary for character, sound, and bubble assets.
 // Validation belongs here so editor views only receive recognized catalogues.
-export function createAssetClient(fetchImpl = fetch) {
-  async function request(url, payload) {
-    const response = await fetchImpl(url, payload === undefined
-      ? { cache: 'no-store' }
-      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    return response.json();
-  }
+export function createAssetClient(fetchImpl, { signal } = {}) {
+  const request = (url, payload) => requestJson(url, { fetchImpl, signal, method: payload === undefined ? 'GET' : 'POST', body: payload });
   return {
     async roles() {
       const data = await request('/dsh-whale/roles.json');
@@ -32,6 +28,7 @@ export function createAssetClient(fetchImpl = fetch) {
       return request('/dsh-whale/audio.json', { action: 'upload-fragment', name, audio: dataUrl });
     },
     deleteRole(id) { return request('/dsh-whale/role-delete.json', { id }); },
+    pinRole(id, pinned) { return request('/dsh-whale/role-pin.json', { id, pinned }); },
     deleteBubbleImage(id) { return request('/dsh-whale/bubble-img-upload.json', { action: 'delete', id }); },
     deleteAudioGroup(id) { return request('/dsh-whale/audio.json', { action: 'delete-group', id }); },
     deleteAudioFragment(id) { return request('/dsh-whale/audio.json', { action: 'delete-fragment', id }); },

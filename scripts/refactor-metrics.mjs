@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { dependencySyntax } from './dependency-syntax.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,26 +52,21 @@ export const GLOBAL_SURFACE = Object.freeze([
 // caps above work.
 export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/sound-settings/controller.js': { WhaleRendering: 1, WhaleSelect: 1 },
-  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
-  'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleQuota: 2 },
-  'desktop/ui/features/widget/task-end-sound.js': { WhaleFeedback: 4, WhaleFeedbackSources: 2 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1 },
-  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
-  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
+  'desktop/ui/features/bubble/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
+  'desktop/ui/features/bubble/bubble-quick-editors.js': { WhaleApiModels: 2 },
+  'desktop/ui/features/bubble/bubble-rows-view.js': { WhaleApiModels: 2, WhaleQuota: 2 },
+  'desktop/ui/features/audio/task-end-sound.js': { WhaleFeedback: 4, WhaleFeedbackSources: 2 },
+  'desktop/ui/features/usage/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1 },
+  'desktop/ui/features/usage/usage-alerts.js': { WhaleAccountView: 1 },
+  'desktop/ui/features/usage/usage-models-view.js': { WhaleApiModels: 4 },
 });
 
-// Modules that still call fetch directly rather than going through the shared
-// client. The role workflow is what the next migration round picks up, so this
-// is frozen at what it had when the gate was added.
-export const MODULE_DIRECT_REQUESTS = Object.freeze({
-  'desktop/ui/features/widget/role-manager.js': 2,
-});
+export const MODULE_DIRECT_REQUESTS = Object.freeze({});
 
 // The preload bridge is a deliberate platform contract rather than a leftover
 // application global, so reaching for it by name stays allowed.
 const ALLOWED_GLOBAL = 'whaleDesktop';
-const MODULE_ROOTS = Object.freeze(['desktop/ui/features', 'desktop/ui/services']);
+const MODULE_ROOTS = Object.freeze(['desktop/ui/features', 'desktop/ui/services', 'desktop/ui/components']);
 const SHARED_REQUEST_CLIENT = 'desktop/ui/services/request.js';
 const PUBLISH_ROOTS = Object.freeze(['desktop/ui', 'assets/whale-widget.js']);
 
@@ -96,25 +92,6 @@ function listJavaScript(root, relative) {
   };
   walk(absolute);
   return found.sort();
-}
-
-// Counts `window.Whale*` reads, matching the `this.window.Whale*` form the
-// extracted modules use to reach the window they were handed. `window.whaleDesktop`
-// does not match, and is allowed by name.
-function globalReads(source) {
-  const counts = {};
-  for (const match of source.matchAll(/\bwindow\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
-    const name = match[1];
-    if (!/^Whale/.test(name) || name === ALLOWED_GLOBAL) continue;
-    counts[name] = (counts[name] || 0) + 1;
-  }
-  return counts;
-}
-
-function relativeSpecifiers(source) {
-  return [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)]
-    .map(match => ({ spec: match[1], index: match.index }))
-    .filter(item => item.spec.startsWith('.'));
 }
 
 function countByFile(found) {
@@ -173,30 +150,27 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
   const globalStorage = [];
   for (const relative of modules) {
     const source = read(root, relative);
-    const reads = globalReads(source);
+    const syntax = dependencySyntax(source);
+    const reads = syntax.globals;
     if (Object.keys(reads).length) moduleReads[relative] = reads;
-    if (relative.startsWith('desktop/ui/features/')) {
-      const owner = relative.slice('desktop/ui/features/'.length).split('/')[0];
-      for (const { spec, index } of relativeSpecifiers(source)) {
-        const target = path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
+    {
+      const owner = relative.startsWith('desktop/ui/features/') ? relative.slice('desktop/ui/features/'.length).split('/')[0] : null;
+      for (const { spec, index } of syntax.imports) {
+        if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
+        const target = spec.startsWith('/') ? 'desktop/ui' + spec : path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
         if (!target.startsWith('desktop/ui/features/')) continue;
         if (target.slice('desktop/ui/features/'.length).split('/')[0] !== owner) {
           crossFeatureImports.push({ file: relative, line: lineOf(source, index), target });
         }
       }
     }
-    if (relative !== SHARED_REQUEST_CLIENT) {
-      directRequests.push(...findings(relative, source, 'module-direct-request', [/\bfetch\s*\(/g, /\bXMLHttpRequest\b/g]));
-    }
-    globalStorage.push(...findings(relative, source, 'module-global-storage', [
-      /\bwindow\s*\.\s*localStorage\b/g,
-      /\bglobalThis\s*\.\s*localStorage\b/g,
-    ]));
+    if (relative !== SHARED_REQUEST_CLIENT) directRequests.push(...syntax.requests.map(item => ({ file: relative, ...item })));
+    globalStorage.push(...syntax.storage.map(item => ({ file: relative, ...item })));
   }
   const publishedGlobals = [];
   for (const relative of PUBLISH_ROOTS.flatMap(entry => listJavaScript(root, entry))) {
-    for (const match of read(root, relative).matchAll(/\bwindow\s*\.\s*(Whale[\w$]*)\s*=/g)) {
-      if (!publishedGlobals.includes(match[1])) publishedGlobals.push(match[1]);
+    for (const name of dependencySyntax(read(root, relative)).published) {
+      if (!publishedGlobals.includes(name)) publishedGlobals.push(name);
     }
   }
   publishedGlobals.sort();
@@ -309,7 +283,7 @@ export function refactorBoundaryErrors(metrics) {
   if (!metrics.sound.combinedEndpointReferences.length) errors.push('The sound feature must use GET/PUT /api/sound-settings.');
   if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('sound-settings.js and wait-notice.js must load as ES modules.');
   if (metrics.sound.entryLines > 80) errors.push(`desktop/ui/sound-settings.js must remain a thin entry (<= 80 lines, found ${metrics.sound.entryLines}).`);
-  if (metrics.current.whaleWidgetLines > 6500) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 6500 lines (found ${metrics.current.whaleWidgetLines}).`);
+  if (metrics.current.whaleWidgetLines > 3000) errors.push(`assets/whale-widget.js must stay within the composition maintenance cap of 3000 lines (found ${metrics.current.whaleWidgetLines}).`);
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
   if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
   errors.push(...dependencyErrors(metrics.dependency));

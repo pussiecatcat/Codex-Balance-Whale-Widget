@@ -1,3 +1,4 @@
+import { createLifecycle } from '../../services/lifecycle.js';
 export function createRoleManager(deps) {
   const {
     document, window, localStorage, location, Image, rendering,
@@ -5,6 +6,7 @@ export function createRoleManager(deps) {
     assetClient, assetWarning, assetNotice, assetFailure, requireSaved,
     viewport, setupHitTest, makeNameCell, bindNameMarquee, confirm,
   } = deps;
+  const lifecycle = createLifecycle();
   let current = { id: 'default', name: '小鲸鱼', url: imageUrl };
   let roles = [];
   const badIds = Object.create(null);
@@ -99,7 +101,7 @@ export function createRoleManager(deps) {
     const readyImage = new Image();
     readyImage.src = url;
     return Promise.all([readyImage.decode(), rendering.hitCache.prepare(url)]).then(() => {
-      if (requestGeneration !== generation) return false;
+      if (lifecycle.disposed || requestGeneration !== generation) return false;
       current = { id, name, url };
       imageElement.src = url;
       roleButtonLabel.textContent = name;
@@ -113,7 +115,7 @@ export function createRoleManager(deps) {
       if (isFallback) assetNotice('原角色图片无法显示，已切回小鲸鱼；可在角色菜单重新选择');
       return true;
     }).catch(() => {
-      if (requestGeneration !== generation) return false;
+      if (lifecycle.disposed || requestGeneration !== generation) return false;
       badIds[id] = true;
       fallbackInProgress = false;
       assetNotice(isFallback ? '内置小鲸鱼图片加载失败，请重启挂件或重新安装' : '角色图片无法读取，已保留原角色');
@@ -155,7 +157,7 @@ export function createRoleManager(deps) {
   function load() {
     try {
       assetClient.roles().then(data => {
-        if (!data) return;
+        if (!data || lifecycle.disposed) return;
         replace(data.roles);
         assetWarning(data);
         if (fallbackInProgress) return;
@@ -172,12 +174,11 @@ export function createRoleManager(deps) {
 
   function togglePin(id, pinned) {
     try {
-      window.fetch('/dsh-whale/role-pin.json', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, pinned }),
-      }).then(response => response.json()).then(data => {
+      assetClient.pinRole(id, pinned).then(data => {
+        if (lifecycle.disposed) return;
         requireSaved(data);
         if (data?.ok && Array.isArray(data.roles)) replace(data.roles);
-      }).catch(assetFailure);
+      }).catch(lifecycle.guard(assetFailure));
     } catch (error) { assetFailure(error); }
   }
 
@@ -185,17 +186,21 @@ export function createRoleManager(deps) {
     const role = roles.find(item => item.id === id) || null;
     confirm('确定删除角色「' + (role ? role.name : id) + '」吗？', () => {
       try {
-        window.fetch('/dsh-whale/role-delete.json', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
-        }).then(response => response.json()).then(data => {
-          requireSaved(data);
+        assetClient.deleteRole(id).then(data => {
+          if (lifecycle.disposed) return;
+        requireSaved(data);
           if (data?.ok && Array.isArray(data.roles)) handleDeleted(id, data.roles);
-        }).catch(assetFailure);
+        }).catch(lifecycle.guard(assetFailure));
       } catch (error) { assetFailure(error); }
     });
   }
 
-  window.addEventListener('whale-role-fallback', recover);
-  return Object.freeze({ apply, close, toggle, render, load, replace, useImported, handleDeleted,
+  lifecycle.listen(window, 'whale-role-fallback', recover);
+  function dispose() {
+    lifecycle.dispose(); generation++; close();
+    for (const release of nameDisposers.splice(0)) release();
+    rolePanel.innerHTML = '';
+  }
+  return Object.freeze({ dispose, apply, close, toggle, render, load, replace, useImported, handleDeleted,
     current: () => ({ ...current }), roles: () => roles.map(role => ({ ...role })) });
 }

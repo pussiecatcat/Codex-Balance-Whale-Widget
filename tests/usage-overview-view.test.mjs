@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUsageOverviewView } from '../desktop/ui/features/widget/usage-overview-view.js';
+import { createUsageOverviewView } from '../desktop/ui/features/usage/usage-overview-view.js';
 
 test('usage overview preserves unknown money and two decimal display precision', () => {
   const view = createUsageOverviewView({

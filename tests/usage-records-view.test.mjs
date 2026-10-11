@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createUsageRecordsView } from '../desktop/ui/features/widget/usage-records-view.js';
+import { createUsageRecordsView } from '../desktop/ui/features/usage/usage-records-view.js';
 
 function element(tag = 'div') {
   const node = {

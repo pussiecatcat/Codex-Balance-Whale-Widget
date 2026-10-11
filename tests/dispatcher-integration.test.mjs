@@ -177,7 +177,7 @@ test('ui-state is written only by the desktop host, not through a whale:// route
 // table, so these are the checks that replaced the table's implicit allowlist.
 test('widget files resolve by path under desktop/ui and traversal out of it is refused', async t => {
   const { server } = await setup(t);
-  const nested = await server.dispatch('/features/widget/anchors.js');
+  const nested = await server.dispatch('/features/character/anchors.js');
   assert.equal(nested.status, 200);
   assert.match(nested.headers['content-type'], /javascript/);
   assert.equal((await server.dispatch('/ui.css')).status, 200);

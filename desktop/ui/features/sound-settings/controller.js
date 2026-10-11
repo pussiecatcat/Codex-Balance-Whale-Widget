@@ -1,4 +1,5 @@
 import { requestJson } from '../../services/request.js';
+import { createSettingsClient, settingsClient } from '../../services/settings-client.js';
 import { buildSoundSave, createSoundDraft, restoreSoundDefaults } from './model.js';
 import { createSoundMenuEntry, createSoundSettingsView } from './view.js';
 
@@ -51,6 +52,7 @@ export class SoundSettingsController {
     this.document = options.documentRef || this.window.document;
     this.legacy = options.legacy;
     this.request = options.request || requestJson;
+    this.settings = options.settings || (options.request ? createSettingsClient(this.request) : settingsClient);
     this.createMenuEntry = options.createMenuEntry || createSoundMenuEntry;
     this.createView = options.createView || createSoundSettingsView;
     this.player = options.player || previewPlayer(this.window);
@@ -114,9 +116,7 @@ export class SoundSettingsController {
 
   async save() {
     const command = buildSoundSave(this.bundle, this.draft);
-    const saved = await this.request(SETTINGS_URL, {
-      method: 'PUT', body: command, signal: this.abortController.signal,
-    });
+    const saved = command ? await this.settings.save(command, { signal: this.abortController.signal }) : this.bundle;
     this.bundle = saved;
     this.legacy.applySettings(saved);
     this.window.dispatchEvent(new this.window.CustomEvent('whale-sound-settings-applied', { detail: saved }));

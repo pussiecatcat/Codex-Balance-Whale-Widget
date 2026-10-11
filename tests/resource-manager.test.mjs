@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createResourceManager } from '../desktop/ui/features/widget/resource-manager.js';
+import { createResourceManager } from '../desktop/ui/features/resources/resource-manager.js';
 
 function element(tag = 'div') {
   const node = {

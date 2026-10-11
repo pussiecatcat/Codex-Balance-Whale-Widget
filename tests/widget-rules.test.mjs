@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
-import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
-import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
-import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
-import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '../desktop/ui/features/widget/bubble-editor-model.js';
+import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/bubble/default-content.js';
+import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/bubble/bubble-layout.js';
+import { aggregateUsageModels } from '../desktop/ui/features/usage/usage-charts.js';
+import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/bubble/bubble-editor-commands.js';
+import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '../desktop/ui/features/bubble/bubble-editor-model.js';
 
 test('default bubble drafts are independent and subscription quota windows remain distinct', () => {
   const first = bubbleDefaultQueue(false);

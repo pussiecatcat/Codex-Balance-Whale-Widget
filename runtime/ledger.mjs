@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { readJson, writeJson, dayKey, rounded } from './paths.mjs';
 
 const initialLedger = () => ({ version: 1, revision: 0, date: '', observed: 0, firstObservation: null, lastObservation: null, history: {}, events: [], correctionLog: [] });
@@ -17,6 +18,18 @@ export class UsageLedger {
     return path.join(this.dataDir, 'ledgers', scope + '.json');
   }
   load(scope) { return readJson(this.file(scope), initialLedger()); }
+  pendingNotices(accountId) {
+    if (!/^[a-f0-9]{24}$/.test(accountId || '')) return [];
+    const directory = path.join(this.dataDir, 'ledgers');
+    let names;
+    try { names = fs.readdirSync(directory); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+    return names.filter(name => new RegExp('^' + accountId + '-[A-Z]{3}\\.json$').test(name))
+      .flatMap(name => {
+        const scope = name.slice(0, -5);
+        return this.load(scope).events.filter(event => event.notify && event.noticeOrder && !event.noticePublished && !event.noticeDismissed)
+          .map(event => ({ scope, event }));
+      });
+  }
   save(scope, ledger) { ledger.revision = Number(ledger.revision || 0) + 1; writeJson(this.file(scope), ledger); }
   archiveFile(scope) { return path.join(this.dataDir, 'ledgers', scope + '.archive.json'); }
   archive(scope, entries, summaries = {}) {

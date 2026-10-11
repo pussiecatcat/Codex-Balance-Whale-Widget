@@ -1,6 +1,8 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.18`。** 当前内部构建为 `0.3.0+codex.20261009-quota-reliable`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 架构与可靠性修复候选版（PR 交付，尚未发布标签）。** 当前内部构建为 `0.3.0+codex.20261011-architecture-reliability`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+
+本次新增的通知恢复、设置并发保护、编辑器拆分和验证范围见 [重构验收记录](docs/REFACTOR-STAGES-4-5.md)。下列功能修复沿用已有额度版本。
 
 ## 修复内容
 

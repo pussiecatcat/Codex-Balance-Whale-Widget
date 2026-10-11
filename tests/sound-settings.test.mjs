@@ -47,6 +47,19 @@ function command(snapshot, overrides = {}) {
   return { schemaVersion: 2, base, patch: { size, usage } };
 }
 
+test('independent nested event fields coexist while the same nested leaf conflicts', async t => {
+  const { root, whale } = fixture(t), service = new SoundSettingsService({ dataDir: root, whale });
+  const initial = await service.load();
+  const change = (kind, vol) => ({ schemaVersion: 2,
+    base: { usage: { events: { [kind]: { vol: initial.usage.events[kind].vol } } } },
+    patch: { usage: { events: { [kind]: { vol } } } } });
+  await service.save(change('question', .25));
+  const saved = await service.save(change('approval', .55));
+  assert.equal(saved.usage.events.question.vol, .25);
+  assert.equal(saved.usage.events.approval.vol, .55);
+  await assert.rejects(service.save(change('question', .8)), error => error.status === 409);
+});
+
 test('combined sound settings save is canonical, preserves unknown fields and rejects a stale field', async t => {
   const { root, whale, sizeFile, usageFile } = fixture(t);
   const service = new SoundSettingsService({ dataDir: root, whale });
