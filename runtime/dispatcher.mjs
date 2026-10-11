@@ -31,7 +31,11 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
   const displayModeFile = path.join(dataDir, 'display-mode.json');
   const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
   const routes = new Map(), effects = [];
-  createWidgetHost(dataDir).apply({ whale, webServer: { register: r => { routes.set(r.path, r.handler); return () => routes.delete(r.path); }, tapIndex: () => () => {} }, effect: f => effects.push(f()) });
+  createWidgetHost(dataDir).apply({
+    whale,
+    declareRoute: declaration => { routes.set(declaration.path, declaration); return () => routes.delete(declaration.path); },
+    effect: f => effects.push(f()),
+  });
   const watcher = monitor ? new SessionMonitor(whale) : null;
   watcher?.start();
   const timer = autoRefresh ? setInterval(() => { if (displayMode() === 'api') whale.getBalance().catch(() => {}); }, 60000) : null;
@@ -156,10 +160,15 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         if (!fs.existsSync(file) || !fs.statSync(file).isFile()) file = null;
         else return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
       }
-      const handler = routes.get(url.pathname);
-      if (!handler) return jsonResult(404, { ok: false, error: '未找到此功能' });
-      if (/(?:role-pin|role-delete|bubble-img-upload)\.json$/.test(url.pathname) && !['POST', 'PUT'].includes(method)) return jsonResult(405, { ok: false });
-      if (url.pathname === '/dsh-whale/bubble.json' && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
+      // The host declares each route: the methods it answers, how large a body it
+      // accepts, and whether its payload passes the migration filter. Those three
+      // rules used to sit between a path regex here and the handlers themselves,
+      // so a route could answer a method it never meant to answer.
+      const declaration = routes.get(url.pathname);
+      if (!declaration) return jsonResult(404, { ok: false, error: '未找到此功能' });
+      if (!declaration.methods.includes(method)) return jsonResult(405, { ok: false });
+      if (declaration.bodyLimit && bytes.length > declaration.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
+      if (declaration.stripRetired && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
       const requestBytes = Buffer.isBuffer(body) ? body : bytes;
       const req = { url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes };
       // Plain collectors rather than Writable/Readable: the widget host handlers
@@ -171,8 +180,9 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         writeHead(code, headers = {}) { status = code; for (const [name, value] of Object.entries(headers)) res.setHeader(name, value); return res; },
         end(value) { payload = value == null ? Buffer.alloc(0) : Buffer.isBuffer(value) ? value : Buffer.from(String(value)); },
       };
-      await handler(req, res);
-      return { status, headers: responseHeaders, body: payload };
+      await declaration.handler(req, res);
+      // A declared HEAD is answered like the GET it mirrors, minus the body.
+      return { status, headers: responseHeaders, body: method === 'HEAD' ? Buffer.alloc(0) : payload };
     } catch { return jsonResult(400, { ok: false, error: '操作失败，请检查设置或导入文件' }); }
   }
   function close() {

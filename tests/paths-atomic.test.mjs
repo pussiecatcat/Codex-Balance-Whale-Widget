@@ -48,11 +48,14 @@ test('non-sharing rename errors fail immediately without truncation or temporary
   assert.deepEqual(fs.readdirSync(root), ['state.json']);
 });
 
-test('partial temporary writes close descriptors and leave the previous target intact', t => {
-  const { root, file } = fixture(t), io = Object.create(fs); let closed = 0;
-  io.writeFileSync = descriptor => { fs.writeFileSync(descriptor, 'partial'); throw fault('ENOSPC'); };
-  io.closeSync = descriptor => { closed++; return fs.closeSync(descriptor); };
+// The staged file is written with fs.writeFileSync, so Node owns the descriptor
+// and there is none of ours to leak. What the caller still relies on is that a
+// partial staged write never reaches the target and leaves nothing behind.
+test('partial temporary writes leave the previous target intact and no debris', t => {
+  const { root, file } = fixture(t), io = Object.create(fs);
+  io.writeFileSync = target => { fs.writeFileSync(target, 'partial'); throw fault('ENOSPC'); };
+  io.unlinkSync = target => { assert.notEqual(target, file); return fs.unlinkSync(target); };
   assert.throws(() => writeJson(file, { new: true }, { fs: io }), error => error.code === 'ENOSPC');
-  assert.equal(closed, 1); assert.equal(fs.readFileSync(file, 'utf8'), '{"old":true}');
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"old":true}');
   assert.deepEqual(fs.readdirSync(root), ['state.json']);
 });

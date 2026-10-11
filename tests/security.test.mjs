@@ -22,13 +22,13 @@ function fixture(t) {
 function fail(message = 'test ENOSPC', code = 'ENOSPC') { return Object.assign(new Error(message), { code }); }
 function host(t, injectedFs = fs, root = fixture(t)) {
   const routes = new Map();
-  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, webServer: { register: entry => { routes.set(entry.path, entry.handler); return () => {}; }, tapIndex: () => () => {} }, effect: () => {} });
+  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, declareRoute: declaration => { routes.set(declaration.path, declaration); return () => {}; }, effect: () => {} });
   return { root, async request(route, method = 'GET', body) {
     // The host hands the body over as a buffer; there is no stream to consume.
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
     let status = 200, result, headers;
     const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
-    await routes.get(route.split('?')[0])(req, res);
+    await routes.get(route.split('?')[0]).handler(req, res);
     let payload; try { payload = JSON.parse(result); } catch {}
     return { status, headers, payload, bytes: Buffer.isBuffer(result) ? result : Buffer.from(result || '') };
   } };
