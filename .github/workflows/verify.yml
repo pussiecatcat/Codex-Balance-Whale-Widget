@@ -45,8 +45,8 @@ jobs:
           node-version: '24'
           cache: npm
 
-      # 唯一的依赖是 devDependency 里的 ESLint；单元测试仍然只用 Node 内置模块，
-      # 发行包也不包含 node_modules（见 scripts/build-release.py 的 blocked 集合）。
+      # 开发依赖包含 ESLint、globals、语法和作用域分析器；
+      # 发行包不包含 node_modules（见 scripts/build-release.py 的 blocked 集合）。
       - name: Install dev dependencies
         run: npm ci
 

@@ -7,7 +7,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - 需要 Node.js 24+。
 - `npm start` 启动挂件（= `node scripts/control.mjs open`）；`npm run desktop` 为独立桌面模式。
 - 测试：`npm test`（= `node --test tests/*.test.mjs`）。
-- 静态检查：`npm ci` 一次性装好 开发依赖（ESLint、浏览器全局定义、语法与作用域分析器），然后 `npm run lint`、`npm run check:package`、`npm run check:architecture`；`npm run verify` 串起全部检查加发布包构建。
+- 静态检查：`npm ci` 一次性装好开发依赖（ESLint、浏览器全局定义、语法与作用域分析器），然后 `npm run lint`、`npm run check:package`、`npm run check:architecture`；`npm run verify` 串起全部检查加发布包构建。
 - 自检：`node scripts/control.mjs status | balance | usage | stop`。
 
 ## 架构
@@ -15,12 +15,21 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 **没有 HTTP 端口，也没有独立网页。** 渲染进程走自定义协议 `whale://widget/widget.html`；后台服务与 CLI/桌面之间走具名管道 IPC（Windows `\\.\pipe\codex-whale-*`，macOS 走 unix socket），且只有 `runtime/bridge.mjs` 中 `ALLOWED` 白名单内的路径能跨进程。
 
 - `scripts/control.mjs` — CLI 入口
-- `runtime/dispatcher.mjs` — 中央路由，组装所有子服务
+- `runtime/dispatcher.mjs` — 请求路径：校验 → 端点表 → 静态文件 → 挂件路由。只做分发，不再组装服务
+- `runtime/composition.mjs` — 组合根：构造 WhaleService / fx / insights / apiModels / soundSettings / SessionMonitor，返回一个容器；加协作方改这里，加端点改 `routes/`
+- `runtime/routes/core.mjs` — 核心端点表（`/api/*` 与 `/dsh-whale/wait.json`）。挂件路由注册进同一张查询，只有一条优先级规则
+- `runtime/http-shim.mjs` — 没有服务器的那一小片 HTTP：MIME 表、CSP、`jsonResult`、JSON 正文校验和结构化结果的安全响应头
+- `runtime/faults.mjs` — 意外异常的环形缓冲，即 `/api/status` 的 `faults`
+- `lib/errors.mjs` — `DomainError`：调用方能自己修的失败，带自己的状态码和消息（4xx）。**没有抛 DomainError 的异常一律按本进程缺陷处理**，记引用号、细节写 stderr、对外回 500，不再伪装成「请检查设置」
 - `runtime/service.mjs` — WhaleService：余额、配置、账本
-- `runtime/bridge.mjs` — 具名管道 IPC（含路径白名单与 token 校验）
+- `runtime/bridge.mjs` — 具名管道 IPC（`ALLOWED` 与 `HOST_ROUTES` 两张表合起来才是完整的外部可达路径集）
 - `runtime/process.mjs` — 拉起/探测服务（Windows schtasks，macOS launchctl）
+- `lib/atomic-write.mjs` — 共享同步/异步原子写入（独占临时文件、可选 flush、Windows 重命名重试）；`lib/fs-atomic.cjs` 是启用 flush 的同步兼容门面，不复制底层实现
 - `lib/widget-host.mjs` — 挂件资源层，注册全部 `/dsh-whale/*` 路由
-- `desktop/main.cjs` — Electron 主进程：窗口、透明度、点击穿透、跟随
+- `desktop/main.cjs` — Electron 主进程：窗口、透明度、点击穿透、跟随。它自己的职责边界见下面三条
+- `desktop/ipc-handlers.cjs` — 渲染进程能触达的全部 IPC 通道，一张表。主进程通过 `ipcHost` 对象把动作传进来，所以「渲染进程能调什么」写在一处可审
+- `desktop/diagnostics.cjs` — `diagnose()` 与可见性记录（`visibility-status.json` 的环形历史）。主进程把状态快照传给它，而不是反过来
+- `desktop/test-harness.cjs` — Electron 测试夹具：按需 import `tests/*-fixture.mjs`、收集渲染进程 console 错误、记录被打开的外链、手工指定光标、驱动 `verifyDesktop`。**未启用时每个方法都是空操作**，所以 `main.cjs` 无条件调用它们；`main.cjs` 里只剩 `harness.enabled` 做守卫，守卫的都是「测试模式下要抑制的生产行为」（stdout 的 overlay handle、诊断快捷键、原生模式归属），不是测试代码
 - `desktop/ui/*` — 渲染进程页面与模块
 - `assets/whale-widget.js` — 挂件前端装配入口：ES module，导入 `desktop/ui/features/*` 与 `desktop/ui/services/*` 下的模块，经 `/dsh-whale/widget.js` 提供
 - `launchers/*.cmd`、`launchers/*.command` — 终端用户双击入口（安装/启动/跟随/回滚）；内部用 `%~dp0..\scripts\` 定位仓库根，挪动脚本必须同步改这个上跳路径
@@ -54,6 +63,9 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - **已迁出的模块不得直接读 `window.Whale*`**：`npm run check:architecture` 会拦下新增或加量的全局访问、跨功能导入（`features/a` 引 `features/b`）以及绕过 `desktop/ui/services/request.js` 的直接 `fetch`。存量访问冻结在 `scripts/refactor-metrics.mjs` 的 `MODULE_GLOBAL_READS` 与 `MODULE_DIRECT_REQUESTS`，发布到 `window` 的全局名冻结在同文件的 `GLOBAL_SURFACE`（当前 11 个）；三者都只减不增，preload 契约 `window.whaleDesktop` 按设计放行。功能迁走后要顺手删掉基线里对应的条目，否则它会一直在 `--json` 输出里报成 stale。
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
 - **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
+- **版本号只有一处真源**：`.codex-plugin/plugin.json` 的 `version`（`基础版本+构建后缀`，安装器比对的就是它）。`runtime/paths.mjs` 从它推导出 `VERSION`，不再自带字面量；`package.json` 仍留一份给 npm，由 `tests/release-version.test.mjs` 断言与真源一致。发版只改 plugin.json 一处，改了 package.json 忘了同步会被测试拦下。
+- **`main.cjs` 里不该再出现测试代码**：夹具分支都在 `desktop/test-harness.cjs`，加新的一条就加到那里。另外 `tests/desktop-mode.test.mjs` 会把 `main.cjs` 的 `setHost` / `setMode` 源码切出来在 vm 沙箱里跑，沙箱里手工列出了主进程的作用域名字（`harness`、`diagnostics`、`normalizeHostState` 等）——**改这两个函数引用到的名字，要同步改那个沙箱**，否则它会以 `ReferenceError` 红掉。
+- **渲染进程里的裸 `fetch()` 有预算上限**：`npm run check:architecture` 会数它，只许降不许升。新代码请用 `desktop/ui/services/request.js` 的 `requestJson`（带超时、abort 传播和统一错误类型），转换一处就把 `scripts/refactor-metrics.mjs` 里的 `RENDERER_DIRECT_FETCH_BUDGET` 降一格。
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
 - **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。`.github/workflows/verify.yml` 会在 push/PR 上跑这道检查，所以忘了登记会在 CI 上直接红，不必等到打包。
 - `vendor/`（smol-toml，运行时依赖，进发布包）与 `archive/`（0.2.x 归档，不进发布包）是第三方或历史产物，一般不动。历史发布包只放 Release 页，已不再提交进仓库（`.gitignore` 含 `/packages/`）。

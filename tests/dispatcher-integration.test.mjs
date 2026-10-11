@@ -189,3 +189,18 @@ test('widget files resolve by path under desktop/ui and traversal out of it is r
     assert.equal((await server.dispatch(route)).status, 404, route + ' must not resolve');
   }
 });
+
+// A core route handler receives one named argument, `{ body, url }`. It was
+// positional `(body, url)` and /api/quota was written as `url => ...`, so the
+// "url" was really the request body and reading searchParams threw — a 500 that
+// the whole unit suite missed and only the Electron audit caught. These routes
+// were the two nothing tested, which is how it got through.
+test('query-driven routes reach their handler with a parsed URL, not the request body', async t => {
+  const { server } = await setup(t);
+  for (const route of ['/api/insights', '/api/quota']) {
+    for (const query of ['', '?refresh=1']) {
+      const response = await server.dispatch(route + query);
+      assert.equal(response.status, 200, `${route}${query} must answer 200, got ${response.status}: ${response.body}`);
+    }
+  }
+});

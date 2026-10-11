@@ -8,8 +8,34 @@ export function pipeName(dataDir = DATA_HOME) {
   const hash = crypto.createHash('sha256').update(path.resolve(dataDir).toLowerCase()).digest('hex').slice(0, 24);
   return process.platform === 'win32' ? '\\\\.\\pipe\\codex-whale-' + hash : path.join(dataDir, 'whale-' + hash + '.sock');
 }
+// Every route reachable from outside the service process, with the one method
+// each accepts. The host callbacks (position reset, desktop mode, host state)
+// are listed here too: they used to be handled by inline branches that ran
+// before this check, so auditing this table understated the real IPC surface.
 const ALLOWED = new Map([
-  ['/api/status', 'GET'], ['/dsh-whale/balance.json', 'GET'], ['/dsh-whale/usage-records.json', 'GET'], ['/api/show', 'POST'], ['/api/stop', 'POST'],
+  ['/api/status', 'GET'], ['/dsh-whale/balance.json', 'GET'], ['/dsh-whale/usage-records.json', 'GET'],
+  ['/api/show', 'POST'], ['/api/stop', 'POST'],
+  ['/api/reset-position', 'POST'], ['/api/desktop-mode', 'POST'], ['/internal/host', 'POST'],
+]);
+
+// Routes served by the desktop host rather than by the dispatcher. A missing
+// callback answers like an unknown route, never a silent success.
+const HOST_ROUTES = new Map([
+  ['/api/reset-position', async ({ onResetPosition }) => {
+    if (!onResetPosition) return { status: 403, payload: { ok: false } };
+    const ok = await onResetPosition();
+    return { status: ok ? 200 : 400, payload: { ok: !!ok } };
+  }],
+  ['/api/desktop-mode', async ({ body, onMode }) => {
+    if (!onMode) return { status: 403, payload: { ok: false } };
+    const ok = ['standalone', 'follow-codex'].includes(body?.mode) && await onMode(body.mode);
+    return { status: ok ? 200 : 400, payload: { ok: !!ok } };
+  }],
+  ['/internal/host', async ({ body, onHost }) => {
+    if (!onHost) return { status: 403, payload: { ok: false } };
+    await onHost(body);
+    return { status: 200, payload: { ok: true } };
+  }],
 ]);
 
 export async function startBridge(dispatcher, { dataDir = DATA_HOME, onHost = null, onMode = null, onResetPosition = null } = {}) {
@@ -36,25 +62,18 @@ export async function startBridge(dispatcher, { dataDir = DATA_HOME, onHost = nu
         const message = JSON.parse(input.slice(0, input.indexOf('\n')));
         const candidate = Buffer.from(typeof message.token === 'string' ? message.token : '');
         if (candidate.length !== token.length || !crypto.timingSafeEqual(candidate, Buffer.from(token))) throw new Error('unauthorized');
-        if (message.route === '/api/reset-position' && message.method === 'POST' && onResetPosition) {
-          const ok=await onResetPosition();
-          if(!socket.destroyed)socket.end(JSON.stringify({status:ok?200:400,payload:{ok:!!ok}})+'\n');
-          return;
+        // Validate the route before parsing it: new URL() must not see a value
+        // that is not a route string.
+        const route = message.route;
+        if (typeof route !== 'string' || !route.startsWith('/') || route.startsWith('//')) throw new Error('unsupported');
+        const url = new URL(route, 'whale://widget');
+        if (ALLOWED.get(url.pathname) !== message.method) throw new Error('unsupported');
+        const host = HOST_ROUTES.get(url.pathname);
+        if (host) reply = await host({ body: message.body, onHost, onMode, onResetPosition });
+        else {
+          const result = await dispatcher.dispatch(route, { method: message.method, body: message.body });
+          reply = { status: result.status, payload: JSON.parse(result.body.toString('utf8')) };
         }
-        if (message.route === '/api/desktop-mode' && message.method === 'POST' && onMode) {
-          const ok = ['standalone', 'follow-codex'].includes(message.body?.mode) && await onMode(message.body.mode);
-          if (!socket.destroyed) socket.end(JSON.stringify({ status: ok ? 200 : 400, payload: { ok: !!ok } }) + '\n');
-          return;
-        }
-        if (message.route === '/internal/host' && message.method === 'POST' && onHost) {
-          await onHost(message.body);
-          if (!socket.destroyed) socket.end(JSON.stringify({ status: 200, payload: { ok: true } }) + '\n');
-          return;
-        }
-        const url = new URL(message.route, 'whale://widget');
-        if (typeof message.route !== 'string' || !message.route.startsWith('/') || message.route.startsWith('//') || ALLOWED.get(url.pathname) !== message.method) throw new Error('unsupported');
-        const result = await dispatcher.dispatch(message.route, { method: message.method, body: message.body });
-        reply = { status: result.status, payload: JSON.parse(result.body.toString('utf8')) };
       } catch { reply = { status: 403, payload: { ok: false, error: '本地挂件操作未获授权' } }; }
       if (!socket.destroyed) socket.end(JSON.stringify(reply) + '\n');
     });

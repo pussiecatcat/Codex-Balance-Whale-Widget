@@ -1,197 +1,123 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, DATA_HOME, VERSION, readJson, writeJson } from './paths.mjs';
-import { WhaleService } from './service.mjs';
-import { SessionMonitor } from './session-monitor.mjs';
-import { createWidgetHost } from '../lib/widget-host.mjs';
-import { migrateData, stripRetiredModules } from './migration.mjs';
-import { createFxService } from './fx.mjs';
-import { MEDIA_POLICY } from '../lib/media-validation.mjs';
-import { createInsightsService } from './insights.mjs';
-import { pricingSchedule } from './pricing-schedule.mjs';
-import { importWorkshop, exportWorkshop } from '../lib/workshop.mjs';
-import { ApiModelRegistry } from './api-models.mjs';
-import { SoundSettingsService } from './sound-settings.mjs';
+import { ROOT, VERSION, readJson } from './paths.mjs';
+import { createComposition } from './composition.mjs';
+import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, parseJsonBody, withSecurityHeaders } from './http-shim.mjs';
+import { createCoreRoutes } from './routes/core.mjs';
+import { DomainError } from '../lib/errors.mjs';
+import { createFaultLog } from './faults.mjs';
+import { stripRetiredModules } from './migration.mjs';
 
-export const UI_ORIGIN = 'whale://widget';
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.gif': 'image/gif', '.mp3': 'audio/mpeg' };
+export { UI_ORIGIN };
+
 const UI_DIR = path.join(ROOT, 'desktop', 'ui');
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
-const jsonResult = (status, payload) => ({ status, headers: { 'content-type': 'application/json; charset=utf-8' }, body: Buffer.from(JSON.stringify(payload)) });
+const ASSETS_DIR = path.join(ROOT, 'assets');
+const MAX_BODY_BYTES = 32 * 1024 * 1024;
+const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD'];
+const READ_METHODS = ['GET', 'HEAD'];
 
-// Dispatch original resource handlers entirely in process; no HTTP listener exists.
-export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor = true, autoRefresh = true, fetchImpl, fxFetchImpl = fetchImpl, onStop = () => {}, onShow = () => {}, statusInfo = () => ({}) } = {}) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  migrateData(dataDir);
-  const whale = service || new WhaleService({ dataDir, ...(fetchImpl ? { fetchImpl } : {}) });
-  const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
-  const insights = createInsightsService(whale.config);
-  const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
-  const soundSettings = new SoundSettingsService({ dataDir, whale });
-  const displayModeFile = path.join(dataDir, 'display-mode.json');
-  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
-  const routes = new Map(), effects = [];
-  createWidgetHost(dataDir).apply({
-    whale,
-    declareRoute: declaration => { routes.set(declaration.path, declaration); return () => routes.delete(declaration.path); },
-    effect: f => effects.push(f()),
-  });
-  const watcher = monitor ? new SessionMonitor(whale) : null;
-  watcher?.start();
-  const timer = autoRefresh ? setInterval(() => { if (displayMode() === 'api') whale.getBalance().catch(() => {}); }, 60000) : null;
-  timer?.unref();
-  if (autoRefresh) {
-    if (displayMode() === 'api') whale.getBalance().catch(() => {});
-    fx.start().catch(() => {});
-  }
+const decode = value => { try { return decodeURIComponent(value); } catch { return null; } };
+const mimeFor = file => MIME[path.extname(file)] || ASSET_MIME[path.extname(file)];
+
+// Resolve a widget file by path instead of from a hand-kept table. Every new
+// module used to need an entry here, and a forgotten one failed only at runtime
+// as a 404 inside the widget. desktop/ui/ holds only .js, .css and .html, and the
+// extension must be one MIME knows, so the reachable set matches what the table
+// allowed. The file must exist now: an /assets/* request also resolves under
+// desktop/ui/ by extension, and a candidate left in place would shadow it.
+function resolveUiFile(pathname) {
+  const relative = decode(pathname === '/' ? 'widget.html' : pathname.slice(1));
+  if (!relative || relative.includes('\\')) return null;
+  if (relative.split('/').some(part => !part || part === '.' || part === '..')) return null;
+  const candidate = path.resolve(UI_DIR, relative);
+  if (!candidate.startsWith(UI_DIR + path.sep) || !MIME[path.extname(candidate)]) return null;
+  try { return fs.statSync(candidate).isFile() ? candidate : null; } catch { return null; }
+}
+
+function resolveAssetFile(pathname) {
+  const name = decode(pathname.slice('/assets/'.length));
+  if (!name || !/^[A-Za-z0-9_.-]+$/.test(name) || !ASSET_MIME[path.extname(name)]) return { rejected: true };
+  return { file: path.join(ASSETS_DIR, name) };
+}
+
+// Dispatch original resource handlers entirely in process; no HTTP listener and
+// no web page exist. Composition lives in composition.mjs and the endpoints in
+// routes/core.mjs, so this file is only the request path: validate, route,
+// serve, or report.
+export function createDispatcher(options = {}) {
+  // dataDir and the service overrides ride through to createComposition, which
+  // owns their defaults.
+  const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}) } = options;
+  const app = createComposition(options);
+  const faults = createFaultLog();
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
+  const routes = createCoreRoutes({ ...app, buildVersion, statusInfo, onStop, onShow, faultLog: faults });
   let closing = false, closeJob = null;
 
-  async function dispatch(route, { method = 'GET', body = null, headers = {} } = {}) {
-    const result = await run(route, { method, body, headers });
-    result.headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, ...result.headers };
-    return result;
-  }
   async function run(route, { method, body, headers }) {
+    let context = '';
     try {
       if (closing) return jsonResult(503, { ok: false, error: '挂件正在退出，请稍后重新打开' });
       if (typeof route !== 'string' || !route.startsWith('/') || route.startsWith('//') || /[\\\x00-\x1f]/.test(route)) return jsonResult(400, { ok: false, error: '无效的本地操作' });
       const url = new URL(route, UI_ORIGIN);
-      if (!['GET', 'POST', 'PUT', 'DELETE', 'HEAD'].includes(method)) return jsonResult(405, { ok: false });
+      context = url.pathname;
+      if (!METHODS.includes(method)) return jsonResult(405, { ok: false });
       const bytes = body == null ? Buffer.alloc(0) : Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
-      if (bytes.length > 32 * 1024 * 1024) return jsonResult(413, { ok: false, error: '导入文件过大' });
-      const parsed = () => JSON.parse(bytes.toString('utf8') || '{}');
-      if (url.pathname === '/api/display-mode') {
-        if (method === 'GET') return jsonResult(200, {ok:true,mode:displayMode()});
-        if (method !== 'POST') return jsonResult(405, {ok:false});
-        const input=parsed();
-        if (!['api','subscription'].includes(input.mode)) return jsonResult(400,{ok:false,error:'请选择 API 或会员订阅额度模式'});
-        writeJson(displayModeFile,{version:1,mode:input.mode});
-        return jsonResult(200,{ok:true,mode:input.mode});
+      if (bytes.length > MAX_BODY_BYTES) return jsonResult(413, { ok: false, error: '导入文件过大' });
+
+      const endpoint = routes.get(url.pathname);
+      if (endpoint) {
+        const handler = endpoint.handlers[method];
+        if (handler) return await handler({ body: bytes, url });
+        // Earlier these guards matched the listed methods only, so any other
+        // method carried on into static resolution and finished as a 404.
+        if (!endpoint.fallthrough) return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
       }
-      if (url.pathname === '/api/insights' && method === 'GET') return jsonResult(200, await insights.get({force:url.searchParams.get('refresh')==='1'}));
-      if (url.pathname === '/api/quota' && method === 'GET') return jsonResult(200, await insights.getQuota({force:url.searchParams.get('refresh')==='1'}));
-      if (url.pathname === '/dsh-whale/wait.json' && method === 'GET') return jsonResult(200, whale.waitStatus());
-      if (url.pathname === '/api/pricing' && method === 'GET') return jsonResult(200, {ok:true,...pricingSchedule(whale.config.resolve())});
-      if (url.pathname === '/api/reconcile') {
-        if (method === 'GET') return jsonResult(200, whale.usageRecords());
-        if (method !== 'POST') return jsonResult(405, { ok: false });
-        try { return jsonResult(200, whale.reconcileUsage(parsed())); }
-        catch (error) { return jsonResult(error?.status === 409 ? 409 : 400, { ok: false, error: error?.message || '余额校正失败' }); }
-      }
-      if (url.pathname === '/api/models') {
-        if (method === 'GET') return jsonResult(200, apiModels.list());
-        if (method === 'PUT' || method === 'POST') return jsonResult(200, apiModels.save(parsed()));
-        if (method === 'DELETE') return jsonResult(200, apiModels.delete(url.searchParams.get('id') || parsed().id));
-        return jsonResult(405, { ok: false });
-      }
-      if (url.pathname === '/api/models/value' && method === 'GET') {
-        const id = url.searchParams.get('id'), model = apiModels.model(id), template = model && apiModels.list().templates.find(item => item.id === model.template);
-        const matches = (model?.matchIds?.length ? model.matchIds : template?.matchIds || []).map(value => String(value).toLowerCase());
-        const usage = whale.apiModelUsage(matches);
-        const quotaUsage = model?.manualQuota ? whale.apiModelUsage(matches, Date.now(), apiModels.quotaStart(model)) : null;
-        const result = await apiModels.read(id, { usage: quotaUsage });
-        return jsonResult(200, { ...usage, ...result, usageSource: usage.source, todayEstimate: apiModels.estimate(model, usage) });
-      }
-      if (url.pathname === '/api/models/probe' && method === 'POST') return jsonResult(200, await apiModels.read(parsed().id, { probe: true }));
-      if (url.pathname === '/api/workshop/export' && method === 'GET') return jsonResult(200, exportWorkshop(dataDir));
-      if (url.pathname === '/api/workshop/import' && method === 'POST') return jsonResult(200, importWorkshop(dataDir, parsed()));
-      if (url.pathname === '/api/status' && method === 'GET') return jsonResult(200, { ok: true, version: VERSION, buildVersion, transport: 'local-ipc', webpage: false, provider: whale.config.publicInfo(), monitor: watcher?.status() || { watching: 0, activeTurns: 0 }, dataDir, ...statusInfo() });
-      if (url.pathname === '/api/config') {
-        if (method === 'GET') return jsonResult(200, { ok: true, ...whale.config.settingsInfo() });
-        if (method === 'PUT') { whale.config.save(parsed()); return jsonResult(200, { ok: true, ...whale.config.settingsInfo() }); }
-        return jsonResult(405, { ok: false });
-      }
-      if (url.pathname === '/api/fx/usd-cny') {
-        if (method !== 'GET') return jsonResult(405, { ok: false });
-        const manual = url.searchParams.get('refresh') === '1';
-        try { return jsonResult(200, { ok: true, ...await fx.get(manual ? { force: true, reason: 'manual' } : {}) }); }
-        catch (error) {
-          const metadata = {};
-          for (const key of ['cooldownRemainingMs', 'retryAfterMs']) if (Number.isFinite(error?.[key]) && error[key] >= 0) metadata[key] = error[key];
-          for (const key of ['checkedAt', 'retrievedAt', 'nextDailyCheckAt']) if (error?.[key] === null || typeof error?.[key] === 'string' && Number.isFinite(Date.parse(error[key]))) metadata[key] = error[key];
-          if (typeof error?.stale === 'boolean') metadata.stale = error.stale;
-          return jsonResult(503, { ok: false, error: error?.message || '汇率暂时无法读取，请稍后重试', ...metadata });
-        }
-      }
-      if (url.pathname === '/api/media-policy') {
-        if (method !== 'GET') return jsonResult(405, { ok: false });
-        return jsonResult(200, { ok: true, policy: MEDIA_POLICY });
-      }
-      if (url.pathname === '/api/sound-settings') {
-        if (method !== 'GET' && method !== 'PUT') return jsonResult(405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
-        try {
-          return jsonResult(200, method === 'GET' ? await soundSettings.load() : await soundSettings.save(parsed()));
-        } catch (error) {
-          const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 500;
-          return jsonResult(status, {
-            ok: false,
-            code: typeof error?.code === 'string' ? error.code : 'SETTINGS_OPERATION_FAILED',
-            error: error?.message || '音效设置操作失败',
-          });
-        }
-      }
-      if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
-      if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
-      // Resolve widget assets from desktop/ui/ by path rather than from an
-      // explicit table. Every new module used to need a hand-written entry here,
-      // and a forgotten one failed only at runtime, as a 404 inside the widget.
-      // desktop/ui/ holds only .js, .css and .html, and the extension must be one
-      // MIME knows, so the reachable set matches what the table allowed.
-      let file = null;
-      try {
-        const rel = decodeURIComponent(url.pathname === '/' ? 'widget.html' : url.pathname.slice(1));
-        if (rel && !rel.includes('\\') && !rel.split('/').some(part => !part || part === '.' || part === '..')) {
-          const candidate = path.resolve(UI_DIR, rel);
-          // The file must exist here, not later: an /assets/* request also resolves
-          // under desktop/ui/ by extension, and leaving file set would shadow the
-          // assets branch below.
-          if (candidate.startsWith(UI_DIR + path.sep) && MIME[path.extname(candidate)] &&
-              fs.existsSync(candidate) && fs.statSync(candidate).isFile()) file = candidate;
-        }
-      } catch {}
+
+      let file = resolveUiFile(url.pathname);
       if (!file && url.pathname.startsWith('/assets/')) {
-        const name = decodeURIComponent(url.pathname.slice(8));
-        if (!/^[A-Za-z0-9_.-]+$/.test(name) || !MIME[path.extname(name)]) return jsonResult(404, { ok: false });
-        file = path.join(ROOT, 'assets', name);
+        const asset = resolveAssetFile(url.pathname);
+        if (asset.rejected) return jsonResult(404, { ok: false });
+        file = asset.file;
       }
       if (file) {
-        // A path that resolves but has no file behind it is a 404, not a throw.
+        // A path that resolves but has no file behind it is a miss, not a throw.
         if (!fs.existsSync(file) || !fs.statSync(file).isFile()) file = null;
-        else return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
+        else if (!READ_METHODS.includes(method)) return jsonResult(405, { ok: false });
+        else return { status: 200, headers: { 'content-type': mimeFor(file) }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) };
       }
-      // The host declares each route: the methods it answers, how large a body it
-      // accepts, and whether its payload passes the migration filter. Those three
-      // rules used to sit between a path regex here and the handlers themselves,
-      // so a route could answer a method it never meant to answer.
-      const declaration = routes.get(url.pathname);
-      if (!declaration) return jsonResult(404, { ok: false, error: '未找到此功能' });
-      if (!declaration.methods.includes(method)) return jsonResult(405, { ok: false });
-      if (declaration.bodyLimit && bytes.length > declaration.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
-      if (declaration.stripRetired && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
-      const requestBytes = Buffer.isBuffer(body) ? body : bytes;
-      const req = { url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes };
-      const result = await declaration.handler(req);
+
+      const widget = app.widgetRoutes.get(url.pathname);
+      if (!widget) return jsonResult(404, { ok: false, error: '未找到此功能' });
+      if (!widget.methods.includes(method)) return jsonResult(405, { ok: false });
+      if (widget.bodyLimit && bytes.length > widget.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
+      const requestBytes = widget.stripRetired && ['POST', 'PUT'].includes(method)
+        ? Buffer.from(JSON.stringify(stripRetiredModules(parseJsonBody(bytes)))) : bytes;
+      const result = await widget.handler({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes });
       return { ...result, body: method === 'HEAD' ? Buffer.alloc(0) : result.body };
 
-    } catch { return jsonResult(400, { ok: false, error: '操作失败，请检查设置或导入文件' }); }
+    } catch (error) {
+      // A DomainError is something the caller can act on and carries its own
+      // status. Anything else is a defect here: it must not be reported as a bad
+      // request with a message telling the user to check settings that are fine.
+      if (error instanceof DomainError) return jsonResult(error.status, { ok: false, code: error.code, error: error.message });
+      const ref = faults.record(error, context);
+      process.stderr.write(`[whale] ${ref} ${context}\n${error?.stack || error}\n`);
+      return jsonResult(500, { ok: false, code: 'INTERNAL', error: '挂件内部错误，请查看运行日志', ref });
+    }
   }
+
+  async function dispatch(route, options = {}) {
+    const { method = 'GET', body = null, headers = {} } = options;
+    return withSecurityHeaders(await run(route, { method, body, headers }));
+  }
+
   function close() {
     if (closeJob) return closeJob;
-    closing = true; clearInterval(timer);
-    closeJob = (async () => {
-      const failures = [];
-      insights.close();
-      try { await fx.close(); } catch (error) { failures.push(error); }
-      try { await watcher?.stop({ timeoutMs: 1200 }); } catch (error) { failures.push(error); }
-      try { await whale.close?.({ timeoutMs: 3000 }); } catch (error) { failures.push(error); }
-      for (const effect of effects.splice(0)) {
-        try { if (typeof effect === 'function') await effect(); else await effect?.close?.(); }
-        catch (error) { failures.push(error); }
-      }
-      if (failures.length) throw new AggregateError(failures, '部分挂件组件未能正常关闭');
-    })();
+    closing = true;
+    closeJob = app.close();
     return closeJob;
   }
-  return { dispatch, whale, watcher, soundSettings, close };
+
+  return { dispatch, whale: app.whale, watcher: app.watcher, soundSettings: app.soundSettings, faults, close };
 }

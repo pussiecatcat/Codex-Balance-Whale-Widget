@@ -26,7 +26,7 @@ class UiStateStore {
     if (!this.dirty) return this.writes;
     const encoded = this.encoded; this.dirty = false;
     this.writes = this.writes.catch(() => {}).then(async () => {
-      try { await writeFileAtomic(this.file, encoded, { fs: fs.promises }); }
+      try { await writeFileAtomic(this.file, encoded, { fs: fs.promises, flush: true }); }
       catch (error) { this.dirty = true; throw error; }
     });
     return this.writes;

@@ -2,23 +2,24 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, globalShor
 const path = require('node:path');
 const fs = require('node:fs');
 const { UiStateStore } = require('./ui-state-store.cjs');
-// The host shares the service layer's atomic write instead of keeping a second
-// one. Electron is installed at a pinned version (install-desktop.mjs asks for
-// 44.3.0), whose Node can require an ES module by path.
-const { writeFileAtomicSync } = require('../lib/atomic-write.mjs');
+const { writeJsonSync } = require('../lib/fs-atomic.cjs');
 const { shutdownCompanion } = require('./lifecycle.cjs');
 const { externalWebUrl } = require('./external-links.cjs');
 const { syncNativeViewport } = require('./native-viewport.cjs');
 const { createHeartbeatMonitor } = require('./heartbeat.cjs');
-const { acceptsWindowMessage } = require('./ipc-window.cjs');
+const { registerIpcHandlers } = require('./ipc-handlers.cjs');
+const { createTestHarness } = require('./test-harness.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
 const { normalizeHostState, parseInitialHostState } = require('./host-state.cjs');
-const { createVisibilityRecorder } = require('./visibility-recorder.cjs');
+const { createDiagnostics } = require('./diagnostics.cjs');
 const { pathToFileURL } = require('node:url');
 const root = path.resolve(__dirname, '..');
 const dataDir = process.argv.find(a => a.startsWith('--whale-data='))?.slice(13);
-const fixture = process.env.WHALE_DESKTOP_TEST === '1';
+// Inert unless WHALE_DESKTOP_TEST is set. Every fixture-only branch lives in
+// test-harness.cjs, so the calls below read the same in both modes and the only
+// thing that changes here is which production behaviours it suppresses.
+const harness = createTestHarness({ root });
 const initialHost = parseInitialHostState(process.env.WHALE_INITIAL_HOST, { platform: process.platform });
 const startupAt = Date.now();
 const startup = { revision: 'complete-audit-v1', requestedAt: Number(process.env.WHALE_LAUNCH_TIME) || startupAt, mainAt: startupAt, phases: {} };
@@ -43,43 +44,53 @@ if (nativeOcclusionDisabled) {
 }
 if (softwareRendering) app.disableHardwareAcceleration();
 else if (process.platform !== 'win32') app.commandLine.appendSwitch('enable-gpu-rasterization');
-if (!dataDir || !path.isAbsolute(dataDir) || (!fixture && !process.argv.includes('--supervised'))) app.exit(1);
+if (!dataDir || !path.isAbsolute(dataDir) || (!harness.enabled && !process.argv.includes('--supervised'))) app.exit(1);
 protocol.registerSchemesAsPrivileged([{ scheme: 'whale', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 fs.mkdirSync(path.join(dataDir, 'desktop-profile'), { recursive: true });
 app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
 let window, tray, dispatcher, bridge, lastHost = initialHost, appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
-const rendererErrors = [];
-const fixtureOpenedLinks = [];
 let hostSequence = -1;
 let appliedNativeSize = '';
 const stateFile = path.join(dataDir, 'ui-state.json');
 const read = (f, fallback = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; } };
-const save = (file, value) => writeFileAtomicSync(file, JSON.stringify(value, null, 2));
+// Same atomic primitive the service uses. This used to be a weaker local copy
+// (fixed temp name, no exclusive create, no retry), which is the wrong trade for
+// the state files that have to survive a crash.
+const save = (file, value) => writeJsonSync(file, value);
 let desktopMode = read(path.join(dataDir, 'follow-config.json')).mode === 'standalone' ? 'standalone' : 'follow-codex';
 let desktopBoundsApplied = false, modePending = false;
 let recoveryAttempts = 0, recoveryTimer = null, readyTimer = null;
-const visibilityHistory = [];
-let diagnosticShortcutRegistered = false, lastDiagnosticReport = null;
-const visibilityRecorder = createVisibilityRecorder({
-  read: () => {
-    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return null;
-    return { ready: rendererReady, visible: window.isVisible(), manuallyHidden, desktopMode,
-      hostAlive: !!lastHost?.hostAlive, hostVisible: !!lastHost?.visible, modal: !!lastHost?.modal,
-      native: lastHost?.visualDiagnostics || null, bounds: window.getBounds(),
-      shape: windowShape, shapeError: !!windowShapeError, inputEnabled,
-      visibility: visibilityController.snapshot(), recoveryAttempts, presents, nativeOcclusionDisabled };
+let diagnosticShortcutRegistered = false;
+const diagnostics = createDiagnostics({
+  dataDir, save,
+  // Every field belongs to this process's live state, so the main process hands
+  // diagnostics a snapshot rather than the other way round.
+  snapshot: () => {
+    const live = !!window && !window.isDestroyed() && !window.webContents.isDestroyed();
+    return {
+      // Null when there is no window to sample; `entry` is written either way.
+      record: live ? {
+        ready: rendererReady, visible: window.isVisible(), manuallyHidden, desktopMode,
+        hostAlive: !!lastHost?.hostAlive, hostVisible: !!lastHost?.visible, modal: !!lastHost?.modal,
+        native: lastHost?.visualDiagnostics || null, bounds: window.getBounds(),
+        shape: windowShape, shapeError: !!windowShapeError, inputEnabled,
+        visibility: visibilityController.snapshot(), recoveryAttempts, presents, nativeOcclusionDisabled,
+      } : null,
+      entry: {
+        desktopMode, ready: rendererReady, manuallyHidden, recoveryAttempts,
+        hostAlive: !!lastHost?.hostAlive, hostVisible: !!lastHost?.visible, modal: !!lastHost?.modal,
+        attached: !!lastHost?.attached, shapeCount: windowShape?.length || 0,
+      },
+    };
   },
-  write: (name, value) => save(path.join(dataDir, name), value),
 });
-function reportVisibility() {
-  try { lastDiagnosticReport = visibilityRecorder.report(); return lastDiagnosticReport; }
-  catch { return { saved: false }; }
-}
+const diagnose = diagnostics.diagnose;
+const reportVisibility = diagnostics.report;
 const uiStore = new UiStateStore(stateFile);
 const values = () => uiStore.get();
 const storeValues = input => uiStore.set(input);
-let gpuStatus = null, inputEnabled = false, keyboardFocus = false, testCursor = null, lastCursor = '', presents = 0;
+let gpuStatus = null, inputEnabled = false, keyboardFocus = false, lastCursor = '', presents = 0;
 const pendingCommands = [];
 let trustedGestureAt = 0;
 app.on('gpu-info-update', () => {
@@ -117,14 +128,14 @@ function setKeyboardFocus(editing) {
 function sendCursor(force = false) {
   if (!window || window.isDestroyed() || !rendererReady || !window.isVisible()) return;
   const bounds = window.getContentBounds(), cursor = screen.getCursorScreenPoint();
-  const point = { ...(fixture && testCursor ? testCursor : { x: cursor.x - bounds.x, y: cursor.y - bounds.y }), buttons: lastHost?.mouseButtons || 0, sampledAt: lastHost?.mouseSampleAt || 0 };
+  const point = { ...harness.cursorPoint({ x: cursor.x - bounds.x, y: cursor.y - bounds.y }), buttons: lastHost?.mouseButtons || 0, sampledAt: lastHost?.mouseSampleAt || 0 };
   const encoded = point.x + ',' + point.y + ',' + point.buttons;
   if (force || encoded !== lastCursor) { lastCursor = encoded; window.webContents.send('whale-cursor', point); }
 }
-function setTestCursor(point) { if (fixture) { testCursor = point; sendCursor(true); } }
+function setTestCursor(point) { if (harness.setCursor(point)) sendCursor(true); }
 const visibilityController = createVisibilityController({
   getWindow: () => window,
-  getState: () => ({ ready: rendererReady && !modePending && (!usesWindowShape || !!windowShape), host: lastHost, standalone: desktopMode === 'standalone', fixture, manuallyHidden, quitting }),
+  getState: () => ({ ready: rendererReady && !modePending && (!usesWindowShape || !!windowShape), host: lastHost, standalone: desktopMode === 'standalone', fixture: harness.enabled, manuallyHidden, quitting }),
   onShown: () => {
     if (startup.phases.interactive == null) {
       markStartup('interactive');
@@ -144,6 +155,25 @@ function show() {
   visibilityController.requestRecovery();
 }
 function toggle() { if (manuallyHidden) show(); else { manuallyHidden = true; visibility(); } }
+// Renderer finished loading its images and input bindings: clear the recovery
+// timers it may have raced, then hand it the mode it should be showing.
+function markRendererReady() {
+  markStartup('imageAndInputReady');
+  try { fs.rmSync(path.join(dataDir, 'desktop-error.json'), { force: true }); } catch {}
+  clearTimeout(readyTimer); readyTimer = null;
+  clearTimeout(recoveryTimer); recoveryTimer = null;
+  rendererReady = true;
+  diagnose('ready');
+  window.webContents.send('whale-desktop-mode', desktopMode);
+  visibility(); flushCommands(); invalidate(); sendCursor(true);
+}
+function setInteractive(enabled) {
+  // A region-clipped window has no shape to hit-test against until the renderer
+  // has sent one, so it stays non-interactive regardless of what it asks for.
+  if ((usesWindowShape && !windowShape) || enabled === inputEnabled) return;
+  inputEnabled = enabled;
+  window.setIgnoreMouseEvents(!enabled, { forward: !usesWindowShape });
+}
 function sendCommand(command) {
   if (!window || window.isDestroyed() || !command) return false;
   show();
@@ -174,7 +204,7 @@ async function showStatusDialog() {
   });
 }
 function pauseAndQuit() { save(path.join(dataDir, 'pause-until-host-exit.json'), { pauseAll: desktopMode === 'standalone', hostPid: lastHost?.hostPid || 0, hostSession: lastHost?.hostSession || '', hostWindow: lastHost?.window || '0' }); app.quit(); }
-function isMainFrame(event) { if(!acceptsWindowMessage(window,event,quitting))return false;try{return event.senderFrame === window.webContents.mainFrame;}catch{return false;} }
+
 async function openWebLink(value, gestureRequired = true) {
   if (gestureRequired && (!trustedGestureAt || Date.now() - trustedGestureAt > 1000)) return false;
   trustedGestureAt = 0;
@@ -185,8 +215,9 @@ async function openWebLink(value, gestureRequired = true) {
   const url = externalWebUrl(target);
   if (!url) return false;
   try {
-    if (fixture) fixtureOpenedLinks.push(url);
-    else await shell.openExternal(url);
+    // The harness records the link instead of opening it, so an audit never
+    // launches a real browser.
+    if (!harness.captureOpenedLink(url)) await shell.openExternal(url);
     return true;
   } catch { return false; }
 }
@@ -196,7 +227,7 @@ async function setHost(host) {
   if (Number.isSafeInteger(host.serial)) { if (host.serial <= hostSequence) return; hostSequence = host.serial; }
   hostHeartbeat = Date.now(); lastHost = host;
   // Record the observed state before any lifecycle recovery can change it.
-  if (usesWindowShape) { try { visibilityRecorder.sample(); } catch {} }
+  if (usesWindowShape) { try { diagnostics.sample(); } catch {} }
   if (host.monitorExit) { app.quit(); return; }
   sendCursor();
   if (modePending) {
@@ -205,7 +236,7 @@ async function setHost(host) {
     window.setAlwaysOnTop(desktopMode === 'standalone' || isMac, 'floating');
     window.webContents.send('whale-desktop-mode', desktopMode);
     updateTray();
-  } else if (!isMac && !fixture && host.mode && host.mode !== desktopMode) return;
+  } else if (!isMac && !harness.enabled && host.mode && host.mode !== desktopMode) return;
   if (desktopMode === 'standalone') {
     if (window && !host.nativeFollowing && !host.attached && !desktopBoundsApplied) { window.setBounds(screen.getPrimaryDisplay().workArea); window.setAlwaysOnTop(true, 'floating'); desktopBoundsApplied = true; visibilityController.requestRecovery(); }
     visibility(); return;
@@ -233,7 +264,7 @@ async function setHost(host) {
 
 async function importLegacyStorage() {
   const marker = path.join(dataDir, 'legacy-storage-imported.json');
-  if (fs.existsSync(marker) || fixture) return;
+  if (fs.existsSync(marker) || harness.enabled) return;
   const legacy = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
   session.defaultSession.protocol.handle('http', request => new Response(request.url.startsWith('http://127.0.0.1:47321/') ? '<!doctype html><title>Local migration</title>' : '', { status: request.url.startsWith('http://127.0.0.1:47321/') ? 200 : 403, headers: { 'Content-Type': 'text/html' } }));
   try {
@@ -243,6 +274,29 @@ async function importLegacyStorage() {
   } finally { legacy.destroy(); session.defaultSession.protocol.unhandle('http'); }
 }
 
+// What desktop/ipc-handlers.cjs is allowed to reach. Listing it here keeps the
+// IPC surface auditable in one place instead of implicit in the closures of nine
+// inline handlers.
+const ipcHost = {
+  window: () => window,
+  quitting: () => quitting,
+  storage: () => values(),
+  storeStorage: input => storeValues(input),
+  markGesture: () => { trustedGestureAt = Date.now(); },
+  applyShape: rects => applyWindowShape(rects),
+  rendererReady: markRendererReady,
+  setInteractive,
+  setKeyboardFocus,
+  openExternal: url => openWebLink(url),
+  setMode,
+  desktopMode: () => desktopMode,
+  show,
+  showStatusDialog,
+  pauseAndQuit,
+  resetPosition: () => resetPosition(),
+  sendCommand,
+};
+
 if (!lock) app.quit();
 else {
   app.on('second-instance', show);
@@ -250,9 +304,8 @@ else {
     markStartup('appReady');
     const { createDispatcher, UI_ORIGIN } = await import(pathToFileURL(path.join(root, 'runtime', 'dispatcher.mjs')));
     const { startBridge } = await import(pathToFileURL(path.join(root, 'runtime', 'bridge.mjs')));
-    let testOptions = {};
-    if (fixture) { const { makeFixture } = await import(pathToFileURL(path.join(root, 'tests', 'desktop-fixture.mjs'))); testOptions = await makeFixture(dataDir); }
-    dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, lastReport: lastDiagnosticReport, native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
+    const testOptions = await harness.load(dataDir);
+    dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
     await importLegacyStorage();
     session.defaultSession.protocol.handle('whale', async request => {
@@ -268,7 +321,7 @@ else {
     // native occlusion calculation even while its opaque pixels accept clicks.
     // Keep normal activation: Chromium's non-client handler consumes the first
     // mouse down (MA_NOACTIVATEANDEAT) when CanActivate/focusable is false.
-    window = new BrowserWindow({ ...area, ...(isMac ? { acceptFirstMouse: true } : { type: 'toolbar' }), transparent: true, frame: false, thickFrame: false, resizable: false, maximizable: false, fullscreenable: false, backgroundColor: '#00000000', hasShadow: false, skipTaskbar: true, show: false, title: 'API 余额小鲸鱼', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', additionalArguments: fixture ? ['--whale-render-test'] : [] } });
+    window = new BrowserWindow({ ...area, ...(isMac ? { acceptFirstMouse: true } : { type: 'toolbar' }), transparent: true, frame: false, thickFrame: false, resizable: false, maximizable: false, fullscreenable: false, backgroundColor: '#00000000', hasShadow: false, skipTaskbar: true, show: false, title: 'API 余额小鲸鱼', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', additionalArguments: harness.extraArguments() } });
     if (usesWindowShape) applyWindowShape(EMPTY_SHAPE);
     if (isMac) {
       if (app.dock) app.dock.hide();
@@ -281,15 +334,8 @@ else {
     window.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) recoverRenderer('load-' + code); });
     markStartup('windowCreated');
     window.once('ready-to-show', () => markStartup('frameReady'));
-    if (fixture) window.webContents.on('console-message', (_event, ...args) => {
-      const detail = args[0];
-      if (typeof detail === 'object' ? detail.level === 'error' : detail === 3) {
-        rendererErrors.push(typeof detail === 'object'
-          ? detail.message + (detail.sourceId ? ` @ ${detail.sourceId}:${detail.lineNumber || 0}` : '')
-          : args[1] + (args[3] ? ` @ ${args[3]}:${args[2] || 0}` : ''));
-      }
-    });
-    if (!fixture) process.stdout.write(JSON.stringify({ overlayHandle: window.getNativeWindowHandle().readBigUInt64LE().toString() }) + '\n');
+    harness.watchRenderer(window);
+    if (!harness.enabled) process.stdout.write(JSON.stringify({ overlayHandle: window.getNativeWindowHandle().readBigUInt64LE().toString() }) + '\n');
     window.setIgnoreMouseEvents(true, { forward: !usesWindowShape });
     window.on('show', () => { diagnose('window-shown'); invalidate(); sendCursor(true); });
     window.on('hide', () => diagnose('window-hidden'));
@@ -309,39 +355,7 @@ else {
     window.webContents.setWindowOpenHandler(({ url }) => { openWebLink(url).catch(() => {}); return { action: 'deny' }; });
     window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(UI_ORIGIN + '/')) event.preventDefault(); });
     session.defaultSession.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
-    ipcMain.on('whale-storage', event => { event.returnValue = acceptsWindowMessage(window,event,quitting) ? values() : {}; });
-    ipcMain.on('whale-save-storage', (event, input) => { if (acceptsWindowMessage(window,event,quitting)) storeValues(input); });
-    ipcMain.on('whale-user-gesture', event => { if (isMainFrame(event)) trustedGestureAt = Date.now(); });
-    ipcMain.on('whale-shape', (event, rects) => { if (isMainFrame(event)) applyWindowShape(rects); });
-    ipcMain.handle('whale-open-external', (event, url) => isMainFrame(event) ? openWebLink(url) : false);
-    ipcMain.handle('whale-command', async (event, command) => {
-      if (!isMainFrame(event)) return false;
-      if (command === 'desktop') return setMode('standalone');
-      if (command === 'follow') return setMode('follow-codex');
-      if (command === 'mode') return desktopMode;
-      if (command === 'show') { show(); return true; }
-      if (command === 'status') { await showStatusDialog(); return true; }
-      if (command === 'stop') { pauseAndQuit(); return true; }
-      if (command === 'reset-position') return resetPosition();
-      if (['balance', 'usage', 'settings'].includes(command)) return sendCommand(command);
-      return false;
-    });
-    ipcMain.on('whale-ready', event => {
-      if (!acceptsWindowMessage(window,event,quitting)) return;
-      markStartup('imageAndInputReady');
-      try { fs.rmSync(path.join(dataDir, 'desktop-error.json'), { force: true }); } catch {}
-      clearTimeout(readyTimer); readyTimer = null;
-      clearTimeout(recoveryTimer); recoveryTimer = null;
-      rendererReady = true; diagnose('ready'); window.webContents.send('whale-desktop-mode', desktopMode); visibility(); flushCommands(); invalidate(); sendCursor(true);
-    });
-    ipcMain.on('whale-interactive', (event, enabled) => {
-      if (!acceptsWindowMessage(window,event,quitting) || (usesWindowShape && !windowShape) || typeof enabled !== 'boolean' || enabled === inputEnabled) return;
-      inputEnabled = enabled;
-      window.setIgnoreMouseEvents(!enabled, { forward: !usesWindowShape });
-    });
-    ipcMain.on('whale-keyboard-focus', (event, editing) => {
-      if (acceptsWindowMessage(window,event,quitting) && typeof editing === 'boolean') setKeyboardFocus(editing);
-    });
+    registerIpcHandlers({ ipcMain, host: ipcHost });
     // Windows uses the native cursor sampler instead of forwarding ignored mouse
     // messages into Chromium, which must not arbitrate the host cursor.
     const cursorPoll = setInterval(sendCursor, usesWindowShape ? 16 : 50);
@@ -350,17 +364,18 @@ else {
     tray = new Tray(icon); tray.setToolTip('API 余额小鲸鱼 · 跟随 Codex');
     updateTray();
     tray.on('double-click', toggle); globalShortcut.register(isMac ? 'Command+Option+W' : 'Control+Alt+W', toggle);
-    if (usesWindowShape && !fixture) diagnosticShortcutRegistered = globalShortcut.register('Control+Alt+Shift+F10', reportVisibility);
+    if (usesWindowShape && !harness.enabled) diagnosticShortcutRegistered = globalShortcut.register('Control+Alt+Shift+F10', reportVisibility);
     bridge = await startBridge(dispatcher, { dataDir, onHost: setHost, onMode: setMode, onResetPosition: resetPosition });
     markStartup('bridgeReady');
     await window.loadURL(UI_ORIGIN + '/widget.html').catch(() => recoverRenderer('initial-load-failed'));
     markStartup('pageLoaded');
     if (lastHost) await setHost(lastHost);
-    if (fixture) {
-      const fixtureModule = process.env.WHALE_VISIBILITY_STRESS === '1' ? 'visibility-stress-fixture.mjs' : process.env.WHALE_DESKTOP_AUDIT === '1' ? 'desktop-audit-fixture.mjs' : 'desktop-fixture.mjs';
-      const { verifyDesktop } = await import(pathToFileURL(path.join(root, 'tests', fixtureModule)));
-      await verifyDesktop({ app, window, screen, setHost, setTestCursor, dispatcher, dataDir, errors: rendererErrors, openedLinks: fixtureOpenedLinks, renderInfo: () => ({ gpuStatus, presents, inputEnabled, keyboardFocus, windowShape, windowShapeError, visibility: visibilityController.snapshot() }) });
-    }
+    // A harness run drives the live window from here and quits when it is done;
+    // a normal launch installs the supervisor heartbeat instead.
+    if (harness.enabled) await harness.run({
+      app, window, screen, setHost, setTestCursor, dispatcher, dataDir,
+      renderInfo: () => ({ gpuStatus, presents, inputEnabled, keyboardFocus, windowShape, windowShapeError, visibility: visibilityController.snapshot() }),
+    });
     else {
       const health=createHeartbeatMonitor({lastSeen:()=>hostHeartbeat,onDelayed:()=>diagnose('monitor-heartbeat-delayed'),onRecovered:()=>diagnose('monitor-heartbeat-restored')});
       const supervisorPid=Number(process.env.WHALE_SUPERVISOR_PID);
@@ -403,11 +418,6 @@ else {
   });
 }
 
-function diagnose(reason) { try {
-  const entry={reason,desktopMode,ready:rendererReady,manuallyHidden,recoveryAttempts,hostAlive:!!lastHost?.hostAlive,hostVisible:!!lastHost?.visible,modal:!!lastHost?.modal,attached:!!lastHost?.attached,shapeCount:windowShape?.length||0,at:new Date().toISOString()};
-  visibilityHistory.push(entry);if(visibilityHistory.length>24)visibilityHistory.shift();
-  save(path.join(dataDir,'visibility-status.json'),{...entry,history:visibilityHistory});
-} catch {} }
 function resetPosition() {
   if(quitting||!window||window.isDestroyed())return false;
   if(rendererReady)window.webContents.send('whale-command','reset-position');
@@ -427,7 +437,7 @@ function setMode(mode) {
   window.webContents.send('whale-desktop-mode-changing', mode);
   save(path.join(dataDir, 'follow-config.json'), { ...read(path.join(dataDir, 'follow-config.json')), mode }); desktopMode = mode; desktopBoundsApplied = false;
   appliedBounds = ''; appliedNativeSize = '';
-  if (!isMac && !fixture) {
+  if (!isMac && !harness.enabled) {
     // Native ownership must finish changing before Electron changes geometry.
     modePending = true; manuallyHidden = false; visibility(); return true;
   }

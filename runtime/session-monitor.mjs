@@ -122,8 +122,17 @@ export class SessionMonitor {
     this.worker.on('error', () => { this.snapshot.error = '会话监测线程异常；余额查询仍可使用'; });
     this.worker.on('exit', code => { if (!this.stopped && code) this.snapshot.error = '会话监测线程退出'; });
     this.worker.unref();
+    // Forward a change only. resolve() is memoised, so this tick is a few stat
+    // calls, but reposting identical values still woke the worker every 3s.
+    let posted = '';
     this.timer = setInterval(() => {
-      try { const current = this.service.config.resolve(); this.worker.postMessage({ enabled: current.setting.monitorSessions, defaultModel: current.model }); } catch {}
+      try {
+        const current = this.service.config.resolve();
+        const next = JSON.stringify({ enabled: current.setting.monitorSessions, defaultModel: current.model });
+        if (next === posted) return;
+        posted = next;
+        this.worker.postMessage(JSON.parse(next));
+      } catch {}
     }, 3000); this.timer.unref();
   }
   async stop({ timeoutMs = 1200 } = {}) {

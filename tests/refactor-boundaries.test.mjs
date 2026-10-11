@@ -11,6 +11,8 @@ import {
   collectDependencyMetrics,
   collectRefactorMetrics,
   dependencyErrors,
+
+  refactorBoundaryErrors,
 } from '../scripts/refactor-metrics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -177,4 +179,26 @@ const sample = "import '../audio/a.js'; window.localStorage";
 export const use = ({ fetch, localStorage }) => [fetch(sample), localStorage.getItem('k')];`,
   });
   assert.deepEqual(evaluate(clean), []);
+});
+
+// Direct fetch() calls bypass the timeout, abort propagation and error typing the
+// shared request helper enforces, so each one is a place those three can drift.
+// The sound boundary forbids them outright; the rest of the renderer is on a
+// budget that may only come down.
+test('the renderer direct-fetch budget holds and the rule can actually fail', () => {
+  const metrics = collectRefactorMetrics({ root: ROOT });
+  const budget = metrics.renderer.directFetchBudget.total;
+  assert.ok(metrics.renderer.directFetchCount > 0, 'the scan must be finding call sites rather than matching nothing');
+  assert.ok(metrics.renderer.directFetchCount <= budget,
+    `a new direct fetch() call landed in the renderer (${metrics.renderer.directFetchCount} > ${budget}); use requestJson instead`);
+
+  // The helper itself and the worker, which has no module graph to import from.
+  const files = new Set(metrics.renderer.directFetches.map(item => item.file));
+  assert.equal(files.has('desktop/ui/services/request.js'), false, 'the shared helper is not a call site');
+  assert.equal(files.has('desktop/ui/alpha-worker.js'), false, 'a worker cannot reach the module helper');
+
+  // A ratchet that never fails is decoration, so drive it past the ceiling.
+  const overBudget = { ...metrics, renderer: { ...metrics.renderer, directFetchCount: budget + 1 } };
+  assert.ok(refactorBoundaryErrors(overBudget).some(message => /Direct fetch\(\) calls/.test(message)),
+    'the budget must be enforced, not merely reported');
 });

@@ -130,7 +130,7 @@ export default [
   },
 
   {
-    files: ['desktop/**/*.cjs', 'tests/**/*.cjs'],
+    files: ['desktop/**/*.cjs', 'lib/**/*.cjs', 'tests/**/*.cjs'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'commonjs', globals: { ...globals.node } },
   },
 

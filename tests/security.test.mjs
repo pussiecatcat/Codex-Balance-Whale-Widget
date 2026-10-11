@@ -162,6 +162,7 @@ test('ENOSPC reports failure for bubble settings and pinning while retaining old
   const roleFile = path.join(dir, 'roles.json'), bubbleFile = path.join(root, '.dshw-bubble.json');
   const roles = JSON.stringify({ roles: [{ id: 'default', name: 'whale', pinnedAt: 1 }] });
   const bubble = JSON.stringify({ v: 1, items: [], lib: [] }); fs.writeFileSync(roleFile, roles); fs.writeFileSync(bubbleFile, bubble);
+  // The shared primitive stages bytes through writeFileSync with exclusive creation.
   const failingFs = Object.create(fs); failingFs.writeFileSync = (file, ...args) => { if (String(file).endsWith('.tmp')) throw fail(); return fs.writeFileSync(file, ...args); };
   const app = host(t, failingFs, root);
   const saved = await app.request('/dsh-whale/bubble.json', 'PUT', { items: [{ kind: 'custom' }], lib: [] }); assert.equal(saved.payload.ok, false);

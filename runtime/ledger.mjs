@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { readJson, writeJson, dayKey, rounded } from './paths.mjs';
+import { readJson, writeJson, dayKey, DAY_MS, rounded } from './paths.mjs';
 
 const initialLedger = () => ({ version: 1, revision: 0, date: '', observed: 0, firstObservation: null, lastObservation: null, history: {}, events: [], correctionLog: [] });
 const MONEY_SCALE = 100000000;
@@ -146,8 +146,9 @@ export class UsageLedger {
     const totalDay = day => day === today ? led.observed : Object.hasOwn(led.history, day) ? Number(led.history[day].total || 0) : null;
     const days7 = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(now); d.setDate(d.getDate() - i);
-      const date = dayKey(d), total = totalDay(date);
+      // Step in the same UTC+8 frame dayKey uses. Local-time setDate() here
+      // produced the right bucket only for hosts already on UTC+8.
+      const date = dayKey(now - i * DAY_MS), total = totalDay(date);
       days7.push({ date, total, totalState: total === null ? 'unknown' : 'observed', models: modelsFor(date) });
     }
     const days = [...new Set([today, ...Object.keys(led.history), ...led.events.map(e => e.day), ...(led.missingSummaryDays || [])])].sort().reverse();

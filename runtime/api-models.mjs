@@ -2,6 +2,7 @@ import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
 import { readBoundedBodyText } from './bounded-body.mjs';
+import { domainError } from '../lib/errors.mjs';
 
 const noBalance = (name, currency, keyEnv, probeUrl = '', matchIds = []) => ({ name, currency, keyEnv, noBalanceApi: true, probeUrl, matchIds });
 export const API_TEMPLATES = Object.freeze({
@@ -58,7 +59,7 @@ export class ApiModelRegistry {
   constructor({dataDir,env=process.env,fetchImpl=fetch}={}) { this.dataDir=dataDir;this.file=path.join(dataDir,'api-models.json');this.env=env;this.fetch=fetchImpl; }
   load() {
     const data=readJson(this.file,{version:1,models:[]});
-    if(!Array.isArray(data.models))throw Error('API 模型配置损坏，请从备份恢复');
+    if(!Array.isArray(data.models))throw domainError('API 模型配置损坏，请从备份恢复');
     return data;
   }
   model(id) { return this.load().models.find(item=>item.id===id)||null; }
@@ -69,56 +70,56 @@ export class ApiModelRegistry {
       configured:{key:!!this.key(model,t),endpoint:!!(model.balanceUrl||t.balance?.url||model.baseUrl||t.probeUrl)}};
   }
   save(input) {
-    if(!input||typeof input!=='object'||Array.isArray(input))throw Error('API 模型格式无效');
-    const t=API_TEMPLATES[input.template];if(!t)throw Error('未知服务商模板');
-    const id=String(input.id||('api_'+Date.now().toString(36)));if(!idOk(id))throw Error('API 模型 ID 无效');
+    if(!input||typeof input!=='object'||Array.isArray(input))throw domainError('API 模型格式无效');
+    const t=API_TEMPLATES[input.template];if(!t)throw domainError('未知服务商模板');
+    const id=String(input.id||('api_'+Date.now().toString(36)));if(!idOk(id))throw domainError('API 模型 ID 无效');
     const old=this.model(id),current=old?.template===input.template?old:{};
     const keep=(key,fallback='')=>Object.hasOwn(input,key)?input[key]:current[key]??fallback;
     const model={id,template:input.template,name:String(keep('name',t.name)||t.name).trim().slice(0,64),currency:String(keep('currency',t.currency||'USD')).toUpperCase(),
       keyEnv:String(keep('keyEnv',t.keyEnv||'')).trim(),baseUrl:String(keep('baseUrl')).trim(),balanceUrl:String(keep('balanceUrl')).trim(),
       balanceField:String(keep('balanceField')).trim(),usedField:String(keep('usedField')).trim(),scale:Number(keep('scale',t.balance?.scale||1)),
       matchIds:Array.isArray(input.matchIds)?input.matchIds.map(String).filter(Boolean).slice(0,12):current.matchIds||t.matchIds||[]};
-    if(!/^[A-Z]{3}$/.test(model.currency))throw Error('币种须为三位代码');
-    if(model.keyEnv&&!/^[A-Za-z_][A-Za-z0-9_]*$/.test(model.keyEnv))throw Error('密钥环境变量名无效');
-    if(!Number.isFinite(model.scale)||model.scale<=0||model.scale>1e12)throw Error('金额倍率无效');
+    if(!/^[A-Z]{3}$/.test(model.currency))throw domainError('币种须为三位代码');
+    if(model.keyEnv&&!/^[A-Za-z_][A-Za-z0-9_]*$/.test(model.keyEnv))throw domainError('密钥环境变量名无效');
+    if(!Number.isFinite(model.scale)||model.scale<=0||model.scale>1e12)throw domainError('金额倍率无效');
     for(const key of ['baseUrl','balanceUrl'])if(model[key])cleanUrl(model[key]);
-    for(const key of ['balanceField','usedField'])if(model[key]&&!/^[A-Za-z0-9_.\[\]]+$/.test(model[key]))throw Error('JSON 字段路径无效');
+    for(const key of ['balanceField','usedField'])if(model[key]&&!/^[A-Za-z0-9_.\[\]]+$/.test(model[key]))throw domainError('JSON 字段路径无效');
     model.alerts={...(current.alerts||{})};
     for(const key of ['balanceBelow','dailyTokens','dailyBudget','quotaRemainingBelow'])if(Object.hasOwn(input,key)) {
       if(input[key]===''){delete model.alerts[key];continue;}
-      const n=numeric(input[key]);if(n===null||n<0||n>(key==='quotaRemainingBelow'?100:1e15))throw Error('提醒阈值无效');model.alerts[key]=n;
+      const n=numeric(input[key]);if(n===null||n<0||n>(key==='quotaRemainingBelow'?100:1e15))throw domainError('提醒阈值无效');model.alerts[key]=n;
     }
     model.messages = { ...(current.messages || {}) };
     for (const key of ['balance','budget','quota']) if (Object.hasOwn(input,key+'Message')) model.messages[key]=String(input[key+'Message']||'').slice(0,1000);
     model.bubbleSettings = { ...(current.bubbleSettings || {}) };
     if (input.bubbleSettings) for (const key of ['balance','budget','quota']) {
       const cfg=input.bubbleSettings[key];if(!cfg)continue;
-      if(!Array.isArray(cfg.lines)||cfg.lines.length>36||JSON.stringify(cfg.lines).length>100000)throw Error('提醒泡泡模块超出限制');
+      if(!Array.isArray(cfg.lines)||cfg.lines.length>36||JSON.stringify(cfg.lines).length>100000)throw domainError('提醒泡泡模块超出限制');
       model.bubbleSettings[key]={lines:cfg.lines,autoClose:cfg.autoClose!==false,ttlSec:Math.max(0,Math.min(3600,Number(cfg.ttlSec)||0))};
     }
     model.prices={...(current.prices||{})};
     for(const key of ['input','cached','output'])if(Object.hasOwn(input,key+'Price')) {
       const value=input[key+'Price'];if(value===''){delete model.prices[key];continue;}
-      const n=numeric(value);if(n===null||n<0||n>1e9)throw Error('每百万 token 价格无效');model.prices[key]=n;
+      const n=numeric(value);if(n===null||n<0||n>1e9)throw domainError('每百万 token 价格无效');model.prices[key]=n;
     }
     const manual=keep('manualQuota',null);
     if(manual) {
       const remaining=numeric(manual.remaining),total=numeric(manual.total),reset=Date.parse(manual.resetsAt);
-      if(remaining===null||total===null||remaining<0||total<=0||remaining>total||!Number.isFinite(reset))throw Error('手动额度须填写总额、剩余值和重置时间');
+      if(remaining===null||total===null||remaining<0||total<=0||remaining>total||!Number.isFinite(reset))throw domainError('手动额度须填写总额、剩余值和重置时间');
       const mode=manual.mode==='auto'?'auto':'manual',period=['daily','weekly'].includes(manual.period)?manual.period:'none';
       model.manualQuota={remaining,total,resetsAt:new Date(reset).toISOString(),observedAt:Date.now(),mode,period,baseAt:manual.resetBase?Date.now():current.manualQuota?.baseAt||Date.now()};
     }
     // A template credential is allowed only at its fixed provider origin. A
     // custom endpoint must use a separately named credential or be keyless.
     const builtIn=t.balance?.url||t.quota?.url||t.probeUrl;
-    if(model.balanceUrl&&builtIn&&!builtIn.includes('{base}')&&new URL(model.balanceUrl).origin!==new URL(builtIn).origin&&model.keyEnv===t.keyEnv)throw Error('自定义地址须使用专用密钥环境变量，不能发送服务商默认密钥');
+    if(model.balanceUrl&&builtIn&&!builtIn.includes('{base}')&&new URL(model.balanceUrl).origin!==new URL(builtIn).origin&&model.keyEnv===t.keyEnv)throw domainError('自定义地址须使用专用密钥环境变量，不能发送服务商默认密钥');
     const data=this.load(),index=data.models.findIndex(item=>item.id===id);
     if(index>=0)data.models[index]=model;else data.models.push(model);
     writeJson(this.file,data);return {ok:true,model:this.publicModel(model)};
   }
   delete(id) {
-    if(!idOk(id))throw Error('API 模型 ID 无效');const data=this.load();
-    if(!data.models.some(item=>item.id===id))throw Error('API 模型不存在');
+    if(!idOk(id))throw domainError('API 模型 ID 无效');const data=this.load();
+    if(!data.models.some(item=>item.id===id))throw domainError('API 模型不存在');
     data.models=data.models.filter(item=>item.id!==id);writeJson(this.file,data);
     return {ok:true};
   }
@@ -138,12 +139,12 @@ export class ApiModelRegistry {
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);timer.unref?.();
     try {
       const response=await this.fetch(target,{headers,signal:controller.signal,redirect:'error'});
-      if(!response.ok)throw Error('HTTP '+response.status);
+      if(!response.ok)throw domainError('HTTP '+response.status);
       const limit=2*1024*1024;
-      const text=await readBoundedBodyText(response,{maxBytes:limit,tooLarge:()=>Error('响应过大'),unsupported:()=>Error('响应过大'),
-        streamless:async r=>{const body=await r.text();if(Buffer.byteLength(body)>limit)throw Error('响应过大');return body;}});
+      const text=await readBoundedBodyText(response,{maxBytes:limit,tooLarge:()=>domainError('响应过大'),unsupported:()=>domainError('响应过大'),
+        streamless:async r=>{const body=await r.text();if(Buffer.byteLength(body)>limit)throw domainError('响应过大');return body;}});
       const data=JSON.parse(text);
-      if(data?.success===false||data?.is_available===false||data?.error)throw Error('服务商返回业务错误');
+      if(data?.success===false||data?.is_available===false||data?.error)throw domainError('服务商返回业务错误');
       return data;
     } finally {clearTimeout(timer);}
   }
@@ -157,7 +158,7 @@ export class ApiModelRegistry {
     return model.manualQuota ? Math.max(model.manualQuota.baseAt, this.quotaPeriodStart(model, now)) : null;
   }
   async read(id,{probe=false,usage=null}={}) {
-    const model=this.model(id);if(!model)throw Error('API 模型不存在');const t=API_TEMPLATES[model.template];if(!t)throw Error('未知服务商模板');
+    const model=this.model(id);if(!model)throw domainError('API 模型不存在');const t=API_TEMPLATES[model.template];if(!t)throw domainError('未知服务商模板');
     if(!probe&&model.manualQuota) {
       const q={...model.manualQuota},start=this.quotaPeriodStart(model);
       if(q.mode==='auto') {
@@ -170,9 +171,9 @@ export class ApiModelRegistry {
     if(t.kind==='codex')return {ok:true,id,kind:'codex',note:'Codex 本机统计由订阅额度与 token 页面提供'};
     if(t.noBalanceApi&&!probe&&!model.balanceUrl)return {ok:true,id,kind:'balance',available:false,noBalanceApi:true,note:'该服务商没有公开的 API key 余额接口'};
     const key=this.key(model,t);
-    if(model.keyEnv&&!key)throw Error('未设置密钥环境变量 '+model.keyEnv);
+    if(model.keyEnv&&!key)throw domainError('未设置密钥环境变量 '+model.keyEnv);
     const kind=probe?'probe':t.kind==='quota'?'quota':'balance',endpoint=this.endpoint(model,t,kind);
-    if(!endpoint)throw Error('未配置可查询接口');
+    if(!endpoint)throw domainError('未配置可查询接口');
     const data=await this.json(endpoint,key,t.auth||t.quota?.auth||'bearer');
     if(probe)return {ok:true,id,detail:'连接正常',models:Array.isArray(data?.data)?data.data.length:null};
     if(kind==='quota')return this.quotaResult(id,data,t.quota||{});
@@ -181,7 +182,7 @@ export class ApiModelRegistry {
     const total=b.total?numeric(pickJsonPath(data,b.total)):null,used=b.used?numeric(pickJsonPath(billedUsage,b.used)):null;
     let remaining=b.remaining?numeric(pickJsonPath(data,b.remaining)):null;
     if(total!==null&&used!==null)remaining=total-used*(b.usedScale||1);
-    if(remaining===null)throw Error('余额字段不存在或不是数字');
+    if(remaining===null)throw domainError('余额字段不存在或不是数字');
     return {ok:true,id,kind:'balance',available:true,balance:remaining*(b.scale||1),currency:model.currency,observedAt:Date.now()};
   }
   quotaResult(id,data,q,source='provider-api') {

@@ -172,11 +172,11 @@ export class TurnAccounting {
     // Publication is independently recoverable even if updating/removing the
     // accounting journal fails after the durable ledger append.
     try {
-    if (costState === 'pending') {
-      const dueAt = this.clock() + this.pendingCostMs;
-      this.persistTurn(turn, 'pending-cost', meta, { dueAt, scope });
-      this.pendingCosts.set(meta.id, { scope, context, dueAt, rechecked: false }); this.scheduleCostCheck();
-    } else this.journal.remove(meta.id);
+      if (costState === 'pending') {
+        const dueAt = this.clock() + this.pendingCostMs;
+        this.persistTurn(turn, 'pending-cost', meta, { dueAt, scope });
+        this.pendingCosts.set(meta.id, { scope, context, dueAt, rechecked: false }); this.scheduleCostCheck();
+      } else this.journal.remove(meta.id);
     } finally { this.notice.queueNotice(scope, event); }
   }
   reviseRootEstimate(scope, rootTurnId) {

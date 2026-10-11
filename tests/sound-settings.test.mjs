@@ -139,8 +139,11 @@ test('failed rollback retains the journal and a later startup completes recovery
   const beforeSize = jsonFile(sizeFile), beforeUsage = jsonFile(usageFile);
   const injected = Object.create(fs);
   let sizeWrites = 0;
+  // Persist the failure rather than injecting it once: the shared atomic write
+  // retries EACCES/EPERM/EBUSY, because those are transient on Windows. This
+  // test is about a rollback that genuinely cannot complete.
   injected.renameSync = (source, target) => {
-    if (path.resolve(target) === path.resolve(sizeFile) && ++sizeWrites === 2) {
+    if (path.resolve(target) === path.resolve(sizeFile) && ++sizeWrites >= 2) {
       const error = new Error('synthetic rollback failure'); error.code = 'EACCES'; throw error;
     }
     return fs.renameSync(source, target);
