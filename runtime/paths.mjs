@@ -9,8 +9,8 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const CODEX_HOME = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
 export const DATA_HOME = path.resolve(process.env.WHALE_HOME || path.join(CODEX_HOME, 'whale-widget'));
 
-export function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
+export function readJson(file, fallback, { fs: fileSystem = fs } = {}) {
+  try { return JSON.parse(fileSystem.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
   catch (error) {
     if (error.code === 'ENOENT') return structuredClone(fallback);
     throw new Error('本地数据文件损坏或不可读：' + path.basename(file));
