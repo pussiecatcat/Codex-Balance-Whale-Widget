@@ -4,6 +4,7 @@ import { ROOT, DATA_HOME, VERSION, readJson, writeJson } from './paths.mjs';
 import { WhaleService } from './service.mjs';
 import { SessionMonitor } from './session-monitor.mjs';
 import { createWidgetHost } from '../lib/widget-host.mjs';
+import { toResponse } from '../lib/route-response.mjs';
 import { migrateData, stripRetiredModules } from './migration.mjs';
 import { createFxService } from './fx.mjs';
 import { MEDIA_POLICY } from '../lib/media-validation.mjs';
@@ -171,18 +172,9 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
       if (declaration.stripRetired && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
       const requestBytes = Buffer.isBuffer(body) ? body : bytes;
       const req = { url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes };
-      // Plain collectors rather than Writable/Readable: the widget host handlers
-      // only ever call writeHead and end, and the response is assembled from those.
-      const responseHeaders = {};
-      let status = 200, payload = Buffer.alloc(0);
-      const res = {
-        setHeader(name, value) { responseHeaders[String(name).toLowerCase()] = String(value); },
-        writeHead(code, headers = {}) { status = code; for (const [name, value] of Object.entries(headers)) res.setHeader(name, value); return res; },
-        end(value) { payload = value == null ? Buffer.alloc(0) : Buffer.isBuffer(value) ? value : Buffer.from(String(value)); },
-      };
-      await declaration.handler(req, res);
-      // A declared HEAD is answered like the GET it mirrors, minus the body.
-      return { status, headers: responseHeaders, body: method === 'HEAD' ? Buffer.alloc(0) : payload };
+      // The handler answers with a value, and lib/route-response.mjs is the one
+      // place that turns a value into a status, headers and body.
+      return toResponse(await declaration.handler(req), method);
     } catch { return jsonResult(400, { ok: false, error: '操作失败，请检查设置或导入文件' }); }
   }
   function close() {

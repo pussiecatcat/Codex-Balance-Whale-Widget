@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createWidgetHost } from '../lib/widget-host.mjs';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
+import { json, raw, text, empty, toResponse } from '../lib/route-response.mjs';
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-routes-'));
@@ -101,4 +102,42 @@ test('a declared HEAD answers like its GET minus the body', async t => {
   assert.equal(head.headers['content-type'], get.headers['content-type']);
   assert.equal(head.body.length, 0);
   assert.ok(get.body.length > 0);
+});
+
+// One interpreter for every answer, so a route never decides its own headers and
+// the tests that drive a host directly cannot drift from the dispatcher.
+test('each kind of answer becomes the status, headers and body it names', () => {
+  const ok = toResponse(json({ ok: true }));
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers['content-type'], 'application/json; charset=utf-8');
+  assert.deepEqual(JSON.parse(ok.body.toString()), { ok: true });
+  assert.equal(ok.headers['content-length'], String(ok.body.length));
+
+  assert.equal(toResponse(json({ ok: false }, 400)).status, 400);
+
+  const image = toResponse(raw(Buffer.alloc(9), 'image/png'));
+  assert.equal(image.headers['content-type'], 'image/png');
+  assert.equal(image.headers['content-length'], '9', 'the length is computed from the body, not stated per route');
+
+  const script = toResponse(raw('const a = 1', 'application/javascript; charset=utf-8'));
+  assert.equal(script.body.toString(), 'const a = 1', 'a string body is encoded for the caller');
+
+  const missing = toResponse(text('sound unavailable'));
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers['content-type'], 'text/plain; charset=utf-8');
+  assert.equal(missing.body.toString(), 'sound unavailable');
+
+  const silent = toResponse(empty());
+  assert.equal(silent.status, 204);
+  assert.equal(silent.body.length, 0);
+  assert.equal(silent.headers['content-type'], undefined, 'a bodyless answer states no type');
+
+  const head = toResponse(raw(Buffer.alloc(9), 'image/png'), 'HEAD');
+  assert.equal(head.body.length, 0, 'HEAD carries no body');
+  assert.equal(head.headers['content-length'], '9', 'but keeps the length its GET would send');
+});
+
+test('a handler that forgets to answer is refused rather than answered emptily', () => {
+  assert.throws(() => toResponse(undefined), /returned no response/);
+  assert.throws(() => toResponse({ ok: true }), /returned no response/, 'a payload without a kind is not an answer');
 });

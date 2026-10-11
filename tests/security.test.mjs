@@ -7,6 +7,7 @@ import { deflateSync } from 'node:zlib';
 import { ConfigStore } from '../runtime/config.mjs';
 import { BalanceProvider, readBoundedJsonText } from '../runtime/providers.mjs';
 import { createWidgetHost } from '../lib/widget-host.mjs';
+import { toResponse } from '../lib/route-response.mjs';
 import { MEDIA_POLICY, validateImage, validateWav, decodeMediaDataUrl } from '../lib/media-validation.mjs';
 import { atomicResourceWrite, resourcePath, checkMediaBudget } from '../lib/resource-store.mjs';
 
@@ -26,11 +27,11 @@ function host(t, injectedFs = fs, root = fixture(t)) {
   return { root, async request(route, method = 'GET', body) {
     // The host hands the body over as a buffer; there is no stream to consume.
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
-    let status = 200, result, headers;
-    const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
-    await routes.get(route.split('?')[0]).handler(req, res);
+    // The interpreter the dispatcher uses too, so this fixture cannot drift
+    // from what a route really answers.
+    const { status, headers, body: result } = toResponse(await routes.get(route.split('?')[0]).handler(req), method);
     let payload; try { payload = JSON.parse(result); } catch {}
-    return { status, headers, payload, bytes: Buffer.isBuffer(result) ? result : Buffer.from(result || '') };
+    return { status, headers, payload, bytes: result };
   } };
 }
 function crc(bytes) { let c = 0xffffffff; for (const n of bytes) { c ^= n; for (let i = 0; i < 8; i++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; } return (c ^ 0xffffffff) >>> 0; }
@@ -118,7 +119,7 @@ test('JPEG and WebP imports retain their actual format and response MIME', async
     const role = uploaded.payload.roles.find(item => item.name === mime);
     assert.ok(fs.existsSync(path.join(app.root, 'whale-roles', role.id + '.' + extension)));
     const response = await app.request('/dsh-whale/role-image.png?id=' + role.id);
-    assert.equal(response.headers['Content-Type'], mime); assert.deepEqual(response.bytes, bytes);
+    assert.equal(response.headers['content-type'], mime); assert.deepEqual(response.bytes, bytes);
   }
 });
 
