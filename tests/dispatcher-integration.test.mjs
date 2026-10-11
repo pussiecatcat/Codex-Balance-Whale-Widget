@@ -73,13 +73,16 @@ test('sound modules and the versioned combined settings route are explicit local
   }
   const first = await request('/api/sound-settings');
   assert.equal(first.status, 200);
-  assert.equal(first.payload.schemaVersion, 1);
+  assert.equal(first.payload.schemaVersion, 2);
   assert.equal(first.payload.size.scale, 1);
+  // A command carries only the fields it changes, plus the values it read for them.
   const command = {
-    schemaVersion: 1,
-    revision: first.payload.revision,
-    size: { ...first.payload.size, vol: .2 },
-    usage: { ...first.payload.usage, taskEnd: { ...first.payload.usage.taskEnd, on: true, sel: 'preset:duck:press' } },
+    schemaVersion: 2,
+    base: { size: { vol: first.payload.size.vol }, usage: { taskEnd: first.payload.usage.taskEnd } },
+    patch: {
+      size: { vol: .2 },
+      usage: { taskEnd: { ...first.payload.usage.taskEnd, on: true, sel: 'preset:duck:press' } },
+    },
   };
   const saved = await request('/api/sound-settings', 'PUT', command);
   assert.equal(saved.status, 200);
@@ -174,7 +177,7 @@ test('ui-state is written only by the desktop host, not through a whale:// route
 // table, so these are the checks that replaced the table's implicit allowlist.
 test('widget files resolve by path under desktop/ui and traversal out of it is refused', async t => {
   const { server } = await setup(t);
-  const nested = await server.dispatch('/features/widget/anchors.js');
+  const nested = await server.dispatch('/features/character/anchors.js');
   assert.equal(nested.status, 200);
   assert.match(nested.headers['content-type'], /javascript/);
   assert.equal((await server.dispatch('/ui.css')).status, 200);

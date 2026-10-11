@@ -1,8 +1,12 @@
+import { createLifecycle } from '../services/lifecycle.js';
 // Owns the custom select popup, its suppression window, and document
 // listeners. Callers provide only the menu positioning and name rendering UI.
 export function createCustomSelectController({ document, window, dropOpen, makeNameCell, bindNameMarquee, now = Date.now }) {
+  const lifecycle = createLifecycle();
+  const controls = new Set();
   var dshwCustSelOpen = null;
   var dshwCustSuppressAt = 0;
+
   function dshwCustSelClose() {
     var o = dshwCustSelOpen;
     dshwCustSelOpen = null;
@@ -13,9 +17,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       if (o.menu.parentNode === document.body) document.body.removeChild(o.menu);
     } catch (err) {}
   }
-  if (!window.__dshwCustBound) {
-    window.__dshwCustBound = true;
-    document.addEventListener('pointerdown', function (e) {
+  {
+    lifecycle.listen(document, 'pointerdown', function (e) {
       var o = dshwCustSelOpen;
       if (!o) return;
       try {
@@ -28,10 +31,10 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       } catch (err) {}
       dshwCustSelClose();
     }, true);
-    document.addEventListener('keydown', function (e) {
+    lifecycle.listen(document, 'keydown', function (e) {
       if (e.key === 'Escape') dshwCustCloseNow();
     }, true);
-    window.addEventListener('resize', function () {
+    lifecycle.listen(window, 'resize', function () {
       dshwCustCloseNow();
     });
   }
@@ -40,7 +43,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
     dshwCustSuppressAt = now();
   }
   function dshwCustSel(sel, opts) {
-    if (!sel || !sel.parentNode) return {
+    for (const reference of controls) if (!reference.deref()) controls.delete(reference);
+    if (lifecycle.disposed || !sel || !sel.parentNode) return {
       sync: function () {},
       refresh: function () {}
     };
@@ -50,6 +54,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       refresh: function () {}
     };
     sel.__dshwCust = true;
+    const controlScope = createLifecycle();
+    const nameDisposers = [];
     var parent = sel.parentNode;
     var wrap = document.createElement('div');
     wrap.className = 'dshwv-custwrap';
@@ -82,6 +88,7 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       } catch (err) {}
     }
     function fill() {
+      for (const dispose of nameDisposers.splice(0)) { try { dispose(); } catch (error) {} }
       menu.innerHTML = '';
       var cur = sel.value;
       for (var i = 0; i < sel.options.length; i++) {
@@ -94,7 +101,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
             d.className = 'dshwv-rgbopt dshwv-custrow' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
             var nm = makeNameCell('dshwv-custnm', lab);
             d.appendChild(nm);
-            bindNameMarquee(d, nm);
+            const releaseName = bindNameMarquee(d, nm);
+            if (typeof releaseName === 'function') nameDisposers.push(releaseName);
           } else {
             d.className = 'dshwv-rgbopt' + (String(opt.value) === String(cur) ? ' dshwv-rgbcur' : '');
             var txt = document.createElement('span');
@@ -124,8 +132,8 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
         })(sel.options[i]);
       }
     }
-    sel.addEventListener('change', sync);
-    btn.addEventListener('keydown', function (e) {
+    controlScope.listen(sel, 'change', sync);
+    controlScope.listen(btn, 'keydown', function (e) {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       e.preventDefault();
       var count = sel.options.length;
@@ -143,7 +151,7 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
         break;
       }
     });
-    btn.addEventListener('click', function (e) {
+    controlScope.listen(btn, 'click', function (e) {
       e.stopPropagation();
       if (btn.disabled) return;
       if (dshwCustSuppressAt && now() - dshwCustSuppressAt < 350) {
@@ -184,13 +192,24 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
         sync();
       },
       close: dshwCustSelClose,
+      dispose: function () {
+        controlScope.dispose();
+        for (const release of nameDisposers.splice(0)) release();
+        if (dshwCustSelOpen?.btn === btn) dshwCustSelClose();
+        menu.remove?.();
+        if (wrap.parentNode) { wrap.parentNode.insertBefore(sel, wrap); wrap.remove?.(); }
+        sel.style.display = ''; delete sel.__dshwCust; delete sel.__dshwCustDrop; controls.delete(reference);
+      },
       button: btn,
       menu: menu
     };
+    const reference = new WeakRef(api);
+    controls.add(reference);
     sel.__dshwCustDrop = api;
     return api;
   }
   return {
+    dispose: () => { for (const reference of controls) reference.deref()?.dispose(); controls.clear(); lifecycle.dispose(); },
     enhance: dshwCustSel,
     close: dshwCustSelClose,
     sync: sel => sel?.__dshwCustDrop?.sync(),

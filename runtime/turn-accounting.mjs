@@ -156,10 +156,10 @@ export class TurnAccounting {
     const outcomeCancelled = this.notice.isOutcomeCancelled(meta.id);
     if(outcomeCancelled){outcome='aborted';base.outcome='aborted';base.failureKind=null;}
     const completionKind = outcome === 'completed' ? 'success' : ['failed','interrupted','superseded'].includes(outcome) ? 'failed' : outcome === 'aborted' ? 'cancelled' : null;
-    const event = { ...base, ok: true, turn: meta.turnId || meta.id, amount, cost: amount, costState, tokens, currency, source, label, note,
+    const event = this.notice.prepareNotice({ ...base, ok: true, turn: meta.turnId || meta.id, amount, cost: amount, costState, tokens, currency, source, label, note,
       completionKind, notify: !meta.historical && !!completionKind && (outcome === 'completed' ? meta.notify !== false : meta.statusNotify === true || outcome === 'aborted' && outcomeCancelled),
       concurrent: !!turn.concurrent, childTurns: children.length, ownByModel: ownUsage, byModel: combined,
-      pricing: context.setting.models };
+      pricing: context.setting.models });
     const scope = this.balance.scope(context, currency);
     const models = Object.keys(combined).join(' + ') || context.model || '未知模型';
     const model = source === 'shared-key-interval' ? models + ' · 期间扣费（同密钥合计）' : source === 'token-only' ? models + ' · 仅 token 记录' : models;
@@ -169,12 +169,15 @@ export class TurnAccounting {
       if (meta.historical) this.markCostUnknown(scope, meta.id);
       this.journal.remove(meta.id); return;
     }
-    if (costState === 'pending') {
-      const dueAt = this.clock() + this.pendingCostMs;
-      this.persistTurn(turn, 'pending-cost', meta, { dueAt, scope });
-      this.pendingCosts.set(meta.id, { scope, context, dueAt, rechecked: false }); this.scheduleCostCheck();
-    } else this.journal.remove(meta.id);
-    this.notice.queueNotice(scope, event);
+    // Publication is independently recoverable even if updating/removing the
+    // accounting journal fails after the durable ledger append.
+    try {
+      if (costState === 'pending') {
+        const dueAt = this.clock() + this.pendingCostMs;
+        this.persistTurn(turn, 'pending-cost', meta, { dueAt, scope });
+        this.pendingCosts.set(meta.id, { scope, context, dueAt, rechecked: false }); this.scheduleCostCheck();
+      } else this.journal.remove(meta.id);
+    } finally { this.notice.queueNotice(scope, event); }
   }
   reviseRootEstimate(scope, rootTurnId) {
     const events = this.ledger.load(scope).events;

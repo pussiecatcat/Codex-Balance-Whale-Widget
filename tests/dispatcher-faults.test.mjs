@@ -96,3 +96,14 @@ test('an unusable provider answer stays caller-facing rather than becoming a def
   const status = await request('/api/status');
   assert.deepEqual(status.payload.faults, []);
 });
+
+
+test('malformed JSON is rejected as input without adding a process fault', async t => {
+  const { request } = setup(t);
+  for (const [route, method] of [['/api/config', 'PUT'], ['/api/models', 'POST'], ['/api/sound-settings', 'PUT'], ['/dsh-whale/bubble.json', 'POST']]) {
+    const result = await request(route, method, '{invalid-json');
+    assert.equal(result.status, 400, route);
+    assert.equal(result.payload.code, 'INVALID_JSON', route);
+  }
+  assert.deepEqual((await request('/api/status')).payload.faults, []);
+});

@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, VERSION, readJson } from './paths.mjs';
 import { createComposition } from './composition.mjs';
-import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, collectResponse, withSecurityHeaders } from './http-shim.mjs';
-import { createCoreRoutes, applyWidgetRoutePolicy } from './routes/core.mjs';
+import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, parseJsonBody, withSecurityHeaders } from './http-shim.mjs';
+import { createCoreRoutes } from './routes/core.mjs';
 import { DomainError } from '../lib/errors.mjs';
 import { createFaultLog } from './faults.mjs';
+import { stripRetiredModules } from './migration.mjs';
 
 export { UI_ORIGIN };
 
@@ -88,13 +89,13 @@ export function createDispatcher(options = {}) {
 
       const widget = app.widgetRoutes.get(url.pathname);
       if (!widget) return jsonResult(404, { ok: false, error: '未找到此功能' });
-      const policy = applyWidgetRoutePolicy(url.pathname, method, bytes);
-      if (policy.reject) return policy.reject;
-      // Plain collectors rather than Writable/Readable: the widget host handlers
-      // only ever call writeHead and end, and the response is assembled from those.
-      const { res, read } = collectResponse();
-      await widget({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: policy.body ?? bytes }, res);
-      return read();
+      if (!widget.methods.includes(method)) return jsonResult(405, { ok: false });
+      if (widget.bodyLimit && bytes.length > widget.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
+      const requestBytes = widget.stripRetired && ['POST', 'PUT'].includes(method)
+        ? Buffer.from(JSON.stringify(stripRetiredModules(parseJsonBody(bytes)))) : bytes;
+      const result = await widget.handler({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes });
+      return { ...result, body: method === 'HEAD' ? Buffer.alloc(0) : result.body };
+
     } catch (error) {
       // A DomainError is something the caller can act on and carries its own
       // status. Anything else is a defect here: it must not be reported as a bad

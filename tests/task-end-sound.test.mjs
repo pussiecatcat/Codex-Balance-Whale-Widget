@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTaskEndSound } from '../desktop/ui/features/widget/task-end-sound.js';
+import { createTaskEndSound } from '../desktop/ui/features/audio/task-end-sound.js';
 
 function fixture() {
   let settings = { taskEnd: { on: true, sel: 'grp:custom', volSet: true, vol: 0.35 } };

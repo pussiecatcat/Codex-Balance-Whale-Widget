@@ -1,9 +1,8 @@
 import { VERSION, writeJson } from '../paths.mjs';
-import { jsonResult } from '../http-shim.mjs';
+import { jsonResult, parseJsonBody } from '../http-shim.mjs';
 import { MEDIA_POLICY } from '../../lib/media-validation.mjs';
 import { pricingSchedule } from '../pricing-schedule.mjs';
 import { exportWorkshop, importWorkshop } from '../../lib/workshop.mjs';
-import { stripRetiredModules } from '../migration.mjs';
 
 // Every endpoint the dispatcher answers itself, as a table rather than a chain
 // of `if (url.pathname === ...)`. The widget host registers its own routes into
@@ -22,7 +21,7 @@ import { stripRetiredModules } from '../migration.mjs';
 // two is observable to callers.
 export function createCoreRoutes(ctx) {
   const { whale, insights, fx, apiModels, soundSettings, watcher, displayMode, displayModeFile, buildVersion, statusInfo, onStop, onShow, dataDir, faultLog } = ctx;
-  const json = body => JSON.parse(body.toString('utf8') || '{}');
+  const json = parseJsonBody;
   const routes = new Map();
   const route = (pathname, handlers, { fallthrough = false, methodNotAllowed = null } = {}) =>
     routes.set(pathname, { handlers, fallthrough, methodNotAllowed });
@@ -155,20 +154,4 @@ function settingsFailure(error) {
     code: typeof error?.code === 'string' ? error.code : 'SETTINGS_OPERATION_FAILED',
     error: error?.message || '音效设置操作失败',
   });
-}
-
-// Routes the widget host serves that carry a method restriction or a body
-// transform. They stay here rather than in the host because they are policy the
-// dispatcher applies to the request before the handler sees it.
-export const WIDGET_ROUTE_POLICY = Object.freeze({
-  writeOnly: /(?:role-pin|role-delete|bubble-img-upload)\.json$/,
-  bubbleSettings: '/dsh-whale/bubble.json',
-});
-
-export function applyWidgetRoutePolicy(pathname, method, body) {
-  if (WIDGET_ROUTE_POLICY.writeOnly.test(pathname) && !['POST', 'PUT'].includes(method)) return { reject: jsonResult(405, { ok: false }) };
-  if (pathname === WIDGET_ROUTE_POLICY.bubbleSettings && ['POST', 'PUT'].includes(method)) {
-    return { body: Buffer.from(JSON.stringify(stripRetiredModules(JSON.parse(body.toString('utf8') || '{}')))) };
-  }
-  return {};
 }

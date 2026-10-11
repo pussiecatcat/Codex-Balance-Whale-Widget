@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRoleManager } from '../desktop/ui/features/widget/role-manager.js';
+import { createRoleManager } from '../desktop/ui/features/roles/role-manager.js';
 
 // apply() resolves through an inner promise chain and load()/useImported() do not
 // await it, so a single microtask tick is not enough to observe the result.
@@ -22,6 +22,7 @@ function element() {
     getBoundingClientRect() { return { width: 240, left: 100, bottom: 300, top: 260 }; },
     appendChild(child) { this.children.push(child); return child; },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     click() { for (const fn of this.listeners.click || []) fn({ stopPropagation() {} }); },
   };
   return node;
@@ -32,7 +33,7 @@ const IMAGE_URL = '/dsh-whale/image.png?v=2';
 function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}) {
   const failing = new Set(failUrls);
   const storage = new Map(saved ? [['dshw-role', saved]] : []);
-  const calls = { notices: [], warnings: [], failures: [], hitTests: [], presented: 0 };
+  const calls = { notices: [], warnings: [], failures: [], hitTests: [], presented: 0, marqueeReleases: 0 };
 
   class FakeImage {
     constructor() { this.src = ''; this.complete = false; this.naturalWidth = 0; }
@@ -46,6 +47,7 @@ function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}
   const managerWindow = {
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type) { for (const fn of this.listeners[type] || []) fn(); },
     fetch: () => Promise.reject(new Error('unused')),
   };
@@ -72,7 +74,8 @@ function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}
     viewport: () => ({ w: 1000, h: 800 }),
     setupHitTest: url => calls.hitTests.push(url),
     makeNameCell: (className, text) => { const node = element(); node.className = className; node.textContent = text; return node; },
-    bindNameMarquee: () => {},
+    // Mirrors the real helper: it returns the cleanup a list rebuild must call.
+    bindNameMarquee: () => () => { calls.marqueeReleases++; },
     confirm: () => {},
   });
   return { manager, calls, storage, imageElement, rolePanel, roleButtonLabel, roleButton, managerWindow };
@@ -221,4 +224,31 @@ test('the panel toggles open and closed against the viewport', () => {
   manager.toggle();
   assert.equal(rolePanel.classList.contains('dshwv-rolelist-open'), false);
   assert.equal(rolePanel.style.display, 'none');
+});
+
+// Rebuilding the role list detaches whichever row the pointer was over, and a
+// detached row never fires mouseleave — so the list owns the release.
+test('rebuilding the role list releases the marquee of every row it replaces', async () => {
+  const { manager, calls } = fixture();
+  manager.replace([{ id: 'default', name: '小鲸鱼', url: IMAGE_URL }]);
+  assert.equal(calls.marqueeReleases, 0, 'the first build has nothing to release');
+  manager.replace([{ id: 'default', name: '小鲸鱼', url: IMAGE_URL },
+    { id: 'role_a', name: '角色甲', url: '/dsh-whale/role-image.png?id=role_a' }]);
+  assert.equal(calls.marqueeReleases, 1, 'the row from the previous list is released');
+  manager.replace([]);
+  assert.equal(calls.marqueeReleases, 3, 'and both rows of the second list');
+});
+
+
+test('dispose invalidates an in-flight image change and releases fallback listeners and list resources', async () => {
+  const fx = fixture({ roleData: { ok: true, roles: SAVED_ROLES } });
+  await fx.manager.load(); await flush();
+  const before = fx.imageElement.src;
+  const pending = fx.manager.apply('late', 'late image', '/late.png');
+  fx.manager.dispose(); fx.manager.dispose();
+  assert.equal(await pending, false);
+  assert.equal(fx.imageElement.src, before);
+  assert.equal(fx.rolePanel.children.length, 0);
+  assert.ok(fx.calls.marqueeReleases > 0);
+  assert.equal(fx.managerWindow.listeners['whale-role-fallback'].length, 0);
 });

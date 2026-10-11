@@ -1,5 +1,8 @@
+import { createLifecycle } from '../../services/lifecycle.js';
 // The color picker owns its menu state and one document-level dismiss handler.
 export function createBubbleColorSelect(deps) {
+  const lifecycle = createLifecycle();
+  function close() { openMenu?.classList.remove('dshwv-rgbopen'); openMenu?.remove?.(); openMenu = null; }
   const { document, qRow, qLabel, dshwDropOpen } = deps;
   const QC_SCHEMES = [['macaron', '马卡龙'], ['candy', '糖果'], ['rouge', '酒红'], ['bamboo', '翠青'], ['aurora', '极光幻彩'], ['deepsea', '深海蓝调'], ['sunset', '落日熔金'], ['forest', '森林秘语'], ['champagne', '香槟鎏金'], ['lavender', '薰衣草梦境'], ['mint', '薄荷汽水'], ['lava', '岩浆熔岩'], ['galaxy', '银河星紫'], ['ink', '墨韵黑白'], ['indigo', '靛蓝夜曲']];
   let openMenu = null;
@@ -97,7 +100,7 @@ export function createBubbleColorSelect(deps) {
         fill();
       }
       function closeMenu() {
-        menu.classList.remove('dshwv-rgbopen');
+        menu.classList.remove('dshwv-rgbopen'); menu.remove?.();
         openMenu = null;
       }
       head.addEventListener('click', function (e) {
@@ -106,20 +109,19 @@ export function createBubbleColorSelect(deps) {
           closeMenu();
           return;
         }
-        if (openMenu) openMenu.classList.remove('dshwv-rgbopen');
+        if (openMenu) close();
         fill();
         openMenu = menu;
         dshwDropOpen(menu, head);
       });
       if (!bound) {
         bound = true;
-        document.addEventListener('pointerdown', function (e) {
+        lifecycle.listen(document, 'pointerdown', function (e) {
           if (!openMenu) return;
           try {
             if (e.target && e.target.closest && (e.target.closest('.dshwv-qcolwrap') || e.target.closest('.dshwv-rgbmenu'))) return;
           } catch (err) {}
-          openMenu.classList.remove('dshwv-rgbopen');
-          openMenu = null;
+          close();
         }, true);
       }
       row.appendChild(wrap);
@@ -130,5 +132,5 @@ export function createBubbleColorSelect(deps) {
         sync: sync
       };
     }
-  return { build: qColorSelectBuild };
+  return { build: qColorSelectBuild, close, dispose() { close(); lifecycle.dispose(); } };
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMenuHover } from '../desktop/ui/features/widget/menu-hover.js';
+import { createMenuHover } from '../desktop/ui/features/character/menu-hover.js';
 function fixture() {
   const classes = new Set(), timers = new Map(); let sequence = 0;
   const box = { menuBtnHide: false, menuOpen: false, drag: null };

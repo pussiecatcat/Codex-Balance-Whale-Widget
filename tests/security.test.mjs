@@ -22,13 +22,11 @@ function fixture(t) {
 function fail(message = 'test ENOSPC', code = 'ENOSPC') { return Object.assign(new Error(message), { code }); }
 function host(t, injectedFs = fs, root = fixture(t)) {
   const routes = new Map();
-  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, webServer: { register: entry => { routes.set(entry.path, entry.handler); return () => {}; }, tapIndex: () => () => {} }, effect: () => {} });
+  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, declareRoute: declaration => { routes.set(declaration.path, declaration); return () => {}; }, effect: () => {} });
   return { root, async request(route, method = 'GET', body) {
     // The host hands the body over as a buffer; there is no stream to consume.
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
-    let status = 200, result, headers;
-    const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
-    await routes.get(route.split('?')[0])(req, res);
+    const { status, headers, body: result } = await routes.get(route.split('?')[0]).handler(req);
     let payload; try { payload = JSON.parse(result); } catch {}
     return { status, headers, payload, bytes: Buffer.isBuffer(result) ? result : Buffer.from(result || '') };
   } };
@@ -118,7 +116,7 @@ test('JPEG and WebP imports retain their actual format and response MIME', async
     const role = uploaded.payload.roles.find(item => item.name === mime);
     assert.ok(fs.existsSync(path.join(app.root, 'whale-roles', role.id + '.' + extension)));
     const response = await app.request('/dsh-whale/role-image.png?id=' + role.id);
-    assert.equal(response.headers['Content-Type'], mime); assert.deepEqual(response.bytes, bytes);
+    assert.equal(response.headers['content-type'], mime); assert.deepEqual(response.bytes, bytes);
   }
 });
 
@@ -164,6 +162,7 @@ test('ENOSPC reports failure for bubble settings and pinning while retaining old
   const roleFile = path.join(dir, 'roles.json'), bubbleFile = path.join(root, '.dshw-bubble.json');
   const roles = JSON.stringify({ roles: [{ id: 'default', name: 'whale', pinnedAt: 1 }] });
   const bubble = JSON.stringify({ v: 1, items: [], lib: [] }); fs.writeFileSync(roleFile, roles); fs.writeFileSync(bubbleFile, bubble);
+  // The shared primitive stages bytes through writeFileSync with exclusive creation.
   const failingFs = Object.create(fs); failingFs.writeFileSync = (file, ...args) => { if (String(file).endsWith('.tmp')) throw fail(); return fs.writeFileSync(file, ...args); };
   const app = host(t, failingFs, root);
   const saved = await app.request('/dsh-whale/bubble.json', 'PUT', { items: [{ kind: 'custom' }], lib: [] }); assert.equal(saved.payload.ok, false);

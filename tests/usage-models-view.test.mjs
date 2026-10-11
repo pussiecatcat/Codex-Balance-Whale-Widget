@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUsageModelsView } from '../desktop/ui/features/widget/usage-models-view.js';
+import { createUsageModelsView } from '../desktop/ui/features/usage/usage-models-view.js';
 
 const view = createUsageModelsView({
   document: {}, window: {}, WhaleMoney: { formatMoney: (amount, currency) => `${currency} ${amount}` },

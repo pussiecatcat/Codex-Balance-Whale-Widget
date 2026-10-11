@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleRowsView } from '../desktop/ui/features/widget/bubble-rows-view.js';
+import { createBubbleRowsView } from '../desktop/ui/features/bubble/bubble-rows-view.js';
 
 function element(tag = 'div') {
   const node = {

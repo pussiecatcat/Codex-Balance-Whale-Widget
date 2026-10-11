@@ -13,7 +13,7 @@ export async function verifyCurrency({ window, ev, wait, clickAt, hitPoint, move
   const settings = () => ev("fetch('/api/sound-settings').then(r=>r.json()).then(d=>d.usage)");
   // The combined endpoint takes the size/usage pair with a revision, so this
   // reads first and sends the merged usage back.
-  const saveSettings = value => ev(`(async()=>{const c=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json());return fetch('/api/sound-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({schemaVersion:c.schemaVersion,revision:c.revision,size:c.size,usage:Object.assign({},c.usage,${JSON.stringify(value)})})}).then(r=>r.json())})()`);
+  const saveSettings = value => ev(`(async()=>{const c=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json());const patch=${JSON.stringify(value)};const base={usage:{}};Object.keys(patch).forEach(k=>{base.usage[k]=c.usage[k]});return fetch('/api/sound-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({schemaVersion:c.schemaVersion,base, patch:{usage:patch}})}).then(r=>r.json())})()`);
   const refresh = async () => { await ev(`${api}.refresh(true)`); await wait(`!${api}.status().busy`, 'currency background refresh'); };
   const select = async currency => {
     await ev(`(() => {const select=document.querySelector('#dshw-display-currency'); select.value=${JSON.stringify(currency)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
