@@ -1897,7 +1897,7 @@ import {
     var bubbleInteractionHint = document.createElement('div');
     bubbleInteractionHint.className = 'dshwv-bubsec dshwv-bubopt';
     var bubbleOptCheck = document.createElement('input');
-    bubbleOptCheck.type = 'checkbox'; bubbleOptCheck.className = 'dshwv-check';
+    bubbleOptCheck.type = 'checkbox'; bubbleOptCheck.className = 'dshwv-buboptcheck';
     bubbleOptCheck.id = 'dshwv-tap-advance';
     bubbleOptCheck.addEventListener('change', function () { bubbleEditTapAdvance = bubbleOptCheck.checked === true; });
     var bubbleOptLabel = document.createElement('label');
@@ -1909,16 +1909,30 @@ import {
     bubbleOptHelp.className = 'dshwv-bubopthelp';
     bubbleOptHelp.textContent = '?';
     bubbleOptHelp.setAttribute('aria-label', '这个选项怎么工作');
-    var bubbleOptTip = document.createElement('div');
-    bubbleOptTip.className = 'dshwv-bubopttip';
-    bubbleOptTip.textContent = '关闭(默认)：点角色只做按压反馈，当前泡泡内容不会切换或消失；点泡泡才是往后推进。\n'
-      + '开启：点一下角色 = 往后推进一项；走到最后一项再点 = 收起泡泡。\n'
-      + '第一次点桌宠都会打开泡泡。';
     bubbleInteractionHint.appendChild(bubbleOptCheck);
     bubbleInteractionHint.appendChild(bubbleOptLabel);
     bubbleInteractionHint.appendChild(bubbleOptHelp);
-    bubbleInteractionHint.appendChild(bubbleOptTip);
     bubbleCard.appendChild(bubbleInteractionHint);
+    // The explanation opens as a drawer under the row. It used to be a card floating
+    // above it, which covered the bubbles the reader had just been looking at.
+    var bubbleOptTip = document.createElement('div');
+    bubbleOptTip.className = 'dshwv-bubopttip';
+    var bubbleOptTipLines = [
+      ['关闭(默认)', '点角色只做按压反馈，当前泡泡内容不会切换或消失；点泡泡才是往后推进。'],
+      ['开启', '点一下角色 = 往后推进一项；走到最后一项再点 = 收起泡泡。']
+    ];
+    for (var tipI = 0; tipI < bubbleOptTipLines.length; tipI++) {
+      var tipRow = document.createElement('div');
+      var tipKey = document.createElement('b');
+      tipKey.textContent = bubbleOptTipLines[tipI][0];
+      tipRow.appendChild(tipKey);
+      tipRow.appendChild(document.createTextNode(bubbleOptTipLines[tipI][1]));
+      bubbleOptTip.appendChild(tipRow);
+    }
+    var tipNote = document.createElement('div');
+    tipNote.textContent = '第一次点桌宠都会打开泡泡。';
+    bubbleOptTip.appendChild(tipNote);
+    bubbleCard.appendChild(bubbleOptTip);
     var bubbleTapAdvanceEl = bubbleOptCheck;
     var bubbleEditTapAdvance = false;
     var bubbleBtns = document.createElement('div');

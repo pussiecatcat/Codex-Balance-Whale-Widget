@@ -255,6 +255,25 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('[title=\"打开“自定义泡泡”设置\"]').click()");
     await wait("document.querySelector('.dshwv-bubmask')?.style.display==='flex' && document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip')?.textContent.includes('首次点击')", 'bubble draft editor renders its first row');
     assert.ok(await ev("document.querySelectorAll('.dshwv-bubmask .dshwv-bubrow-drag').length") >= 1);
+    // The ? opens its explanation as a drawer: focused here rather than forced, so
+    // the rule that shows it is what is being tested. Two captures, because the
+    // drawer and the drawn checkbox are the parts worth looking at.
+    await ev("document.querySelector('.dshwv-bubopthelp').focus()");
+    assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-bubopttip')).display"), 'block', 'focusing the ? opens its drawer');
+    fs.writeFileSync(path.join(output,'bubble-editor-tip.png'),(await window.webContents.capturePage()).toPNG());
+    const tipBox = await ev("(()=>{const t=document.querySelector('.dshwv-bubopttip');const r=t.getBoundingClientRect();return {width:r.width,height:r.height,text:t.textContent.slice(0,24)};})()");
+    assert.ok(tipBox.height > 30, 'the drawer has the height of its lines: ' + JSON.stringify(tipBox));
+    assert.match(tipBox.text, /关闭\(默认\)点角色只做按压反馈/);
+    await ev("document.querySelector('.dshwv-bubopthelp').blur()");
+    assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-bubopttip')).display"), 'none', 'and blurring closes it again');
+    await ev("document.getElementById('dshwv-tap-advance').checked=true");
+    // The background transitions over .15s, and getComputedStyle reports the value
+    // mid-transition, so the read has to wait for it to settle.
+    await delay(260);
+    const checkState = await ev("(()=>{const c=document.getElementById('dshwv-tap-advance');const s=getComputedStyle(c);return {cls:c.className,checked:c.checked,bg:s.backgroundColor};})()");
+    assert.equal(checkState.bg, 'rgb(32, 49, 112)', 'the checkbox paints its own checked state: ' + JSON.stringify(checkState));
+    fs.writeFileSync(path.join(output,'bubble-editor-checked.png'),(await window.webContents.capturePage()).toPNG());
+    await ev("document.getElementById('dshwv-tap-advance').checked=false");
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");
     await wait("document.querySelector('.dshwv-bubpal')?.children.length>=13", 'bubble palette renders available modules');
     await ev("document.querySelector('.dshwv-pvlab').click()");
