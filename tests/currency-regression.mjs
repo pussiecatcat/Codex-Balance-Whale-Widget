@@ -10,8 +10,10 @@ export async function verifyCurrency({ window, ev, wait, clickAt, hitPoint, move
   const stable = () => wait(`!${api}.status().switching`, 'currency bubble commit');
   const text = () => ev(`${front}.textContent`);
   const capture = name => window.webContents.capturePage().then(image => fs.writeFileSync(path.join(output, name + '.png'), image.toPNG()));
-  const settings = () => ev("fetch('/dsh-whale/usage-settings.json').then(r=>r.json()).then(d=>d.settings)");
-  const saveSettings = value => ev(`fetch('/dsh-whale/usage-settings.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(${JSON.stringify(value)})}).then(r=>r.json())`);
+  const settings = () => ev("fetch('/api/sound-settings').then(r=>r.json()).then(d=>d.usage)");
+  // The combined endpoint takes the size/usage pair with a revision, so this
+  // reads first and sends the merged usage back.
+  const saveSettings = value => ev(`(async()=>{const c=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json());return fetch('/api/sound-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({schemaVersion:c.schemaVersion,revision:c.revision,size:c.size,usage:Object.assign({},c.usage,${JSON.stringify(value)})})}).then(r=>r.json())})()`);
   const refresh = async () => { await ev(`${api}.refresh(true)`); await wait(`!${api}.status().busy`, 'currency background refresh'); };
   const select = async currency => {
     await ev(`(() => {const select=document.querySelector('#dshw-display-currency'); select.value=${JSON.stringify(currency)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);

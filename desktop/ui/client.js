@@ -4,7 +4,17 @@
   let toastTimer;
   const privateFields = ['baseUrl', 'keyEnv', 'profile', 'projectDir', 'dashboardUrl', 'balancePath', 'balanceField', 'usedField'];
   const resetFields = new Set();
-  function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6000); }
+  function toast(message) {
+    const node = $('toast');
+    if (!node) return;
+    node.textContent = message;
+    node.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      const current = $('toast');
+      if (current) current.hidden = true;
+    }, 6000);
+  }
   window.whaleToast = toast;
   async function api(url, method = 'GET', body) {
     const response = await fetch(url, { method, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });

@@ -1,28 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
-
-const source = fs.readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-const logic = source.slice(source.indexOf('    var menuHoverTimer = null;'), source.indexOf("    document.addEventListener('pointermove', onDocPointerMoveCursor"));
+import { createMenuHover } from '../desktop/ui/features/widget/menu-hover.js';
 function fixture() {
   const classes = new Set(), timers = new Map(); let sequence = 0;
-  const box = vm.createContext({
-    menuBtnHide: false, menuOpen: false, drag: null,
-    img: { getBoundingClientRect: () => ({ left: 100, right: 210, top: 100, bottom: 210 }) },
-    menuBtn: {
+  const box = { menuBtnHide: false, menuOpen: false, drag: null };
+  const hover = createMenuHover({
+    document: { documentElement: { dataset: {} }, elementFromPoint: () => null },
+    image: { getBoundingClientRect: () => ({ left: 100, right: 210, top: 100, bottom: 210 }) },
+    button: {
       getBoundingClientRect: () => ({ left: 218, right: 244, top: 104, bottom: 130 }),
       classList: { contains: c => classes.has(c), remove: c => classes.delete(c), toggle: (c, value) => value ? classes.add(c) : classes.delete(c) },
     },
-    document: { documentElement: { dataset: {} }, elementFromPoint: () => null },
     isWhaleHit: e => e.clientX === 170 && e.clientY === 160,
-    setTimeout: callback => { const id = ++sequence; timers.set(id, callback); return id; },
-    clearTimeout: id => timers.delete(id),
+    isDragging: () => !!box.drag?.active, isMenuOpen: () => box.menuOpen, isButtonHidden: () => box.menuBtnHide,
+    schedule: callback => { const id = ++sequence; timers.set(id, callback); return id; },
+    cancel: id => timers.delete(id),
   });
-  vm.runInContext(logic, box);
+  Object.defineProperty(box, 'widgetCursor', { get: () => hover.cursor });
+  box.showMenuButton = hover.show;
+  box.resetMenuButtonHover = hover.reset;
+  box.inMenuHoverArea = hover.inArea;
   return {
     box, classes, timers,
-    move: (x, y) => box.onDocPointerMoveCursor({ clientX: x, clientY: y }),
+    move: (x, y) => hover.pointerMove({ clientX: x, clientY: y }),
     visible: () => classes.has('dshwv-menu-btn-visible'),
     flush: () => { for (const [id, callback] of [...timers]) { timers.delete(id); callback(); } },
   };

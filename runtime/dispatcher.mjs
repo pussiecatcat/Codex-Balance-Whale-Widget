@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Readable, Writable } from 'node:stream';
 import { ROOT, DATA_HOME, VERSION, readJson, writeJson } from './paths.mjs';
 import { WhaleService } from './service.mjs';
 import { SessionMonitor } from './session-monitor.mjs';
@@ -12,9 +11,11 @@ import { createInsightsService } from './insights.mjs';
 import { pricingSchedule } from './pricing-schedule.mjs';
 import { importWorkshop, exportWorkshop } from '../lib/workshop.mjs';
 import { ApiModelRegistry } from './api-models.mjs';
+import { SoundSettingsService } from './sound-settings.mjs';
 
 export const UI_ORIGIN = 'whale://widget';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.gif': 'image/gif', '.mp3': 'audio/mpeg' };
+const UI_DIR = path.join(ROOT, 'desktop', 'ui');
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
 const jsonResult = (status, payload) => ({ status, headers: { 'content-type': 'application/json; charset=utf-8' }, body: Buffer.from(JSON.stringify(payload)) });
 
@@ -26,6 +27,7 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
   const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
+  const soundSettings = new SoundSettingsService({ dataDir, whale });
   const displayModeFile = path.join(dataDir, 'display-mode.json');
   const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
   const routes = new Map(), effects = [];
@@ -38,7 +40,6 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
     if (displayMode() === 'api') whale.getBalance().catch(() => {});
     fx.start().catch(() => {});
   }
-  const stateFile = path.join(dataDir, 'ui-state.json');
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
   let closing = false, closeJob = null;
 
@@ -113,48 +114,65 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
         if (method !== 'GET') return jsonResult(405, { ok: false });
         return jsonResult(200, { ok: true, policy: MEDIA_POLICY });
       }
-      if (url.pathname === '/api/ui-state') {
-        if (method === 'GET') return jsonResult(200, { ok: true, values: readJson(stateFile, {}) });
-        if (method === 'PUT') {
-          const input = parsed(), values = {};
-          if (!input || Array.isArray(input) || typeof input !== 'object') return jsonResult(400, { ok: false });
-          for (const [key, value] of Object.entries(input)) if (/^dshw[-v]/.test(key) && typeof value === 'string' && value.length < 1024 * 1024) values[key] = value;
-          writeJson(stateFile, values); return jsonResult(200, { ok: true });
+      if (url.pathname === '/api/sound-settings') {
+        if (method !== 'GET' && method !== 'PUT') return jsonResult(405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
+        try {
+          return jsonResult(200, method === 'GET' ? await soundSettings.load() : await soundSettings.save(parsed()));
+        } catch (error) {
+          const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 500;
+          return jsonResult(status, {
+            ok: false,
+            code: typeof error?.code === 'string' ? error.code : 'SETTINGS_OPERATION_FAILED',
+            error: error?.message || '音效设置操作失败',
+          });
         }
-        return jsonResult(405, { ok: false });
       }
       if (url.pathname === '/api/show' && method === 'POST') { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); }
       if (url.pathname === '/api/stop' && method === 'POST') { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); }
-      const uiFiles = { '/': 'widget.html', '/widget.html': 'widget.html', '/client.js': 'client.js', '/api-models.js': 'api-models.js', '/ui.css': 'ui.css', '/render.js': 'render.js', '/input.js': 'input.js', '/alpha-worker.js': 'alpha-worker.js', '/money.js': 'money.js', '/quota.js': 'quota.js', '/sound-settings.js': 'sound-settings.js', '/select-enhancer.js': 'select-enhancer.js', '/wait-notice.js': 'wait-notice.js', '/media-guard.js': 'media-guard.js', '/turn-notice.js': 'turn-notice.js', '/gesture.js':'gesture.js', '/audio-engine.js':'audio-engine.js', '/preferences-v3.js':'preferences-v3.js', '/insights.js':'insights.js', '/workshop.js':'workshop.js' };
-      uiFiles['/account-view.js']='account-view.js';
-      uiFiles['/shape.js']='shape.js';
-      uiFiles['/dashboard.js']='dashboard.js';
-      uiFiles['/whale-widget.css']='whale-widget.css';
-      let file;
-      if (Object.hasOwn(uiFiles, url.pathname)) file = path.join(ROOT, 'desktop', 'ui', uiFiles[url.pathname]);
-      else if (url.pathname.startsWith('/assets/')) {
+      // Resolve widget assets from desktop/ui/ by path rather than from an
+      // explicit table. Every new module used to need a hand-written entry here,
+      // and a forgotten one failed only at runtime, as a 404 inside the widget.
+      // desktop/ui/ holds only .js, .css and .html, and the extension must be one
+      // MIME knows, so the reachable set matches what the table allowed.
+      let file = null;
+      try {
+        const rel = decodeURIComponent(url.pathname === '/' ? 'widget.html' : url.pathname.slice(1));
+        if (rel && !rel.includes('\\') && !rel.split('/').some(part => !part || part === '.' || part === '..')) {
+          const candidate = path.resolve(UI_DIR, rel);
+          // The file must exist here, not later: an /assets/* request also resolves
+          // under desktop/ui/ by extension, and leaving file set would shadow the
+          // assets branch below.
+          if (candidate.startsWith(UI_DIR + path.sep) && MIME[path.extname(candidate)] &&
+              fs.existsSync(candidate) && fs.statSync(candidate).isFile()) file = candidate;
+        }
+      } catch {}
+      if (!file && url.pathname.startsWith('/assets/')) {
         const name = decodeURIComponent(url.pathname.slice(8));
         if (!/^[A-Za-z0-9_.-]+$/.test(name) || !MIME[path.extname(name)]) return jsonResult(404, { ok: false });
         file = path.join(ROOT, 'assets', name);
       }
-      if (file) return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
+      if (file) {
+        // A path that resolves but has no file behind it is a 404, not a throw.
+        if (!fs.existsSync(file) || !fs.statSync(file).isFile()) file = null;
+        else return ['GET', 'HEAD'].includes(method) ? { status: 200, headers: { 'content-type': MIME[path.extname(file)] }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) } : jsonResult(405, { ok: false });
+      }
       const handler = routes.get(url.pathname);
       if (!handler) return jsonResult(404, { ok: false, error: '未找到此功能' });
       if (/(?:role-pin|role-delete|bubble-img-upload)\.json$/.test(url.pathname) && !['POST', 'PUT'].includes(method)) return jsonResult(405, { ok: false });
       if (url.pathname === '/dsh-whale/bubble.json' && ['POST', 'PUT'].includes(method)) body = Buffer.from(JSON.stringify(stripRetiredModules(parsed())));
       const requestBytes = Buffer.isBuffer(body) ? body : bytes;
-      const req = Readable.from(requestBytes.length ? [requestBytes] : []);
-      Object.assign(req, { url: route, method, headers: { 'content-type': 'application/json', ...headers } });
-      return await new Promise((resolve, reject) => {
-        const chunks = [], responseHeaders = {};
-        const res = new Writable({ write(chunk, _enc, done) { chunks.push(Buffer.from(chunk)); done(); } });
-        res.statusCode = 200; res.headersSent = false;
-        res.setHeader = (name, value) => { responseHeaders[name.toLowerCase()] = String(value); };
-        res.writeHead = (status, h = {}) => { res.statusCode = status; res.headersSent = true; for (const [k, v] of Object.entries(h)) res.setHeader(k, v); return res; };
-        res.on('finish', () => resolve({ status: res.statusCode, headers: responseHeaders, body: Buffer.concat(chunks) }));
-        req.on('error', reject); res.on('error', reject);
-        Promise.resolve(handler(req, res)).catch(reject);
-      });
+      const req = { url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBytes };
+      // Plain collectors rather than Writable/Readable: the widget host handlers
+      // only ever call writeHead and end, and the response is assembled from those.
+      const responseHeaders = {};
+      let status = 200, payload = Buffer.alloc(0);
+      const res = {
+        setHeader(name, value) { responseHeaders[String(name).toLowerCase()] = String(value); },
+        writeHead(code, headers = {}) { status = code; for (const [name, value] of Object.entries(headers)) res.setHeader(name, value); return res; },
+        end(value) { payload = value == null ? Buffer.alloc(0) : Buffer.isBuffer(value) ? value : Buffer.from(String(value)); },
+      };
+      await handler(req, res);
+      return { status, headers: responseHeaders, body: payload };
     } catch { return jsonResult(400, { ok: false, error: '操作失败，请检查设置或导入文件' }); }
   }
   function close() {
@@ -174,5 +192,5 @@ export function createDispatcher({ dataDir = DATA_HOME, service = null, monitor 
     })();
     return closeJob;
   }
-  return { dispatch, whale, watcher, close };
+  return { dispatch, whale, watcher, soundSettings, close };
 }

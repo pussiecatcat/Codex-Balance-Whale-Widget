@@ -9,12 +9,13 @@ const { createHeartbeatMonitor } = require('./heartbeat.cjs');
 const { acceptsWindowMessage } = require('./ipc-window.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
+const { normalizeHostState, parseInitialHostState } = require('./host-state.cjs');
 const { createVisibilityRecorder } = require('./visibility-recorder.cjs');
 const { pathToFileURL } = require('node:url');
 const root = path.resolve(__dirname, '..');
 const dataDir = process.argv.find(a => a.startsWith('--whale-data='))?.slice(13);
 const fixture = process.env.WHALE_DESKTOP_TEST === '1';
-const initialHost = (() => { try { const h = JSON.parse(process.env.WHALE_INITIAL_HOST || 'null'); return h?.hostAlive ? h : null; } catch { return null; } })();
+const initialHost = parseInitialHostState(process.env.WHALE_INITIAL_HOST, { platform: process.platform });
 const startupAt = Date.now();
 const startup = { revision: 'complete-audit-v1', requestedAt: Number(process.env.WHALE_LAUNCH_TIME) || startupAt, mainAt: startupAt, phases: {} };
 const markStartup = phase => { if (startup.phases[phase] == null) startup.phases[phase] = Date.now() - startup.requestedAt; };
@@ -43,7 +44,7 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'whale', privileges: { standard:
 fs.mkdirSync(path.join(dataDir, 'desktop-profile'), { recursive: true });
 app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
-let window, tray, dispatcher, bridge, lastHost = initialHost, owner = '', appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
+let window, tray, dispatcher, bridge, lastHost = initialHost, appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
 const rendererErrors = [];
 const fixtureOpenedLinks = [];
 let hostSequence = -1;
@@ -151,8 +152,6 @@ function flushCommands() {
   for (const command of pendingCommands.splice(0)) window.webContents.send('whale-command', command);
 }
 async function showStatusDialog() {
-  let provider = {};
-  try { provider = dispatcher?.whale?.config?.publicInfo() || {}; } catch {}
   const lines = [
     '平台：' + process.platform,
     '跟随模式：' + (lastHost?.followMode || (lastHost?.nativeFollowing ? 'native' : '等待 Codex')),
@@ -188,7 +187,8 @@ async function openWebLink(value, gestureRequired = true) {
   } catch { return false; }
 }
 async function setHost(host) {
-  if (!host || typeof host.hostAlive !== 'boolean') return;
+  host = normalizeHostState(host, { platform: process.platform });
+  if (!host) return;
   if (Number.isSafeInteger(host.serial)) { if (host.serial <= hostSequence) return; hostSequence = host.serial; }
   hostHeartbeat = Date.now(); lastHost = host;
   // Record the observed state before any lifecycle recovery can change it.
@@ -223,7 +223,6 @@ async function setHost(host) {
       appliedBounds = key; sendCursor(true);
     }
   }
-  owner = host.window || '';
   visibility();
   if (visibilityController.observeNativeVisibility()) diagnose('native-window-hidden');
 }
@@ -278,7 +277,14 @@ else {
     window.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) recoverRenderer('load-' + code); });
     markStartup('windowCreated');
     window.once('ready-to-show', () => markStartup('frameReady'));
-    if (fixture) window.webContents.on('console-message', (_event, ...args) => { const d = args[0]; if (typeof d === 'object' ? d.level === 'error' : d === 3) rendererErrors.push(typeof d === 'object' ? d.message : args[1]); });
+    if (fixture) window.webContents.on('console-message', (_event, ...args) => {
+      const detail = args[0];
+      if (typeof detail === 'object' ? detail.level === 'error' : detail === 3) {
+        rendererErrors.push(typeof detail === 'object'
+          ? detail.message + (detail.sourceId ? ` @ ${detail.sourceId}:${detail.lineNumber || 0}` : '')
+          : args[1] + (args[3] ? ` @ ${args[3]}:${args[2] || 0}` : ''));
+      }
+    });
     if (!fixture) process.stdout.write(JSON.stringify({ overlayHandle: window.getNativeWindowHandle().readBigUInt64LE().toString() }) + '\n');
     window.setIgnoreMouseEvents(true, { forward: !usesWindowShape });
     window.on('show', () => { diagnose('window-shown'); invalidate(); sendCursor(true); });

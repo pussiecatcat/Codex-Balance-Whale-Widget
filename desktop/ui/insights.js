@@ -23,7 +23,7 @@
       const own = ++generation; refresh.disabled = true; content.replaceChildren(); text(content, 'p', '正在读取…');
       try {
         const response = await fetch('/api/insights', { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取额度'); const data = await response.json();
-        if (own !== generation || !dialog.isConnected) return; content.replaceChildren(); const sub = data.subscription || {};
+        if (own !== generation || !dialog.isConnected) return; content.replaceChildren();
         const p=data.pricing||{};
         if(p.visible){text(content,'p',p.phase==='peak'?'当前为高峰期':p.phase==='off-peak'?'当前为谷期':'规则待更新');text(content,'p','下次切换：'+time(p.nextChangeAt));text(content,'p',p.note||'');}
         else text(content,'p','当前 API 没有适用的峰谷时段。');

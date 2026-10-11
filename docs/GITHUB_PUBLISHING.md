@@ -5,10 +5,12 @@
 ## 分支与版本
 
 - 默认分支：`main`
-- 本地开发分支：`For-Codex`
-- 发行标签：`codex-v0.3.0-fixed.5`
+- 本地开发分支：`main` 加临时特性分支（`codex/*`、`fix/*`）
+- 发行标签：`codex-v0.3.0-fixed.<n>`，与 `CHANGELOG.md` 当前条目一致；当前为 `codex-v0.3.0-fixed.18`
 - Release 标题：`Codex 额度小鲸鱼 v0.3(fixed)`
-- 插件构建标识：`0.3.0+codex.20261007-dsh-sound`
+- 插件构建标识：唯一权威来源是 `.codex-plugin/plugin.json` 的 `version`，当前为 `0.3.0+codex.20261009-quota-reliable`
+
+版本号不在这份文档里二次维护：打包时以 `plugin.json` 与 `CHANGELOG.md` 为准，两者不一致说明有一步没做。
 
 首次发布时将整理后的 `For-Codex` 提交推送为个人仓库的 `main`。保留本地 `origin` 指向上游，个人仓库使用单独的 `personal` 远端，避免以后误推上游。
 
@@ -41,7 +43,7 @@
 在仓库根目录使用 Python 3.10+：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.5
+python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
 ```
 
 构建器会：

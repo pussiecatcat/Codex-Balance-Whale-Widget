@@ -15,7 +15,7 @@ parser.add_argument('--output', type=Path, default=ROOT / 'dist')
 args = parser.parse_args()
 output = args.output.resolve()
 allowed = {'.codex-plugin', '.github', 'assets', 'desktop', 'docs', 'launchers', 'lib', 'runtime', 'scripts', 'skills', 'tests', 'vendor'}
-root_files = {'.mcp.json', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'CLAUDE.md', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'RELEASE_NOTES.md', 'PROVENANCE.md', 'SECURITY.md'}
+root_files = {'.mcp.json', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'eslint.config.js', 'CLAUDE.md', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'RELEASE_NOTES.md', 'PROVENANCE.md', 'SECURITY.md'}
 blocked = {'node_modules', '.git', 'dist', 'qa', 'qa-output', 'outputs', 'backups', 'desktop-profile', 'desktop-runtime', '__pycache__', 'archive', 'packages'}
 private_names = {'auth.json', 'config.toml', 'api-settings.json', 'usage-settings.json', 'runtime.json', 'service.lock', 'installation.json', 'ui-state.json', 'follow-state.json', 'last-turn.json'}
 private_ext = {'.log', '.jsonl', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.pfx', '.bak', '.tmp', '.mp4', '.exe', '.dll'}
@@ -135,7 +135,7 @@ for file in sorted(ROOT.rglob('*')):
 manifest = json.loads(files['.codex-plugin/plugin.json'].decode('utf-8-sig'))
 assert manifest['name'] == 'api-balance-whale' and manifest['version'].split('+')[0] == '0.3.0'
 assert manifest['author']['name'] == 'Yang-huai406'
-for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/dashboard.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
+for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']
 assert 'launchers/安装插件.cmd' in files and 'launchers/安装 Mac 自动跟随.command' in files, 'Launcher entrypoints missing'

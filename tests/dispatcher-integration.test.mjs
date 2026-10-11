@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import nodeFs from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
 import { MEDIA_POLICY } from '../lib/media-validation.mjs';
 import { FX_POLICY } from '../runtime/fx.mjs';
+import { usageDefaults } from '../runtime/ledger.mjs';
+import { writeJson } from '../runtime/paths.mjs';
 
 const fxResponse = rate => new Response(JSON.stringify({ amount: 1, base: 'USD', date: '2026-09-15', rates: { CNY: rate } }));
 async function setup(t, options = {}) {
@@ -13,11 +16,28 @@ async function setup(t, options = {}) {
   const { initialMode, ...serverOptions } = options;
   if (initialMode) await fs.writeFile(path.join(root, 'display-mode.json'), JSON.stringify({ version: 1, mode: initialMode }));
   const state = { balances: 0, closes: 0 };
+  const resolveUsage = saved => {
+    const defaults = usageDefaults(), result = { ...saved };
+    for (const key of Object.keys(defaults)) result[key] = { ...defaults[key], ...(saved?.[key] || {}) };
+    for (const kind of Object.keys(defaults.events)) result.events[kind] = { ...defaults.events[kind], ...(saved?.events?.[kind] || {}) };
+    return result;
+  };
   const service = {
     config: { codexHome: path.join(root, 'codex'), publicInfo: () => ({ settings: { monitorSessions: false } }), resolve: () => ({ model: 'test', setting: { monitorSessions: false } }) },
     turns: new Map(),
     getBalance: async () => { state.balances++; return { ok: true, totalBalance: 20 }; },
     close: async args => { state.closes++; assert.equal(args.timeoutMs, 3000); },
+    resolveUsageSettings: saved => resolveUsage(saved || {}),
+    prepareUsageSettings: (patch, { base = {} } = {}) => {
+      const result = resolveUsage(base);
+      for (const key of Object.keys(result)) if (key !== 'events' && patch[key] && typeof patch[key] === 'object') result[key] = { ...result[key], ...patch[key] };
+      for (const kind of Object.keys(result.events)) if (patch.events?.[kind]) result.events[kind] = { ...result.events[kind], ...patch.events[kind] };
+      return result;
+    },
+    commitUsageSettings: (settings, { fs: fileSystem = nodeFs } = {}) => {
+      writeJson(path.join(root, 'usage-settings.json'), settings, { fs: fileSystem });
+      return { ok: true, settings };
+    },
     ...serverOptions.service,
   };
   const server = createDispatcher({ dataDir: root, monitor: false, autoRefresh: false, fxFetchImpl: async () => fxResponse(6.7), ...serverOptions, service });
@@ -27,7 +47,7 @@ async function setup(t, options = {}) {
     assert.ok(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith('whale-dispatcher-'));
     await fs.rm(resolved, { recursive: true, force: true });
   });
-  async function request(route, method = 'GET') { const response = await server.dispatch(route, { method }); return { ...response, payload: JSON.parse(response.body.toString()) }; }
+  async function request(route, method = 'GET', body = null) { const response = await server.dispatch(route, { method, body }); return { ...response, payload: JSON.parse(response.body.toString()) }; }
   return { server, state, service, root, request };
 }
 
@@ -42,6 +62,33 @@ test('media policy and the guarded script are served locally before widget start
   assert.ok(html.indexOf('src="/turn-notice.js"') >= 0 && html.indexOf('src="/turn-notice.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
   assert.match(html, /src="\/sound-settings\.js"/);
   assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
+});
+
+test('sound modules and the versioned combined settings route are explicit local resources', async t => {
+  const { server, request } = await setup(t);
+  for (const route of ['/services/request.js', '/services/sound-reference.js', '/features/sound-settings/controller.js', '/features/sound-settings/model.js', '/features/sound-settings/view.js']) {
+    const response = await server.dispatch(route);
+    assert.equal(response.status, 200, route);
+    assert.match(response.headers['content-type'], /javascript/, route);
+  }
+  const first = await request('/api/sound-settings');
+  assert.equal(first.status, 200);
+  assert.equal(first.payload.schemaVersion, 1);
+  assert.equal(first.payload.size.scale, 1);
+  const command = {
+    schemaVersion: 1,
+    revision: first.payload.revision,
+    size: { ...first.payload.size, vol: .2 },
+    usage: { ...first.payload.usage, taskEnd: { ...first.payload.usage.taskEnd, on: true, sel: 'preset:duck:press' } },
+  };
+  const saved = await request('/api/sound-settings', 'PUT', command);
+  assert.equal(saved.status, 200);
+  assert.equal(saved.payload.size.vol, .2);
+  assert.equal(saved.payload.usage.taskEnd.on, true);
+  const stale = await request('/api/sound-settings', 'PUT', command);
+  assert.equal(stale.status, 409);
+  assert.equal(stale.payload.code, 'SETTINGS_CONFLICT');
+  assert.equal((await request('/api/sound-settings', 'POST', command)).status, 405);
 });
 
 test('widget stylesheet is served as its own file, not inlined in the bundle', async t => {
@@ -111,4 +158,31 @@ test('close removes the periodic balance refresh instead of starting more jobs a
   assert.equal(state.balances, 1); t.mock.timers.tick(60000); assert.equal(state.balances, 2);
   await server.close(); t.mock.timers.tick(60000); assert.equal(state.balances, 2);
   t.mock.timers.reset();
+});
+
+// ui-state.json has one writer: the desktop host, through UiStateStore over the
+// preload IPC. A whale:// route to the same file was the documented second
+// writer — it had no callers and is gone, so this pins the single-writer rule
+// rather than leaving it to a later reader to re-derive.
+test('ui-state is written only by the desktop host, not through a whale:// route', async t => {
+  const { request } = await setup(t);
+  assert.equal((await request('/api/ui-state')).status, 404);
+  assert.equal((await request('/api/ui-state', 'PUT', { 'dshw-test': 'value' })).status, 404);
+});
+
+// Widget assets resolve by path under desktop/ui/ instead of through a hand-kept
+// table, so these are the checks that replaced the table's implicit allowlist.
+test('widget files resolve by path under desktop/ui and traversal out of it is refused', async t => {
+  const { server } = await setup(t);
+  const nested = await server.dispatch('/features/widget/anchors.js');
+  assert.equal(nested.status, 200);
+  assert.match(nested.headers['content-type'], /javascript/);
+  assert.equal((await server.dispatch('/ui.css')).status, 200);
+  assert.equal((await server.dispatch('/')).status, 200);
+  assert.match((await server.dispatch('/assets/DSniang1.png')).headers['content-type'], /image\/png/);
+
+  for (const route of ['/..%2fpackage.json', '/%2e%2e%2fpackage.json', '/..%5cpackage.json',
+    '/features/..%2f..%2fpackage.json', '/package.json', '/features', '/features/']) {
+    assert.equal((await server.dispatch(route)).status, 404, route + ' must not resolve');
+  }
 });

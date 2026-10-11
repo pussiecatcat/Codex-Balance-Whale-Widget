@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { ConfigStore, DEFAULT_CONFIG, validateConfig } from '../runtime/config.mjs';
+import { ConfigStore, validateConfig } from '../runtime/config.mjs';
 import { BalanceProvider } from '../runtime/providers.mjs';
 import { UsageLedger } from '../runtime/ledger.mjs';
 import { SessionParser } from '../runtime/session-monitor.mjs';
