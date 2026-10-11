@@ -32,18 +32,17 @@ test('a character click with no bubble open starts a round and refreshes the quo
   assert.deepEqual(calls, { ...idle, refreshQuota: 1, startRound: 1 });
 });
 
-// The option is what the editor's "点按角色推进气泡队列" checkbox turns on. While it is
-// off - the default, and what a caller that passes no tapAdvance at all gets - the
-// bubble stays the only control over its own queue, which is the behaviour the
-// desktop audit pins with three petting clicks.
-test('petting an open bubble changes nothing while the option is off', () => {
+// Off - the default, and what a caller that never wired the option gets - a click on
+// the character goes back to the first bubble of the round. That is upstream's rule
+// and what the option's own sentence describes.
+test('with the option off, petting an open bubble goes back to the first one', () => {
   const off = fixture({ shown: true, canAdvance: true, tapAdvance: () => false });
   off.interaction.whaleClick();
-  assert.deepEqual(off.calls, idle);
+  assert.deepEqual(off.calls, { ...idle, startRound: 1 });
 
   const absent = fixture({ shown: true, canAdvance: true });
   absent.interaction.whaleClick();
-  assert.deepEqual(absent.calls, idle, 'a caller that never wired the option keeps the old behaviour');
+  assert.deepEqual(absent.calls, { ...idle, startRound: 1 }, 'a caller that never wired the option gets upstream behaviour');
 });
 
 test('with the option on, one click advances one bubble and the last one closes it', () => {

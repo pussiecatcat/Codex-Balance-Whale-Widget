@@ -21,7 +21,11 @@ export function createBubbleInteraction(deps) {
       }
       if (scene?.kind === 'cost' || scene?.kind === 'alert') return;
       if (isShown()) {
+        // Upstream parity, and what the option's own text says: off, a click on the
+        // character goes back to the first bubble of the round and the bubble is what
+        // advances; on, the same click advances one instead.
         if (tapAdvance && tapAdvance()) bubbleNext();
+        else startRound();
         return;
       }
       if (isSubscription()) refreshQuota();
