@@ -1,17 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleEditorView } from '../desktop/ui/features/widget/bubble-editor-view.js';
+import { createBubbleEditorView, dropZoneFor, bubbleDropShadow } from '../desktop/ui/features/widget/bubble-editor-view.js';
 
 function element(tag = 'div') {
   const node = {
     tagName: tag, className: '', textContent: '', title: '', type: '', draggable: false, value: '',
-    style: {}, children: [], listeners: {}, attributes: {}, _html: '',
+    style: {}, children: [], listeners: {}, attributes: {}, _html: '', _bounds: null,
     set innerHTML(value) { this._html = value; if (value === '') this.children = []; },
     get innerHTML() { return this._html; },
     appendChild(child) { this.children.push(child); return child; },
     setAttribute(name, value) { this.attributes[name] = value; },
-    getBoundingClientRect() { return { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 }; },
+    // A row's own rect is not enough to place a drop: the bubble inside it is the
+    // pair target, so the stub has to answer for the chip too.
+    querySelector(selector) {
+      const name = String(selector).replace(/^\./, '');
+      return this.children.find(child => String(child.className || '').split(/\s+/).includes(name)) || null;
+    },
+    getBoundingClientRect() { return this._bounds || { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 }; },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
     fire(type, event = {}) { for (const fn of this.listeners[type] || []) fn({ stopPropagation() {}, preventDefault() {}, dataTransfer: { setData() {} }, ...event }); },
   };
@@ -143,4 +149,55 @@ test('an empty draft renders an empty list without throwing', () => {
   const fx = fixture([]);
   fx.view.renderMore();
   assert.equal(fx.moreList.children.length, 0);
+});
+
+// The gesture that pairs two bubbles is a drag from one onto the other, and the
+// bubble itself is the target. It used to pair only when the pointer landed in a
+// 22% strip at the row's edge, so dropping onto another bubble reordered two
+// neighbours and looked like nothing had happened.
+const CHIP_BOUNDS = { width: 140, height: 24, left: 34, top: 8, right: 174, bottom: 32 };
+function twoRows(initial) {
+  const fx = fixture(initial);
+  fx.view.renderMore();
+  chipIn(fx.moreList.children[1])._bounds = CHIP_BOUNDS;
+  return fx;
+}
+
+test('dropping a bubble on the left half of another pairs them with the dragged one as A', () => {
+  const fx = twoRows([{ kind: 'normal' }, custom('二'), custom('三')]);
+  const [first, second] = fx.moreList.children;
+  first.fire('dragstart');
+  second.fire('dragover', { clientX: 60, clientY: 30 });
+  assert.equal(second.style.boxShadow, bubbleDropShadow('pairL'), 'the row shows which half would take it');
+  second.fire('drop', { clientX: 60, clientY: 30 });
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice'], 'the two bubbles became one weighted pair');
+  assert.deepEqual(fx.items()[1].options.map(option => [option.w, option.item.modules[0].text]), [[1, '二'], [1, '三']]);
+});
+
+test('the right half makes the dragged bubble the B one instead', () => {
+  const fx = twoRows([{ kind: 'normal' }, custom('二'), custom('三')]);
+  const [first, second] = fx.moreList.children;
+  first.fire('dragstart');
+  second.fire('dragover', { clientX: 150, clientY: 30 });
+  second.fire('drop', { clientX: 150, clientY: 30 });
+  assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['三', '二']);
+});
+
+test('dropping on the row away from its bubble still only moves it there', () => {
+  const fx = twoRows([{ kind: 'normal' }, custom('二'), custom('三')]);
+  const [first, second] = fx.moreList.children;
+  first.fire('dragstart');
+  second.fire('dragover', { clientX: 8, clientY: 30 });
+  second.fire('drop', { clientX: 8, clientY: 30 });
+  assert.deepEqual(fx.items().map(step => step.modules?.[0]?.text), [undefined, '三', '二'], 'no pair was made');
+});
+
+test('the drop zone reads the bubble it landed on, and falls back to the row', () => {
+  const row = { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 };
+  assert.equal(dropZoneFor(row, CHIP_BOUNDS, { x: 60, y: 30 }), 'pairL');
+  assert.equal(dropZoneFor(row, CHIP_BOUNDS, { x: 150, y: 30 }), 'pairR');
+  assert.equal(dropZoneFor(row, CHIP_BOUNDS, { x: 10, y: 10 }), 'before', 'the handle sorts, and the half decides which side');
+  assert.equal(dropZoneFor(row, CHIP_BOUNDS, { x: 10, y: 30 }), 'after');
+  assert.equal(dropZoneFor(row, null, { x: 100, y: 10 }), 'before', 'a row with no bubble still accepts a sort');
+  assert.equal(dropZoneFor(null, CHIP_BOUNDS, { x: 100, y: 10 }), '');
 });

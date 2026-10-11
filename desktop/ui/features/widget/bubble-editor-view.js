@@ -4,19 +4,33 @@ import { addBubbleStep, deleteBubbleStep, moveBubbleStep, reorderBubbleStep, spl
 
 // Owns list rendering and the drag gesture; draft mutations live in commands.
 export function bubbleDropShadow(zone) {
-  return { before: '0 -3px 0 #203170', after: '0 3px 0 #203170',
-    pairL: 'inset 3px 0 0 #203170', pairR: 'inset -3px 0 0 #203170' }[zone] || '';
+  return { before: '0 -4px 0 #203170', after: '0 4px 0 #203170',
+    pairL: 'inset 5px 0 0 #203170, inset 0 0 0 1px rgba(32,49,112,.35)',
+    pairR: 'inset -5px 0 0 #203170, inset 0 0 0 1px rgba(32,49,112,.35)' }[zone] || '';
+}
+
+// Where a dragged bubble lands on a row. Landing on the bubble itself pairs with
+// it — the left half becomes its A bubble, the right half its B one — and landing
+// anywhere else on the row (the handle, the gap, the delete button) moves the row
+// before or after this one. The pair zones used to be 22% strips at the row's
+// edges, so dropping a bubble onto another one landed in the middle, reordered two
+// adjacent bubbles, and looked like nothing had happened at all.
+export function dropZoneFor(bounds, chipBounds, point) {
+  if (!bounds?.width) return '';
+  const x = point.x - bounds.left, y = point.y - bounds.top;
+  if (chipBounds?.width) {
+    const left = chipBounds.left - bounds.left, right = chipBounds.right - bounds.left;
+    if (x >= left && x <= right) return x - left < (right - left) / 2 ? 'pairL' : 'pairR';
+  }
+  return y < bounds.height / 2 ? 'before' : 'after';
 }
 
 export function createBubbleEditorView({ document, getItems, getFirstChip, getMoreList, openItem, confirm }) {
   let dragIndex = null, dragSide = -1, dropZone = '';
   function rowZone(row, event) {
-    const bounds = row.getBoundingClientRect();
-    if (!bounds?.width) return '';
-    const x = event.clientX - bounds.left;
-    if (x < bounds.width * .22) return 'pairL';
-    if (x > bounds.width * .78) return 'pairR';
-    return event.clientY - bounds.top < bounds.height / 2 ? 'before' : 'after';
+    const chip = row.querySelector ? row.querySelector('.dshwv-bubchip') : null;
+    const chipBounds = chip && chip.getBoundingClientRect ? chip.getBoundingClientRect() : null;
+    return dropZoneFor(row.getBoundingClientRect(), chipBounds, { x: event.clientX, y: event.clientY });
   }
   function startDrag(index, side, event) {
     try { event.dataTransfer.setData('text/plain', side >= 0 ? `side:${index}:${side}` : `row:${index}`); } catch {}
@@ -105,14 +119,14 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
         handle.draggable = true;
         handle.title = '按住拖动整行排序(并列的 A/B 一起移动)';
         handle.addEventListener('dragstart', event => startDrag(index, -1, event));
-      } else handle.title = '拖动排序;拖到某行左/右边缘可与其并列';
+      } else handle.title = '拖动排序;拖到某个泡泡上可与其并列(左半=A 泡,右半=B 泡)';
       row.appendChild(handle);
       if (choice) renderChoice(row, step, index);
       else {
         const chip = document.createElement('button');
         chip.type = 'button'; chip.className = 'dshwv-bubchip dshwv-bubchip-btn';
         chip.textContent = '第' + (index + 1) + '次点击 · 编辑内容';
-        chip.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(step) + ');把另一行拖到本行左/右边缘可并列';
+        chip.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(step) + ');把另一行拖到这个泡泡上可与其并列(左半=A 泡,右半=B 泡),拖到行的空白处则调整顺序';
         chip.addEventListener('click', event => { event.stopPropagation(); openItem(index, -1); });
         row.appendChild(chip);
         const del = document.createElement('button');
