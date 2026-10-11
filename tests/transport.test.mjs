@@ -104,9 +104,10 @@ test('original widget settings and bubble sequences survive save and reload', as
   // The combined endpoint owns both settings files and checks a revision, so a
   // partial change reads the pair, merges, and sends it back as one update.
   const before = await (await request('/api/sound-settings')).json();
+  const base = { size: {} };
+  for (const key of Object.keys(settings)) base.size[key] = before.size[key];
   const saved = await (await request('/api/sound-settings', 'PUT', {
-    schemaVersion: before.schemaVersion, revision: before.revision,
-    size: { ...before.size, ...settings }, usage: before.usage,
+    schemaVersion: before.schemaVersion, base, patch: { size: settings },
   })).json();
   assert.equal(saved.ok, true);
   const loaded = (await (await request('/api/sound-settings')).json()).size;
@@ -129,8 +130,10 @@ test('original widget settings and bubble sequences survive save and reload', as
   assert.equal(clickConfig.subscriptionTapAdvance, false);
   const mid = await (await request('/api/sound-settings')).json();
   const usage = await (await request('/api/sound-settings', 'PUT', {
-    schemaVersion: mid.schemaVersion, revision: mid.revision, size: mid.size,
-    usage: { ...mid.usage, alert: { ...mid.usage.alert, on: true, below: 2 }, budget: { ...mid.usage.budget, on: true, amount: 3 } },
+    schemaVersion: mid.schemaVersion,
+    base: { usage: { alert: mid.usage.alert, budget: mid.usage.budget } },
+    patch: { usage: { alert: { ...mid.usage.alert, on: true, below: 2 },
+      budget: { ...mid.usage.budget, on: true, amount: 3 } } },
   })).json();
   assert.equal(usage.usage.alert.below, 2); assert.equal(usage.usage.budget.amount, 3);
 });

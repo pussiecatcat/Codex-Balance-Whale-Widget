@@ -1,10 +1,10 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { atomicResourceWrite, readResourceJson, validResourceId } from '../lib/resource-store.mjs';
 import { SizeSettingsStore } from './size-settings.mjs';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const JOURNAL_VERSION = 1;
 const plainObject = value => value && typeof value === 'object' && !Array.isArray(value);
 const validSoundReference = value => {
@@ -69,14 +69,6 @@ export class SoundSettingsService {
 
   snapshots() { return { size: this.sizeStore.snapshot(), usage: this.usageSnapshot() }; }
 
-  revisionOf(snapshots) {
-    const value = {
-      size: { exists: snapshots.size.exists, document: snapshots.size.document },
-      usage: { exists: snapshots.usage.exists, document: snapshots.usage.document },
-    };
-    return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  }
-
   snapshotPayload() {
     let snapshots;
     try { snapshots = this.snapshots(); }
@@ -85,27 +77,61 @@ export class SoundSettingsService {
     return {
       ok: true,
       schemaVersion: SCHEMA_VERSION,
-      revision: this.revisionOf(snapshots),
       size: this.sizeStore.normalize(snapshots.size.document || {}),
       usage: this.whale.resolveUsageSettings(snapshots.usage.document || {}),
     };
   }
 
   validateCommand(command) {
-    if (!plainObject(command) || command.schemaVersion !== SCHEMA_VERSION || typeof command.revision !== 'string'
-      || !plainObject(command.size) || !plainObject(command.usage)) {
+    if (!plainObject(command) || command.schemaVersion !== SCHEMA_VERSION) {
       throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
     }
-    if (!Number.isFinite(command.size.vol) || command.size.vol < 0 || command.size.vol > 1) {
+    // A command carries only the fields it changes, plus the values the client
+    // read for those fields. Sending the whole document instead is what made two
+    // writers of unrelated settings invalidate each other.
+    const patch = command.patch, base = command.base;
+    if (!plainObject(patch) || !plainObject(base)) {
+      throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
+    }
+    const written = ['size', 'usage'].filter(name => patch[name] !== undefined);
+    if (!written.length) throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
+    for (const name of written) {
+      if (!plainObject(patch[name]) || !plainObject(base[name])) {
+        throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
+      }
+      const patched = Object.keys(patch[name]);
+      // The base has to describe exactly the fields being written, or the
+      // conflict check has nothing to compare them against.
+      if (patched.length !== Object.keys(base[name]).length || patched.some(key => !Object.hasOwn(base[name], key))) {
+        throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
+      }
+    }
+    const size = patch.size || {};
+    if (Object.hasOwn(size, 'vol') && (!Number.isFinite(size.vol) || size.vol < 0 || size.vol > 1)) {
       throw new SoundSettingsError('INVALID_SOUND_VOLUME', '按压音量须在 0% 到 100% 之间', 400);
     }
-    if (!Number.isFinite(command.size.turnCostCloseMs) || command.size.turnCostCloseMs < 0 || command.size.turnCostCloseMs > 3600000) {
+    if (Object.hasOwn(size, 'turnCostCloseMs') && (!Number.isFinite(size.turnCostCloseMs) || size.turnCostCloseMs < 0 || size.turnCostCloseMs > 3600000)) {
       throw new SoundSettingsError('INVALID_SOUND_TIMEOUT', '每轮消耗提示关闭时间无效', 400);
     }
-    if (!validResourceId(command.size.soundSet)) throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '按压音效组无效', 400);
-    const references = [command.usage.taskEnd?.sel, command.usage.events?.question?.sel, command.usage.events?.approval?.sel];
+    if (Object.hasOwn(size, 'soundSet') && !validResourceId(size.soundSet)) {
+      throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '按压音效组无效', 400);
+    }
+    const usage = patch.usage || {};
+    const references = [usage.taskEnd?.sel, usage.events?.question?.sel, usage.events?.approval?.sel]
+      .filter(value => value !== undefined);
     if (references.some(value => !validSoundReference(value))) {
       throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '提示音效引用无效', 400);
+    }
+  }
+
+  // A field the client is writing has to still hold the value it read; anything
+  // else it did not touch is left alone. Compared against the normalised form,
+  // because that is what the client was handed and what it sent back as base.
+  assertFieldsUnchanged(domain, patch, base, current) {
+    for (const key of Object.keys(patch)) {
+      if (JSON.stringify(current[key] ?? null) === JSON.stringify(base[key] ?? null)) continue;
+      throw new SoundSettingsError('SETTINGS_CONFLICT',
+        '音效设置已在其他位置更改（' + domain + '.' + key + '），请重新载入后再保存', 409);
     }
   }
 
@@ -113,17 +139,25 @@ export class SoundSettingsService {
     this.recoverSync();
     this.validateCommand(command);
     const before = this.snapshots();
-    const currentRevision = this.revisionOf(before);
-    if (command.revision !== currentRevision) {
-      throw new SoundSettingsError('SETTINGS_CONFLICT', '音效设置已在其他位置更改，请重新载入后再保存', 409);
-    }
+    const patch = command.patch, base = command.base;
+    // Two different shapes are needed here. The conflict check compares against
+    // the normalised document, because that is the form the client was handed and
+    // sent back as its base. The merge starts from the raw document so that fields
+    // this layer does not know about survive, with the normalised values filling
+    // in whatever the file does not carry yet — a file that does not exist has no
+    // scale for a patch that never touched it.
+    const currentSize = this.sizeStore.normalize(before.size.document || {});
+    const currentUsage = this.whale.resolveUsageSettings(before.usage.document || {});
+    const sizeBase = { ...currentSize, ...(before.size.document || {}) };
+    if (patch.size) this.assertFieldsUnchanged('size', patch.size, base.size, currentSize);
+    if (patch.usage) this.assertFieldsUnchanged('usage', patch.usage, base.usage, currentUsage);
     if (typeof this.whale?.prepareUsageSettings !== 'function' || typeof this.whale?.commitUsageSettings !== 'function') {
       throw new SoundSettingsError('SETTINGS_SERVICE_UNAVAILABLE', '音效设置服务尚未准备好', 503);
     }
     let preparedSize, preparedUsage;
     try {
-      preparedSize = this.sizeStore.prepare(command.size, { baseDocument: before.size.document || {} });
-      preparedUsage = this.whale.prepareUsageSettings(command.usage, { base: before.usage.document || {} });
+      preparedSize = this.sizeStore.prepare(patch.size || {}, { baseDocument: sizeBase });
+      preparedUsage = this.whale.prepareUsageSettings(patch.usage || {}, { base: currentUsage });
     } catch (error) {
       throw error instanceof SoundSettingsError ? error : new SoundSettingsError('INVALID_SOUND_SETTINGS', error.message || '音效设置格式无效', 400, error);
     }

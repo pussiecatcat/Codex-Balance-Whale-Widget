@@ -20,7 +20,7 @@ const usage = () => ({
 });
 
 const bundle = () => ({
-  ok: true, schemaVersion: 1, revision: 'rev-1',
+  ok: true, schemaVersion: 2,
   size: { scale: 1, sound: true, vol: .9, soundSet: 'duck', turnCostOn: true, turnCostCloseMs: 5000, futureSize: 'keep' },
   usage: usage(),
 });
@@ -52,11 +52,19 @@ test('sound draft cancel is isolated and one save command preserves unknown fiel
   draft.vol = .2; draft.events.question.soundOn = true;
   assert.equal(original.size.vol, .9);
   const output = buildSoundSave(original, draft);
-  assert.equal(output.size.vol, .2);
-  assert.equal(output.size.futureSize, 'keep');
-  assert.deepEqual(output.usage.futureUsage, { keep: true });
-  assert.equal(output.usage.events.question.soundOn, true);
-  assert.equal(output.revision, 'rev-1');
+  assert.equal(output.schemaVersion, 2);
+  assert.equal(output.patch.size.vol, .2);
+  assert.equal(output.patch.usage.events.question.soundOn, true);
+  // Unknown fields are no longer carried by the client: it writes only the fields
+  // the panel owns, and the server leaves everything else in the current document
+  // alone. That is what keeps a concurrently changed setting from being written
+  // back, and what the server-side test below pins.
+  assert.equal('futureSize' in output.patch.size, false);
+  assert.equal('futureUsage' in output.patch.usage, false);
+  // The values those fields were read from travel with them, so the server can
+  // tell a field that changed underneath from one that did not.
+  assert.equal(output.base.size.vol, .9);
+  assert.equal(output.base.usage.events, original.usage.events);
 });
 
 test('sound controller mounts explicitly, cancel writes nothing and save performs one combined PUT', async () => {
@@ -76,7 +84,12 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
   const request = async (url, options = {}) => {
     calls.push({ url, method: options.method || 'GET', body: options.body });
     if (url === '/dsh-whale/audio.json') return catalog();
-    if (options.method === 'PUT') return { ...options.body, ok: true, revision: 'rev-2' };
+    if (options.method === 'PUT') {
+      const current = bundle();
+      return { ok: true, schemaVersion: 2,
+        size: { ...current.size, ...options.body.patch.size },
+        usage: { ...current.usage, ...options.body.patch.usage } };
+    }
     return bundle();
   };
   const controller = new SoundSettingsController({
@@ -95,7 +108,7 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
   const writes = calls.filter(call => call.method === 'PUT');
   assert.equal(writes.length, 1);
   assert.equal(writes[0].url, '/api/sound-settings');
-  assert.equal(writes[0].body.size.vol, .25);
+  assert.equal(writes[0].body.patch.size.vol, .25);
   assert.equal(applied.length, 1);
   assert.equal(dispatched.filter(event => event.type === 'whale-sound-settings-applied').length, 1);
   controller.dispose();

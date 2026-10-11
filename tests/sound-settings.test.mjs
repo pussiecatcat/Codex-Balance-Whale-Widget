@@ -28,31 +28,35 @@ function fixture(t, { seeded = true } = {}) {
   return { root, whale, sizeFile, usageFile };
 }
 
+// A command now carries only the fields it changes, plus the values the client
+// read for those fields. The server merges the patch onto whatever is current and
+// only refuses when a field being written is not the value that was read.
 function command(snapshot, overrides = {}) {
-  return {
-    schemaVersion: 1,
-    revision: snapshot.revision,
-    size: { ...snapshot.size, vol: .35, turnCostCloseMs: 12000, ...overrides.size },
-    usage: {
-      ...snapshot.usage,
-      taskEnd: { ...snapshot.usage.taskEnd, on: true, sel: 'preset:fx1:press' },
-      events: {
-        ...snapshot.usage.events,
-        question: { ...snapshot.usage.events.question, soundOn: true, sel: 'preset:duck:release', vol: .4 },
-      },
-      ...overrides.usage,
+  const size = { vol: .35, turnCostCloseMs: 12000, ...overrides.size };
+  const usage = {
+    taskEnd: { ...snapshot.usage.taskEnd, on: true, sel: 'preset:fx1:press' },
+    events: {
+      ...snapshot.usage.events,
+      question: { ...snapshot.usage.events.question, soundOn: true, sel: 'preset:duck:release', vol: .4 },
     },
+    ...overrides.usage,
   };
+  const base = { size: {}, usage: {} };
+  for (const key of Object.keys(size)) base.size[key] = snapshot.size[key];
+  for (const key of Object.keys(usage)) base.usage[key] = snapshot.usage[key];
+  return { schemaVersion: 2, base, patch: { size, usage } };
 }
 
-test('combined sound settings save is canonical, preserves unknown fields and rejects stale revisions', async t => {
+test('combined sound settings save is canonical, preserves unknown fields and rejects a stale field', async t => {
   const { root, whale, sizeFile, usageFile } = fixture(t);
   const service = new SoundSettingsService({ dataDir: root, whale });
   const before = await service.load();
   const saved = await service.save(command(before));
-  assert.equal(saved.schemaVersion, 1);
-  assert.notEqual(saved.revision, before.revision);
+  assert.equal(saved.schemaVersion, 2);
   assert.equal(saved.size.vol, .35);
+  // The command patched only vol and turnCostCloseMs; the server merged them onto
+  // what was current, so everything else is still there.
+  assert.equal(saved.size.scale, before.size.scale);
   assert.equal(saved.usage.events.question.vol, .4);
   assert.equal(JSON.parse(fs.readFileSync(sizeFile)).futureSize, 'keep');
   assert.deepEqual(JSON.parse(fs.readFileSync(sizeFile)).document, { keep: 'nested' });
@@ -163,4 +167,63 @@ test('a damaged transaction journal blocks guessing at a recoverable state', asy
   fs.writeFileSync(path.join(root, 'sound-settings-transaction.json'), '{broken');
   const service = new SoundSettingsService({ dataDir: root, whale });
   await assert.rejects(service.load(), error => error.code === 'SETTINGS_JOURNAL_INVALID' && error.status === 503);
+});
+
+// What the patch command is for. Under the whole-document revision these two
+// writers invalidated each other: the first save moved the revision, so the
+// second, holding the revision it read, was refused. Now only the fields a
+// command actually writes are compared.
+test('writers of different settings both succeed and neither writes back a stale copy', async t => {
+  const { root, whale, usageFile } = fixture(t);
+  const service = new SoundSettingsService({ dataDir: root, whale });
+  const snapshot = await service.load();
+
+  const first = await service.save({
+    schemaVersion: 2,
+    base: { usage: { taskEnd: snapshot.usage.taskEnd } },
+    patch: { usage: { taskEnd: { ...snapshot.usage.taskEnd, on: true, sel: 'preset:fx1:press' } } },
+  });
+  assert.equal(first.usage.taskEnd.on, true);
+
+  // Read before the first save, written after it: a change to a field this
+  // command never names must not be carried back over it.
+  const second = await service.save({
+    schemaVersion: 2,
+    base: { size: { vol: snapshot.size.vol } },
+    patch: { size: { vol: .2 } },
+  });
+  assert.equal(second.size.vol, .2);
+  assert.equal(second.usage.taskEnd.on, true, "the other writer's change survives");
+  assert.equal(JSON.parse(fs.readFileSync(usageFile)).taskEnd.on, true);
+});
+
+test('two writers of the same field still conflict, and the error names it', async t => {
+  const { root, whale } = fixture(t);
+  const service = new SoundSettingsService({ dataDir: root, whale });
+  const snapshot = await service.load();
+  const write = () => ({
+    schemaVersion: 2,
+    base: { size: { vol: snapshot.size.vol } },
+    patch: { size: { vol: snapshot.size.vol + .1 } },
+  });
+  const results = await Promise.allSettled([service.save(write()), service.save(write())]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  const rejected = results.find(result => result.status === 'rejected');
+  assert.equal(rejected.reason.code, 'SETTINGS_CONFLICT');
+  assert.match(rejected.reason.message, /size\.vol/, 'the message says which field moved');
+});
+
+test('a base that does not describe exactly what is written is refused', async t => {
+  const { root, whale } = fixture(t);
+  const service = new SoundSettingsService({ dataDir: root, whale });
+  const snapshot = await service.load();
+  // The conflict check has nothing to compare against if the base is short.
+  await assert.rejects(service.save({ schemaVersion: 2, base: { size: {} }, patch: { size: { vol: .2 } } }),
+    error => error.code === 'INVALID_SOUND_SETTINGS');
+  await assert.rejects(service.save({ schemaVersion: 2, base: { size: { vol: .9, scale: 1 } }, patch: { size: { vol: .2 } } }),
+    error => error.code === 'INVALID_SOUND_SETTINGS');
+  // A command that writes nothing at all is refused too.
+  await assert.rejects(service.save({ schemaVersion: 2, base: {}, patch: {} }),
+    error => error.code === 'INVALID_SOUND_SETTINGS');
+  assert.equal(snapshot.schemaVersion, 2);
 });
