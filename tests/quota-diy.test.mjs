@@ -65,6 +65,18 @@ test('DIY quota module counts down independently and labels missing or stale dat
   }, now), /60\.0%.*上次数据，待同步/);
 });
 
+test('only the quota line the bubble named carries the stale marker', () => {
+  const now = Date.parse('2026-10-02T10:00:00Z');
+  const stale = { source: 'codex-app-server', observedAt: now - 3 * 60000,
+    windows: [{ windowDurationMins: 300, usedPercent: 40, resetsAt: now + 10000 }] };
+  assert.match(quotaText({ type: 'quota', windowDurationMins: 300, tpl: '{quota_left}', _staleOwner: true }, stale, now),
+    /上次数据，待同步/, 'the carrier still says the number is the last one seen');
+  assert.doesNotMatch(quotaText({ type: 'quota', windowDurationMins: 300, tpl: '距离重置 {quota_reset_short}', _staleOwner: false }, stale, now),
+    /上次数据/, 'the lines beside it stay quiet');
+  assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, stale, now), /上次数据/,
+    'a module no bubble stamped keeps the marker, so the meter and the editor preview are unchanged');
+});
+
 test('quota tide state exposes remaining percentage and urgency tone', () => {
   const now = Date.UTC(2026, 9, 3, 4, 0, 0);
   const subscription = usedPercent => ({

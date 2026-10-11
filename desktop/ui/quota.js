@@ -76,7 +76,11 @@
   function quotaText(module, subscription, now = Date.now()) {
     const state = quotaState(module, subscription, now);
     const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
-    return result + (state.expired ? '（上次数据，待同步）' : '');
+    // A bubble that reports a label, a value and a countdown for each window used
+    // to stamp this onto all three lines, six times over. The bubble now names one
+    // line as the carrier and leaves the rest quiet; a module nobody stamped - a
+    // meter, the editor's preview, any other caller - keeps it as before.
+    return result + (state.expired && module?._staleOwner !== false ? '（上次数据，待同步）' : '');
   }
   function planName(type) {
     const key = String(type || '').toLowerCase();

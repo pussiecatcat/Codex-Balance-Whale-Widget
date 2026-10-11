@@ -30,3 +30,26 @@ test('bubble content remembers the previous random line across openings', () => 
   assert.equal(second.rows.get(second.modules[0]).txt, 'B');
   assert.equal(original[0]._lastPick, undefined);
 });
+
+// A window's label, value and countdown used to each carry the same stale suffix,
+// so a two-window bubble said "（上次数据，待同步）" six times. The bubble now names
+// one line as the carrier; tests/quota-diy.test.mjs pins what the carrier and the
+// quiet lines do with it.
+test('a bubble names exactly one quota line to carry its staleness marker', () => {
+  const builder = content();
+  const snapshot = builder.snapshot([
+    { type: 'plan', tpl: '{plan_name}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '5 小时' },
+    { type: 'quota', windowDurationMins: 300, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '距离重置 {quota_reset_short}' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '每周' },
+  ], false);
+  assert.deepEqual(snapshot.modules.map(mod => mod._staleOwner), [undefined, true, false, false, false]);
+  assert.equal(snapshot.modules[0]._staleOwner, undefined, 'a line that reports no quota is left alone');
+});
+
+test('a bubble with no quota line stamps nothing, leaving every caller as it was', () => {
+  const builder = content();
+  const snapshot = builder.snapshot([{ type: 'balance', tpl: '{balance_api}' }], false);
+  assert.equal(snapshot.modules[0]._staleOwner, undefined);
+});

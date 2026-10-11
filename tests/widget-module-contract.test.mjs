@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
 import { bubbleDropShadow } from '../desktop/ui/features/widget/bubble-editor-view.js';
+import { bubbleLegacySubscriptionDefault, bubbleDefaultSubscriptionQueue } from '../desktop/ui/features/widget/default-content.js';
 
 // The widget monolith destructures these by name; a member dropped from the
 // module's return leaves the monolith calling an unbound identifier at runtime.
@@ -41,4 +42,32 @@ test('bubbleDropShadow maps each drop zone to its indicator, and unknown zones t
   assert.equal(bubbleDropShadow('pairR'), 'inset -5px 0 0 #203170, inset 0 0 0 1px rgba(32,49,112,.35)');
   assert.equal(bubbleDropShadow('join'), '');
   assert.equal(bubbleDropShadow(undefined), '');
+});
+
+// A bubble still holding the old six-line quota default is replaced by the compact
+// one wherever it is read - the render path and the editor's draft both ask this
+// detector - and nothing else is touched. A bubble that merely resembles the old
+// default, or that someone has edited since, is left exactly as the user left it.
+// Nothing pinned this before, so a change could have dropped the migration quietly.
+test('the old six-line quota default is recognised, and only it', () => {
+  const legacy = [{ kind: 'custom', modules: [
+    { type: 'plan', tpl: '{plan_name}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '5 小时' },
+    { type: 'quota', windowDurationMins: 300, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 300, tpl: '距离重置 {quota_reset_short}' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '每周' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 10080, tpl: '距离重置 {quota_reset_short}' },
+  ] }];
+  assert.equal(bubbleLegacySubscriptionDefault(legacy), true);
+
+  const compact = bubbleDefaultSubscriptionQueue();
+  assert.equal(compact[0].modules.length, 3, 'the replacement is the plan header plus one meter per window');
+  assert.deepEqual(compact[0].modules.filter(mod => mod.quotaStyle === 'meter').map(mod => mod.windowDurationMins), [300, 10080]);
+
+  const edited = structuredClone(legacy);
+  edited[0].modules[2].tpl = '{quota_left} 剩余';
+  assert.equal(bubbleLegacySubscriptionDefault(edited), false, 'an edited bubble belongs to the user and stays untouched');
+  assert.equal(bubbleLegacySubscriptionDefault([{ kind: 'custom', modules: [{ type: 'quota', tpl: '{quota_source}' }] }]), true,
+    'the older shape that printed its own source is still caught wherever it appears');
 });
