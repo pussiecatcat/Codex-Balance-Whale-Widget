@@ -1,8 +1,8 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { writeFileAtomicSync } from '../lib/atomic-write.mjs';
 
 export const VERSION = '0.3.0';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,25 +18,7 @@ export function readJson(file, fallback) {
 }
 
 export function writeJson(file, data, { fs: fileSystem = fs } = {}) {
-  const encoded = JSON.stringify(data, null, 2);
-  fileSystem.mkdirSync(path.dirname(file), { recursive: true });
-  const temp = file + '.' + process.pid + '.' + randomBytes(6).toString('hex') + '.tmp';
-  let descriptor, created = false;
-  try {
-    descriptor = fileSystem.openSync(temp, 'wx', 0o600); created = true;
-    fileSystem.writeFileSync(descriptor, encoded);
-    fileSystem.closeSync(descriptor); descriptor = undefined;
-    // Antivirus/indexing may briefly deny replacement on Windows. Retry only
-    // these sharing/access failures, with no sleep or deletion of the target.
-    for (let attempt = 0; ; attempt++) {
-      try { fileSystem.renameSync(temp, file); break; }
-      catch (error) { if (attempt >= 2 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) throw error; }
-    }
-  } catch (error) {
-    if (descriptor !== undefined) { try { fileSystem.closeSync(descriptor); } catch {} }
-    if (created) { try { fileSystem.unlinkSync(temp); } catch {} }
-    throw error;
-  }
+  writeFileAtomicSync(file, JSON.stringify(data, null, 2), { fs: fileSystem });
 }
 
 export function dayKey(ts = Date.now()) {

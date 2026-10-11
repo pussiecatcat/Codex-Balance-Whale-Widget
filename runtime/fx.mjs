@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { writeFileAtomic } from '../lib/atomic-write.mjs';
 
 export const FX_URL = 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=CNY';
 const SOURCE = 'Frankfurter · 每日参考汇率';
@@ -89,21 +89,11 @@ export function createFxService({ dataDir, fetchImpl = fetch, now = Date.now, ti
   }
   async function persist() {
     if (!cached || closed) return;
-    const temp = file + '.' + process.pid + '.' + randomUUID() + '.tmp';
+    // A persistence failure must not discard a validated in-memory quote, and a
+    // shutdown part way through abandons the write rather than publishing it.
     try {
-      await fs.mkdir(dataDir, { recursive: true });
-      if (closed) return;
-      await fs.writeFile(temp, JSON.stringify({ ...cached, checkedAt: new Date(checkedAt).toISOString(), lastAttemptFailed, lastManualAt }, null, 2), { mode: 0o600 });
-      for (let attempt = 0; ; attempt++) {
-        if (closed) break;
-        try { await fs.rename(temp, file); return; }
-        catch (error) {
-          if (attempt >= 3 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) break;
-          await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));
-        }
-      }
-    } catch {} // A persistence failure must not discard a validated in-memory quote.
-    finally { await fs.unlink(temp).catch(() => {}); }
+      await writeFileAtomic(file, JSON.stringify({ ...cached, checkedAt: new Date(checkedAt).toISOString(), lastAttemptFailed, lastManualAt }, null, 2), { fs, abandon: () => closed });
+    } catch {}
   }
   async function get({ force = false, reason = 'request' } = {}) {
     await loaded;
