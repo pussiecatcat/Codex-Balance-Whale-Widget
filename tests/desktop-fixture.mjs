@@ -114,8 +114,10 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await wait('!window.__whaleRenderTest.status().busy', 'petting refresh completes');
     const afterPetting = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front,shown:window.__whaleRenderTest.status().shown,switching:window.__whaleRenderTest.status().switching})");
     assert.deepEqual(afterPetting, { ...firstBubble, shown: true, switching: false });
-    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), false);
-    checks.push('three petting clicks keep the current bubble unchanged; the obsolete character-advance option is gone');
+    assert.equal(await ev("document.querySelector('.dshwv-bubcard .dshwv-buboptlabel').textContent"), '点按角色推进气泡队列');
+    assert.equal(await ev("document.querySelector('#dshwv-tap-advance').checked"), false, 'the option exists and starts off');
+    assert.equal(await ev("document.querySelector('.dshwv-bubopttip').textContent.includes('点泡泡才是往后推进')"), true, 'the ? explains what off means');
+    checks.push('three petting clicks keep the current bubble unchanged; the character-advance option is present and off by default');
     for (let retry = 0; retry < 3; retry++) {
       await ev('window.__whaleRenderTest.close()');
       await wait('!window.__whaleRenderTest.status().shown&&!window.__whaleRenderTest.status().switching', 'bubble closed before repeated first click');

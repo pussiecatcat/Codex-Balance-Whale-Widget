@@ -24,7 +24,9 @@ export function loadBubbleEditorDraft(config, subscriptionMode) {
     items.push({ kind: step?.kind === 'random' ? 'random' : step?.kind === 'custom' ? 'custom' : 'normal',
       modules: step?.modules ? clone(step.modules) : undefined });
   }
-  return { items, library };
+  // The option belongs to the mode the editor was opened for, so the draft carries
+  // that mode's flag and the checkbox starts where the bubble already is.
+  return { items, library, tapAdvance: subscriptionMode ? config?.subscriptionTapAdvance === true : config?.tapAdvance === true };
 }
 
 export function saveBubbleEditorStep(step) {
@@ -42,12 +44,15 @@ export function saveBubbleEditorStep(step) {
   return { kind: 'custom', modules };
 }
 
-export function saveBubbleEditorDraft(items, library, config, subscriptionMode) {
+export function saveBubbleEditorDraft(items, library, config, subscriptionMode, tapAdvance) {
   const savedItems = items.map(saveBubbleEditorStep);
+  const advance = tapAdvance === true;
   return { v: 1, editingMode: subscriptionMode ? 'subscription' : 'api',
     items: subscriptionMode ? config?.items || bubbleParseDefaultItems() : savedItems,
     subscriptionItems: subscriptionMode ? savedItems : config?.subscriptionItems || [],
-    tapAdvance: config?.tapAdvance === true,
-    subscriptionTapAdvance: config?.subscriptionTapAdvance !== false,
+    // Only the edited mode's flag travels; the route keeps the other mode's value
+    // untouched. It is the checkbox that decides this one, not the old config, so
+    // opening the editor and saving can no longer flip the option on by itself.
+    ...(subscriptionMode ? { subscriptionTapAdvance: advance } : { tapAdvance: advance }),
     lib: library };
 }

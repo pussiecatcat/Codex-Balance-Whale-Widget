@@ -1199,6 +1199,10 @@ import {
         var draft = loadBubbleEditorDraft(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
         bubbleLib = draft.library;
         bubbleEditItems = draft.items;
+        // The option belongs to the mode being edited, so the checkbox follows it
+        // rather than whatever the other mode was left with.
+        bubbleEditTapAdvance = draft.tapAdvance === true;
+        if (bubbleTapAdvanceEl) bubbleTapAdvanceEl.checked = bubbleEditTapAdvance;
         bubbleEditorSnap = JSON.stringify([bubbleEditItems, bubbleLib]);
         renderBubbleEditor();
         bubbleMask.style.display = 'flex';
@@ -1218,7 +1222,7 @@ import {
       try {
         var doSave = function () {
           var subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
-          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode), function (ok) {
+          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode, bubbleEditTapAdvance), function (ok) {
             if (ok !== false) closeBubbleEditor();
           });
         };
@@ -1891,10 +1895,32 @@ import {
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
     var bubbleInteractionHint = document.createElement('div');
-    bubbleInteractionHint.className = 'dshwv-bubsec';
-    bubbleInteractionHint.textContent = '点桌宠只互动；点泡泡切换，最后一泡再点收起';
-    bubbleInteractionHint.title = '第一次点桌宠打开泡泡。泡泡打开后可继续按压桌宠，当前内容不会切换或消失。';
+    bubbleInteractionHint.className = 'dshwv-bubsec dshwv-bubopt';
+    var bubbleOptCheck = document.createElement('input');
+    bubbleOptCheck.type = 'checkbox'; bubbleOptCheck.className = 'dshwv-check';
+    bubbleOptCheck.id = 'dshwv-tap-advance';
+    bubbleOptCheck.addEventListener('change', function () { bubbleEditTapAdvance = bubbleOptCheck.checked === true; });
+    var bubbleOptLabel = document.createElement('label');
+    bubbleOptLabel.className = 'dshwv-buboptlabel';
+    bubbleOptLabel.setAttribute('for', 'dshwv-tap-advance');
+    bubbleOptLabel.textContent = '点按角色推进气泡队列';
+    var bubbleOptHelp = document.createElement('button');
+    bubbleOptHelp.type = 'button';
+    bubbleOptHelp.className = 'dshwv-bubopthelp';
+    bubbleOptHelp.textContent = '?';
+    bubbleOptHelp.setAttribute('aria-label', '这个选项怎么工作');
+    var bubbleOptTip = document.createElement('div');
+    bubbleOptTip.className = 'dshwv-bubopttip';
+    bubbleOptTip.textContent = '关闭(默认)：点角色只做按压反馈，当前泡泡内容不会切换或消失；点泡泡才是往后推进。\n'
+      + '开启：点一下角色 = 往后推进一项；走到最后一项再点 = 收起泡泡。\n'
+      + '第一次点桌宠都会打开泡泡。';
+    bubbleInteractionHint.appendChild(bubbleOptCheck);
+    bubbleInteractionHint.appendChild(bubbleOptLabel);
+    bubbleInteractionHint.appendChild(bubbleOptHelp);
+    bubbleInteractionHint.appendChild(bubbleOptTip);
     bubbleCard.appendChild(bubbleInteractionHint);
+    var bubbleTapAdvanceEl = bubbleOptCheck;
+    var bubbleEditTapAdvance = false;
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -3961,7 +3987,15 @@ import {
       showNext: bubbleShowSeqNext,
       closeCost: hideCostBubble,
       closeAlert: hideUsageAlertBubble,
-      closeBubble: hideBubble
+      closeBubble: hideBubble,
+      // Whether a character click also advances the queue is the editor's per-mode
+      // option. The config is re-read on every save, so this stays live.
+      tapAdvance: function () {
+        if (!bubbleCfg) return false;
+        return window.WhaleAccountView?.mode === 'subscription'
+          ? bubbleCfg.subscriptionTapAdvance === true
+          : bubbleCfg.tapAdvance === true;
+      }
     });
     var whaleClick = bubbleInteraction.whaleClick;
     var bubbleNext = bubbleInteraction.bubbleNext;
