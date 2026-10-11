@@ -24,7 +24,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 - `runtime/service.mjs` — WhaleService：余额、配置、账本
 - `runtime/bridge.mjs` — 具名管道 IPC（`ALLOWED` 与 `HOST_ROUTES` 两张表合起来才是完整的外部可达路径集）
 - `runtime/process.mjs` — 拉起/探测服务（Windows schtasks，macOS launchctl）
-- `lib/atomic-write.mjs` — 共享同步/异步原子写入（独占临时文件、可选 flush、Windows 重命名重试）；`lib/fs-atomic.cjs` 是启用 flush 的同步兼容门面，不复制底层实现
+- `lib/atomic-write.mjs` — 全项目唯一的原子写入实现（独占临时文件 + Windows 重命名重试 + 可选 fsync）。同步 `writeFileAtomicSync` 给 runtime/lib 与 Electron 主进程用，异步 `writeFileAtomic` 给 `UiStateStore` 这类在 promise 链上的调用者用。`lib/` 是最底层，`runtime/` 与 `desktop/` 都依赖它。Electron 侧用 `require()` 加载它（Electron 44 的 Node 支持 require ESM）
 - `lib/widget-host.mjs` — 挂件资源层，注册全部 `/dsh-whale/*` 路由
 - `desktop/main.cjs` — Electron 主进程：窗口、透明度、点击穿透、跟随。它自己的职责边界见下面三条
 - `desktop/ipc-handlers.cjs` — 渲染进程能触达的全部 IPC 通道，一张表。主进程通过 `ipcHost` 对象把动作传进来，所以「渲染进程能调什么」写在一处可审

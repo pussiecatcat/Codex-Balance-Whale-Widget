@@ -2,12 +2,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import { domainError } from '../lib/errors.mjs';
-
-// The CommonJS facade applies the durable synchronous policy to shared IO.
-const require = createRequire(import.meta.url);
-const { atomicWriteSync } = require('../lib/fs-atomic.cjs');
+import { writeFileAtomicSync } from '../lib/atomic-write.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,7 +34,7 @@ export function readJson(file, fallback, { fs: fileSystem = fs } = {}) {
 }
 
 export function writeJson(file, data, { fs: fileSystem = fs } = {}) {
-  atomicWriteSync(file, JSON.stringify(data, null, 2), { fs: fileSystem });
+  writeFileAtomicSync(file, JSON.stringify(data, null, 2), { fs: fileSystem, flush: true });
 }
 
 // Accounting days are anchored to UTC+8 rather than the host timezone. That

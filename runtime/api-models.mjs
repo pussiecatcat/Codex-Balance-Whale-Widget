@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
-import { readBoundedBodyText } from './bounded-body.mjs';
 import { domainError } from '../lib/errors.mjs';
+import { readBoundedBodyText } from './bounded-body.mjs';
 
 const noBalance = (name, currency, keyEnv, probeUrl = '', matchIds = []) => ({ name, currency, keyEnv, noBalanceApi: true, probeUrl, matchIds });
 export const API_TEMPLATES = Object.freeze({

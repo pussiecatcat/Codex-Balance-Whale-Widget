@@ -2,7 +2,10 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, globalShor
 const path = require('node:path');
 const fs = require('node:fs');
 const { UiStateStore } = require('./ui-state-store.cjs');
-const { writeJsonSync } = require('../lib/fs-atomic.cjs');
+// The host shares the service layer's atomic write instead of keeping a second
+// one. Electron is installed at a pinned version (install-desktop.mjs asks for
+// 44.3.0), whose Node can require an ES module by path.
+const { writeFileAtomicSync } = require('../lib/atomic-write.mjs');
 const { shutdownCompanion } = require('./lifecycle.cjs');
 const { externalWebUrl } = require('./external-links.cjs');
 const { syncNativeViewport } = require('./native-viewport.cjs');
@@ -57,7 +60,7 @@ const read = (f, fallback = {}) => { try { return JSON.parse(fs.readFileSync(f, 
 // Same atomic primitive the service uses. This used to be a weaker local copy
 // (fixed temp name, no exclusive create, no retry), which is the wrong trade for
 // the state files that have to survive a crash.
-const save = (file, value) => writeJsonSync(file, value);
+const save = (file, value) => writeFileAtomicSync(file, JSON.stringify(value, null, 2), { flush: true });
 let desktopMode = read(path.join(dataDir, 'follow-config.json')).mode === 'standalone' ? 'standalone' : 'follow-codex';
 let desktopBoundsApplied = false, modePending = false;
 let recoveryAttempts = 0, recoveryTimer = null, readyTimer = null;

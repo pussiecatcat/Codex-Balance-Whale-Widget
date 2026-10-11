@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 for(const name of [
-  '../lib/fs-atomic.cjs',
   '../vendor/smol-toml/dist/index.js','../desktop/main.cjs','../desktop/host-state.cjs','../desktop/diagnostics.cjs','../desktop/ipc-handlers.cjs','../desktop/test-harness.cjs','../desktop/ui/widget.html','../desktop/ui/gesture.js','../desktop/ui/audio-engine.js','../desktop/ui/insights.js','../desktop/ui/workshop.js','../assets/DSniang1.png',
   '../desktop/ui/services/request.js','../desktop/ui/services/sound-reference.js',
   '../desktop/ui/features/sound-settings/model.js','../desktop/ui/features/sound-settings/controller.js','../desktop/ui/features/sound-settings/view.js',
