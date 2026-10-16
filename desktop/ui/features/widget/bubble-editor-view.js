@@ -46,6 +46,7 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       weight.type = 'text'; weight.inputMode = 'numeric'; weight.maxLength = 2;
       weight.className = 'dshwv-winput'; weight.value = String(bubbleChoiceWeight(option));
       weight.title = (side === 0 ? 'A' : 'B') + ' 泡出现权重(直接输入数字,1~99,默认1:1)';
+      weight.setAttribute('aria-label', weight.title);
       weight.addEventListener('change', () => {
         option.w = bubbleChoiceWeight({ w: weight.value });
         weight.value = String(option.w);
