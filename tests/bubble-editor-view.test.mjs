@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleEditorView } from '../desktop/ui/features/widget/bubble-editor-view.js';
+import { bubbleDropZone, createBubbleEditorView } from '../desktop/ui/features/widget/bubble-editor-view.js';
 
 function element(tag = 'div') {
   const node = {
@@ -10,7 +10,10 @@ function element(tag = 'div') {
     set innerHTML(value) { this._html = value; if (value === '') this.children = []; },
     get innerHTML() { return this._html; },
     appendChild(child) { this.children.push(child); return child; },
+    focus() { this.focused = true; },
     setAttribute(name, value) { this.attributes[name] = value; },
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    removeAttribute(name) { delete this.attributes[name]; },
     querySelector(selector) {
       const name = String(selector).replace(/^\./, '');
       return this.children.find(child => String(child.className || '').split(/\s+/).includes(name)) || null;
@@ -27,7 +30,8 @@ function element(tag = 'div') {
 function fixture(initialItems) {
   const items = JSON.parse(JSON.stringify(initialItems));
   const created = [];
-  const documentStub = { createElement(tag) { const node = element(tag); created.push(node); return node; } };
+  const body = element('body');
+  const documentStub = { body, createElement(tag) { const node = element(tag); created.push(node); return node; } };
   const firstChip = element();
   const moreList = element();
   const calls = { opened: [], confirmed: [] };
@@ -39,14 +43,19 @@ function fixture(initialItems) {
     openItem: (index, side) => calls.opened.push([index, side]),
     confirm: (message, run) => calls.confirmed.push({ message, run }),
   });
-  return { view, items: () => items, firstChip, moreList, calls, created };
+  return { view, items: () => items, firstChip, moreList, calls, created, body };
 }
 
 const chipIn = row => row.children.find(child => /dshwv-bubchip/.test(child.className));
 const delIn = row => row.children.find(child => child.className === 'dshwv-bubmini');
+const handleIn = row => row.children.find(child => String(child.className).split(/\s+/).includes('dshwv-bubdrag'));
 const choiceChipsIn = row => {
   const wrap = row.children.find(child => child.className === 'dshwv-choicerow');
   return wrap ? wrap.children.flatMap(group => group.children.filter(child => /dshwv-choicechip/.test(child.className))) : [];
+};
+const choiceGroupsIn = row => {
+  const wrap = row.children.find(child => child.className === 'dshwv-choicerow');
+  return wrap ? wrap.children.filter(child => child.className === 'dshwv-choicegrp') : [];
 };
 const custom = text => ({ kind: 'custom', modules: [{ type: 'text', text }] });
 const choice = () => ({ kind: 'choice', options: [{ item: custom('A'), w: 1 }, { item: custom('B'), w: 1 }] });
@@ -70,6 +79,28 @@ test('the list renders one editable row per step after the first', () => {
   assert.equal(chipIn(rows[0]).textContent, '第2次点击 · 编辑内容');
   assert.equal(chipIn(rows[1]).textContent, '第3次点击 · 编辑内容');
   assert.deepEqual(rows.map(row => row.attributes['data-i']), ['1', '2']);
+});
+
+test('a normal bubble starts dragging only from its accessible handle', () => {
+  const fx = pairedDropFixture();
+  const [source, target] = fx.moreList.children;
+  const handle = handleIn(source);
+  assert.equal(source.draggable, false);
+  assert.equal(chipIn(source).draggable, false);
+  assert.equal(handle.draggable, true);
+  assert.equal(handle.tagName, 'button');
+  assert.equal(handle.attributes.role, 'button');
+  assert.equal(handle.attributes['aria-label'], '拖动第2次点击泡泡');
+
+  source.fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  assert.equal(target.attributes['data-drop-zone'], undefined, 'dragging the row body does nothing');
+
+  handle.fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  assert.equal(target.attributes['data-drop-zone'], 'pairL');
+  handle.fire('dragend');
+  assert.equal(target.attributes['data-drop-zone'], undefined);
 });
 
 test('clicking a row chip opens that step and pressing its ✕ deletes it', () => {
@@ -132,6 +163,84 @@ test('a choice step renders an A/B chip pair that opens the matching side', () =
   assert.deepEqual(fx.calls.opened, [[1, 1]]);
 });
 
+test('A/B edit buttons stay buttons while accessible side handles drag a choice apart', () => {
+  const fx = fixture([{ kind: 'normal' }, choice(), custom('三')]);
+  fx.view.renderMore();
+  const [choiceRow, target] = fx.moreList.children;
+  const groups = choiceGroupsIn(choiceRow);
+  const chips = choiceChipsIn(choiceRow);
+  const sideHandles = groups.map(group => group.children.find(child =>
+    String(child.className).split(/\s+/).includes('dshwv-choice-drag')));
+
+  assert.deepEqual(chips.map(chip => chip.draggable), [false, false]);
+  assert.deepEqual(sideHandles.map(handle => handle.draggable), [true, true]);
+  assert.deepEqual(sideHandles.map(handle => handle.tagName), ['button', 'button']);
+  assert.deepEqual(sideHandles.map(handle => handle.attributes['aria-label']), ['拖动 A 泡泡', '拖动 B 泡泡']);
+  assert.ok(sideHandles.every(handle => handle.attributes.role === 'button'));
+
+  chips[0].fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 5 });
+  assert.equal(target.attributes['data-drop-zone'], undefined, 'the edit button does not start a drag');
+
+  sideHandles[0].fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 5 });
+  assert.equal(target.attributes['data-drop-label'], '排到前面');
+  target.fire('drop', { clientX: 70, clientY: 5 });
+  assert.deepEqual(fx.items().map(step => step.modules?.[0]?.text), [undefined, 'B', 'A', '三']);
+});
+
+test('keyboard drag mode reorders a row, restores focus, and announces the result', () => {
+  const fx = fixture([{ kind: 'normal' }, custom('二'), custom('三')]);
+  fx.view.renderMore();
+  const firstHandle = handleIn(fx.moreList.children[0]);
+  const live = fx.created.find(node => node.className === 'dshwv-sr-only');
+
+  firstHandle.fire('click');
+  assert.equal(firstHandle.attributes['aria-pressed'], 'true');
+  firstHandle.fire('keydown', { key: 'ArrowDown' });
+  assert.equal(fx.moreList.children[1].attributes['data-drop-label'], '排到后面');
+  firstHandle.fire('keydown', { key: 'Enter' });
+
+  assert.deepEqual(fx.items().map(step => step.modules?.[0]?.text), [undefined, '三', '二']);
+  assert.equal(handleIn(fx.moreList.children[1]).focused, true);
+  assert.match(live.textContent, /已移动/);
+});
+
+test('keyboard drag mode can choose A/B pairing and can be cancelled', () => {
+  const fx = fixture([{ kind: 'normal' }, custom('二'), custom('三')]);
+  fx.view.renderMore();
+  const firstHandle = handleIn(fx.moreList.children[0]);
+
+  firstHandle.fire('click');
+  firstHandle.fire('keydown', { key: 'ArrowDown' });
+  firstHandle.fire('keydown', { key: 'ArrowRight' });
+  assert.equal(fx.moreList.children[1].attributes['data-drop-label'], '放到 B');
+  firstHandle.fire('keydown', { key: 'Escape' });
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'custom', 'custom']);
+  assert.equal(firstHandle.attributes['aria-pressed'], 'false');
+
+  firstHandle.fire('click');
+  firstHandle.fire('keydown', { key: 'ArrowDown' });
+  firstHandle.fire('keydown', { key: 'ArrowLeft' });
+  firstHandle.fire('keydown', { key: ' ' });
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice']);
+  assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['二', '三']);
+});
+
+test('keyboard activation can split either A/B side before or after its group', () => {
+  const fx = fixture([{ kind: 'normal' }, choice()]);
+  fx.view.renderMore();
+  const groups = choiceGroupsIn(fx.moreList.children[0]);
+  const sideHandle = groups[1].children.find(child => /dshwv-choice-drag/.test(child.className));
+
+  sideHandle.fire('click');
+  sideHandle.fire('keydown', { key: 'ArrowUp' });
+  sideHandle.fire('keydown', { key: 'Enter' });
+
+  assert.deepEqual(fx.items().map(step => step.modules?.[0]?.text), [undefined, 'B', 'A']);
+  assert.equal(handleIn(fx.moreList.children[0]).focused, true);
+});
+
 test('dropping with nothing dragged changes neither the draft nor the list', () => {
   const fx = fixture([{ kind: 'normal' }, custom('二')]);
   fx.view.renderMore();
@@ -151,6 +260,20 @@ test('an empty draft renders an empty list without throwing', () => {
 
 const CHIP_BOUNDS = { width: 140, height: 24, left: 34, top: 8, right: 174, bottom: 32 };
 
+test('drop geometry reserves generous top and bottom sort bands around a left/right pairing middle', () => {
+  const row = { width: 200, height: 100, left: 0, top: 0, right: 200, bottom: 100 };
+  const content = { width: 140, height: 60, left: 34, top: 20, right: 174, bottom: 80 };
+
+  assert.equal(bubbleDropZone(row, content, { x: 80, y: 23 }), 'before');
+  assert.equal(bubbleDropZone(row, content, { x: 80, y: 25 }), 'pairL');
+  assert.equal(bubbleDropZone(row, content, { x: 140, y: 75 }), 'pairR');
+  assert.equal(bubbleDropZone(row, content, { x: 80, y: 77 }), 'after');
+
+  const shortRow = { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 };
+  assert.equal(bubbleDropZone(shortRow, content, { x: 80, y: 11 }), 'before', 'sort bands stay at least 12px tall');
+  assert.equal(bubbleDropZone(shortRow, content, { x: 80, y: 13 }), 'pairL');
+});
+
 function pairedDropFixture() {
   const fx = fixture([{ kind: 'normal' }, custom('二'), custom('三')]);
   fx.view.renderMore();
@@ -158,23 +281,23 @@ function pairedDropFixture() {
   return fx;
 }
 
-test('dropping anywhere on the left half of another bubble pairs them with the dragged bubble as A', () => {
+test('dropping in the middle-left of another bubble pairs them with the dragged bubble as A', () => {
   const fx = pairedDropFixture();
   const [dragged, target] = fx.moreList.children;
-  dragged.fire('dragstart');
-  target.fire('dragover', { clientX: 70, clientY: 30 });
-  target.fire('drop', { clientX: 70, clientY: 30 });
+  handleIn(dragged).fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  target.fire('drop', { clientX: 70, clientY: 20 });
 
   assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice']);
   assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['二', '三']);
 });
 
-test('dropping anywhere on the right half of another bubble pairs them with the dragged bubble as B', () => {
+test('dropping in the middle-right of another bubble pairs them with the dragged bubble as B', () => {
   const fx = pairedDropFixture();
   const [dragged, target] = fx.moreList.children;
-  dragged.fire('dragstart');
-  target.fire('dragover', { clientX: 145, clientY: 10 });
-  target.fire('drop', { clientX: 145, clientY: 10 });
+  handleIn(dragged).fire('dragstart');
+  target.fire('dragover', { clientX: 145, clientY: 20 });
+  target.fire('drop', { clientX: 145, clientY: 20 });
 
   assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice']);
   assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['三', '二']);
@@ -183,17 +306,55 @@ test('dropping anywhere on the right half of another bubble pairs them with the 
 test('the final pointer position at drop decides which side is paired', () => {
   const fx = pairedDropFixture();
   const [dragged, target] = fx.moreList.children;
-  dragged.fire('dragstart');
+  handleIn(dragged).fire('dragstart');
   target.fire('dragover', { clientX: 70, clientY: 20 });
   target.fire('drop', { clientX: 145, clientY: 20 });
 
   assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['三', '二']);
 });
 
+test('drag targets expose readable intent and clear it on leave and drag end', () => {
+  const fx = pairedDropFixture();
+  const [dragged, target] = fx.moreList.children;
+  handleIn(dragged).fire('dragstart');
+
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  assert.equal(target.attributes['data-drop-zone'], 'pairL');
+  assert.equal(target.attributes['data-drop-label'], '放到 A');
+  assert.equal(target.attributes['aria-label'], '放到 A');
+
+  target.fire('dragleave');
+  assert.equal(target.attributes['data-drop-zone'], undefined);
+  assert.equal(target.attributes['data-drop-label'], undefined);
+  assert.equal(target.attributes['aria-label'], undefined);
+  assert.equal(target.style.boxShadow, '');
+
+  target.fire('dragover', { clientX: 70, clientY: 5 });
+  assert.equal(target.attributes['data-drop-label'], '排到前面');
+  target.fire('dragover', { clientX: 70, clientY: 35 });
+  assert.equal(target.attributes['data-drop-label'], '排到后面');
+  dragged.fire('dragend');
+  assert.equal(target.attributes['data-drop-zone'], undefined);
+  assert.equal(target.attributes['data-drop-label'], undefined);
+  assert.equal(target.attributes['aria-label'], undefined);
+});
+
+test('pairing over an existing A/B row says which side will be replaced', () => {
+  const fx = fixture([{ kind: 'normal' }, custom('二'), choice()]);
+  fx.view.renderMore();
+  const [dragged, target] = fx.moreList.children;
+  handleIn(dragged).fire('dragstart');
+
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  assert.equal(target.attributes['data-drop-label'], '替换 A');
+  target.fire('dragover', { clientX: 145, clientY: 20 });
+  assert.equal(target.attributes['data-drop-label'], '替换 B');
+});
+
 test('dropping on the handle-side padding still reorders instead of pairing', () => {
   const fx = pairedDropFixture();
   const [dragged, target] = fx.moreList.children;
-  dragged.fire('dragstart');
+  handleIn(dragged).fire('dragstart');
   target.fire('dragover', { clientX: 8, clientY: 30 });
   target.fire('drop', { clientX: 8, clientY: 30 });
 

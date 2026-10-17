@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
 import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
 import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
 import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
@@ -16,6 +16,20 @@ test('default bubble drafts are independent and subscription quota windows remai
   const draft = bubbleStepToBubble({ kind: 'custom', modules: [{ type: 'text', text: 'original' }] });
   draft.modules[0].text = 'changed';
   assert.equal(bubbleStepToBubble({ kind: 'custom', modules: [{ type: 'text', text: 'original' }] }).modules[0].text, 'original');
+});
+
+test('choice weights are normalized to the documented integer range', () => {
+  const cases = [
+    [{ w: '' }, 1],
+    [{ w: 'nope' }, 1],
+    [{ w: -8 }, 1],
+    [{ w: 0 }, 1],
+    [{ w: 1.6 }, 2],
+    [{ w: 42 }, 42],
+    [{ w: 100 }, 99],
+    [{ w: 9999 }, 99],
+  ];
+  for (const [option, expected] of cases) assert.equal(bubbleChoiceWeight(option), expected);
 });
 
 test('bubble rows keep images isolated and canonicalize paired text without losing order', () => {

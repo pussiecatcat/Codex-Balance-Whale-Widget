@@ -35,10 +35,10 @@ test('usageAlertModsResolved returns one resolved module per input module', () =
 });
 
 test('bubbleDropShadow maps each drop zone to its indicator, and unknown zones to none', () => {
-  assert.equal(bubbleDropShadow('before'), '0 -4px 0 #203170');
-  assert.equal(bubbleDropShadow('after'), '0 4px 0 #203170');
-  assert.match(bubbleDropShadow('pairL'), /inset 5px 0 0 #203170/);
-  assert.match(bubbleDropShadow('pairR'), /inset -5px 0 0 #203170/);
+  assert.equal(bubbleDropShadow('before'), '0 -3px 0 #203170');
+  assert.equal(bubbleDropShadow('after'), '0 3px 0 #203170');
+  assert.equal(bubbleDropShadow('pairL'), 'inset 3px 0 0 #203170');
+  assert.equal(bubbleDropShadow('pairR'), 'inset -3px 0 0 #203170');
   assert.equal(bubbleDropShadow('join'), '');
   assert.equal(bubbleDropShadow(undefined), '');
 });

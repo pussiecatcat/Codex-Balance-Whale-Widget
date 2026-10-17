@@ -1,4 +1,5 @@
 const HELP_ID = 'dshwv-bubadvance-help';
+const HELP_BUTTON_ID = 'dshwv-bubadvance-help-button';
 
 // Keeps the explanation outside the scrollable editor card so it is not clipped.
 export function createBubbleAdvanceControl({ document, viewport, onChange }) {
@@ -19,21 +20,25 @@ export function createBubbleAdvanceControl({ document, viewport, onChange }) {
 
   const helpButton = document.createElement('button');
   helpButton.type = 'button';
-  helpButton.className = 'dshwv-bubadvance-q';
+  helpButton.id = HELP_BUTTON_ID;
+  helpButton.className = 'dshwv-bubadvance-q dshwv-askq dshwv-tplq';
   helpButton.textContent = '?';
-  helpButton.title = '查看点按角色时的泡泡队列规则';
-  helpButton.setAttribute('aria-label', helpButton.title);
+  helpButton.setAttribute('aria-label', '查看点按角色推进泡泡队列说明');
   helpButton.setAttribute('aria-controls', HELP_ID);
   helpButton.setAttribute('aria-expanded', 'false');
+  helpButton.style.marginLeft = '0';
+  helpButton.style.marginRight = '0';
   row.appendChild(helpButton);
 
   const popover = document.createElement('div');
   popover.id = HELP_ID;
-  popover.className = 'dshwv-bubadvance-pop';
-  popover.setAttribute('role', 'tooltip');
+  popover.className = 'dshwv-bubadvance-pop dshwv-tplhelp dshwv-hintbox';
+  popover.setAttribute('role', 'region');
+  popover.setAttribute('aria-labelledby', HELP_BUTTON_ID);
+  popover.setAttribute('aria-hidden', 'true');
   popover.innerHTML =
-    '<p>关闭（默认）：<strong>点角色</strong> = 回到第 1 个泡泡（点泡泡才是往后推进）。</p>' +
-    '<p>开启：<strong>点一下角色 = 往后推进一项</strong>（不再回到首次点击泡泡）；走到最后一项再点 = 收起泡泡。</p>';
+    '关闭（默认）：<b>点角色</b>＝回到第 1 个泡泡（点泡泡才是往后推进）。<br><br>' +
+    '开启：<b>点一下角色 = 往后推进一项</b>（不再回到首次点击泡泡）；走到最后一项再点＝收起泡泡。';
   document.body.appendChild(popover);
 
   let pinned = false;
@@ -49,13 +54,41 @@ export function createBubbleAdvanceControl({ document, viewport, onChange }) {
   function positionHelp() {
     const bounds = helpButton.getBoundingClientRect();
     const area = viewport();
-    const width = Math.min(360, Math.max(220, area.w - 16));
+    const margin = 8;
+    const gap = 8;
+    const card = row.closest?.('.dshwv-bubcard');
+    const cardBounds = card?.getBoundingClientRect?.();
+    let safeLeft = margin;
+    let safeRight = area.w - margin;
+    let safeTop = margin;
+    let safeBottom = area.h - margin;
+    if (cardBounds) {
+      safeLeft = Math.max(safeLeft, cardBounds.left + margin);
+      safeRight = Math.min(safeRight, cardBounds.right - margin);
+      safeTop = Math.max(safeTop, cardBounds.top + margin);
+      safeBottom = Math.min(safeBottom, cardBounds.bottom - margin);
+    }
+    if (safeRight < safeLeft) {
+      safeLeft = margin;
+      safeRight = area.w - margin;
+    }
+    if (safeBottom < safeTop) {
+      safeTop = margin;
+      safeBottom = area.h - margin;
+    }
+    const width = Math.max(0, Math.min(340, safeRight - safeLeft));
     popover.style.width = Math.round(width) + 'px';
+    popover.style.maxWidth = Math.round(width) + 'px';
     const height = popover.offsetHeight || 112;
-    let left = bounds.left;
-    let top = bounds.bottom + 8;
-    left = Math.max(8, Math.min(left, area.w - width - 8));
-    if (top + height > area.h - 8) top = Math.max(8, bounds.top - height - 8);
+    const footerBounds = card?.querySelector?.('.dshwv-bubbtns')?.getBoundingClientRect?.();
+    const footerLimit = footerBounds && footerBounds.top >= bounds.bottom
+      ? footerBounds.top - gap
+      : safeBottom;
+    const lowerLimit = Math.min(safeBottom, footerLimit);
+    const left = Math.max(safeLeft, Math.min(bounds.left, safeRight - width));
+    let top = bounds.bottom + gap;
+    if (top + height > lowerLimit) top = bounds.top - height - gap;
+    top = Math.max(safeTop, Math.min(top, safeBottom - height));
     popover.style.left = Math.round(left) + 'px';
     popover.style.top = Math.round(top) + 'px';
   }
@@ -64,6 +97,7 @@ export function createBubbleAdvanceControl({ document, viewport, onChange }) {
     clearHideTimer();
     popover.style.display = 'block';
     helpButton.setAttribute('aria-expanded', 'true');
+    popover.setAttribute('aria-hidden', 'false');
     positionHelp();
   }
 
@@ -73,6 +107,7 @@ export function createBubbleAdvanceControl({ document, viewport, onChange }) {
     pinned = false;
     popover.style.display = 'none';
     helpButton.setAttribute('aria-expanded', 'false');
+    popover.setAttribute('aria-hidden', 'true');
   }
 
   function scheduleHide() {

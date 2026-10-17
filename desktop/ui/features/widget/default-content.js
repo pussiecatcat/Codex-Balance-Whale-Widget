@@ -742,7 +742,7 @@ export function bubbleChoiceOptions(step) {
   return step && step.kind === 'choice' && Array.isArray(step.options) ? step.options : [];
 }
 export function bubbleChoiceWeight(o) {
-  return Math.max(1, Math.round(Number(o && o.w) || 1));
+  return Math.min(99, Math.max(1, Math.round(Number(o && o.w) || 1)));
 }
 export function bubbleSingleFromItem(itm) {
   return {

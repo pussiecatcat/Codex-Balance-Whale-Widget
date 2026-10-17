@@ -8,7 +8,7 @@
 - 本地开发分支：`main` 加临时特性分支（`codex/*`、`fix/*`）
 - 发行标签：`codex-v0.3.0-fixed.<n>`，与 `CHANGELOG.md` 当前条目一致；当前为 `codex-v0.3.0-fixed.18`
 - Release 标题：`Codex 额度小鲸鱼 v0.3(fixed)`
-- 插件构建标识：唯一权威来源是 `.codex-plugin/plugin.json` 的 `version`，当前为 `0.3.0+codex.20261017-bubble-editor-polish`
+- 插件构建标识：唯一权威来源是 `.codex-plugin/plugin.json` 的 `version`，当前为 `0.3.0+codex.20261018-bubble-editor-refined`
 
 版本号不在这份文档里二次维护：打包时以 `plugin.json` 与 `CHANGELOG.md` 为准，两者不一致说明有一步没做。
 
