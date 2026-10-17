@@ -11,7 +11,7 @@ function fixture({ textWidth = 100, clientWidth = 50, speed } = {}) {
     removeChild(child) { this.children = this.children.filter(node => node !== child); return child; },
   };
   const nameElement = {
-    clientWidth, style: {}, listeners: {},
+    clientWidth, style: {}, listeners: {}, isConnected: true,
     querySelector: selector => (selector === '.dshwv-nameinner' ? track : null),
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
     fire(type) { for (const fn of this.listeners[type] || []) fn(); },
@@ -19,6 +19,7 @@ function fixture({ textWidth = 100, clientWidth = 50, speed } = {}) {
   const item = {
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(other => other !== fn); },
     fire(type) { for (const fn of this.listeners[type] || []) fn(); },
   };
   const created = [];
@@ -107,4 +108,45 @@ test('leaving stops the loop for good, however long the pointer stays away', t =
   t.mock.timers.tick(60000);
   assert.equal(fx.track.style.transform, '', 'a pending cycle must not resurrect the scroll');
   assert.equal(fx.track.children.length, 1, 'and the duplicate must not come back');
+});
+
+// The list a row lives in can be rebuilt while the pointer is still over it, and
+// a replaced row never fires mouseleave. Before this was handled, the marquee
+// kept rescheduling against a detached node for the life of the widget.
+test('the loop releases a row that was replaced instead of animating it forever', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fx = fixture();
+  fx.marquee.bind(fx.item, fx.nameElement);
+  fx.item.fire('mouseenter');
+  assert.equal(fx.track.children.length, 2, 'it is animating while the row is attached');
+
+  fx.nameElement.isConnected = false;
+  t.mock.timers.tick(60000);
+  assert.equal(fx.track.style.transform, '', 'the transform is released');
+  assert.equal(fx.track.children.length, 1, 'and so is the duplicate');
+});
+
+test('bind returns a cleanup a list rebuild can call directly', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fx = fixture();
+  const release = fx.marquee.bind(fx.item, fx.nameElement);
+  assert.equal(typeof release, 'function');
+  fx.item.fire('mouseenter');
+  assert.equal(fx.track.children.length, 2);
+
+  release();
+  assert.equal(fx.track.style.transform, '', 'the loop stopped');
+  assert.equal(fx.track.children.length, 1, 'and the duplicate was taken back out');
+  // Detached listeners are proven by behaviour: hovering again must not restart it.
+  fx.item.fire('mouseenter');
+  assert.equal(fx.track.children.length, 1, 'the listeners are detached too');
+  t.mock.timers.tick(60000);
+  assert.equal(fx.track.children.length, 1, 'and nothing reschedules after the cleanup');
+});
+
+test('binding without both nodes still returns a callable cleanup', () => {
+  const fx = fixture();
+  const release = fx.marquee.bind(null, fx.nameElement);
+  assert.equal(typeof release, 'function');
+  release();
 });

@@ -10,6 +10,7 @@ export function createRoleManager(deps) {
   const badIds = Object.create(null);
   let fallbackInProgress = false;
   let generation = 0;
+  const nameDisposers = [];
 
   function roleUrl(id) {
     return id === 'default' ? imageUrl : '/dsh-whale/role-image.png?id=' + encodeURIComponent(id);
@@ -39,6 +40,9 @@ export function createRoleManager(deps) {
 
   function render() {
     try {
+      // Rebuilding the list detaches whichever row the pointer was over, and a
+      // detached row never fires mouseleave — release its marquee first.
+      for (const dispose of nameDisposers.splice(0)) { try { dispose(); } catch (error) {} }
       rolePanel.innerHTML = '';
       for (const role of roles) {
         const item = document.createElement('div');
@@ -83,7 +87,8 @@ export function createRoleManager(deps) {
           item.appendChild(remove);
         }
         item.addEventListener('click', () => apply(role.id, role.name, roleUrl(role.id)));
-        bindNameMarquee(item, name);
+        const releaseName = bindNameMarquee(item, name);
+        if (typeof releaseName === 'function') nameDisposers.push(releaseName);
         rolePanel.appendChild(item);
       }
     } catch (error) {}

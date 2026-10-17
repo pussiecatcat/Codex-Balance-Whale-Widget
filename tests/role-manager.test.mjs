@@ -32,7 +32,7 @@ const IMAGE_URL = '/dsh-whale/image.png?v=2';
 function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}) {
   const failing = new Set(failUrls);
   const storage = new Map(saved ? [['dshw-role', saved]] : []);
-  const calls = { notices: [], warnings: [], failures: [], hitTests: [], presented: 0 };
+  const calls = { notices: [], warnings: [], failures: [], hitTests: [], presented: 0, marqueeReleases: 0 };
 
   class FakeImage {
     constructor() { this.src = ''; this.complete = false; this.naturalWidth = 0; }
@@ -72,7 +72,8 @@ function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}
     viewport: () => ({ w: 1000, h: 800 }),
     setupHitTest: url => calls.hitTests.push(url),
     makeNameCell: (className, text) => { const node = element(); node.className = className; node.textContent = text; return node; },
-    bindNameMarquee: () => {},
+    // Mirrors the real helper: it returns the cleanup a list rebuild must call.
+    bindNameMarquee: () => () => { calls.marqueeReleases++; },
     confirm: () => {},
   });
   return { manager, calls, storage, imageElement, rolePanel, roleButtonLabel, roleButton, managerWindow };
@@ -221,4 +222,17 @@ test('the panel toggles open and closed against the viewport', () => {
   manager.toggle();
   assert.equal(rolePanel.classList.contains('dshwv-rolelist-open'), false);
   assert.equal(rolePanel.style.display, 'none');
+});
+
+// Rebuilding the role list detaches whichever row the pointer was over, and a
+// detached row never fires mouseleave — so the list owns the release.
+test('rebuilding the role list releases the marquee of every row it replaces', async () => {
+  const { manager, calls } = fixture();
+  manager.replace([{ id: 'default', name: '小鲸鱼', url: IMAGE_URL }]);
+  assert.equal(calls.marqueeReleases, 0, 'the first build has nothing to release');
+  manager.replace([{ id: 'default', name: '小鲸鱼', url: IMAGE_URL },
+    { id: 'role_a', name: '角色甲', url: '/dsh-whale/role-image.png?id=role_a' }]);
+  assert.equal(calls.marqueeReleases, 1, 'the row from the previous list is released');
+  manager.replace([]);
+  assert.equal(calls.marqueeReleases, 3, 'and both rows of the second list');
 });

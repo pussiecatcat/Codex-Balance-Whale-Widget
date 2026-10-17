@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 
@@ -5,14 +6,16 @@ import { readJson, writeJson } from './paths.mjs';
 // function-call payload or provider credential enters the notice state.
 export class NoticePublisher {
   #lastFile;
+  #fs;
   #cancelledOutcomes = new Set();
 
-  constructor({ config, ledger, balance, dataDir, noticeDelayMs = 2500, clock = Date.now }) {
+  constructor({ config, ledger, balance, dataDir, noticeDelayMs = 2500, clock = Date.now, fs: fileSystem = fs }) {
     this.config = config;
     this.ledger = ledger;
     this.balance = balance;
     this.clock = clock;
     this.#lastFile = path.join(dataDir, 'last-turn.json');
+    this.#fs = fileSystem;
     this.noticeDelayMs = noticeDelayMs;
     this.noticeTimers = new Map();
     this.latestStarts = new Map();
@@ -42,16 +45,16 @@ export class NoticePublisher {
     return { ok: true, revision: this.waitRevision, pending: pending ? { ...pending } : null };
   }
   lastTurn() {
-    const last = readJson(this.#lastFile, { ok: true, seq: 0, turn: null, amount: null, tokens: null, ts: null });
+    const last = readJson(this.#lastFile, { ok: true, seq: 0, turn: null, amount: null, tokens: null, ts: null }, { fs: this.#fs });
     const c = this.config.resolve();
     if (last.accountId && last.accountId !== c.accountId) return { ok: true, seq: last.seq, turn: null, amount: null, tokens: null, ts: null };
     return last;
   }
   isOutcomeCancelled(id) { return this.#cancelledOutcomes.has(id); }
   reviseLastTurn(id, patch, { expectedOutcome = null } = {}) {
-    const last = readJson(this.#lastFile, { seq: 0 });
+    const last = readJson(this.#lastFile, { seq: 0 }, { fs: this.#fs });
     if (last.id !== id || expectedOutcome && last.outcome !== expectedOutcome) return false;
-    writeJson(this.#lastFile, { ...last, ...patch, seq: last.seq });
+    writeJson(this.#lastFile, { ...last, ...patch, seq: last.seq }, { fs: this.#fs });
     return true;
   }
   status() {
@@ -94,9 +97,23 @@ export class NoticePublisher {
     try { config = this.config.resolve(); } catch { return; }
     if (config.accountId !== event.accountId) return;
     if (!['success','cancelled','failed'].includes(event.completionKind)) return;
-    const seq = Number(readJson(this.#lastFile, { seq: 0 }).seq || 0) + 1;
+    // The notice file is what the widget polls, so it has to reach the disk before
+    // the ledger claims the notice was published. Marking first meant a failed
+    // write left the ledger saying "sent" while no notice existed, and the guard
+    // above then skipped every retry — the completion notice was lost for good.
+    //
+    // Writing first needs the write to be idempotent, which is why the file
+    // records the notice it carries: if the ledger revise is what failed, the
+    // retry finds its own notice already there, rewrites nothing, and leaves seq
+    // alone so the widget does not show the same turn twice.
+    const noticeId = (event.accountId || '') + '|' + scope + '|' + id;
+    const last = readJson(this.#lastFile, { seq: 0 }, { fs: this.#fs });
+    if (last.noticeId !== noticeId) {
+      writeJson(this.#lastFile, {
+        ...event, seq: Number(last.seq || 0) + 1, noticeId, amount: event.cost, notificationAt: this.clock(),
+      }, { fs: this.#fs });
+    }
     this.ledger.revise(scope, id, { noticePublished: true });
-    writeJson(this.#lastFile, { ...event, seq, amount: event.cost, notificationAt: this.clock() });
   }
   close() {
     this.closed = true;

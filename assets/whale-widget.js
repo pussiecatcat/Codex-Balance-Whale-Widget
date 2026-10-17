@@ -83,25 +83,31 @@ import {
     var assetClient = createAssetClient();
     var assetWarnings = Object.create(null);
 
-    // The combined settings endpoint owns both settings files and guards them
-    // with a revision, so a partial update has to read the pair, merge, and send
-    // both back. A 409 means something else wrote in between; the local change is
-    // the one the user just made, so re-read once and re-apply it rather than
-    // dropping the edit.
+    // The combined settings endpoint owns both settings files. A command carries
+    // only the fields being changed plus the values this client read for them, so
+    // a save here cannot write back a stale copy of settings someone else owns.
+    // A 409 means one of /those/ fields changed underneath; the local change is
+    // the one the user just made, so re-read once and re-apply it.
     function updateSoundSettings(mutate, onSaved, attempt) {
       attempt = attempt || 0;
       return fetch(SETTINGS_URL, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (current) {
         if (!current || current.ok !== true) throw new Error(current && current.error || '无法读取设置');
-        var next = mutate({ size: current.size, usage: current.usage });
+        var next = mutate({ size: current.size, usage: current.usage }) || {};
+        var patch = {}, base = {}, keys = 0;
+        ['size', 'usage'].forEach(function (name) {
+          var fields = next[name];
+          if (!fields) return;
+          var names = Object.keys(fields);
+          if (!names.length) return;
+          var read = {};
+          for (var i = 0; i < names.length; i++) read[names[i]] = (current[name] || ({}))[names[i]];
+          patch[name] = fields; base[name] = read; keys += names.length;
+        });
+        if (!keys) return { status: 200, body: current };
         return fetch(SETTINGS_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            schemaVersion: current.schemaVersion,
-            revision: current.revision,
-            size: next.size,
-            usage: next.usage
-          })
+          body: JSON.stringify({ schemaVersion: current.schemaVersion, base: base, patch: patch })
         }).then(function (r) { return r.json().then(function (body) { return { status: r.status, body: body }; }); });
       }).then(function (result) {
         if (result.status === 409 && attempt < 1) return updateSoundSettings(mutate, onSaved, attempt + 1);
@@ -617,8 +623,8 @@ import {
     }
     function saveUsageSettings(patch) {
       try {
-        updateSoundSettings(function (current) {
-          return { size: current.size, usage: Object.assign({}, current.usage, patch || {}) };
+        updateSoundSettings(function () {
+          return { usage: Object.assign({}, patch || {}) };
         }, function (saved) {
           if (saved && saved.usage) usageSet = saved.usage;
         });
@@ -4184,9 +4190,9 @@ import {
     var menuBtnHide = false;
     function saveConfig() {
       try {
-        updateSoundSettings(function (current) {
+        updateSoundSettings(function () {
           return {
-            size: Object.assign({}, current.size, {
+            size: {
               scale: state.scale,
               sound: soundOn,
               vol: soundVol,
@@ -4198,8 +4204,7 @@ import {
               scrollGapOn: scrollGapOn,
               scrollGapPx: scrollGapPx,
               menuBtnHide: menuBtnHide
-            }),
-            usage: current.usage
+            }
           };
         });
         var vp = viewport();
