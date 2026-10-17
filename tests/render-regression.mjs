@@ -73,32 +73,33 @@ export async function verifyRendering({ window, ev, wait, clickAt, hitPoint, mov
       assert.equal(await ev('window.__randomCalls'), calls);
       checks.push('random bubble retains its nodes and sentence through balance, usage and error callbacks');
       dispatcher.whale.provider.fail = false;
-      // Send the actual mouse down/up. Petting the character must keep the
-      // current bubble; only a click on the bubble may advance the sequence.
+      // Send the actual mouse down/up. With character advancement disabled,
+      // pressing the character restarts the queue at the first bubble.
       const whalePoint = await hitPoint();
-      const petText = await text(), petEpoch = await ev(`${api}.status().epoch`);
-      await holdNodes();
+      const petEpoch = await ev(`${api}.status().epoch`);
       const frames = await watch(() => clickAt(whalePoint));
+      await stable();
       await wait(`!${api}.status().busy`, 'petting background refresh');
       for (const frame of frames) {
         assert.ok(frame.layers.reduce((sum, layer) => sum + layer.opacity, 0) >= 0.98, 'no empty content buffer frame');
-        for (const layer of frame.layers) if (layer.opacity > 0.001) assert.equal(layer.text, petText, 'petting keeps the current bubble content');
       }
-      assert.ok(frames.every(frame => !frame.switching), 'petting never starts a bubble transition');
-      assert.equal(await text(), petText); assert.equal(await nodesUnchanged(), true);
-      assert.equal(await ev(`${api}.status().epoch`), petEpoch);
+      assert.ok(frames.some(frame => frame.switching), 'restarting the queue uses the normal bubble transition');
+      assert.match(await text(), /8\.77/); assert.doesNotMatch(await text(), /随机/);
+      assert.ok(await ev(`${api}.status().epoch`) > petEpoch);
       assert.equal(await ev('window.__randomCalls'), calls);
       details.petFrames = frames;
-      checks.push('actual whale presses keep the current bubble and nodes while retaining press/release interaction');
+      checks.push('an actual whale press returns to the first bubble when character advancement is disabled');
+      await clickBubble();
+      assert.match(await text(), /随机 A/); assert.equal(await ev('window.__randomCalls'), calls + 1);
       await clickBubble();
       await wait(`!${api}.status().shown`, 'last bubble pops only when the bubble is clicked');
       await ev('window.__randomValue = 0.99');
       await clickAt(await hitPoint()); await stable();
       assert.doesNotMatch(await text(), /随机/); assert.match(await text(), /8\.77/);
       await clickBubble();
-      assert.match(await text(), /随机 B/); assert.equal(await ev('window.__randomCalls'), calls + 1);
+      assert.match(await text(), /随机 B/); assert.equal(await ev('window.__randomCalls'), calls + 2);
       await ev('Math.random = window.__savedRandom; true');
-      checks.push('bubble clicks alone advance and pop the queue; reopening starts from the first bubble and rerolls once on re-entry');
+      checks.push('bubble clicks advance and pop the queue; reopening starts from the first bubble and rerolls on each entry');
 
       // Delay image readiness while keeping the existing complete buffer on screen.
       const beforeImage = await text();

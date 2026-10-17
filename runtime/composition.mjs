@@ -33,13 +33,14 @@ export function createComposition({
   const displayModeFile = path.join(dataDir, 'display-mode.json');
   const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
 
-  // The widget host owns its own routes, so it registers into the same table the
-  // core routes live in rather than being consulted as a second mechanism.
+  // The widget host declares each route — the methods it answers, how large a
+  // body it accepts, whether its payload passes the migration filter — instead
+  // of registering into a web-server facade the dispatcher then had to emulate.
   const widgetRoutes = new Map();
   const effects = [];
   createWidgetHost(dataDir).apply({
     whale,
-    webServer: { register: entry => { widgetRoutes.set(entry.path, entry.handler); return () => widgetRoutes.delete(entry.path); }, tapIndex: () => () => {} },
+    declareRoute: declaration => { widgetRoutes.set(declaration.path, declaration); return () => widgetRoutes.delete(declaration.path); },
     effect: effect => effects.push(effect()),
   });
 

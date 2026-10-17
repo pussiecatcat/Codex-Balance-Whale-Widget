@@ -10,7 +10,7 @@ for(const name of [
   '../runtime/size-settings.mjs','../runtime/sound-settings.mjs',
   '../runtime/balance-query.mjs','../runtime/turn-accounting.mjs','../runtime/notice-publisher.mjs',
   '../runtime/session-events.mjs','../runtime/session-parser.mjs','../runtime/bounded-body.mjs',
-  '../lib/atomic-write.mjs',
+  '../lib/atomic-write.mjs','../lib/route-response.mjs',
 ]) {
   if(!fs.existsSync(fileURLToPath(new URL(name,import.meta.url))))throw new Error('Package dependency missing: '+name);
 }
