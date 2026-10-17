@@ -137,8 +137,11 @@ test('an earlier accepted press retains native input after the squish makes its 
   assert.equal(pointerPressAccepted(root, { pointerId: 3 }, () => true, { x: 5, y: 5 }), true);
 });
 
-test('petting an open character bubble never advances or closes its queue', () => {
-  const state = { enabled: true, scene: null, shown: false, round: false, index: 8, opens: 0, quotaRefreshes: 0 };
+test('character clicks restart by default and advance only when the saved option is enabled', () => {
+  const state = {
+    enabled: true, scene: null, shown: false, advance: false, canAdvance: true,
+    round: false, index: 8, opens: 0, advances: 0, closes: 0, quotaRefreshes: 0,
+  };
   const interaction = createBubbleInteraction({
     isEnabled: () => state.enabled,
     getScene: () => state.scene,
@@ -148,15 +151,24 @@ test('petting an open character bubble never advances or closes its queue', () =
     isSubscription: () => true,
     refreshQuota: () => { state.quotaRefreshes++; },
     startRound: () => { state.round = true; state.index = 0; state.opens++; },
-    canAdvance: () => false,
-    showNext: () => { state.opens++; },
-    closeCost() {}, closeAlert() {}, closeBubble() {},
+    shouldAdvanceOnCharacter: () => state.advance,
+    canAdvance: () => state.canAdvance,
+    showNext: () => { state.index++; state.advances++; },
+    closeCost() {}, closeAlert() {}, closeBubble: () => { state.shown = false; state.closes++; },
   });
   interaction.whaleClick();
   assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.round, true); assert.equal(state.index, 0);
   state.shown = true; state.index = 1;
-  interaction.whaleClick(); interaction.whaleClick(); interaction.whaleClick();
-  assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.index, 1, 'open bubble remains on its current item');
+  interaction.whaleClick();
+  assert.equal(state.opens, 2); assert.equal(state.index, 0, 'the default setting returns to the first item');
+
+  state.advance = true; state.shown = true; state.index = 0;
+  interaction.whaleClick();
+  assert.equal(state.advances, 1); assert.equal(state.index, 1, 'the enabled setting advances one item');
+  state.canAdvance = false;
+  interaction.whaleClick();
+  assert.equal(state.closes, 1); assert.equal(state.shown, false, 'clicking after the last item closes the bubble');
+  assert.equal(state.quotaRefreshes, 1, 'open queues do not trigger redundant subscription refreshes');
 });
 
 test('failed task registration leaves a running installation untouched and cannot print success', { skip: process.platform !== 'win32' }, async t => {

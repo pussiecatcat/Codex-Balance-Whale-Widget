@@ -5,6 +5,7 @@ import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
+import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-control.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -1157,8 +1158,12 @@ import {
     var bubbleEditItems = [];
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
-    function bubbleDefaultQueue() {
-      return buildBubbleDefaultQueue(window.WhaleAccountView?.mode === 'subscription');
+    var bubbleEditTapAdvance = false;
+    var bubbleEditSubscriptionMode = false;
+    var bubbleAdvanceControl = null;
+    function bubbleDefaultQueue(subscriptionMode) {
+      if (typeof subscriptionMode !== 'boolean') subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
+      return buildBubbleDefaultQueue(subscriptionMode);
     }
     // ==== [气泡编辑器] ====
     var bubbleEditorView = createBubbleEditorView({
@@ -1181,7 +1186,7 @@ import {
     function bubbleEditorDirty() {
       try {
         if (bubbleEditorSnap === null) return true;
-        return bubbleEditorSnap !== JSON.stringify([bubbleEditItems, bubbleLib]);
+        return bubbleEditorSnap !== JSON.stringify([bubbleEditItems, bubbleLib, bubbleEditTapAdvance]);
       } catch (err) {
         return true;
       }
@@ -1196,29 +1201,34 @@ import {
         }
         closeRolePanel();
         closeAudioGroupPanel();
-        var draft = loadBubbleEditorDraft(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
+        bubbleEditSubscriptionMode = window.WhaleAccountView?.mode === 'subscription';
+        var draft = loadBubbleEditorDraft(bubbleCfg, bubbleEditSubscriptionMode);
         bubbleLib = draft.library;
         bubbleEditItems = draft.items;
-        bubbleEditorSnap = JSON.stringify([bubbleEditItems, bubbleLib]);
+        bubbleEditTapAdvance = draft.tapAdvance;
+        bubbleAdvanceControl.setValue(bubbleEditTapAdvance);
+        bubbleEditorSnap = JSON.stringify([bubbleEditItems, bubbleLib, bubbleEditTapAdvance]);
         renderBubbleEditor();
         bubbleMask.style.display = 'flex';
       } catch (err) {}
     }
     function closeBubbleEditor() {
       bubbleMask.style.display = 'none';
+      bubbleAdvanceControl.hideHelp();
       bubbleEditorSnap = null;
     }
     function bubbleEditorReset() {
       showConfirm(window.WhaleAccountView?.mode === 'subscription' ? '恢复为默认 Codex 额度气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', function () {
-        bubbleEditItems = bubbleDefaultQueue();
+        bubbleEditItems = bubbleDefaultQueue(bubbleEditSubscriptionMode);
+        bubbleEditTapAdvance = false;
+        bubbleAdvanceControl.setValue(false);
         renderBubbleEditor();
       });
     }
     function bubbleEditorSave() {
       try {
         var doSave = function () {
-          var subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
-          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode), function (ok) {
+          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, bubbleEditSubscriptionMode, bubbleEditTapAdvance), function (ok) {
             if (ok !== false) closeBubbleEditor();
           });
         };
@@ -1852,7 +1862,7 @@ import {
     bubbleCard.appendChild(bubbleTitle);
     var bubbleSecFirst = document.createElement('div');
     bubbleSecFirst.className = 'dshwv-bubsec dshwv-bubsec-first';
-    bubbleSecFirst.textContent = '首次点击桌宠弹出内容';
+    bubbleSecFirst.textContent = '首次点击弹出内容';
     bubbleCard.appendChild(bubbleSecFirst);
     var bubbleFirstRow = document.createElement('div');
     bubbleFirstRow.className = 'dshwv-bubrow';
@@ -1867,7 +1877,7 @@ import {
     bubbleCard.appendChild(bubbleFirstRow);
     var bubbleSecMore = document.createElement('div');
     bubbleSecMore.className = 'dshwv-bubsec';
-    bubbleSecMore.textContent = '点击泡泡后的内容';
+    bubbleSecMore.textContent = '再次点击弹出内容';
     bubbleCard.appendChild(bubbleSecMore);
     bubbleMoreListEl = document.createElement('div');
     bubbleMoreListEl.addEventListener('dragover', function (e) {
@@ -1890,11 +1900,12 @@ import {
     bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
-    var bubbleInteractionHint = document.createElement('div');
-    bubbleInteractionHint.className = 'dshwv-bubsec';
-    bubbleInteractionHint.textContent = '点桌宠只互动；点泡泡切换，最后一泡再点收起';
-    bubbleInteractionHint.title = '第一次点桌宠打开泡泡。泡泡打开后可继续按压桌宠，当前内容不会切换或消失。';
-    bubbleCard.appendChild(bubbleInteractionHint);
+    bubbleAdvanceControl = createBubbleAdvanceControl({
+      document: document,
+      viewport: viewport,
+      onChange: function (value) { bubbleEditTapAdvance = value; }
+    });
+    bubbleCard.appendChild(bubbleAdvanceControl.element);
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -3956,6 +3967,11 @@ import {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
+      },
+      shouldAdvanceOnCharacter: function () {
+        return window.WhaleAccountView?.mode === 'subscription'
+          ? bubbleCfg?.subscriptionTapAdvance === true
+          : bubbleCfg?.tapAdvance === true;
       },
       canAdvance: function () { return bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length; },
       showNext: bubbleShowSeqNext,

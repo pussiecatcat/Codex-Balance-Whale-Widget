@@ -6,12 +6,16 @@ import { createBubbleEditorView } from '../desktop/ui/features/widget/bubble-edi
 function element(tag = 'div') {
   const node = {
     tagName: tag, className: '', textContent: '', title: '', type: '', draggable: false, value: '',
-    style: {}, children: [], listeners: {}, attributes: {}, _html: '',
+    style: {}, children: [], listeners: {}, attributes: {}, _html: '', _bounds: null,
     set innerHTML(value) { this._html = value; if (value === '') this.children = []; },
     get innerHTML() { return this._html; },
     appendChild(child) { this.children.push(child); return child; },
     setAttribute(name, value) { this.attributes[name] = value; },
-    getBoundingClientRect() { return { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 }; },
+    querySelector(selector) {
+      const name = String(selector).replace(/^\./, '');
+      return this.children.find(child => String(child.className || '').split(/\s+/).includes(name)) || null;
+    },
+    getBoundingClientRect() { return this._bounds || { width: 200, height: 40, left: 0, top: 0, right: 200, bottom: 40 }; },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
     fire(type, event = {}) { for (const fn of this.listeners[type] || []) fn({ stopPropagation() {}, preventDefault() {}, dataTransfer: { setData() {} }, ...event }); },
   };
@@ -143,4 +147,68 @@ test('an empty draft renders an empty list without throwing', () => {
   const fx = fixture([]);
   fx.view.renderMore();
   assert.equal(fx.moreList.children.length, 0);
+});
+
+const CHIP_BOUNDS = { width: 140, height: 24, left: 34, top: 8, right: 174, bottom: 32 };
+
+function pairedDropFixture() {
+  const fx = fixture([{ kind: 'normal' }, custom('二'), custom('三')]);
+  fx.view.renderMore();
+  chipIn(fx.moreList.children[1])._bounds = CHIP_BOUNDS;
+  return fx;
+}
+
+test('dropping anywhere on the left half of another bubble pairs them with the dragged bubble as A', () => {
+  const fx = pairedDropFixture();
+  const [dragged, target] = fx.moreList.children;
+  dragged.fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 30 });
+  target.fire('drop', { clientX: 70, clientY: 30 });
+
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice']);
+  assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['二', '三']);
+});
+
+test('dropping anywhere on the right half of another bubble pairs them with the dragged bubble as B', () => {
+  const fx = pairedDropFixture();
+  const [dragged, target] = fx.moreList.children;
+  dragged.fire('dragstart');
+  target.fire('dragover', { clientX: 145, clientY: 10 });
+  target.fire('drop', { clientX: 145, clientY: 10 });
+
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'choice']);
+  assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['三', '二']);
+});
+
+test('the final pointer position at drop decides which side is paired', () => {
+  const fx = pairedDropFixture();
+  const [dragged, target] = fx.moreList.children;
+  dragged.fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 20 });
+  target.fire('drop', { clientX: 145, clientY: 20 });
+
+  assert.deepEqual(fx.items()[1].options.map(option => option.item.modules[0].text), ['三', '二']);
+});
+
+test('dropping on the handle-side padding still reorders instead of pairing', () => {
+  const fx = pairedDropFixture();
+  const [dragged, target] = fx.moreList.children;
+  dragged.fire('dragstart');
+  target.fire('dragover', { clientX: 8, clientY: 30 });
+  target.fire('drop', { clientX: 8, clientY: 30 });
+
+  assert.deepEqual(fx.items().map(step => step.modules?.[0]?.text), [undefined, '三', '二']);
+});
+
+test('dragging an existing A/B row by its handle always reorders the whole row', () => {
+  const fx = fixture([{ kind: 'normal' }, choice(), custom('三')]);
+  fx.view.renderMore();
+  const [choiceRow, target] = fx.moreList.children;
+  chipIn(target)._bounds = CHIP_BOUNDS;
+  const handle = choiceRow.children.find(child => child.className === 'dshwv-bubdrag');
+  handle.fire('dragstart');
+  target.fire('dragover', { clientX: 70, clientY: 30 });
+  target.fire('drop', { clientX: 70, clientY: 30 });
+
+  assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'custom', 'choice']);
 });

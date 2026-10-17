@@ -4,7 +4,7 @@
   <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
 </p>
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261009-quota-reliable`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261017-bubble-editor-polish`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
 
 这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
 
@@ -24,7 +24,7 @@
 
 ### 原版风格的气泡交互
 
-- 第一次点击角色打开气泡；气泡打开后继续点击角色只播放按压、回弹和音效，方便连续“搓”桌宠。
+- 第一次点击角色打开气泡；默认情况下，气泡打开后再点角色会回到第 1 个泡泡。也可在“自定义泡泡”中开启“点按角色推进泡泡队列”，改为逐项推进并在末项后收起。
 - 点击气泡切换到下一泡，最后一泡再次点击后收起。
 - Codex 订阅气泡不会在阅读过程中自动消失；API 气泡保留原有关闭时间。
 - 气泡、尾泡与文字按真实动画生命周期完整淡出，避免 Windows 原生窗口区域提前裁切。

@@ -84,3 +84,23 @@ test('editor draft isolates saved content and preserves the other account mode',
   assert.equal(saved.subscriptionItems[0].modules[0].windowDurationMins, 10080);
   assert.equal(saved.subscriptionTapAdvance, false);
 });
+
+test('the editor loads and saves character advancement only for the active account mode', () => {
+  const config = {
+    items: [{ kind: 'normal' }],
+    subscriptionItems: [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300 }] }],
+    lib: [], tapAdvance: true, subscriptionTapAdvance: false,
+  };
+  assert.equal(loadBubbleEditorDraft(config, false).tapAdvance, true);
+  assert.equal(loadBubbleEditorDraft(config, true).tapAdvance, false);
+
+  const apiSaved = saveBubbleEditorDraft([{ kind: 'normal' }], [], config, false, false);
+  assert.equal(apiSaved.tapAdvance, false);
+  assert.equal(apiSaved.subscriptionTapAdvance, false, 'the subscription setting is preserved');
+
+  const subscriptionSaved = saveBubbleEditorDraft(
+    [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300 }] }], [], config, true, true,
+  );
+  assert.equal(subscriptionSaved.tapAdvance, true, 'the API setting is preserved');
+  assert.equal(subscriptionSaved.subscriptionTapAdvance, true);
+});

@@ -18,6 +18,16 @@ export async function makeFixture(dataDir) {
   const codex = path.join(dataDir, 'fixture-codex'); fs.mkdirSync(codex, { recursive: true });
   fs.writeFileSync(path.join(codex, 'config.toml'), 'model_provider="fixture"\n[model_providers.fixture]\nbase_url="https://example.invalid/v1"\nexperimental_bearer_token="TEST-ONLY-NOT-A-KEY"\n');
   fs.writeFileSync(path.join(dataDir, '.dshw-size.json'), JSON.stringify({ scale: 1, sound: false, vol: 0, bubbleOn: true, turnCostOn: true }));
+  fs.writeFileSync(path.join(dataDir, '.dshw-bubble.json'), JSON.stringify({
+    v: 1, tapAdvance: false, lib: [],
+    items: [
+      { kind: 'normal' },
+      { kind: 'choice', options: [
+        { w: 10, item: { kind: 'custom', modules: [{ type: 'text', text: 'A' }] } },
+        { w: 1, item: { kind: 'custom', modules: [{ type: 'text', text: 'B' }] } },
+      ] },
+    ],
+  }));
   fs.writeFileSync(path.join(dataDir, 'display-mode.json'), JSON.stringify({ version: 1, mode: 'api' }));
   const config = new ConfigStore({ dataDir, codexHome: codex, env: {} });
   const provider = { amount: 12.3456, currency: 'USD', fail: false, delay: 0, async balance(c) {
@@ -110,12 +120,18 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     const bubble = await ev("document.querySelector('.dshwv-pop').innerText");
     assert.match(bubble, /12\.35/); assert.doesNotMatch(bubble, /12\.3456|峰谷|高峰|倒计时/); checks.push('click produces balance bubble with two decimal amounts');
     const firstBubble = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front})");
-    for (let pet = 0; pet < 3; pet++) await clickAt(await hitPoint());
+    for (let pet = 0; pet < 3; pet++) {
+      await clickAt(await hitPoint());
+      await wait('!window.__whaleRenderTest.status().switching', 'default character click returns to first bubble');
+    }
     await wait('!window.__whaleRenderTest.status().busy', 'petting refresh completes');
     const afterPetting = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front,shown:window.__whaleRenderTest.status().shown,switching:window.__whaleRenderTest.status().switching})");
-    assert.deepEqual(afterPetting, { ...firstBubble, shown: true, switching: false });
-    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), false);
-    checks.push('three petting clicks keep the current bubble unchanged; the obsolete character-advance option is gone');
+    assert.ok(afterPetting.text.startsWith(firstBubble.text), 'restarted layers retain the first bubble content');
+    assert.doesNotMatch(afterPetting.text, /\bA\b|\bB\b/, 'default character clicks do not advance into the A/B step');
+    assert.ok(afterPetting.epoch > firstBubble.epoch, 'each default character click restarts the queue');
+    assert.equal(afterPetting.shown, true); assert.equal(afterPetting.switching, false);
+    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), true);
+    checks.push('default character clicks return to the first bubble and the queue-advance setting is available');
     for (let retry = 0; retry < 3; retry++) {
       await ev('window.__whaleRenderTest.close()');
       await wait('!window.__whaleRenderTest.status().shown&&!window.__whaleRenderTest.status().switching', 'bubble closed before repeated first click');
@@ -164,6 +180,24 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     const buttonByText = async (text, scope = 'document') => clickAt(await ev(`(() => {const scope=${scope};const b=[...scope.querySelectorAll('button, .dshwv-bubchip')].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.checkVisibility({opacityProperty:true}));if(!b)throw new Error('missing visible control: '+${JSON.stringify(text)});const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`));
     await buttonByText('自定义泡泡');
     await wait("[...document.querySelectorAll('.dshwv-bubmask')].some(e=>e.checkVisibility({opacityProperty:true}))", 'bubble editor');
+    const bubbleEditorMask = "[...document.querySelectorAll('.dshwv-bubmask')].find(e=>e.checkVisibility({opacityProperty:true}))";
+    const bubbleEditorOverview = await ev(`(() => {const mask=${bubbleEditorMask};return {
+      text:mask.innerText,
+      checked:mask.querySelector('.dshwv-bubadvance-check').checked,
+      weights:[...mask.querySelectorAll('.dshwv-choicegrp')].map(group=>{const g=group.getBoundingClientRect(),w=group.querySelector('.dshwv-winput').getBoundingClientRect();return{value:group.querySelector('.dshwv-winput').value,rightGap:Math.round(g.right-w.right),centerGap:Math.round(Math.abs((g.top+g.bottom-w.top-w.bottom)/2))};})
+    };})()`);
+    assert.match(bubbleEditorOverview.text, /首次点击弹出内容/);
+    assert.match(bubbleEditorOverview.text, /再次点击弹出内容/);
+    assert.match(bubbleEditorOverview.text, /点按角色推进泡泡队列/);
+    assert.equal(bubbleEditorOverview.checked, false);
+    assert.deepEqual(bubbleEditorOverview.weights.map(weight => weight.value), ['10', '1']);
+    assert.ok(bubbleEditorOverview.weights.every(weight => weight.rightGap >= 3 && weight.rightGap <= 5 && weight.centerGap <= 1));
+    const advanceHelpPoint = await ev(`(() => {const r=(${bubbleEditorMask}).querySelector('.dshwv-bubadvance-q').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+    move(advanceHelpPoint.x, advanceHelpPoint.y); await delay(160);
+    await wait("document.querySelector('.dshwv-bubadvance-pop')?.checkVisibility({opacityProperty:true})", 'character advance help');
+    assert.match(await ev("document.querySelector('.dshwv-bubadvance-pop').innerText"), /关闭（默认）[\s\S]*回到第 1 个泡泡[\s\S]*开启[\s\S]*往后推进一项[\s\S]*收起泡泡/);
+    fs.writeFileSync(path.join(output, 'bubble-editor-help.png'), (await window.webContents.capturePage()).toPNG());
+    checks.push('bubble editor matches the reference labels, anchored weights, queue checkbox and hover help');
     await buttonByText('首次点击 · 编辑内容');
     const currentMask = "[...document.querySelectorAll('.dshwv-bubmask')].filter(e=>e.checkVisibility({opacityProperty:true})).at(-1)";
     const editor = await ev(`(${currentMask}).innerText`);
@@ -173,8 +207,22 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       if (await ev(`!!(${visibleConfirm})`)) await buttonByText('确定', visibleConfirm);
     };
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
-    await buttonByText('取消', currentMask); await dismissFixtureConfirm();
     checks.push('bubble module editor retains the restored original peak-period module');
+    await clickSelector('.dshwv-bubadvance-check');
+    assert.equal(await ev("document.querySelector('.dshwv-bubadvance-check').checked"), true);
+    await buttonByText('保存', bubbleEditorMask); await dismissFixtureConfirm();
+    await wait(`!(${bubbleEditorMask})`, 'bubble editor saves and closes');
+    assert.equal(await ev("fetch('/dsh-whale/bubble.json',{cache:'no-store'}).then(r=>r.json()).then(d=>d.config.tapAdvance)"), true);
+    await ev(`window.__whaleRenderTest.close(); window.__whaleRenderTest.queue([
+      {kind:'custom',modules:[{type:'text',text:'队列第一项'}]},
+      {kind:'custom',modules:[{type:'text',text:'队列第二项'}]}
+    ]); true`);
+    await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().switching", 'advanced queue first item');
+    assert.match(await ev("document.querySelector('.dshwv-pop').innerText"), /队列第一项/);
+    await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().switching", 'character advances queue');
+    assert.match(await ev("document.querySelector('.dshwv-pop').innerText"), /队列第二项/);
+    await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().shown", 'character closes final queue item');
+    checks.push('saving the checkbox makes character clicks advance and then close the bubble queue');
     point = await hitPoint(); move(point.x,point.y); await delay(100);
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
     await buttonByText('管理', "document.querySelector('.dshwv-menu')");
