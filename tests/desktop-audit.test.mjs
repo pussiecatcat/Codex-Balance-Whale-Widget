@@ -137,7 +137,7 @@ test('an earlier accepted press retains native input after the squish makes its 
   assert.equal(pointerPressAccepted(root, { pointerId: 3 }, () => true, { x: 5, y: 5 }), true);
 });
 
-test('petting an open character bubble never advances or closes its queue', () => {
+test('petting an open bubble goes back to the first one and never advances or closes the queue', () => {
   const state = { enabled: true, scene: null, shown: false, round: false, index: 8, opens: 0, quotaRefreshes: 0 };
   const interaction = createBubbleInteraction({
     isEnabled: () => state.enabled,
@@ -156,7 +156,9 @@ test('petting an open character bubble never advances or closes its queue', () =
   assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.round, true); assert.equal(state.index, 0);
   state.shown = true; state.index = 1;
   interaction.whaleClick(); interaction.whaleClick(); interaction.whaleClick();
-  assert.equal(state.opens, 1); assert.equal(state.quotaRefreshes, 1); assert.equal(state.index, 1, 'open bubble remains on its current item');
+  assert.equal(state.opens, 4, 'each pet restarts the round at the first bubble');
+  assert.equal(state.index, 0, "which is upstream's rule while the option is off");
+  assert.equal(state.quotaRefreshes, 1, 'and petting never re-queries the quota');
 });
 
 test('failed task registration leaves a running installation untouched and cannot print success', { skip: process.platform !== 'win32' }, async t => {

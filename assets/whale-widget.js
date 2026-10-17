@@ -28,7 +28,7 @@ import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, art
 import { createCustomSelectController } from '/features/widget/custom-select.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
 import {
-  bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
+  bubbleUpgradeLegacySteps,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
@@ -1199,6 +1199,10 @@ import {
         var draft = loadBubbleEditorDraft(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
         bubbleLib = draft.library;
         bubbleEditItems = draft.items;
+        // The option belongs to the mode being edited, so the checkbox follows it
+        // rather than whatever the other mode was left with.
+        bubbleEditTapAdvance = draft.tapAdvance === true;
+        if (bubbleTapAdvChk) bubbleTapAdvChk.checked = bubbleEditTapAdvance;
         bubbleEditorSnap = JSON.stringify([bubbleEditItems, bubbleLib]);
         renderBubbleEditor();
         bubbleMask.style.display = 'flex';
@@ -1218,7 +1222,7 @@ import {
       try {
         var doSave = function () {
           var subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
-          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode), function (ok) {
+          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode, bubbleEditTapAdvance), function (ok) {
             if (ok !== false) closeBubbleEditor();
           });
         };
@@ -1852,7 +1856,7 @@ import {
     bubbleCard.appendChild(bubbleTitle);
     var bubbleSecFirst = document.createElement('div');
     bubbleSecFirst.className = 'dshwv-bubsec dshwv-bubsec-first';
-    bubbleSecFirst.textContent = '首次点击桌宠弹出内容';
+    bubbleSecFirst.textContent = '首次点击弹出内容';
     bubbleCard.appendChild(bubbleSecFirst);
     var bubbleFirstRow = document.createElement('div');
     bubbleFirstRow.className = 'dshwv-bubrow';
@@ -1867,7 +1871,7 @@ import {
     bubbleCard.appendChild(bubbleFirstRow);
     var bubbleSecMore = document.createElement('div');
     bubbleSecMore.className = 'dshwv-bubsec';
-    bubbleSecMore.textContent = '点击泡泡后的内容';
+    bubbleSecMore.textContent = '再次点击弹出内容';
     bubbleCard.appendChild(bubbleSecMore);
     bubbleMoreListEl = document.createElement('div');
     bubbleMoreListEl.addEventListener('dragover', function (e) {
@@ -1890,11 +1894,53 @@ import {
     bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
-    var bubbleInteractionHint = document.createElement('div');
-    bubbleInteractionHint.className = 'dshwv-bubsec';
-    bubbleInteractionHint.textContent = '点桌宠只互动；点泡泡切换，最后一泡再点收起';
-    bubbleInteractionHint.title = '第一次点桌宠打开泡泡。泡泡打开后可继续按压桌宠，当前内容不会切换或消失。';
-    bubbleCard.appendChild(bubbleInteractionHint);
+    // Character-advance option. Structure, ids and classes are upstream's, so this
+    // row is the same one the upstream editor shows: the shared .dshwv-check box,
+    // a plain label, and the .dshwv-tplq question dot whose popover carries the
+    // explanation. The setting only lives in this window and lands with 保存.
+    var bubbleTapAdvRow = document.createElement('div');
+    bubbleTapAdvRow.className = 'dshwv-bubsec';
+    bubbleTapAdvRow.style.display = 'flex';
+    bubbleTapAdvRow.style.alignItems = 'center';
+    bubbleTapAdvRow.style.flexWrap = 'wrap';
+    bubbleTapAdvRow.style.gap = '4px 6px';
+    bubbleTapAdvRow.style.color = '#203170';
+    var bubbleTapAdvChk = document.createElement('input');
+    bubbleTapAdvChk.type = 'checkbox';
+    bubbleTapAdvChk.className = 'dshwv-check';
+    bubbleTapAdvChk.id = 'dshwv-tapadv';
+    bubbleTapAdvChk.title = '';
+    bubbleTapAdvChk.addEventListener('change', function () { bubbleEditTapAdvance = bubbleTapAdvChk.checked === true; });
+    var bubbleTapAdvLab = document.createElement('label');
+    bubbleTapAdvLab.setAttribute('for', 'dshwv-tapadv');
+    bubbleTapAdvLab.style.cursor = 'pointer';
+    bubbleTapAdvLab.style.fontSize = '12px';
+    bubbleTapAdvLab.textContent = '点按角色推进泡泡队列';
+    var bubbleTapAdvAsk = document.createElement('button');
+    bubbleTapAdvAsk.type = 'button';
+    bubbleTapAdvAsk.className = 'dshwv-askq dshwv-tplq';
+    bubbleTapAdvAsk.textContent = '?';
+    bubbleTapAdvAsk.title = '';
+    var bubbleTapAdvTip = '关闭（默认）：<b>点角色</b>＝回到第 1 个泡泡（点泡泡才是往后推进）。<br><br>'
+      + '开启：<b>点一下角色 = 往后推进一项</b>（不再回到首次点击泡泡）；走到最后一项再点＝收起泡泡。';
+    var bubbleTapAdvPinned = false;
+    bubbleTapAdvAsk.addEventListener('mouseenter', function () {
+      if (!bubbleTapAdvPinned) bubbleTemplateHelp.show(bubbleTapAdvTip, bubbleTapAdvAsk);
+    });
+    bubbleTapAdvAsk.addEventListener('mouseleave', function () {
+      if (!bubbleTapAdvPinned) bubbleTemplateHelp.hide();
+    });
+    bubbleTapAdvAsk.addEventListener('click', function (e) {
+      e.stopPropagation();
+      bubbleTapAdvPinned = !bubbleTapAdvPinned;
+      if (bubbleTapAdvPinned) bubbleTemplateHelp.show(bubbleTapAdvTip, bubbleTapAdvAsk);
+      else bubbleTemplateHelp.hide();
+    });
+    bubbleTapAdvRow.appendChild(bubbleTapAdvChk);
+    bubbleTapAdvRow.appendChild(bubbleTapAdvLab);
+    bubbleTapAdvRow.appendChild(bubbleTapAdvAsk);
+    bubbleCard.appendChild(bubbleTapAdvRow);
+    var bubbleEditTapAdvance = false;
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -3780,7 +3826,7 @@ import {
     function applyBubbleCfgSeq() {
       try {
         var configured = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
-        if (window.WhaleAccountView?.mode === 'subscription' && bubbleLegacySubscriptionDefault(configured)) configured = bubbleDefaultSubscriptionQueue();
+        if (window.WhaleAccountView?.mode === 'subscription') configured = bubbleUpgradeLegacySteps(configured);
         if (!Array.isArray(configured) || !configured.length) { bubbleSeq = bubbleDefaultQueue(); return; }
         var seq = [];
         for (var i = 0; i < configured.length; i++) {
@@ -3961,7 +4007,15 @@ import {
       showNext: bubbleShowSeqNext,
       closeCost: hideCostBubble,
       closeAlert: hideUsageAlertBubble,
-      closeBubble: hideBubble
+      closeBubble: hideBubble,
+      // Whether a character click also advances the queue is the editor's per-mode
+      // option. The config is re-read on every save, so this stays live.
+      tapAdvance: function () {
+        if (!bubbleCfg) return false;
+        return window.WhaleAccountView?.mode === 'subscription'
+          ? bubbleCfg.subscriptionTapAdvance === true
+          : bubbleCfg.tapAdvance === true;
+      }
     });
     var whaleClick = bubbleInteraction.whaleClick;
     var bubbleNext = bubbleInteraction.bubbleNext;

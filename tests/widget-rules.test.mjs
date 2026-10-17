@@ -79,8 +79,9 @@ test('editor draft isolates saved content and preserves the other account mode',
   draft.items[0].modules[0].windowDurationMins = 10080;
   assert.equal(config.lib[0].name, 'Original');
   assert.equal(config.subscriptionItems[0].modules[0].windowDurationMins, 300);
-  const saved = saveBubbleEditorDraft(draft.items, draft.library, config, true);
+  const saved = saveBubbleEditorDraft(draft.items, draft.library, config, true, true);
   assert.deepEqual(saved.items, config.items);
   assert.equal(saved.subscriptionItems[0].modules[0].windowDurationMins, 10080);
-  assert.equal(saved.subscriptionTapAdvance, false);
+  assert.equal(saved.subscriptionTapAdvance, true, 'the checkbox decides the flag for the mode being edited');
+  assert.equal('tapAdvance' in saved, false, 'the other mode is left for the route to preserve');
 });

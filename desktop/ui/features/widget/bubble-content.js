@@ -149,8 +149,16 @@ export function createBubbleContent(deps) {
     var bubblePreviousImagePicks = new WeakMap();
     function bubbleSnapshot(mods, remember) {
       var rows = new Map();
-      var copies = (Array.isArray(mods) ? mods : []).map(function (original) {
+      var source = Array.isArray(mods) ? mods : [];
+      // The bubble marks its own staleness once. The first quota line carries the
+      // marker and the others are told to stay quiet, so a bubble that reports a
+      // label, a value and a countdown per window stops repeating the same nine
+      // characters on every one of them. Anything nobody stamped - the meters, the
+      // editor's preview, another caller - keeps the marker it has always had.
+      var firstQuota = source.findIndex(function (mod) { return mod && mod.type === 'quota'; });
+      var copies = source.map(function (original, index) {
         var copy = bubbleCloneModule(original);
+        if (copy.type === 'quota') copy._staleOwner = index === firstQuota;
         if (copy.type === 'random') copy._lastPick = remember && original && typeof original === 'object' ? bubblePreviousPicks.get(original) : undefined;
         if (copy.type === 'randimg') {
           var pool = (Array.isArray(copy.imgs) ? copy.imgs : []).filter(function (item) { return item && item.imgId; });

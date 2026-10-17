@@ -255,6 +255,22 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('[title=\"打开“自定义泡泡”设置\"]').click()");
     await wait("document.querySelector('.dshwv-bubmask')?.style.display==='flex' && document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip')?.textContent.includes('首次点击')", 'bubble draft editor renders its first row');
     assert.ok(await ev("document.querySelectorAll('.dshwv-bubmask .dshwv-bubrow-drag').length") >= 1);
+    // The row is upstream's: the shared checkbox, a plain label, and the .dshwv-tplq
+    // question dot whose popover carries the explanation. Clicking the dot pins the
+    // popover, which is also the only way to photograph it - :hover cannot be driven
+    // from code.
+    assert.equal(await ev("document.getElementById('dshwv-tapadv').className"), 'dshwv-check', 'the option uses the shared checkbox');
+    await ev("document.querySelector('.dshwv-askq.dshwv-tplq').click()");
+    assert.equal(await ev("document.querySelector('.dshwv-tplhelp').style.display"), 'block', 'the ? opens the shared popover');
+    const tipBox = await ev("(()=>{const t=document.querySelector('.dshwv-tplhelp');const r=t.getBoundingClientRect();return {width:r.width,height:r.height,text:t.textContent.slice(0,20)};})()");
+    assert.ok(tipBox.height > 30, 'and it carries the explanation: ' + JSON.stringify(tipBox));
+    assert.match(tipBox.text, /关闭（默认）：点角色＝回到第 1 个泡泡/);
+    fs.writeFileSync(path.join(output,'bubble-editor-tip.png'),(await window.webContents.capturePage()).toPNG());
+    await ev("document.querySelector('.dshwv-askq.dshwv-tplq').click()");
+    assert.equal(await ev("document.querySelector('.dshwv-tplhelp').style.display"), 'none', 'clicking it again closes the popover');
+    await ev("document.getElementById('dshwv-tapadv').checked=true");
+    fs.writeFileSync(path.join(output,'bubble-editor-checked.png'),(await window.webContents.capturePage()).toPNG());
+    await ev("document.getElementById('dshwv-tapadv').checked=false");
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");
     await wait("document.querySelector('.dshwv-bubpal')?.children.length>=13", 'bubble palette renders available modules');
     await ev("document.querySelector('.dshwv-pvlab').click()");
