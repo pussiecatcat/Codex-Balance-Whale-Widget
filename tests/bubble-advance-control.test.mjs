@@ -91,7 +91,7 @@ test('hovering or focusing the question button shows the full explanation beside
   const fx = fixture();
   fx.control.helpButton.fire('mouseenter');
   assert.equal(fx.control.popover.style.display, 'block');
-  assert.equal(fx.control.popover.style.width, '340px');
+  assert.equal(fx.control.popover.style.width, '360px');
   assert.equal(fx.control.popover.style.left, '150px');
   assert.equal(fx.control.popover.style.top, '226px');
   assert.equal(fx.control.helpButton.attributes['aria-expanded'], 'true');
@@ -123,7 +123,7 @@ test('the explanation measures its height after applying the responsive width', 
     get() { return fx.control.popover.style.width ? 140 : 60; },
   });
   fx.control.showHelp();
-  assert.equal(fx.control.popover.style.width, '340px');
+  assert.equal(fx.control.popover.style.width, '360px');
   assert.equal(fx.control.popover.style.top, '82px');
 });
 
@@ -142,7 +142,7 @@ test('the help disclosure has no duplicate native tooltip and exposes a labelled
   assert.match(fx.control.popover.className, /(?:^|\s)dshwv-hintbox(?:\s|$)/);
 });
 
-test('the explanation stays inside the editor card and flips above before the footer', () => {
+test('the explanation may extend beyond the editor card while staying inside the viewport', () => {
   const fx = fixture(
     { w: 1000, h: 800 },
     {
@@ -159,9 +159,9 @@ test('the explanation stays inside the editor card and flips above before the fo
     height: 18,
   });
   fx.control.showHelp();
-  assert.equal(fx.control.popover.style.width, '340px');
-  assert.equal(fx.control.popover.style.left, '252px', 'right edge remains eight pixels inside the card');
-  assert.equal(fx.control.popover.style.top, '240px', 'the popover flips above instead of covering footer actions');
+  assert.equal(fx.control.popover.style.width, '360px');
+  assert.equal(fx.control.popover.style.left, '570px', 'the reference popover begins beside its question button');
+  assert.equal(fx.control.popover.style.top, '386px', 'the reference popover opens directly below its question button');
 });
 
 test('scroll and resize reposition an open explanation', () => {

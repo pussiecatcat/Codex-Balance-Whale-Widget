@@ -208,11 +208,18 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     };
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
     checks.push('bubble module editor retains the restored original peak-period module');
+    await ev(`(() => {const input=(${bubbleEditorMask}).querySelector('.dshwv-winput');input.focus();input.value='7';input.dispatchEvent(new Event('input',{bubbles:true}));return input.value;})()`);
     await clickSelector('.dshwv-bubadvance-check');
     assert.equal(await ev("document.querySelector('.dshwv-bubadvance-check').checked"), true);
     await buttonByText('保存', bubbleEditorMask); await dismissFixtureConfirm();
     await wait(`!(${bubbleEditorMask})`, 'bubble editor saves and closes');
     assert.equal(await ev("fetch('/dsh-whale/bubble.json',{cache:'no-store'}).then(r=>r.json()).then(d=>d.config.tapAdvance)"), true);
+    assert.equal(await ev("fetch('/dsh-whale/bubble.json',{cache:'no-store'}).then(r=>r.json()).then(d=>d.config.items[1].options[0].w)"), 7);
+    await ev("document.querySelector('[title=\"Open custom bubble settings\"], [title=\"\u6253\u5f00“自定义泡泡”设置\"]').click()");
+    await wait("[...document.querySelectorAll('.dshwv-bubmask')].some(e=>e.checkVisibility({opacityProperty:true}))", 'bubble editor reopens');
+    assert.equal(await ev(`(${bubbleEditorMask}).querySelector('.dshwv-winput').value`), '7');
+    await buttonByText('取消', bubbleEditorMask); await dismissFixtureConfirm();
+    checks.push('A/B weight input updates immediately, persists, and reloads from the host');
     await ev(`window.__whaleRenderTest.close(); window.__whaleRenderTest.queue([
       {kind:'custom',modules:[{type:'text',text:'队列第一项'}]},
       {kind:'custom',modules:[{type:'text',text:'队列第二项'}]}

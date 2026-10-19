@@ -10,17 +10,19 @@ export function bubbleDropShadow(zone) {
 
 export function bubbleDropZone(rowBounds, contentBounds, point, allowPair = true) {
   if (!rowBounds?.width || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return '';
-  const sortBand = Math.min(rowBounds.height / 2, Math.max(12, rowBounds.height * .24));
-  if (point.y <= rowBounds.top + sortBand) return 'before';
-  if (point.y >= rowBounds.bottom - sortBand) return 'after';
   if (allowPair && contentBounds?.width) {
     const pad = Math.max(8, Math.min(14, contentBounds.width * .04));
     const left = Math.max(rowBounds.left, contentBounds.left - pad);
     const right = Math.min(rowBounds.right, contentBounds.right + pad);
-    if (point.x >= left && point.x <= right) {
+    const top = Math.max(rowBounds.top, contentBounds.top);
+    const bottom = Math.min(rowBounds.bottom, contentBounds.bottom);
+    if (point.x >= left && point.x <= right && point.y >= top && point.y <= bottom) {
       return point.x < contentBounds.left + contentBounds.width / 2 ? 'pairL' : 'pairR';
     }
   }
+  const sortBand = Math.min(rowBounds.height / 2, Math.max(6, rowBounds.height * .16));
+  if (point.y <= rowBounds.top + sortBand) return 'before';
+  if (point.y >= rowBounds.bottom - sortBand) return 'after';
   return point.y < rowBounds.top + rowBounds.height / 2 ? 'before' : 'after';
 }
 
@@ -241,7 +243,9 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       chip.type = 'button'; chip.className = 'dshwv-bubchip dshwv-bubchip-btn dshwv-choicechip';
       chip.textContent = (side === 0 ? 'A' : 'B') + ' · 编辑内容';
       chip.title = '点击编辑该泡(' + bubbleRowLabel(option.item) + ')';
-      chip.draggable = false;
+      chip.draggable = true;
+      chip.addEventListener('dragstart', event => { event.stopPropagation(); startDrag(index, side, event); });
+      chip.addEventListener('dragend', cancelDrag);
       chip.addEventListener('click', event => { event.stopPropagation(); openItem(index, side); });
       group.appendChild(chip);
       const weight = document.createElement('input');
@@ -249,10 +253,19 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       weight.className = 'dshwv-winput'; weight.value = String(bubbleChoiceWeight(option));
       weight.title = (side === 0 ? 'A' : 'B') + ' 泡出现权重(直接输入数字,1~99,默认1:1)';
       weight.setAttribute('aria-label', weight.title);
-      weight.addEventListener('change', () => {
+      weight.addEventListener('focus', () => weight.select?.());
+      weight.addEventListener('click', () => weight.select?.());
+      weight.addEventListener('input', () => {
+        const digits = String(weight.value || '').replace(/\D/g, '').slice(0, 2);
+        if (weight.value !== digits) weight.value = digits;
+        if (digits) option.w = bubbleChoiceWeight({ w: digits });
+      });
+      const commitWeight = () => {
         option.w = bubbleChoiceWeight({ w: weight.value });
         weight.value = String(option.w);
-      });
+      };
+      weight.addEventListener('change', commitWeight);
+      weight.addEventListener('blur', commitWeight);
       group.appendChild(weight); wrap.appendChild(group);
       if (side === 0) {
         const split = document.createElement('button');
@@ -291,8 +304,11 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
     for (let index = 1; index < items.length; index++) {
       const step = items[index], choice = bubbleIsChoice(step);
       const row = document.createElement('div');
-      row.className = 'dshwv-bubrow dshwv-bubrow-drag'; row.draggable = false;
+      row.className = 'dshwv-bubrow dshwv-bubrow-drag'; row.draggable = !choice;
       row.setAttribute('data-i', String(index));
+      row.addEventListener('dragstart', event => {
+        if (!bubbleIsChoice(getItems()[index])) startDrag(index, -1, event);
+      });
       row.addEventListener('dragover', event => {
         try { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } catch {}
         if (dragIndex == null) { clearDropHint(); return; }
@@ -322,6 +338,9 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
         chip.type = 'button'; chip.className = 'dshwv-bubchip dshwv-bubchip-btn';
         chip.textContent = '第' + (index + 1) + '次点击 · 编辑内容';
         chip.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(step) + ')；拖到泡泡左半边成为 A，右半边成为 B';
+        chip.draggable = true;
+        chip.addEventListener('dragstart', event => { event.stopPropagation(); startDrag(index, -1, event); });
+        chip.addEventListener('dragend', cancelDrag);
         chip.addEventListener('click', event => { event.stopPropagation(); openItem(index, -1); });
         row.appendChild(chip);
         const del = document.createElement('button');

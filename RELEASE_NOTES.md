@@ -1,6 +1,6 @@
 # API 余额小鲸鱼 v0.3(fixed)
 
-**Codex 适配版，标签 `codex-v0.3.0-fixed.18`。** 当前内部构建为 `0.3.0+codex.20261009-quota-reliable`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**Codex 适配版，标签 `codex-v0.3.0-fixed.18`。** 当前内部构建为 `0.3.0+codex.20261020-bubble-weight-polish`。项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 ## 修复内容
 

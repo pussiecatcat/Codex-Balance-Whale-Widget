@@ -266,28 +266,28 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
         row:{padding:[css(row).paddingTop,css(row).paddingRight,css(row).paddingBottom,css(row).paddingLeft],borderColor:css(row).borderTopColor},
         add:{borderColor:css(add).borderTopColor,background:css(add).backgroundColor,margin:[css(add).marginTop,css(add).marginBottom]},
         choice:{gap:css(choice).columnGap,groupMinWidths:groups.map(group=>css(group).minWidth),chipPadding:chips.map(chip=>[css(chip).paddingRight,css(chip).paddingLeft])},
-        weights:weights.map(weight=>{const group=weight.parentElement,g=rect(group),w=rect(weight),style=css(weight);return{right:Math.round(g.right-w.right),top:Math.round(w.top-g.top),bottom:Math.round(g.bottom-w.bottom),width:Math.round(w.width),fontSize:style.fontSize,fontWeight:style.fontWeight,padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft],borderColor:style.borderTopColor};}),
-        help:(()=>{const row=card.querySelector('.dshwv-bubadvance'),style=css(row),popover=css(document.querySelector('.dshwv-bubadvance-pop'));return{fontSize:css(card.querySelector('.dshwv-bubadvance-label')).fontSize,checkWidth:Math.round(rect(card.querySelector('.dshwv-bubadvance-check')).width),helpWidth:Math.round(rect(card.querySelector('.dshwv-bubadvance-q')).width),margin:[style.marginTop,style.marginRight,style.marginBottom,style.marginLeft],paddingTop:style.paddingTop,borderColor:style.borderTopColor,popoverBorderColor:popover.borderTopColor};})()
+        weights:weights.map(weight=>{const group=weight.parentElement,g=rect(group),w=rect(weight),style=css(weight),hit=document.elementFromPoint(w.left+w.width/2,w.top+w.height/2);return{right:Math.round(g.right-w.right),top:Math.round(w.top-g.top),bottom:Math.round(g.bottom-w.bottom),width:Math.round(w.width),fontSize:style.fontSize,fontWeight:style.fontWeight,color:style.color,padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft],borderColor:style.borderTopColor,hit:hit===weight};}),
+        help:(()=>{const row=card.querySelector('.dshwv-bubadvance'),style=css(row),popover=css(document.querySelector('.dshwv-bubadvance-pop'));return{fontSize:css(card.querySelector('.dshwv-bubadvance-label')).fontSize,checkWidth:Math.round(rect(card.querySelector('.dshwv-bubadvance-check')).width),helpWidth:Math.round(rect(card.querySelector('.dshwv-bubadvance-q')).width),margin:[style.marginTop,style.marginRight,style.marginBottom,style.marginLeft],paddingTop:style.paddingTop,borderColor:style.borderTopColor,popoverBorderColor:popover.borderTopColor,popoverFontSize:popover.fontSize,popoverLineHeight:popover.lineHeight,popoverPadding:[popover.paddingTop,popover.paddingRight,popover.paddingBottom,popover.paddingLeft],popoverRadius:popover.borderRadius};})()
       };
     })()`);
     assert.deepEqual(bubbleEditorStyle.card, {
       width:440,borderWidth:'0px',radius:'12px',shadow:'rgba(0, 0, 0, 0.3) 0px 10px 30px 0px'
-    }, '440px editor card keeps the original light shell');
-    assert.deepEqual(bubbleEditorStyle.title, {fontSize:'14px',fontWeight:'600',marginBottom:'8px'}, 'editor title uses the compact original type scale');
+    }, '440 CSS-pixel editor card matches the 660 physical-pixel reference at 150% scaling');
+    assert.deepEqual(bubbleEditorStyle.title, {fontSize:'14px',fontWeight:'600',marginBottom:'8px'}, 'editor title matches the reference hierarchy at the host DPI');
     assert.deepEqual(bubbleEditorStyle.row, {
       padding:['4px','4px','4px','4px'],borderColor:'rgba(32, 49, 112, 0.16)'
-    }, 'bubble rows use four-pixel insets and a quiet indigo edge');
+    }, 'bubble rows use the reference insets and a quiet indigo edge');
     assert.deepEqual(bubbleEditorStyle.add, {
       borderColor:'rgba(32, 49, 112, 0.4)',background:'rgba(0, 0, 0, 0)',margin:['6px','6px']
     }, 'add bubble remains a transparent lightweight action');
     assert.equal(bubbleEditorStyle.choice.gap,'12px');
-    assert.deepEqual(bubbleEditorStyle.choice.groupMinWidths,['150px','150px']);
+    assert.deepEqual(bubbleEditorStyle.choice.groupMinWidths,['0px','0px']);
     assert.deepEqual(bubbleEditorStyle.choice.chipPadding,[['34px','20px'],['34px','20px']]);
     assert.deepEqual(bubbleEditorStyle.weights, [
-      {right:4,top:4,bottom:4,width:26,fontSize:'11px',fontWeight:'400',padding:['0px','2px','0px','2px'],borderColor:'rgba(32, 49, 112, 0.45)'},
-      {right:4,top:4,bottom:4,width:26,fontSize:'11px',fontWeight:'400',padding:['0px','2px','0px','2px'],borderColor:'rgba(32, 49, 112, 0.45)'}
+      {right:4,top:4,bottom:4,width:26,fontSize:'11px',fontWeight:'400',color:'rgb(40, 189, 131)',padding:['0px','2px','0px','2px'],borderColor:'rgba(32, 49, 112, 0.45)',hit:true},
+      {right:4,top:4,bottom:4,width:26,fontSize:'11px',fontWeight:'400',color:'rgb(40, 189, 131)',padding:['0px','2px','0px','2px'],borderColor:'rgba(32, 49, 112, 0.45)',hit:true}
     ], 'both weights are inset and vertically aligned inside their A/B chips');
-    assert.deepEqual(bubbleEditorStyle.help,{fontSize:'12px',checkWidth:16,helpWidth:18,margin:['10px','0px','6px','0px'],paddingTop:'8px',borderColor:'rgba(32, 49, 112, 0.12)',popoverBorderColor:'rgba(32, 49, 112, 0.35)'},'queue help restores the original compact rhythm and light popover edge');
+    assert.deepEqual(bubbleEditorStyle.help,{fontSize:'12px',checkWidth:16,helpWidth:18,margin:['10px','0px','6px','0px'],paddingTop:'8px',borderColor:'rgba(32, 49, 112, 0.12)',popoverBorderColor:'rgba(32, 49, 112, 0.35)',popoverFontSize:'12px',popoverLineHeight:'18px',popoverPadding:['8px','10px','8px','10px'],popoverRadius:'8px'},'queue help matches the 150%-DPI reference rhythm and the full-size reference popover');
     fs.writeFileSync(path.join(output,'bubble-editor-card-440.png'),(await window.webContents.capturePage()).toPNG());
     for (const width of [440,420,416,415,400,381,360,320]) {
       await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,{...dip,width})}); await delay(180);
@@ -299,7 +299,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       if ([440,360,320].includes(width)) fs.writeFileSync(path.join(output,`bubble-editor-viewport-${width}.png`),(await window.webContents.capturePage()).toPNG());
     }
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,dip)}); await delay(180);
-    checks.push('bubble editor restores the compact 440px shell, aligns A/B weights, and stays inside 360px and 320px viewports');
+    checks.push('bubble editor matches the 440 CSS-pixel reference shell, aligns usable A/B weights, and stays inside 360px and 320px viewports');
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");
     await wait("document.querySelector('.dshwv-bubpal')?.children.length>=13", 'bubble palette renders available modules');
     await ev("document.querySelector('.dshwv-pvlab').click()");

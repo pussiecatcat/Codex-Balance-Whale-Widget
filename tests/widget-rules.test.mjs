@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubblePickChoiceItem,
+  bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
 import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
 import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
 import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
@@ -30,6 +31,17 @@ test('choice weights are normalized to the documented integer range', () => {
     [{ w: 9999 }, 99],
   ];
   for (const [option, expected] of cases) assert.equal(bubbleChoiceWeight(option), expected);
+});
+
+test('a saved 10:1 A/B pair uses those weights at the runtime selection boundary', () => {
+  const step = { kind: 'choice', options: [
+    { w: 10, item: { kind: 'custom', modules: [{ type: 'text', text: 'A' }] } },
+    { w: 1, item: { kind: 'custom', modules: [{ type: 'text', text: 'B' }] } },
+  ] };
+  assert.equal(bubblePickChoiceItem(step, () => 0).modules[0].text, 'A');
+  assert.equal(bubblePickChoiceItem(step, () => (10 / 11) - Number.EPSILON).modules[0].text, 'A');
+  assert.equal(bubblePickChoiceItem(step, () => 10 / 11).modules[0].text, 'B');
+  assert.equal(bubblePickChoiceItem(step, () => .999999).modules[0].text, 'B');
 });
 
 test('bubble rows keep images isolated and canonicalize paired text without losing order', () => {

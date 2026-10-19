@@ -56,38 +56,19 @@ export function createBubbleAdvanceControl({ document, viewport, onChange }) {
     const area = viewport();
     const margin = 8;
     const gap = 8;
-    const card = row.closest?.('.dshwv-bubcard');
-    const cardBounds = card?.getBoundingClientRect?.();
-    let safeLeft = margin;
-    let safeRight = area.w - margin;
-    let safeTop = margin;
-    let safeBottom = area.h - margin;
-    if (cardBounds) {
-      safeLeft = Math.max(safeLeft, cardBounds.left + margin);
-      safeRight = Math.min(safeRight, cardBounds.right - margin);
-      safeTop = Math.max(safeTop, cardBounds.top + margin);
-      safeBottom = Math.min(safeBottom, cardBounds.bottom - margin);
-    }
-    if (safeRight < safeLeft) {
-      safeLeft = margin;
-      safeRight = area.w - margin;
-    }
-    if (safeBottom < safeTop) {
-      safeTop = margin;
-      safeBottom = area.h - margin;
-    }
-    const width = Math.max(0, Math.min(340, safeRight - safeLeft));
+    const safeLeft = margin;
+    const safeRight = area.w - margin;
+    const safeTop = margin;
+    const safeBottom = area.h - margin;
+    // The reference screenshot is captured at 150% Windows scaling: its
+    // roughly 540 physical pixels correspond to a 360 CSS-pixel panel.
+    const width = Math.max(0, Math.min(360, safeRight - safeLeft));
     popover.style.width = Math.round(width) + 'px';
     popover.style.maxWidth = Math.round(width) + 'px';
     const height = popover.offsetHeight || 112;
-    const footerBounds = card?.querySelector?.('.dshwv-bubbtns')?.getBoundingClientRect?.();
-    const footerLimit = footerBounds && footerBounds.top >= bounds.bottom
-      ? footerBounds.top - gap
-      : safeBottom;
-    const lowerLimit = Math.min(safeBottom, footerLimit);
     const left = Math.max(safeLeft, Math.min(bounds.left, safeRight - width));
     let top = bounds.bottom + gap;
-    if (top + height > lowerLimit) top = bounds.top - height - gap;
+    if (top + height > safeBottom) top = bounds.top - height - gap;
     top = Math.max(safeTop, Math.min(top, safeBottom - height));
     popover.style.left = Math.round(left) + 'px';
     popover.style.top = Math.round(top) + 'px';

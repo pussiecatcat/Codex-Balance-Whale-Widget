@@ -32,7 +32,7 @@ import {
   bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
+  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
 } from '/features/widget/default-content.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
@@ -1191,14 +1191,8 @@ import {
         return true;
       }
     }
-    function openBubbleEditor() {
+    function openBubbleEditorWithCache() {
       try {
-        if (!bubbleCfgLoaded) {
-          loadBubbleCfg().then(function (ok) {
-            if (ok) openBubbleEditor(); else assetFailure(new Error('自定义泡泡配置读取失败'));
-          });
-          return;
-        }
         closeRolePanel();
         closeAudioGroupPanel();
         bubbleEditSubscriptionMode = window.WhaleAccountView?.mode === 'subscription';
@@ -1211,6 +1205,14 @@ import {
         renderBubbleEditor();
         bubbleMask.style.display = 'flex';
       } catch (err) {}
+    }
+    function openBubbleEditor() {
+      // Always refresh before editing. A second desktop/web instance may have
+      // saved newer A/B weights since this renderer first loaded its cache.
+      loadBubbleCfg().then(function (ok) {
+        if (ok || bubbleCfgLoaded) openBubbleEditorWithCache();
+        else assetFailure(new Error('自定义泡泡配置读取失败'));
+      });
     }
     function closeBubbleEditor() {
       bubbleMask.style.display = 'none';
@@ -1855,7 +1857,7 @@ import {
     bubbleMask.className = 'dshwv-bubmask';
     bubbleMask.style.display = 'none';
     var bubbleCard = document.createElement('div');
-    bubbleCard.className = 'dshwv-bubcard';
+    bubbleCard.className = 'dshwv-bubcard dshwv-bubqueue-card';
     var bubbleTitle = document.createElement('div');
     bubbleTitle.className = 'dshwv-bubtitle';
     bubbleTitle.textContent = '自定义泡泡';
@@ -3891,18 +3893,7 @@ import {
       bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
     }
     function bubblePickChoiceStep(step) {
-      var opts = bubbleChoiceOptions(step);
-      if (!opts.length) return null;
-      var total = 0;
-      for (var i = 0; i < opts.length; i++) total += bubbleChoiceWeight(opts[i]);
-      var r = Math.random() * total;
-      var acc = 0;
-      for (var j = 0; j < opts.length; j++) {
-        acc += bubbleChoiceWeight(opts[j]);
-        if (r < acc) return opts[j] && opts[j].item || null;
-      }
-      var last = opts[opts.length - 1];
-      return last && last.item || null;
+      return bubblePickChoiceItem(step, Math.random);
     }
     function bubbleShowSeqNext() {
       var step = bubbleSeq[bubbleSeqIdx];

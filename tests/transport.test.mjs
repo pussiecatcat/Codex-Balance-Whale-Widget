@@ -135,6 +135,43 @@ test('original widget settings and bubble sequences survive save and reload', as
   assert.equal(usage.usage.alert.below, 2); assert.equal(usage.usage.budget.amount, 3);
 });
 
+test('API and subscription A/B weights survive host persistence independently', async t => {
+  const { request } = await setup(t);
+  const step = (prefix, leftWeight, rightWeight) => ({
+    kind: 'choice',
+    options: [
+      { w: leftWeight, item: { kind: 'custom', modules: [{ type: 'text', text: `${prefix} A` }] } },
+      { w: rightWeight, item: { kind: 'custom', modules: [{ type: 'text', text: `${prefix} B` }] } },
+    ],
+  });
+  const apiItems = [
+    { kind: 'custom', modules: [{ type: 'text', text: 'API first' }] },
+    step('API', 10, 1),
+  ];
+  const subscriptionItems = [
+    { kind: 'custom', modules: [{ type: 'text', text: 'Subscription first' }] },
+    step('Subscription', 3, 9),
+  ];
+
+  const apiSaved = await (await request('/dsh-whale/bubble.json', 'PUT', {
+    v: 1, editingMode: 'api', items: apiItems, subscriptionItems: [], lib: [],
+  })).json();
+  assert.equal(apiSaved.ok, true);
+  assert.deepEqual(apiSaved.config.items[1].options.map(option => option.w), [10, 1]);
+
+  const subscriptionSaved = await (await request('/dsh-whale/bubble.json', 'PUT', {
+    v: 1, editingMode: 'subscription', items: [], subscriptionItems, lib: [],
+  })).json();
+  assert.equal(subscriptionSaved.ok, true);
+  assert.deepEqual(subscriptionSaved.config.items[1].options.map(option => option.w), [10, 1],
+    'saving subscription weights preserves API weights');
+  assert.deepEqual(subscriptionSaved.config.subscriptionItems[1].options.map(option => option.w), [3, 9]);
+
+  const reloaded = await (await request('/dsh-whale/bubble.json')).json();
+  assert.deepEqual(reloaded.config.items[1].options.map(option => option.w), [10, 1]);
+  assert.deepEqual(reloaded.config.subscriptionItems[1].options.map(option => option.w), [3, 9]);
+});
+
 test('custom character upload, pin, image retrieval and deletion preserve the original workflow', async t => {
   const { request } = await setup(t);
   const bytes = fs.readFileSync(path.join(ROOT, 'assets', 'DSniang1.png'));
