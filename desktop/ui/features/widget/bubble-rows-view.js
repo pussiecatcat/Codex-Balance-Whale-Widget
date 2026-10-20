@@ -6,6 +6,15 @@ export function createBubbleRowsView(deps) {
     function bubbleMarqueeDur() {
       return Math.round(1500 + Math.random() * 3000) + 'ms';
     }
+    // Rows must wrap against the current shape's content box, not a fixed
+    // design-unit constant, or the wider rounded bubble would clip its rows.
+    function bubbleRowCapU() {
+      try {
+        var raw = window.getComputedStyle ? window.getComputedStyle(document.documentElement).getPropertyValue('--dshw-box-wu') : '';
+        var n = parseFloat(raw);
+        return n > 0 ? n : 560;
+      } catch (err) { return 560; }
+    }
     function bubbleRowsTo(parentEl, mods, frozenRows) {
       if (!parentEl || !Array.isArray(mods)) return;
       if (!frozenRows) { var preview = bubbleSnapshot(mods, false); mods = preview.modules; frozenRows = preview.rows; }
@@ -107,7 +116,7 @@ export function createBubbleRowsView(deps) {
         try {
           var compFs = window.getComputedStyle ? parseFloat(window.getComputedStyle(blk.el).fontSize) : 0;
           var multNow = bubbleModuleFontU(blk.fSize);
-          var capPx = compFs && multNow ? 560 * compFs / multNow : 0;
+          var capPx = compFs && multNow ? bubbleRowCapU() * compFs / multNow : 0;
           if (capPx > 0 && blk.el.scrollWidth > capPx + 2) {
             blk.el.style.maxWidth = capPx + 'px';
             blk.el.style.whiteSpace = 'normal';
@@ -184,7 +193,7 @@ export function createBubbleRowsView(deps) {
           try {
             var uCss2 = window.getComputedStyle ? window.getComputedStyle(parentEl).getPropertyValue('--dshw-u') : '';
             var uVal2 = parseFloat(uCss2);
-            if (uVal2 > 0) capPx2 = 560 * uVal2;
+            if (uVal2 > 0) capPx2 = bubbleRowCapU() * uVal2;
           } catch (err) {}
           var para = document.createElement('div');
           para.className = 'dshwv-trow dshwv-trowline';

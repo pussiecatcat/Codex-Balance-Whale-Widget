@@ -6,7 +6,22 @@
 .desktop .dshwv-body{will-change:transform}
 .desktop .dshwv-img{image-rendering:auto;backface-visibility:hidden}
 .desktop .dshwv-pop svg{shape-rendering:geometricPrecision}
-.desktop .dshwv-text{transition:opacity .16s ease,transform .3s ease;isolation:isolate;overflow:visible}
+/* The bubble body is a drawn path, so the content box must stay inside the
+   largest rectangle that shape can actually hold. The rounded variant has a much
+   larger inscribed rectangle than the ellipse, which is why it shows more. */
+/* Only the design-unit numbers live on <html>; the calc() runs at each use site.
+   A custom property referencing --dshw-u cannot be declared here, because a
+   var() inside a custom property only resolves against the same element and
+   --dshw-u is inherited from .dshwv-pop. */
+/* 椭圆的可用内接矩形受宽高互换限制：半高越大，可用的半宽越小，
+   上限为 358*sqrt(1-(hh/217)^2)。这里保持原来的高度 305（高度是竖向
+   放不下的主因，不能动），只把宽度从 440 提到该高度下的上限 505。
+   行宽增加 15% 后长句少换行，fit 的正反馈收缩就不容易触发。
+   曾经试过 530×285（更宽但更矮），结果内容竖向溢出气泡，反而更糟。 */
+html.desktop{--dshw-box-wu:505;--dshw-box-hu:305;--dshw-card-wu:240}
+html.desktop.dshw-shape-round{--dshw-box-wu:655;--dshw-box-hu:325;--dshw-card-wu:296}
+.desktop .dshwv-text{width:calc(var(--dshw-u) * var(--dshw-box-wu));height:calc(var(--dshw-u) * var(--dshw-box-hu));transition:opacity .16s ease,transform .3s ease;isolation:isolate;overflow:visible}
+.desktop .dshwv-frame{transform:scale(var(--dshw-fit,1));transform-origin:50% 50%}
 .desktop .dshwv-pop.dshwv-pop-open .dshwv-text{transition:opacity .16s ease .36s,transform .3s ease}
 .dshwv-frame{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;will-change:opacity;overflow:visible}
 .desktop .dshwv-frame .dshwv-gif{position:static;left:auto;top:auto;transform:none;opacity:1;transition:none;max-width:calc(var(--dshw-u) * 560);max-height:calc(var(--dshw-u) * 400)}
@@ -17,32 +32,24 @@
 /* Codex subscription quota: compact tide gauges inside the original whale bubble. */
 .desktop .dshwv-text .dshwv-quota-heading{
   position:relative;
-  margin:0 0 calc(var(--dshw-u) * 7)!important;
-  padding-left:calc(var(--dshw-u) * 24);
+  margin:0 0 calc(var(--dshw-u) * 10)!important;
   color:#53669a!important;
   font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
-  font-size:calc(var(--dshw-u) * 43)!important;
+  font-size:calc(var(--dshw-u) * 74)!important;
   font-weight:700!important;
   letter-spacing:.025em;
   line-height:1.15;
 }
-.desktop .dshwv-text .dshwv-quota-heading::before{
-  content:"";
-  position:absolute;
-  left:0;
-  top:50%;
-  width:calc(var(--dshw-u) * 12);
-  height:calc(var(--dshw-u) * 12);
-  border:calc(var(--dshw-u) * 3) solid rgba(83,102,154,.26);
-  border-radius:50%;
-  background:#fff;
-  box-shadow:calc(var(--dshw-u) * 10) calc(var(--dshw-u) * -8) 0 calc(var(--dshw-u) * -3) rgba(83,102,154,.22);
-  transform:translateY(-50%);
-}
 .desktop .dshwv-text .dshwv-quota-shell{
-  width:calc(var(--dshw-u) * 540);
+  width:calc(var(--dshw-u) * var(--dshw-card-wu));
   max-width:100%;
   margin:calc(var(--dshw-u) * 6) auto!important;
+}
+/* Side-by-side gauges sit on one shared row, so the shell must not stretch. */
+.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell{
+  display:inline-block!important;
+  vertical-align:top!important;
+  margin:0 calc(var(--dshw-u) * 5)!important;
 }
 .desktop .dshwv-quota-meter{
   --quota-accent:#526bd0;
@@ -52,15 +59,15 @@
   box-sizing:border-box;
   display:grid!important;
   grid-template-rows:auto auto auto;
-  gap:calc(var(--dshw-u) * 8);
+  gap:calc(var(--dshw-u) * 18);
   width:100%;
-  min-height:calc(var(--dshw-u) * 132);
-  padding:calc(var(--dshw-u) * 15) calc(var(--dshw-u) * 21)!important;
+  min-height:calc(var(--dshw-u) * 236);
+  padding:calc(var(--dshw-u) * 20) calc(var(--dshw-u) * 26)!important;
   overflow:visible;
-  border:calc(var(--dshw-u) * 3) solid var(--quota-line);
-  border-radius:calc(var(--dshw-u) * 31)!important;
+  border:calc(var(--dshw-u) * 5) solid var(--quota-line);
+  border-radius:calc(var(--dshw-u) * 34)!important;
   background:linear-gradient(112deg,#fff 0%,var(--quota-wash) 88%)!important;
-  box-shadow:inset 0 calc(var(--dshw-u) * 3) 0 rgba(255,255,255,.82);
+  box-shadow:inset 0 calc(var(--dshw-u) * 5) 0 rgba(255,255,255,.82);
   color:var(--quota-ink)!important;
   font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
   font-variant-numeric:tabular-nums;
@@ -99,25 +106,39 @@
   justify-content:space-between;
   min-width:0;
 }
+/* The ellipse leaves a narrow card, where the label and the value cannot share
+   a line. The rounded shape has room, so it keeps them side by side. */
+/* 标签与数值上下排列，两种形状一致。原先只有椭圆这样排、圆角并排，那是
+   字号还小的时候；放大后并排放不下，圆角就会把「5 小时」拆成「5 小」「时」。 */
+.desktop .dshwv-quota-meter-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  justify-items:start;
+  gap:calc(var(--dshw-u) * 5);
+}
+.desktop .dshwv-quota-meter-value{justify-self:start;min-height:calc(var(--dshw-u) * 34)}
 .desktop .dshwv-quota-meter-label{
-  font-size:calc(var(--dshw-u) * 35);
+  font-size:calc(var(--dshw-u) * 55);
   font-weight:700;
   letter-spacing:.02em;
+  white-space:nowrap;
 }
 .desktop .dshwv-quota-meter-value{
   display:inline-flex;
   align-items:baseline;
+  white-space:nowrap;
   color:var(--quota-ink);
-  line-height:.82;
+  line-height:1;
 }
 .desktop .dshwv-quota-meter-number{
-  font-size:calc(var(--dshw-u) * 67);
+  font-size:calc(var(--dshw-u) * 78);
+  white-space:nowrap;
   font-weight:850;
-  letter-spacing:-.045em;
+  letter-spacing:-.02em;
 }
 .desktop .dshwv-quota-meter-unit{
-  margin-left:calc(var(--dshw-u) * 4);
-  font-size:calc(var(--dshw-u) * 31);
+  margin-left:calc(var(--dshw-u) * 6);
+  font-size:calc(var(--dshw-u) * 36);
   font-weight:750;
   opacity:.72;
 }
@@ -125,11 +146,11 @@
   position:relative;
   display:block;
   width:100%;
-  height:calc(var(--dshw-u) * 13);
+  height:calc(var(--dshw-u) * 26);
   overflow:visible;
   border-radius:999px;
   background:color-mix(in srgb,var(--quota-accent) 14%,white);
-  box-shadow:inset 0 calc(var(--dshw-u) * 2) calc(var(--dshw-u) * 3) rgba(46,59,104,.11);
+  box-shadow:inset 0 calc(var(--dshw-u) * 3) calc(var(--dshw-u) * 5) rgba(46,59,104,.11);
 }
 .desktop .dshwv-quota-meter-fill{
   position:absolute;
@@ -144,23 +165,23 @@
   position:absolute;
   right:0;
   top:50%;
-  width:calc(var(--dshw-u) * 18);
-  height:calc(var(--dshw-u) * 18);
-  border:calc(var(--dshw-u) * 3) solid color-mix(in srgb,var(--quota-accent) 38%,white);
+  width:calc(var(--dshw-u) * 28);
+  height:calc(var(--dshw-u) * 28);
+  border:calc(var(--dshw-u) * 5) solid color-mix(in srgb,var(--quota-accent) 38%,white);
   border-radius:50%;
   background:#fff;
-  box-shadow:0 calc(var(--dshw-u) * 2) calc(var(--dshw-u) * 7) rgba(43,60,118,.19);
+  box-shadow:0 calc(var(--dshw-u) * 3) calc(var(--dshw-u) * 10) rgba(43,60,118,.19);
   transform:translate(35%,-50%);
 }
 .desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-fill::after{display:none}
 .desktop .dshwv-quota-meter-foot{
-  color:color-mix(in srgb,var(--quota-ink) 72%,#8e98ae);
-  font-size:calc(var(--dshw-u) * 28);
+  color:color-mix(in srgb,var(--quota-ink) 82%,#8e98ae);
+  font-size:calc(var(--dshw-u) * 32);
   line-height:1.05;
 }
 .desktop .dshwv-quota-meter-reset-label{
-  margin-right:calc(var(--dshw-u) * 12);
-  opacity:.72;
+  opacity:.75;
+  font-size:calc(var(--dshw-u) * 32);
 }
 .desktop .dshwv-quota-meter-reset{
   min-width:0;
@@ -168,6 +189,28 @@
   text-align:right;
   text-overflow:ellipsis;
   white-space:nowrap;
+}
+/* Narrow cards stack the reset label above the countdown, as the head does. */
+/* 底部同样上下排：「重置」和「等待同步」并排会被挤成「重」「置」两行。 */
+.desktop .dshwv-quota-meter-foot{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  justify-items:start;
+  gap:calc(var(--dshw-u) * 3);
+}
+.desktop .dshwv-quota-meter-reset{text-align:left;max-width:100%;white-space:nowrap;line-height:1.2}
+.desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-reset{white-space:normal;overflow-wrap:normal}
+/* A hairline in the gap between the two gauges so they read as separate units. */
+.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell{position:relative}
+.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell + .dshwv-quota-shell::before{
+  content:"";
+  position:absolute;
+  left:calc(var(--dshw-u) * -6);
+  top:14%;
+  bottom:14%;
+  width:calc(var(--dshw-u) * 2);
+  border-radius:999px;
+  background:rgba(76,98,177,.18);
 }
 @media (prefers-reduced-motion:reduce){
   .desktop .dshwv-quota-meter-fill{transition:none}

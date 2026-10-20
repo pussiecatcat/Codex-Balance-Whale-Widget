@@ -110,8 +110,8 @@
       const view = menu.querySelector('.dshwv-menuview');
       if (view) {
         const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch';
-        text(row, 'span', '数据显示');
-        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '数据显示');
+        text(row, 'span', '查看数据');
+        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '查看数据');
         for (const [value, label] of [['subscription', 'Codex 额度'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }
         modeSelect.addEventListener('change', () => setMode(modeSelect.value)); row.append(modeSelect);
         status = document.createElement('span'); status.hidden = true; status.setAttribute('role', 'status'); row.append(status); updateButtons();

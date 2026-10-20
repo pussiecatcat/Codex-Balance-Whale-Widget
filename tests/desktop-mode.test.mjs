@@ -33,7 +33,8 @@ function mainModeFixture() {
  const state = { quitting:false, desktopMode: 'follow-codex', desktopBoundsApplied: false, modePending: false, appliedBounds: '', appliedNativeSize: '', dataDir: '/test', path, isMac: false, harness: { enabled: false }, manuallyHidden: false, hostSequence: -1, hostHeartbeat: 0, lastHost: null, owner: '',
   Number, Date, process: { platform: 'win32' }, normalizeHostState, usesWindowShape: true, diagnostics: { sample() {} }, save: () => calls.push('save'), read: () => ({}), sendCursor: () => {}, updateTray: () => {}, markStartup: () => {}, diagnose: () => {}, toDipRect: x => x,
   screen: { getPrimaryDisplay: () => ({ workArea: area }) },
-  window: { isDestroyed:()=>false, setBounds: () => calls.push('bounds'), setPosition: () => calls.push('position'), getBounds: () => area, setAlwaysOnTop: () => calls.push('top'), webContents: { send: event => calls.push(event) } },
+  currentBounds: { x: 7, y: 7, width: 1900, height: 1050 },
+  window: { isDestroyed:()=>false, setBounds: rect => { state.currentBounds = { ...rect }; calls.push('bounds'); }, setPosition: () => calls.push('position'), getBounds: () => state.currentBounds, setAlwaysOnTop: () => calls.push('top'), webContents: { send: event => calls.push(event) } },
   app: { quit: () => calls.push('quit') }, syncNativeViewport: () => '',
   visibility: () => calls.push(state.modePending ? 'hidden-pending' : 'visibility'), show: () => calls.push('show'),
   visibilityController: { requestRecovery: () => calls.push('recover'), observeNativeVisibility: () => false }

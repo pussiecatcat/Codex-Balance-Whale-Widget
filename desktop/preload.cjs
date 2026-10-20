@@ -1,4 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
+// One preload serves both windows. The settings window is created with
+// --whale-role=settings, so it gets a much narrower bridge: no click-through,
+// no shape, no host-following, only the configuration read/write surface.
+const isSettingsWindow = process.argv.includes('--whale-role=settings');
 const saved = ipcRenderer.sendSync('whale-storage');
 try { for (const [key, value] of Object.entries(saved)) if (localStorage.getItem(key) == null) localStorage.setItem(key, value); } catch {}
 let trustedClickAt = 0;
@@ -6,15 +10,29 @@ for (const eventName of ['click', 'auxclick']) document.addEventListener(eventNa
   if (!event.isTrusted || (event.button !== 0 && event.button !== 1)) return;
   trustedClickAt = Date.now(); ipcRenderer.send('whale-user-gesture');
 }, true);
-contextBridge.exposeInMainWorld('whaleDesktop', {
+if (isSettingsWindow) {
+  contextBridge.exposeInMainWorld('whaleDesktop', {
+    platform: process.platform,
+    role: 'settings',
+    readSettings: domains => ipcRenderer.invoke('whale-settings-read', { domains }),
+    writeSettings: request => ipcRenderer.invoke('whale-settings-write', request),
+    previewSettings: request => ipcRenderer.invoke('whale-settings-preview', request),
+    focusWhale: editor => ipcRenderer.invoke('whale-command', editor ? 'open-editor' : 'focus-whale', { editor }),
+    onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
+    onNavigate: callback => ipcRenderer.on('whale-settings-navigate', (_event, target) => callback(target)),
+  });
+} else contextBridge.exposeInMainWorld('whaleDesktop', {
   platform: process.platform,
   ready: () => ipcRenderer.send('whale-ready'),
   keyboardFocus: value => ipcRenderer.send('whale-keyboard-focus', !!value),
   interactive: value => ipcRenderer.send('whale-interactive', !!value),
   shape: rects => ipcRenderer.send('whale-shape', rects),
   onCursor: callback => ipcRenderer.on('whale-cursor', (_event, point) => callback(point)),
-  save: values => ipcRenderer.send('whale-save-storage', values),
+  storage: saved,
+  save: patch => ipcRenderer.invoke('whale-save-storage', patch),
   command: command => ipcRenderer.invoke('whale-command', command),
+  openSettings: page => ipcRenderer.invoke('whale-command', 'open-settings', page),
+  onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
   openExternal: value => {
     if (!trustedClickAt || Date.now() - trustedClickAt > 1000 || !navigator.userActivation.isActive || typeof value !== 'string') return Promise.resolve(false);
     trustedClickAt = 0;
@@ -23,14 +41,15 @@ contextBridge.exposeInMainWorld('whaleDesktop', {
   testMode: process.argv.includes('--whale-render-test'),
 });
 ipcRenderer.on('whale-settings', () => window.dispatchEvent(new Event('whale-open-settings')));
-ipcRenderer.on('whale-command', (_event, command) => {
+ipcRenderer.on('whale-command', (_event, command, payload) => {
   const events = {
     balance: 'whale-refresh',
     usage: 'whale-open-usage',
     settings: 'whale-open-settings',
     'reset-position': 'whale-reset-position',
   };
-  if (events[command]) window.dispatchEvent(new Event(events[command]));
+  if (command === 'open-editor') window.dispatchEvent(new CustomEvent('whale-open-editor', { detail: { editor: payload?.editor || '' } }));
+  else if (events[command]) window.dispatchEvent(new Event(events[command]));
 });
 
 ipcRenderer.on('whale-desktop-mode', (_event, mode) => window.dispatchEvent(new CustomEvent('whale-desktop-mode', { detail: mode })));

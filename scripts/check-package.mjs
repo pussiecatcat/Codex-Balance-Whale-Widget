@@ -16,6 +16,17 @@ for(const name of [
 }
 if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/account-view.js',import.meta.url))))throw new Error('Account view module is missing');
 if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/shape.js',import.meta.url))))throw new Error('Window region module is missing');
+if(!fs.existsSync(fileURLToPath(new URL('../desktop/settings-store.cjs',import.meta.url))))throw new Error('Settings store module is missing');
+
+// The settings window is a second page served over the same whale:// scheme.
+// main 线的 dispatcher 按路径解析 desktop/ui/ 下的文件（无手工白名单表），
+// 所以这里只验证文件在盘上；真正的可达性由 resolveUiFile 的扩展名与存在性检查保证。
+const settingsFiles = ['settings.html','settings.css','settings.js','settings-catalog.js','settings-help.js','settings-pages.js'];
+for(const name of settingsFiles) {
+  if(!fs.existsSync(fileURLToPath(new URL('../desktop/ui/'+name,import.meta.url))))throw new Error('Settings window file is missing: '+name);
+}
+// The catalog is the single source of truth; if it is stale the settings window
+// and docs/CONFIGURATION.md disagree with the running app.
 await import('../runtime/dispatcher.mjs');
 await import('../runtime/composition.mjs');
 await import('../runtime/routes/core.mjs');
@@ -29,4 +40,15 @@ await import('../runtime/session-events.mjs');
 await import('../runtime/session-parser.mjs');
 await import('../runtime/bounded-body.mjs');
 await import('../lib/atomic-write.mjs');
-process.stdout.write('Package dependency graph is complete.\n');
+const {createRequire}=await import('node:module');
+createRequire(import.meta.url)('../desktop/settings-store.cjs');
+// package.json declares "type": "module", so require() would treat this plain
+// browser script as ESM and skip its module.exports branch. Run it in a sandbox
+// with an explicit module object, the way tests/settings-catalog.test.mjs does.
+const vm=await import('node:vm');
+const catalogModule={exports:{}};
+vm.runInNewContext(fs.readFileSync(fileURLToPath(new URL('../desktop/ui/settings-catalog.js',import.meta.url)),'utf8'),{module:catalogModule,globalThis:{},console});
+const catalog=catalogModule.exports;
+const problems=catalog.validate();
+if(problems.length)throw new Error('Settings catalog is incomplete:\n'+problems.map(p=>'  '+p.id+' — '+p.problem).join('\n'));
+process.stdout.write('Package dependency graph is complete. Settings window: '+settingsFiles.length+' files on disk, '+catalog.fields.length+' catalog fields.\n');

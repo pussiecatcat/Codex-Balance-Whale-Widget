@@ -6,7 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { createCodexRateLimitsClient } from '../runtime/codex-rate-limits.mjs';
+import { createCodexRateLimitsClient, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
 import { createInsightsService } from '../runtime/insights.mjs';
 
 const defer = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -63,6 +63,61 @@ test('quota timeout and cancellation cannot leave an orphaned query process', as
     await tick(); abort.abort(); await assert.rejects(reading, { code: 'ABORTED' });
     assert.ok(fake.children.every(x => x.killed));
   } finally { clearInterval(keepAlive); client.close(); }
+});
+function argsFakeProcess(name, { rejectForms = [], serveForms = [] } = {}) {
+  const attempts = [], sent = [];
+  const spawnImpl = (executable, args) => {
+    attempts.push(args);
+    const rejected = rejectForms.some(form => form.join(' ') === args.join(' '));
+    const served = serveForms.some(form => form.join(' ') === args.join(' '));
+    const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.killed = false;
+    child.stdin = new Writable({ write(chunk, encoding, callback) {
+      const message = JSON.parse(String(chunk)); sent.push({ args, message });
+      queueMicrotask(() => {
+        if (rejected) {
+          child.stderr.write("error: unexpected argument '" + args[1] + "' found\n");
+          child.emit('close', 2);
+        }
+        if (!rejected && served && !child.killed) {
+          if (message.method === 'initialize') child.stdout.write(JSON.stringify({ id: message.id, result: {} }) + '\n');
+          if (message.method === 'account/rateLimits/read') child.stdout.write(JSON.stringify({ id: message.id, result: result(33) }) + '\n');
+        }
+      }); callback();
+    } });
+    child.kill = () => { child.killed = true; child.emit('close'); };
+    return child;
+  };
+  return { spawnImpl, attempts, sent, executable: name };
+}
+test('the reused client negotiates app-server args on the same bounded retry path', async () => {
+  resetCodexRateLimitsArgsCache();
+  const fake = argsFakeProcess('client-legacy-codex', { rejectForms: [['app-server', '--listen', 'stdio://']], serveForms: [['app-server', '--stdio']] });
+  const client = createCodexRateLimitsClient(fake);
+  try {
+    assert.equal((await client.read()).windows[0].usedPercent, 33);
+    assert.deepEqual(fake.attempts[0], ['app-server', '--listen', 'stdio://']);
+    assert.deepEqual(fake.attempts[1], ['app-server', '--stdio'], '参数被拒后应换写法重连');
+  } finally { client.close(); }
+  resetCodexRateLimitsArgsCache();
+});
+test('a working arg form is cached for the client and renegotiated when rejected again', async () => {
+  resetCodexRateLimitsArgsCache();
+  const ok = argsFakeProcess('client-cache-codex', { serveForms: [['app-server', '--listen', 'stdio://']] });
+  const first = createCodexRateLimitsClient(ok);
+  try { await first.read(); } finally { first.close(); }
+  assert.deepEqual(ok.attempts, [['app-server', '--listen', 'stdio://']]);
+  // 缓存命中：新客户端直接用可用写法，不再先白试被拒写法。
+  const second = createCodexRateLimitsClient(ok);
+  try { await second.read(); } finally { second.close(); }
+  assert.deepEqual(ok.attempts, [['app-server', '--listen', 'stdio://'], ['app-server', '--listen', 'stdio://']]);
+  // 就地升级后参数被拒：重新协商到旧写法。
+  const upgraded = argsFakeProcess('client-cache-codex', { rejectForms: [['app-server', '--listen', 'stdio://']], serveForms: [['app-server', '--stdio']] });
+  const third = createCodexRateLimitsClient(upgraded);
+  try { assert.equal((await third.read()).windows[0].usedPercent, 33); }
+  finally { third.close(); }
+  assert.deepEqual(upgraded.attempts[0], ['app-server', '--listen', 'stdio://']);
+  assert.deepEqual(upgraded.attempts[1], ['app-server', '--stdio']);
+  resetCodexRateLimitsArgsCache();
 });
 async function serviceFixture(t, options = {}) {
   const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-quota-reliable-'));

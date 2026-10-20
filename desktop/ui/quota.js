@@ -156,9 +156,9 @@
     unit.hidden = !state.valid;
     fill.style.width = state.valid ? Math.max(0, Math.min(100, state.left)) + '%' : '0%';
     resetLabel.textContent = syncing ? '正在同步…' : state.expired ? '上次 ' + snapshotAt(state.observedAt) :
-      state.item ? snapshotAt(state.observedAt) + ' 更新' : '状态';
-    reset.textContent = state.item ? '重置 ' + countdown(state.item.resetsAt) : syncStatus || '首次同步中…';
-    element.title = state.expired ? '显示上次成功取得的额度；当前数值待同步。' : syncStatus;
+      state.item ? '重置' : '状态';
+    reset.textContent = state.item ? countdownShort(state.item.resetsAt) : syncStatus || '首次同步中…';
+    element.title = state.item ? '更新于 ' + snapshotAt(state.observedAt) + '，重置倒计时 ' + countdown(state.item.resetsAt) : syncStatus;
     const spokenValue = state.valid ? percentNumber(state.left) + '%' : '未观测';
     element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + '，' + reset.textContent);
   }

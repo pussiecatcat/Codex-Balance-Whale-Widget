@@ -11,6 +11,7 @@ const { externalWebUrl } = require('./external-links.cjs');
 const { syncNativeViewport } = require('./native-viewport.cjs');
 const { createHeartbeatMonitor } = require('./heartbeat.cjs');
 const { registerIpcHandlers } = require('./ipc-handlers.cjs');
+const { SettingsStore, createSoundSettingsDomains } = require('./settings-store.cjs');
 const { createTestHarness } = require('./test-harness.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
@@ -53,6 +54,9 @@ fs.mkdirSync(path.join(dataDir, 'desktop-profile'), { recursive: true });
 app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
 let window, tray, dispatcher, bridge, lastHost = initialHost, appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
+let settingsWindow = null;
+let settingsStore = null;
+let uiOrigin = 'whale://widget';
 let hostSequence = -1;
 let appliedNativeSize = '';
 const stateFile = path.join(dataDir, 'ui-state.json');
@@ -177,16 +181,16 @@ function setInteractive(enabled) {
   inputEnabled = enabled;
   window.setIgnoreMouseEvents(!enabled, { forward: !usesWindowShape });
 }
-function sendCommand(command) {
+function sendCommand(command, payload) {
   if (!window || window.isDestroyed() || !command) return false;
   show();
-  if (rendererReady) window.webContents.send('whale-command', command);
-  else if (!pendingCommands.includes(command)) pendingCommands.push(command);
+  if (rendererReady) window.webContents.send('whale-command', command, payload);
+  else if (!pendingCommands.some(entry => entry[0] === command)) pendingCommands.push([command, payload]);
   return true;
 }
 function flushCommands() {
   if (!rendererReady || !window || window.isDestroyed()) return;
-  for (const command of pendingCommands.splice(0)) window.webContents.send('whale-command', command);
+  for (const [command, payload] of pendingCommands.splice(0)) window.webContents.send('whale-command', command, payload);
 }
 async function showStatusDialog() {
   const lines = [
@@ -224,6 +228,51 @@ async function openWebLink(value, gestureRequired = true) {
     return true;
   } catch { return false; }
 }
+
+// 角色化判定在 desktop/ipc-handlers.cjs 里按通道完成；这里只提供窗口表。
+const windows = () => ({ widget: window, settings: settingsWindow });
+
+function openSettingsWindow(page) {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (settingsWindow.isMinimized()) settingsWindow.restore();
+    settingsWindow.show();
+    settingsWindow.focus();
+    if (page) settingsWindow.webContents.send('whale-settings-navigate', { page });
+    return settingsWindow;
+  }
+  const display = screen.getPrimaryDisplay();
+  const work = display.workArea;
+  // 方案建议 960×720，但真实尺寸必须落在显示器工作区内，小屏允许更小。
+  const width = Math.max(560, Math.min(960, work.width - 40));
+  const height = Math.max(420, Math.min(720, work.height - 60));
+  const x = Math.max(work.x, Math.round(work.x + (work.width - width) / 2));
+  const y = Math.max(work.y, Math.round(work.y + (work.height - height) / 3));
+  settingsWindow = new BrowserWindow({
+    x, y, width, height, minWidth: 560, minHeight: 420,
+    title: '大肥鱼设置', show: false, resizable: true, minimizable: true, maximizable: true, fullscreenable: false,
+    backgroundColor: '#f6f8fd',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+      // 与挂件同一个 preload，靠这个参数区分窗口角色。
+      additionalArguments: harness.enabled ? ['--whale-render-test', '--whale-role=settings'] : ['--whale-role=settings'],
+    },
+  });
+  const target = settingsWindow;
+  // 这两个守卫是 per-webContents 的，不会从挂件窗口继承，必须重新注册。
+  target.webContents.setWindowOpenHandler(({ url }) => { openWebLink(url).catch(() => {}); return { action: 'deny' }; });
+  target.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(uiOrigin + '/')) event.preventDefault(); });
+  target.once('ready-to-show', () => { if (!target.isDestroyed()) target.show(); });
+  target.on('closed', () => { if (settingsWindow === target) settingsWindow = null; });
+  harness.watchRenderer(target);
+  target.loadURL(uiOrigin + '/settings.html' + (page ? '#' + page : '')).catch(() => { if (settingsWindow === target) settingsWindow = null; });
+  return settingsWindow;
+}
+function closeSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.destroy();
+  settingsWindow = null;
+}
 async function setHost(host) {
   host = normalizeHostState(host, { platform: process.platform });
   if (!host) return;
@@ -241,7 +290,18 @@ async function setHost(host) {
     updateTray();
   } else if (!isMac && !harness.enabled && host.mode && host.mode !== desktopMode) return;
   if (desktopMode === 'standalone') {
-    if (window && !host.nativeFollowing && !host.attached && !desktopBoundsApplied) { window.setBounds(screen.getPrimaryDisplay().workArea); window.setAlwaysOnTop(true, 'floating'); desktopBoundsApplied = true; visibilityController.requestRecovery(); }
+    // macOS may move an overlay while restoring windows or switching Spaces.
+    // Desktop mode owns its geometry even when Codex is still observable.
+    if (window && !host.nativeFollowing) {
+      const target = screen.getPrimaryDisplay().workArea;
+      const current = window.getBounds();
+      const boundsDrifted = ['x', 'y', 'width', 'height'].some(key => Math.abs(current[key] - target[key]) >= 1);
+      if (boundsDrifted) window.setBounds(target);
+      if (boundsDrifted || !desktopBoundsApplied) {
+        window.setAlwaysOnTop(true, 'floating');
+        desktopBoundsApplied = true;
+      }
+    }
     visibility(); return;
   }
   if (!host.hostAlive) { if (window) app.quit(); return; }
@@ -282,10 +342,12 @@ async function importLegacyStorage() {
 // inline handlers.
 const ipcHost = {
   window: () => window,
+  windows,
   quitting: () => quitting,
   storage: () => values(),
-  storeStorage: input => storeValues(input),
+  storeStorage: input => uiStore.applyPatch(input),
   markGesture: () => { trustedGestureAt = Date.now(); },
+  gestureFresh: () => !!trustedGestureAt && Date.now() - trustedGestureAt <= 1000,
   applyShape: rects => applyWindowShape(rects),
   rendererReady: markRendererReady,
   setInteractive,
@@ -298,6 +360,8 @@ const ipcHost = {
   pauseAndQuit,
   resetPosition: () => resetPosition(),
   sendCommand,
+  openSettings: page => !!openSettingsWindow(page),
+  settingsStore: () => settingsStore,
 };
 
 if (!lock) app.quit();
@@ -306,10 +370,65 @@ else {
   app.whenReady().then(async () => {
     markStartup('appReady');
     const { createDispatcher, UI_ORIGIN } = await import(pathToFileURL(path.join(root, 'runtime', 'dispatcher.mjs')));
+    uiOrigin = UI_ORIGIN;
     const { startBridge } = await import(pathToFileURL(path.join(root, 'runtime', 'bridge.mjs')));
     const testOptions = await harness.load(dataDir);
     dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
+    // 大肥鱼设置的唯一写入者。size/usage 经 SoundSettingsService 的同一事务落盘
+    // （journal + 失败恢复），ui 走 UiStateStore 的按键合并，displayMode 走现有路由；
+    // 这里只做域适配，不建立第二套写入者。
+    settingsStore = new SettingsStore({
+      domains: {
+        ...createSoundSettingsDomains(dispatcher.soundSettings),
+        ui: {
+          // 值在磁盘上是字符串，对象字段是 JSON 文本。这里解析出来给界面用，
+          // 键名保持真实的 dshw-* ，便于回读和文档核对。
+          read: () => {
+            const parsed = {};
+            for (const [key, value] of Object.entries({ ...values() })) {
+              try { parsed[key] = JSON.parse(value); } catch { parsed[key] = value; }
+            }
+            return parsed;
+          },
+          write: async (_next, { changes }) => {
+            const encoded = {};
+            for (const [key, value] of Object.entries(changes)) {
+              if (typeof value === 'string') { encoded[key] = value; continue; }
+              if (value === null) { encoded[key] = null; continue; }
+              encoded[key] = JSON.stringify(value);
+            }
+            uiStore.setKeys(encoded);
+            await uiStore.flush();
+          },
+        },
+        displayMode: {
+          read: () => ({ mode: read(path.join(dataDir, 'display-mode.json')).mode === 'api' ? 'api' : 'subscription' }),
+          write: values2 => {
+            if (!['api', 'subscription'].includes(values2.mode)) throw new Error('请选择 API 或会员订阅额度模式');
+            // 与 /api/display-mode 路由写同一份文件、同一格式；不经路由是为了
+            // 保持 SettingsStore 的同步写入契约。
+            save(path.join(dataDir, 'display-mode.json'), { version: 1, mode: values2.mode });
+            // dshw-account-view 是渲染器侧的缓存，两处保持一致。
+            uiStore.setKeys({ 'dshw-account-view': values2.mode });
+          },
+        },
+        api: {
+          read: () => dispatcher.whale.config.settingsInfo().settings,
+          write: (_next, { changes }) => dispatcher.whale.config.save(changes),
+        },
+        bubble: { read: () => ({}), write: () => { throw new Error('请在气泡编辑器中保存'); } },
+        media: { read: () => ({}), write: () => { throw new Error('请在素材编辑器中保存'); } },
+        apiModels: { read: () => ({}), write: () => { throw new Error('请在 API 编辑器中保存'); } },
+      },
+      onChange: change => {
+        for (const target of [window, settingsWindow]) {
+          if (target && !target.isDestroyed() && !target.webContents.isDestroyed()) {
+            target.webContents.send('whale-settings-changed', change);
+          }
+        }
+      },
+    });
     await importLegacyStorage();
     session.defaultSession.protocol.handle('whale', async request => {
       const url = new URL(request.url);
@@ -377,6 +496,7 @@ else {
     // a normal launch installs the supervisor heartbeat instead.
     if (harness.enabled) await harness.run({
       app, window, screen, setHost, setTestCursor, dispatcher, dataDir,
+      openSettingsWindow, settingsWindow: () => settingsWindow,
       renderInfo: () => ({ gpuStatus, presents, inputEnabled, keyboardFocus, windowShape, windowShapeError, visibility: visibilityController.snapshot() }),
     });
     else {
@@ -397,6 +517,8 @@ else {
     if (quitting) return;
     quitting = true;
     visibilityController.dispose();
+    // 退出挂件时一并关闭设置窗口，不遗留第二个窗口。
+    closeSettingsWindow();
     // Do not leave an unresponsive input surface over Codex while saving state.
     try { if (window && !window.isDestroyed()) { window.setIgnoreMouseEvents(true); window.hide(); } } catch {}
     let finished = false;
@@ -410,8 +532,8 @@ else {
     const watchdog = setTimeout(finish, 6500);
     shutdownCompanion({
       readRenderer: () => window && !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.isCrashed?.()
-        ? window.webContents.executeJavaScript("Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)]))") : null,
-      saveRenderer: storeValues,
+        ? window.webContents.executeJavaScript("window.WhaleStorageSync?.pending() || null") : null,
+      saveRenderer: patch => uiStore.applyPatch(patch),
       flushState: () => uiStore.flush(),
       closeBridge: () => bridge?.close(),
       closeDispatcher: () => dispatcher?.close(),
@@ -455,7 +577,7 @@ function updateTray() {
     { label: '显示 / 隐藏小鲸鱼', click: toggle }, { label: '恢复显示小鲸鱼', click: show },
     { label: desktopMode === 'standalone' ? '跟随 Codex' : '固定在桌面', click: () => setMode(desktopMode === 'standalone' ? 'follow-codex' : 'standalone') },
     { label: '刷新余额', click: () => sendCommand('balance') }, { label: '查看用量记录', click: () => sendCommand('usage') },
-    { label: 'API 设置', click: () => sendCommand('settings') }, { label: '查看运行状态', click: showStatusDialog },
+    { label: '大肥鱼设置…', click: () => openSettingsWindow() }, { label: '查看运行状态', click: showStatusDialog },
     { type: 'separator' }, { label: desktopMode === 'standalone' ? '退出（手动启动后恢复）' : '本次退出（下次打开 Codex 恢复）', click: pauseAndQuit }
   ]));
 }

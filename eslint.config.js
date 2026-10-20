@@ -86,12 +86,16 @@ const rendererModules = [
   'desktop/ui/input.js',
   'desktop/ui/sound-settings.js',
   'desktop/ui/wait-notice.js',
+  'desktop/ui/settings.js',
   'desktop/ui/features/**/*.js',
   'desktop/ui/services/**/*.js',
 ];
 
 // The three ESM entries under desktop/ui/ are excluded from the classic block.
 const classicEntries = ['desktop/ui/input.js', 'desktop/ui/sound-settings.js', 'desktop/ui/wait-notice.js'];
+// settings.js 以 type="module" 加载（要 import 共享的 requestJson），所以它归入
+// rendererModules 而不是这份经典脚本清单。
+classicEntries.push('desktop/ui/settings.js');
 
 const browserGlobals = { ...globals.browser, ...appGlobals };
 

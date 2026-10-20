@@ -4,7 +4,13 @@
   const defaults = () => ({ feel: 'balanced', events: Object.fromEntries(Object.keys(events).map(k => [k, { preset: k === 'press' || k === 'release' || k === 'success' ? 'original' : 'silent', volume: .8 }])) });
   const clone = value => JSON.parse(JSON.stringify(value));
   let settings = defaults();
-  try { const saved = JSON.parse(localStorage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
+  // 设置窗口保存后由主进程广播过来，这里重新读一次 localStorage 即可生效。
+  function load() {
+    settings = defaults();
+    try { const saved = JSON.parse(localStorage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
+    return clone(settings);
+  }
+  load();
   function play(event, url, master = 1, override) {
     const cfg = (override || settings).events[event];
     if (!cfg) return false;
@@ -41,5 +47,5 @@
     const save = document.createElement('button'); save.textContent = '保存'; save.className = 'primary'; save.onclick = () => { try { saveSettings(draft); dialog.close(); } catch { window.whaleToast?.('设置未能保存，请检查存储空间。'); } };
     actions.append(cancel, save); dialog.append(actions); dialog.addEventListener('close', () => { window.WhaleAudio.stop(); dialog.remove(); }); document.body.append(dialog); dialog.showModal();
   }
-  window.WhaleFeedback = { play, open, save: saveSettings, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
+  window.WhaleFeedback = { play, open, save: saveSettings, reload: load, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
 })();

@@ -200,9 +200,12 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     setTestCursor(p);await delay(180);
     checks.push('external mouse drag is passed through instead of stealing the host cursor');
     window.webContents.sendInputEvent({ type: 'mouseMove', x: 5, y: 5 }); await delay(180);
-    const shapes=renderInfo().windowShape;
-    assert.ok(shapes?.length>0);
-    assert.ok(shapes.reduce((n,r)=>n+r.width*r.height,0)<dip.width*dip.height*.5,'empty client area is not a native overlay');
+    // 原生裁切是 Windows 专属路径（shape.js 在非 win32 直接返回），macOS 只验证穿透。
+    if (process.platform === 'win32') {
+      const shapes=renderInfo().windowShape;
+      assert.ok(shapes?.length>0);
+      assert.ok(shapes.reduce((n,r)=>n+r.width*r.height,0)<dip.width*dip.height*.5,'empty client area is not a native overlay');
+    }
     checks.push('native shape stays bounded to the visible pet and controls');
     const scale=await ev('Number(devicePixelRatio)');
     const python=process.env.WHALE_TEST_PYTHON;
