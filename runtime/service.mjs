@@ -21,6 +21,7 @@ export class WhaleService {
       dataDir: this.config.dataDir, noticeDelayMs: options.noticeDelayMs, clock: this.clock });
     this.turnAccounting = new TurnAccounting({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
       notice: this.noticePublisher, dataDir: this.config.dataDir, pendingCostMs: options.pendingCostMs, clock: this.clock });
+    this.noticePublisher.start();
   }
   get turns() { return this.turnAccounting.turns; }
   get journal() { return this.turnAccounting.journal; }

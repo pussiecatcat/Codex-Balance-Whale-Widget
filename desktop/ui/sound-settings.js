@@ -1,4 +1,4 @@
-import { startSoundSettings } from './features/sound-settings/controller.js';
+import { startSoundSettings } from './app/sound-settings.js';
 
 let controller = null;
 const startup = new AbortController();

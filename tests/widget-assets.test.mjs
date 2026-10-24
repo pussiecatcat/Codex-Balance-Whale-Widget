@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssetClient } from '../desktop/ui/features/widget/asset-client.js';
+import { createAssetClient } from '../desktop/ui/services/asset-client.js';
 
 test('asset client requests explicit local catalogues and preserves upload payloads', async () => {
   const calls = [];
   const client = createAssetClient(async (url, options) => {
     calls.push([url, options]);
-    return { json: async () => ({ ok: true, roles: [], groups: [], fragments: [], images: [], config: {} }) };
+    return new Response(JSON.stringify({ ok: true, roles: [], groups: [], fragments: [], images: [], config: {} }));
   });
   assert.deepEqual((await client.roles()).roles, []);
   assert.deepEqual((await client.audio()).groups, []);
@@ -34,7 +34,21 @@ test('asset client requests explicit local catalogues and preserves upload paylo
 });
 
 test('asset client rejects malformed catalogues before views receive them', async () => {
-  const client = createAssetClient(async () => ({ json: async () => ({ ok: true, roles: {}, images: null }) }));
+  const client = createAssetClient(async () => new Response(JSON.stringify({ ok: true, roles: {}, images: null })));
   assert.equal(await client.roles(), null);
   assert.equal(await client.bubbleImages(), null);
+});
+
+test('asset requests preserve HTTP, business and cancellation failures', async () => {
+  const http = createAssetClient(async () => new Response('{"error":"stale"}', { status: 409 }));
+  await assert.rejects(http.roles(), error => error.kind === 'http' && error.status === 409);
+  const business = createAssetClient(async () => new Response('{"ok":false,"error":"denied"}'));
+  await assert.rejects(business.audio(), error => error.kind === 'business');
+  const controller = new AbortController();
+  const client = createAssetClient((_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  }), { signal: controller.signal });
+  const pending = client.bubbleImages();
+  controller.abort();
+  await assert.rejects(pending, error => error.kind === 'aborted');
 });

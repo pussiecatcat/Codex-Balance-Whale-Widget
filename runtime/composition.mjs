@@ -39,7 +39,7 @@ export function createComposition({
   const effects = [];
   createWidgetHost(dataDir).apply({
     whale,
-    webServer: { register: entry => { widgetRoutes.set(entry.path, entry.handler); return () => widgetRoutes.delete(entry.path); }, tapIndex: () => () => {} },
+    declareRoute: entry => { widgetRoutes.set(entry.path, entry); return () => widgetRoutes.delete(entry.path); },
     effect: effect => effects.push(effect()),
   });
 

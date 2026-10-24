@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleRowsView } from '../desktop/ui/features/widget/bubble-rows-view.js';
+import { createBubbleRowsView } from '../desktop/ui/features/bubble/bubble-rows-view.js';
 
 function element(tag = 'div') {
   const node = {
@@ -30,11 +30,13 @@ function fixture({ building = true, rootWidth = 1026, hostWidth = 408 } = {}) {
   host.clientWidth = hostWidth;
   const container = element();
   container.parentNode = host;
-  const calls = { snapshots: [], cleared: [], targets: [] };
+  const calls = { snapshots: [], cleared: [], quotaCleared: [], modelCleared: [], targets: [] };
   const scene = { building, switching: false };
   const view = createBubbleRowsView({
     document: { createElement(tag) { const node = element(tag); created.push(node); return node; } },
     window: {},
+    clearQuotaBindings: node => calls.quotaCleared.push(node),
+    clearModelBindings: node => calls.modelCleared.push(node),
     WhaleMoney: { clearBindings: node => calls.cleared.push(node) },
     bubbleSnapshot: (mods, frozen) => { calls.snapshots.push({ mods, frozen }); return { modules: [], rows: [] }; },
     bubbleModuleFontU: () => 1,
@@ -66,12 +68,14 @@ test('render only writes while the scene is building', () => {
   assert.deepEqual(building.calls.targets, ['target'], 'the rows go to the live bubble target');
 });
 
-test('preview clears the container and the money bindings before it builds', () => {
+test('preview clears the container and all data bindings before it builds', () => {
   const fx = fixture();
   const stale = element('div');
   fx.container.stale = [stale];
   fx.view.preview(fx.container, [{ type: 'text', text: 'x' }], 300);
   assert.deepEqual(fx.calls.cleared, [fx.container]);
+  assert.deepEqual(fx.calls.quotaCleared, [fx.container]);
+  assert.deepEqual(fx.calls.modelCleared, [fx.container]);
   const pop = fx.created.find(node => node.className === 'dshwv-minipop');
   assert.ok(pop, 'a mini pop is built inside the container');
   assert.equal(fx.container.style.width, '408px');

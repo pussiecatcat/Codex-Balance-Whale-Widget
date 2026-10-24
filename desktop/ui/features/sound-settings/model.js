@@ -1,4 +1,5 @@
 import { normalizeVolume, soundOptions } from '../../services/sound-reference.js';
+import { settingsCommand } from '../../services/settings-client.js';
 
 export const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -21,7 +22,7 @@ export function normalizeCatalog(catalog = {}) {
 }
 
 export function createSoundDraft(bundle, catalogInput) {
-  if (!bundle || bundle.schemaVersion !== 1 || typeof bundle.revision !== 'string') {
+  if (!bundle || bundle.schemaVersion !== 2 || !bundle.size || !bundle.usage) {
     throw new Error('音效设置版本不受支持');
   }
   const size = bundle.size && typeof bundle.size === 'object' ? bundle.size : {};
@@ -96,11 +97,10 @@ export function buildSoundSave(bundle, draft) {
   if (!Number.isInteger(seconds) || seconds < 0 || seconds > 3600) {
     throw new Error('请输入 0 到 3600 之间的整数秒数');
   }
-  const originalSize = bundle.size || {};
   const originalUsage = bundle.usage || {};
   const originalEvents = originalUsage.events || {};
   const size = {
-    ...clone(originalSize), sound: draft.sound, vol: normalizeVolume(draft.vol, .9),
+    sound: draft.sound, vol: normalizeVolume(draft.vol, .9),
     soundSet: draft.soundSet, turnCostOn: draft.turnCostOn,
     turnCostCloseMs: draft.closeOn ? seconds * 1000 : 0,
   };
@@ -119,9 +119,13 @@ export function buildSoundSave(bundle, draft) {
     approval: eventOutput(originalEvents.approval, draft.events.approval),
   };
   const usage = {
-    ...clone(originalUsage), taskEnd, events,
+    taskEnd, events,
     wait: { ...(originalUsage.wait || {}), charClose: draft.wait.charClose },
     turnCost: { ...(originalUsage.turnCost || {}), lines: clone(draft.events.turnCost.lines) },
   };
-  return { schemaVersion: 1, revision: bundle.revision, size, usage };
+  // Only the fields above are written, and the values they were read from travel
+  // with them. The server compares the two, so a setting changed elsewhere while
+  // this panel was open no longer blocks a save that never touched it — and a
+  // change to one of these fields is still caught.
+  return settingsCommand(bundle, { size, usage });
 }

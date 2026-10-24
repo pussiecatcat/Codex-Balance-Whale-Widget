@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { artCenterAt, clampToViewport, restoreAnchor, snapZones } from '../desktop/ui/features/widget/anchors.js';
+import { artCenterAt, clampToViewport, restoreAnchor, snapZones } from '../desktop/ui/features/character/anchors.js';
 
 test('drag positions and saved anchors stay visible when the host shrinks', () => {
   const viewport = { w: 90, h: 80 };

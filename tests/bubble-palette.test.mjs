@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubblePalette } from '../desktop/ui/features/widget/bubble-palette.js';
+import { createBubblePalette } from '../desktop/ui/features/bubble/bubble-palette.js';
 
 function fixture() {
   const element = (tag = 'div') => ({

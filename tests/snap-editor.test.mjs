@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createSnapEditor } from '../desktop/ui/features/widget/snap-editor.js';
+import { createSnapEditor } from '../desktop/ui/features/character/snap-editor.js';
 
 // A permissive element stub: the editor builds a whole card at construction, and
 // only ever sets styles, classes, text and listeners on it.

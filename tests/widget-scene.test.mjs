@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBubbleSceneController } from '../desktop/ui/features/widget/bubble-scene.js';
-import { createBubbleNoticeQueue } from '../desktop/ui/features/widget/bubble-notice-queue.js';
+import { createBubbleSceneController } from '../desktop/ui/features/bubble/bubble-scene.js';
+import { createBubbleNoticeQueue } from '../desktop/ui/features/bubble/bubble-notice-queue.js';
 
 test('scene ignores a stale transition after a rapid reopen', async () => {
   const commits = [];

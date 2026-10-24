@@ -2,7 +2,9 @@
 export function createBubbleRowsView(deps) {
   const { document, window, WhaleMoney, bubbleSnapshot, bubbleModuleFontU,
     bubbleRowsOf, bubbleIsImgMod, whaleMoneyTemplates, getBubbleTarget, getSceneController,
-    getVisuals, getRoot, getBubbleBox } = deps;
+    getVisuals, getRoot, getBubbleBox,
+    clearQuotaBindings = () => {}, clearModelBindings = () => {},
+    bindQuota = () => {}, bindModel = () => {} } = deps;
     function bubbleMarqueeDur() {
       return Math.round(1500 + Math.random() * 3000) + 'ms';
     }
@@ -13,8 +15,8 @@ export function createBubbleRowsView(deps) {
       for (var i = 0; i < old.length; i++) {
         try {
           WhaleMoney.clearBindings(old[i]);
-          window.WhaleQuota?.clearBindings(old[i]);
-          window.WhaleApiModels?.clearBindings(old[i]);
+          clearQuotaBindings(old[i]);
+          clearModelBindings(old[i]);
           parentEl.removeChild(old[i]);
         } catch (err) {}
       }
@@ -62,8 +64,8 @@ export function createBubbleRowsView(deps) {
         }
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
-        if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
-        if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
+        if (rowContent.quotaText) bindQuota(tx, m);
+        if (rowContent.apiModelText) bindModel(tx, m);
         row.style.fontSize = 'calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + ')';
         if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
@@ -234,6 +236,8 @@ export function createBubbleRowsView(deps) {
         if (!container) return;
         var root = getRoot();
         WhaleMoney.clearBindings(container);
+        clearQuotaBindings(container);
+        clearModelBindings(container);
         container.innerHTML = '';
         var B = Math.max(120, root && (root.offsetWidth || root.getBoundingClientRect().width) || 300);
         var hostW = Math.max(120, container.parentNode && (container.parentNode.clientWidth || container.parentNode.getBoundingClientRect().width) || 408);

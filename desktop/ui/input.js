@@ -1,4 +1,4 @@
-import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '/features/widget/input-policy.js';
+import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '/features/character/input-policy.js';
 
 (() => {
   'use strict';

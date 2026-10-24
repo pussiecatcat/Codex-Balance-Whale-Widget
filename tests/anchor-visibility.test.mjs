@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { settlePosition } from '../desktop/ui/features/widget/anchors.js';
+import { settlePosition } from '../desktop/ui/features/character/anchors.js';
 
 test('restoring a smaller host keeps old or negative saved anchors within the viewport', () => {
   for (const [h, v, hOff, vOff] of [['right','bottom',-2208,-918], ['left','top',2208,918], ['right','bottom',20,30]]) {

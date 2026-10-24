@@ -1,3 +1,4 @@
+import { createLifecycle } from '../../services/lifecycle.js';
 import { createMenuHover } from './menu-hover.js';
 
 const BLOCKED_SURFACES = '.dshwv-rolelist,.dshwv-audiolist,.dshwv-cropmask,.dshwv-confirmmask,.dshwv-audiomask,.dshwv-snapmask,.dshwv-bubmask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-usage-mask,.dshwv-resmask,.dshwv-custmenu,.dshwv-custbtn';
@@ -6,10 +7,11 @@ export function createCharacterInteraction(deps) {
   const {
     document, window, localStorage, rendering, root, image, positioner, menuButton, state, dragStatus,
     clickDistanceSq, imageUrl, viewport, rightGap, clampToViewport, artCenterAt, snapZones, restoreAnchor,
-    express, settle, saveConfig, refreshFlip, pressDown, pressUp, whaleClick, refresh,
+    express, settle, savePosition, refreshFlip, pressDown, pressUp, whaleClick, refresh,
     closeMenu, toggleMenu, closeRolePanel, closeAudioGroupPanel, hideBubble,
     applyBubbleConfig, positionMenu, isMenuOpen, isMenuButtonHidden, isScrollGapEnabled,
   } = deps;
+  const lifecycle = createLifecycle();
   let drag = null;
 
   function setupHitTest(url) {
@@ -138,7 +140,7 @@ export function createCharacterInteraction(deps) {
     state.left = moved.left;
     state.top = moved.top;
     settle();
-    saveConfig();
+    savePosition();
   }
 
   function applyAnchorPosition() {
@@ -156,27 +158,27 @@ export function createCharacterInteraction(deps) {
     } catch (error) { return false; }
   }
 
-  document.addEventListener('pointerdown', pointerDown, true);
-  document.addEventListener('click', stopClick, true);
-  document.addEventListener('contextmenu', contextMenu, true);
-  document.addEventListener('pointermove', menuHover.pointerMove, true);
-  document.addEventListener('mousemove', menuHover.pointerMove, true);
-  window.addEventListener('whale-hover', event => menuHover.pointerMove({ clientX: event.detail.x, clientY: event.detail.y }));
-  root.addEventListener('lostpointercapture', event => endDrag(event, false));
-  window.addEventListener('blur', () => endDrag(null, false));
-  window.addEventListener('whale-mode-changing', () => {
+  lifecycle.listen(document, 'pointerdown', pointerDown, true);
+  lifecycle.listen(document, 'click', stopClick, true);
+  lifecycle.listen(document, 'contextmenu', contextMenu, true);
+  lifecycle.listen(document, 'pointermove', menuHover.pointerMove, true);
+  lifecycle.listen(document, 'mousemove', menuHover.pointerMove, true);
+  lifecycle.listen(window, 'whale-hover', event => menuHover.pointerMove({ clientX: event.detail.x, clientY: event.detail.y }));
+  lifecycle.listen(root, 'lostpointercapture', event => endDrag(event, false));
+  lifecycle.listen(window, 'blur', () => endDrag(null, false));
+  lifecycle.listen(window, 'whale-mode-changing', () => {
     endDrag(null, false); closeMenu(); menuHover.reset(); hideBubble();
     window.getSelection()?.removeAllRanges(); menuHover.setCursor('');
   });
-  window.addEventListener('whale-desktop-mode', () => {
+  lifecycle.listen(window, 'whale-desktop-mode', () => {
     endDrag(null, false); closeMenu(); menuHover.reset(); hideBubble(); settle();
     window.getSelection()?.removeAllRanges(); menuHover.setCursor('');
   });
-  window.addEventListener('whale-account-view', () => {
+  lifecycle.listen(window, 'whale-account-view', () => {
     hideBubble(); applyBubbleConfig(); refresh(true);
     window.requestAnimationFrame(() => { if (isMenuOpen()) positionMenu(); });
   });
-  window.addEventListener('resize', () => {
+  lifecycle.listen(window, 'resize', () => {
     positioner.style.transition = 'none';
     if (!(state.h === null && state.v === null && applyAnchorPosition())) settle();
     void positioner.getBoundingClientRect();
@@ -186,13 +188,14 @@ export function createCharacterInteraction(deps) {
   state.top = Math.max(0, viewport().h - root.offsetHeight);
   applyAnchorPosition();
   express();
-  window.addEventListener('whale-reset-position', () => {
+  lifecycle.listen(window, 'whale-reset-position', () => {
     endDrag(null, false); closeMenu(); hideBubble();
     localStorage.setItem('dshw-pos', JSON.stringify({ v: 2, hAnchor: 'right', hDist: 12, vAnchor: 'bottom', vDist: 12 }));
     applyAnchorPosition(); settle();
   });
 
   return Object.freeze({
+    dispose: () => { endDrag(null, false); menuHover.reset(); lifecycle.dispose(); },
     setupHitTest, layoutRect, isWhaleHit: hit, endDrag, applyAnchorPosition,
     resetMenuButtonHover: menuHover.reset, showMenuButton: menuHover.show,
     setWidgetCursor: menuHover.setCursor,

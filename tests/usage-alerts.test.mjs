@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
+import { createUsageAlerts } from '../desktop/ui/features/usage/usage-alerts.js';
 
 function fixture() {
   const queued = [];
   let settings = { alert: { on: true, below: 10 }, budget: { on: true, amount: 5 } };
   const alerts = createUsageAlerts({
-    document: {}, window: { WhaleAccountView: { mode: 'api' } },
+    document: {}, isSubscription: () => false,
     WhaleMoney: { formatNumber: value => Number(value).toFixed(2), symbol: () => '$' },
     whaleMoneyTemplates: new WeakMap(), fmt: value => String(value),
     bubbleTokenValue: value => value == null ? '—' : String(value),

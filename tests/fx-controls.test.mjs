@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createFxControls } from '../desktop/ui/features/widget/fx-controls.js';
+import { createFxControls } from '../desktop/ui/features/usage/fx-controls.js';
 
 function element() {
   const node = {

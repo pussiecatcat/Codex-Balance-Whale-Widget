@@ -1,6 +1,6 @@
 // Snapshot content is selected once per bubble open, with prior random picks scoped here.
 export function createBubbleContent(deps) {
-  const { window, getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
+  const { modelText = () => null, quotaText = () => null, getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
     usageFillText, bubbleCloneModule, random = Math.random } = deps;
     function bubbleModuleFontU(level) {
       var n = Number(level) || 6;
@@ -97,12 +97,12 @@ export function createBubbleContent(deps) {
       var state = getState();
       var lastTurnNotice = getLastTurnNotice();
       if (mod.apiModelId && (mod.type === 'balance' || mod.type === 'today' || mod.type === 'quota' || mod.type === 'plan')) {
-        var apiModelText = function () { return window.WhaleApiModels?.text(mod) || 'API 模型加载中…'; };
+        var apiModelText = function () { return modelText(mod) || 'API 模型加载中…'; };
         return { txt: apiModelText(), line: null, apiModelText: apiModelText };
       }
       if (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak') {
-        var quotaText = function () { return window.WhaleQuota?.text(mod) || '额度加载中…'; };
-        return { txt: quotaText(), line: null, quotaText: quotaText };
+        var readQuota = function () { return quotaText(mod) || '额度加载中…'; };
+        return { txt: readQuota(), line: null, quotaText: readQuota };
       }
       if (mod.type === 'turn') {
         var defaultTurnText = lastTurnNotice && lastTurnNotice.tokens != null ? '上轮使用 ' + bubbleTokenValue(lastTurnNotice.tokens) + ' tokens' : '暂无上轮用量';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createBubbleColorSelect } from '../desktop/ui/features/widget/bubble-color-select.js';
+import { createBubbleColorSelect } from '../desktop/ui/features/bubble/bubble-color-select.js';
 
 const SCHEMES = ['macaron', 'candy', 'rouge', 'bamboo', 'aurora', 'deepsea', 'sunset', 'forest',
   'champagne', 'lavender', 'mint', 'lava', 'galaxy', 'ink', 'indigo'];
@@ -22,6 +22,7 @@ function element(tag = 'div') {
     },
     appendChild(child) { this.children.push(child); return child; },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type, event = {}) { for (const fn of this.listeners[type] || []) fn({ stopPropagation() {}, ...event }); },
   };
   return node;
@@ -33,6 +34,7 @@ function fixture() {
     createElement(tag) { const node = element(tag); created.push(node); return node; },
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type, event) { for (const fn of this.listeners[type] || []) fn(event); },
   };
   const calls = { picked: [], opened: [] };
@@ -159,4 +161,14 @@ test('the document-level dismiss handler is installed once, not once per picker'
   build(fx, 'macaron');
   build(fx, 'indigo');
   assert.equal(fx.documentStub.listeners.pointerdown.length, 1);
+});
+
+test('disposing the picker releases its shared document listener and closes the top-level popup', () => {
+  const fx = fixture(); build(fx, 'solid');
+  fx.head().fire('click');
+  let removed = 0; fx.menu().remove = () => removed++;
+  fx.select.dispose(); fx.select.dispose();
+  assert.equal(removed, 1);
+  assert.equal(fx.documentStub.listeners.pointerdown.length, 0);
+  assert.equal(fx.menu().classList.contains('dshwv-rgbopen'), false);
 });

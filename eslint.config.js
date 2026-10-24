@@ -88,6 +88,8 @@ const rendererModules = [
   'desktop/ui/wait-notice.js',
   'desktop/ui/features/**/*.js',
   'desktop/ui/services/**/*.js',
+  'desktop/ui/components/**/*.js',
+  'desktop/ui/app/**/*.js',
 ];
 
 // The three ESM entries under desktop/ui/ are excluded from the classic block.

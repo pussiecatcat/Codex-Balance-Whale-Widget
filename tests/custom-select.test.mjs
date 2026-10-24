@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createCustomSelectController } from '../desktop/ui/features/widget/custom-select.js';
+import { createCustomSelectController } from '../desktop/ui/components/custom-select.js';
 
 function element(tag = 'div') {
   const node = {
@@ -15,12 +15,14 @@ function element(tag = 'div') {
       remove(name) { this.set.delete(name); },
       contains(name) { return this.set.has(name); },
     },
-    appendChild(child) { this.children.push(child); child.parentNode = this; return child; },
+    remove() { this.parentNode?.removeChild(this); },
+    appendChild(child) { child.parentNode?.removeChild(child); this.children.push(child); child.parentNode = this; return child; },
     removeChild(child) { this.children = this.children.filter(item => item !== child); child.parentNode = null; return child; },
-    insertBefore(child, before) { const at = this.children.indexOf(before); this.children.splice(at < 0 ? 0 : at, 0, child); child.parentNode = this; return child; },
+    insertBefore(child, before) { child.parentNode?.removeChild(child); const at = this.children.indexOf(before); this.children.splice(at < 0 ? 0 : at, 0, child); child.parentNode = this; return child; },
     setAttribute(name, value) { this.attributes[name] = value; },
     contains(target) { return target === this || this.children.includes(target); },
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type, event = {}) { for (const fn of this.listeners[type] || []) fn({ preventDefault() {}, stopPropagation() {}, target: this, ...event }); },
   };
   return node;
@@ -52,9 +54,11 @@ function fixture() {
     createElement(tag) { const node = element(tag); created.push(node); return node; },
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); },
     fire(type, event) { for (const fn of this.listeners[type] || []) fn(event); },
   };
-  const windowStub = { listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }, fire(type) { for (const fn of this.listeners[type] || []) fn(); } };
+  const windowStub = { listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(item => item !== fn); }, fire(type) { for (const fn of this.listeners[type] || []) fn(); } };
   const calls = { drops: [] };
   let clock = 1000;
   const controller = createCustomSelectController({
@@ -77,7 +81,7 @@ test('enhancing a select wraps it, hides it, and is idempotent', () => {
   const sel = select([{ value: 'usd', label: '美元' }, { value: 'cny', label: '人民币' }], { parent });
   const drop = fx.controller.enhance(sel, { allowNone: false });
   // enhance() calls sync() itself, so the label is right from the first paint.
-  assert.deepEqual(Object.keys(drop).sort(), ['button', 'close', 'menu', 'refresh', 'sync']);
+  assert.deepEqual(Object.keys(drop).sort(), ['button', 'close', 'dispose', 'menu', 'refresh', 'sync']);
   assert.equal(drop.button, fx.btn());
   assert.equal(fx.byClass('dshwv-custlab')[0].textContent, '美元');
   const wrap = fx.byClass('dshwv-custwrap')[0];
@@ -214,4 +218,23 @@ test('the document listeners are bound once no matter how many selects are enhan
   assert.equal(fx.documentStub.listeners.pointerdown.length, 1);
   assert.equal(fx.documentStub.listeners.keydown.length, 1);
   assert.equal(fx.windowStub.listeners.resize.length, 1);
+});
+
+
+test('disposing a select restores its element, removes global listeners and allows a fresh mount', () => {
+  const fx = fixture(), parent = element('div');
+  const sel = select([{ value: 'a', label: 'A' }], { parent });
+  const first = fx.controller.enhance(sel);
+  fx.open(); first.dispose(); first.dispose();
+  assert.equal(sel.parentNode, parent);
+  assert.equal(sel.style.display, '');
+  assert.equal(fx.documentStub.body.children.length, 0);
+  assert.equal(sel.__dshwCustDrop, undefined);
+  const second = fx.controller.enhance(sel);
+  assert.notEqual(first, second);
+  first.button.fire('click');
+  assert.equal(fx.documentStub.body.children.length, 0, 'detached controls are inactive');
+  fx.controller.dispose();
+  assert.ok(Object.values(fx.documentStub.listeners).every(list => list.length === 0));
+  assert.ok(Object.values(fx.windowStub.listeners).every(list => list.length === 0));
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createCharacterInteraction } from '../desktop/ui/features/widget/character-interaction.js';
+import { createCharacterInteraction } from '../desktop/ui/features/character/character-interaction.js';
 
 function element(tag = 'div') {
   const node = {
@@ -56,7 +56,7 @@ function fixture() {
     artCenterAt: (left, top, w, h, flipped) => ({ cx: left + w / 2, cy: top + h - w / 6, flipped }),
     snapZones: (cx, cyBox, cyImage) => ({ zH: cx < 100 ? 'left' : cx > 700 ? 'right' : null, zV: cyBox < 60 ? 'top' : cyImage > 520 ? 'bottom' : null, flip: false }),
     restoreAnchor: () => null,
-    express: () => { calls.expressed++; }, settle: () => { calls.settled++; }, saveConfig: () => { calls.saved++; },
+    express: () => { calls.expressed++; }, settle: () => { calls.settled++; }, savePosition: () => { calls.saved++; },
     refreshFlip: () => {}, pressDown: () => { calls.pressed++; }, pressUp: () => { calls.released++; },
     whaleClick: () => { calls.clicks++; }, refresh: value => calls.refreshed.push(value),
     closeMenu: () => { calls.menuClosed++; }, toggleMenu: () => {}, closeRolePanel: () => {}, closeAudioGroupPanel: () => {},

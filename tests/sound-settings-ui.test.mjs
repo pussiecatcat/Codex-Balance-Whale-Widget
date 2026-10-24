@@ -4,6 +4,7 @@ import { RequestError, requestJson } from '../desktop/ui/services/request.js';
 import { parseSoundReference, soundReferenceUrl } from '../desktop/ui/services/sound-reference.js';
 import { buildSoundSave, createSoundDraft } from '../desktop/ui/features/sound-settings/model.js';
 import { SoundSettingsController } from '../desktop/ui/features/sound-settings/controller.js';
+import { startSoundSettings, waitForLegacySoundUi } from '../desktop/ui/app/sound-settings.js';
 import { WaitNoticeController } from '../desktop/ui/wait-notice.js';
 
 const usage = () => ({
@@ -20,7 +21,7 @@ const usage = () => ({
 });
 
 const bundle = () => ({
-  ok: true, schemaVersion: 1, revision: 'rev-1',
+  ok: true, schemaVersion: 2,
   size: { scale: 1, sound: true, vol: .9, soundSet: 'duck', turnCostOn: true, turnCostCloseMs: 5000, futureSize: 'keep' },
   usage: usage(),
 });
@@ -52,11 +53,20 @@ test('sound draft cancel is isolated and one save command preserves unknown fiel
   draft.vol = .2; draft.events.question.soundOn = true;
   assert.equal(original.size.vol, .9);
   const output = buildSoundSave(original, draft);
-  assert.equal(output.size.vol, .2);
-  assert.equal(output.size.futureSize, 'keep');
-  assert.deepEqual(output.usage.futureUsage, { keep: true });
-  assert.equal(output.usage.events.question.soundOn, true);
-  assert.equal(output.revision, 'rev-1');
+  assert.equal(output.schemaVersion, 2);
+  assert.equal(output.patch.size.vol, .2);
+  assert.equal(output.patch.usage.events.question.soundOn, true);
+  // Unknown fields are no longer carried by the client: it writes only the fields
+  // the panel owns, and the server leaves everything else in the current document
+  // alone. That is what keeps a concurrently changed setting from being written
+  // back, and what the server-side test below pins.
+  assert.equal('futureSize' in output.patch.size, false);
+  assert.equal('futureUsage' in output.patch.usage, false);
+  // The values those fields were read from travel with them, so the server can
+  // tell a field that changed underneath from one that did not.
+  assert.equal(output.base.size.vol, .9);
+  assert.equal(output.base.usage.events.question.soundOn, original.usage.events.question.soundOn);
+  assert.equal('vol' in output.patch.usage.events.question, false, 'untouched sibling settings are not written');
 });
 
 test('sound controller mounts explicitly, cancel writes nothing and save performs one combined PUT', async () => {
@@ -76,7 +86,12 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
   const request = async (url, options = {}) => {
     calls.push({ url, method: options.method || 'GET', body: options.body });
     if (url === '/dsh-whale/audio.json') return catalog();
-    if (options.method === 'PUT') return { ...options.body, ok: true, revision: 'rev-2' };
+    if (options.method === 'PUT') {
+      const current = bundle();
+      return { ok: true, schemaVersion: 2,
+        size: { ...current.size, ...options.body.patch.size },
+        usage: { ...current.usage, ...options.body.patch.usage } };
+    }
     return bundle();
   };
   const controller = new SoundSettingsController({
@@ -95,7 +110,7 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
   const writes = calls.filter(call => call.method === 'PUT');
   assert.equal(writes.length, 1);
   assert.equal(writes[0].url, '/api/sound-settings');
-  assert.equal(writes[0].body.size.vol, .25);
+  assert.equal(writes[0].body.patch.size.vol, .25);
   assert.equal(applied.length, 1);
   assert.equal(dispatched.filter(event => event.type === 'whale-sound-settings-applied').length, 1);
   controller.dispose();
@@ -147,6 +162,40 @@ function eventWindow() {
     audioCalls,
   };
 }
+
+test('sound startup cancellation removes readiness listeners and cannot mount an already-ready adapter', async () => {
+  const windowRef = eventWindow(), abort = new AbortController();
+  const pending = waitForLegacySoundUi(windowRef, { signal: abort.signal });
+  assert.equal(windowRef.listenerCount('whale-legacy-sound-ready'), 1);
+  abort.abort();
+  await assert.rejects(pending, error => error.name === 'AbortError');
+  assert.equal(windowRef.listenerCount('whale-legacy-sound-ready'), 0);
+  let mounts = 0;
+  windowRef.WhaleLegacySoundUi = { mountMenuEntry() { mounts++; } };
+  await assert.rejects(startSoundSettings({ windowRef, signal: abort.signal }), error => error.name === 'AbortError');
+  assert.equal(mounts, 0);
+});
+
+test('sound composition resolves the current select adapter and provides rendering and preview ports', async () => {
+  const windowRef = eventWindow(), calls = [];
+  const legacy = { mountMenuEntry: () => () => {}, audioEditor: {}, promptEditor: {} };
+  let viewOptions;
+  windowRef.WhaleAudio.stop = channel => calls.push(channel);
+  windowRef.WhaleRendering = { presentFor: ms => calls.push(ms) };
+  const controller = await startSoundSettings({
+    windowRef, legacy, request: async url => url === '/dsh-whale/audio.json' ? catalog() : bundle(),
+    createMenuEntry: () => ({ element: {}, setLoading() {}, destroy() {} }),
+    createView: options => { viewOptions = options; return { destroy() {} }; },
+  });
+  const select = {}; windowRef.WhaleSelect = select;
+  await controller.open();
+  assert.equal(viewOptions.selectEnhancer, select);
+  assert.ok(calls.includes(350));
+  viewOptions.onPreview('/sound.wav', .3);
+  assert.deepEqual(windowRef.audioCalls, [{ channel: 'notice', url: '/sound.wav', volume: .3 }]);
+  controller.dispose();
+  assert.equal(calls.at(-1), 'notice');
+});
 
 test('wait notice controller deduplicates pending prompts, applies settings and disposes its lifecycle', async () => {
   const windowRef = eventWindow(), shown = [], hidden = [], scheduled = [];

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createTurnNoticePoller } from '../desktop/ui/features/widget/turn-notice-poller.js';
+import { createTurnNoticePoller } from '../desktop/ui/features/usage/turn-notice-poller.js';
 import { SessionParser, SessionReader, SessionMonitor } from '../runtime/session-monitor.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
@@ -195,6 +195,9 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
     setLastTurnNotice: notice => { lastTurnNotice = notice; },
     playTaskEndSound: sandbox.playTaskEndSound,
     getFeedbackVolume: () => 1,
+    isSubscription: () => sandbox.window.WhaleAccountView?.mode === 'subscription',
+    showSubscriptionNotice: notice => sandbox.window.WhaleAccountView.notice(notice),
+    notifyQuotaSettled: () => sandbox.window.WhaleQuota.settled(),
     showCostBubble: sandbox.showCostBubble,
   });
   const pollLastTurn = () => turnNoticePoller.poll();
