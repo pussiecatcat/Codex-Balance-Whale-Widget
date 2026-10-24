@@ -240,6 +240,7 @@ python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
 - 上游项目：[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)，作者 [MeteorNOX](https://github.com/MeteorNOX)。
 - Codex 适配历史维护者：[Yang-huai406](https://github.com/Yang-huai406)。
 - macOS 兼容实现来源：[PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128)，贡献者 [1llysviel](https://github.com/1llysviel)。
+- 贡献者：[halamadrid66666-cmyk](https://github.com/halamadrid66666-cmyk)。
 - 代码与文档沿用 MIT 许可，见 [LICENSE](LICENSE)。
 - 原图片、动图和音频按上游分发条款随项目提供，本仓库不把这些素材重新声明为原创或扩大其许可范围。
 - 第三方依赖见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
