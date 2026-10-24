@@ -50,6 +50,12 @@ export function dependencySyntax(source) {
         if (parent?.type === 'AssignmentExpression' && parent.left === node) published.push(name);
       }
     }
+    if (node.type === 'Identifier' && references.has(node)) {
+      const value = origin(node);
+      const alias = /^(?:window|globalThis)(?:\.window)?\.(Whale\w+)$/.exec(value);
+      const name = alias?.[1] || (!references.get(node) && /^Whale[A-Z]/.test(node.name) ? node.name : null);
+      if (name) globals[name] = (globals[name] || 0) + 1;
+    }
     // Count only references, never declarations or non-computed property names.
     if (node.type === 'MemberExpression' || node.type === 'Identifier' && references.has(node)) {
       const value = origin(node);

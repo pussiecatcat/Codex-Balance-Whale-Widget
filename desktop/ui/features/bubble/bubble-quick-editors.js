@@ -1,6 +1,6 @@
 // Quick controls for text, data modules, and random sentence lines.
 export function createBubbleQuickEditors(deps) {
-  const { document, window, qeditClose, qeditEnsure, qRow, qLabel,
+  const { document, modelOptions = () => {}, qeditClose, qeditEnsure, qRow, qLabel,
     bubbleFontEditRow, qColorSelectBuild, renderBubblePv, qeditPlace,
     getPreviewElement, bubbleTplHelpToggle } = deps;
     function qStyleChecksBuild(getBool, setBool) {
@@ -232,7 +232,7 @@ export function createBubbleQuickEditors(deps) {
         var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));
         var apiModelSelect = document.createElement('select'); apiModelSelect.className = 'dshwv-sound';
         apiModelRow.appendChild(apiModelSelect); box.appendChild(apiModelRow);
-        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) {
+        modelOptions(apiModelSelect, m.apiModelId || '', function (value) {
           m.apiModelId = value || '';
           if (m.apiModelId && m.type === 'quota') delete m.quotaStyle;
           changed(); qeditClose(); openQuickModuleEditor(m);

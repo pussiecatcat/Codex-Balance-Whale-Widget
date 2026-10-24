@@ -62,12 +62,28 @@ function fixture(t, files) {
 
 const evaluate = root => dependencyErrors(collectDependencyMetrics({ root }));
 
+test('bare globals, destructured aliases and imports back into app adapters are refused', t => {
+  const root = fixture(t, {
+    'desktop/ui/features/bubble/global.js': `export const text = () => WhaleQuota.text();`,
+    'desktop/ui/features/bubble/alias.js': `const { WhaleApiModels: models } = window; export const read = () => models.load();`,
+    'desktop/ui/features/bubble/upward.js': `import '../../app/sound-settings.js';`,
+  });
+  const errors = evaluate(root).join('\n');
+  assert.match(errors, /global\.js reaches for window\.WhaleQuota/);
+  assert.match(errors, /alias\.js reaches for window\.WhaleApiModels/);
+  assert.match(errors, /imports desktop\/ui\/app\/sound-settings\.js/);
+  const explicit = fixture(t, {
+    'desktop/ui/features/bubble/ports.js': `export const create = ({ WhaleQuota }) => WhaleQuota.text();`,
+  });
+  assert.deepEqual(evaluate(explicit), [], 'a named injected value is resolved to its own scope');
+});
+
 test('the dependency gate is clean on the tree as it stands, and its numbers are the frozen ones', () => {
   const metrics = collectDependencyMetrics({ root: ROOT });
   assert.deepEqual(dependencyErrors(metrics), []);
   assert.equal(metrics.publishedGlobals.length, 11, 'the window global surface is frozen at eleven names');
-  assert.equal(Object.keys(metrics.moduleReads).length, 8, 'eight modules still reach for a global');
-  assert.equal(Object.values(metrics.moduleReads).reduce((sum, reads) => sum + Object.values(reads).reduce((a, b) => a + b, 0), 0), 26);
+  assert.deepEqual(metrics.moduleReads, {}, 'extracted modules have no ambient application dependencies');
+  assert.equal(Object.values(metrics.moduleReads).reduce((sum, reads) => sum + Object.values(reads).reduce((a, b) => a + b, 0), 0), 0);
   assert.equal(metrics.staleReads.length, 0, 'every frozen read is still present; a stale one means the baseline should be lowered');
   assert.equal(metrics.crossFeatureImports.length, 0);
   assert.equal(metrics.globalStorage.length, 0);
@@ -83,7 +99,7 @@ test('an extracted module reaching for a leftover global is refused, and so is a
   const wider = fixture(t, {
     'desktop/ui/features/usage/usage-alerts.js': 'const a = window.WhaleAccountView?.mode;\nconst b = window.WhaleAccountView?.mode;\n',
   });
-  assert.match(evaluate(wider).join('\n'), /usage-alerts\.js reads window\.WhaleAccountView 2 times, above the frozen 1/);
+  assert.match(evaluate(wider).join('\n'), /usage-alerts\.js reaches for window\.WhaleAccountView/);
 });
 
 test('a module that stopped reading a global lowers the baseline instead of failing the gate', t => {
@@ -92,8 +108,7 @@ test('a module that stopped reading a global lowers the baseline instead of fail
   });
   const metrics = collectDependencyMetrics({ root: quiet });
   assert.deepEqual(dependencyErrors(metrics), [], 'migrating the last read is not a violation');
-  assert.ok(metrics.staleReads.some(item => item.file.endsWith('usage-alerts.js') && item.global === 'WhaleAccountView'),
-    'and the now-stale baseline entry is reported so it can be taken out');
+  assert.deepEqual(metrics.staleReads, [], 'the old exceptions have been removed');
 });
 
 test('one feature importing another is refused while the shared services direction stays open', t => {

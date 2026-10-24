@@ -59,8 +59,8 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 ## 注意
 
 - **口径必须分开**：ChatGPT 订阅额度、API 余额、本机观测 token 是三个不同来源，代码刻意分开显示。不要把观测值当官方账单，也不要为了显示好看删掉小额精度。
-- **`assets/whale-widget.js` 现在是装配入口，不再是单体**：约 6,021 行 / 256 KB，只占第一方源码的三成；气泡、用量、角色、音效等实现已迁到 `desktop/ui/features/**`（36 个模块）与 `desktop/ui/services/**`（2 个共享模块）。文件顶部保留分段索引，先 `grep -n "==== \[" assets/whale-widget.js` 取区段行号再定点读。**改某个功能前先确认它是否已经迁出**——留在这里的多半只剩 DOM 装配和兼容适配。
-- **已迁出的模块不得直接读 `window.Whale*`**：`npm run check:architecture` 会拦下新增或加量的全局访问、跨功能导入（`features/a` 引 `features/b`）以及绕过 `desktop/ui/services/request.js` 的直接 `fetch`。存量访问冻结在 `scripts/refactor-metrics.mjs` 的 `MODULE_GLOBAL_READS` 与 `MODULE_DIRECT_REQUESTS`，发布到 `window` 的全局名冻结在同文件的 `GLOBAL_SURFACE`（当前 11 个）；三者都只减不增，preload 契约 `window.whaleDesktop` 按设计放行。功能迁走后要顺手删掉基线里对应的条目，否则它会一直在 `--json` 输出里报成 stale。
+- **`assets/whale-widget.js` 仍是装配与菜单/渲染适配入口**：当前 2,254 行，气泡、用量、角色、音效等实现位于 `desktop/ui/features/**`，公共服务和控件位于 `services/**` 与 `components/**`。编辑功能前先定位其所属模块。入口行数不是唯一维护指标，新增显式依赖装配可以增加行数。
+- **已迁出的模块不得隐式读应用全局对象**：`npm run check:architecture` 禁止 `window.Whale*`、裸全局名称、全局别名，以及反向导入应用适配器。`MODULE_GLOBAL_READS` 已清空；模块所需操作在装配入口注入。`desktop/ui/app/sound-settings.js` 负责经典脚本就绪握手、音频/选择器/渲染兼容，功能控制器不自行查找这些全局接口。`GLOBAL_SURFACE` 仍冻结 11 个兼容名称，preload 契约 `window.whaleDesktop` 按设计放行。
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
 - **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
 - **版本号只有一处真源**：`.codex-plugin/plugin.json` 的 `version`（`基础版本+构建后缀`，安装器比对的就是它）。`runtime/paths.mjs` 从它推导出 `VERSION`，不再自带字面量；`package.json` 仍留一份给 npm，由 `tests/release-version.test.mjs` 断言与真源一致。发版只改 plugin.json 一处，改了 package.json 忘了同步会被测试拦下。

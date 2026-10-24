@@ -4,6 +4,7 @@ import { RequestError, requestJson } from '../desktop/ui/services/request.js';
 import { parseSoundReference, soundReferenceUrl } from '../desktop/ui/services/sound-reference.js';
 import { buildSoundSave, createSoundDraft } from '../desktop/ui/features/sound-settings/model.js';
 import { SoundSettingsController } from '../desktop/ui/features/sound-settings/controller.js';
+import { startSoundSettings, waitForLegacySoundUi } from '../desktop/ui/app/sound-settings.js';
 import { WaitNoticeController } from '../desktop/ui/wait-notice.js';
 
 const usage = () => ({
@@ -161,6 +162,40 @@ function eventWindow() {
     audioCalls,
   };
 }
+
+test('sound startup cancellation removes readiness listeners and cannot mount an already-ready adapter', async () => {
+  const windowRef = eventWindow(), abort = new AbortController();
+  const pending = waitForLegacySoundUi(windowRef, { signal: abort.signal });
+  assert.equal(windowRef.listenerCount('whale-legacy-sound-ready'), 1);
+  abort.abort();
+  await assert.rejects(pending, error => error.name === 'AbortError');
+  assert.equal(windowRef.listenerCount('whale-legacy-sound-ready'), 0);
+  let mounts = 0;
+  windowRef.WhaleLegacySoundUi = { mountMenuEntry() { mounts++; } };
+  await assert.rejects(startSoundSettings({ windowRef, signal: abort.signal }), error => error.name === 'AbortError');
+  assert.equal(mounts, 0);
+});
+
+test('sound composition resolves the current select adapter and provides rendering and preview ports', async () => {
+  const windowRef = eventWindow(), calls = [];
+  const legacy = { mountMenuEntry: () => () => {}, audioEditor: {}, promptEditor: {} };
+  let viewOptions;
+  windowRef.WhaleAudio.stop = channel => calls.push(channel);
+  windowRef.WhaleRendering = { presentFor: ms => calls.push(ms) };
+  const controller = await startSoundSettings({
+    windowRef, legacy, request: async url => url === '/dsh-whale/audio.json' ? catalog() : bundle(),
+    createMenuEntry: () => ({ element: {}, setLoading() {}, destroy() {} }),
+    createView: options => { viewOptions = options; return { destroy() {} }; },
+  });
+  const select = {}; windowRef.WhaleSelect = select;
+  await controller.open();
+  assert.equal(viewOptions.selectEnhancer, select);
+  assert.ok(calls.includes(350));
+  viewOptions.onPreview('/sound.wav', .3);
+  assert.deepEqual(windowRef.audioCalls, [{ channel: 'notice', url: '/sound.wav', volume: .3 }]);
+  controller.dispose();
+  assert.equal(calls.at(-1), 'notice');
+});
 
 test('wait notice controller deduplicates pending prompts, applies settings and disposes its lifecycle', async () => {
   const windowRef = eventWindow(), shown = [], hidden = [], scheduled = [];

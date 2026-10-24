@@ -1,9 +1,39 @@
+// playFeedback returns true when the shared channel accepted playback; false
+// selects locally owned Audio instances, which are stopped by dispose().
 export function createTaskEndSound(deps) {
   const {
-    document, window, Audio, taskEndSelect, getTaskEndDrop,
+    document, Audio, taskEndSelect, getTaskEndDrop,
     getUsageSettings, setUsageSettings, getAudioGroups, getAudioFragments,
-    audioGroupName, getSoundState,
+    audioGroupName, getSoundState, playFeedback = () => false, rememberSuccessSource = () => {},
   } = deps;
+  const players = new Set();
+  let disposed = false;
+
+  function release(audio) {
+    if (!players.delete(audio)) return;
+    audio.onended = audio.onerror = null;
+    audio.pause();
+  }
+
+  function makeAudio(url, volume) {
+    const audio = new Audio(url);
+    audio.volume = volume;
+    players.add(audio);
+    audio.onended = audio.onerror = () => release(audio);
+    return audio;
+  }
+
+  function startAudio(audio) {
+    if (disposed) { release(audio); return; }
+    try { Promise.resolve(audio.play()).catch(() => release(audio)); }
+    catch { release(audio); }
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    for (const audio of players) release(audio);
+  }
 
   function option(value, label) {
     const element = document.createElement('option');
@@ -78,6 +108,7 @@ export function createTaskEndSound(deps) {
   }
 
   function play() {
+    if (disposed) return;
     try {
       const settings = getUsageSettings();
       const sound = getSoundState();
@@ -88,8 +119,7 @@ export function createTaskEndSound(deps) {
       let url = '';
       if (selected.startsWith('grp:')) {
         const groupId = selected.slice(4);
-        if (window.WhaleFeedback) window.WhaleFeedback.play('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(groupId), volume);
-        else playGroup(groupId, volume);
+        if (!playFeedback('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(groupId), volume)) playGroup(groupId, volume);
         return;
       }
       if (selected.startsWith('frag:')) url = '/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(selected.slice(5));
@@ -98,15 +128,9 @@ export function createTaskEndSound(deps) {
         url = '/dsh-whale/sound/' + (parts[2] === 'release' ? 'release' : 'press') + '.mp3?set=' + parts[1];
       }
       if (!url) return;
-      if (window.WhaleFeedback) {
-        window.WhaleFeedbackSources ||= {};
-        window.WhaleFeedbackSources.success = url;
-        window.WhaleFeedback.play('success', url, volume);
-        return;
-      }
-      const audio = new Audio(url);
-      audio.volume = volume;
-      audio.play().catch(() => {});
+      rememberSuccessSource(url);
+      if (playFeedback('success', url, volume)) return;
+      startAudio(makeAudio(url, volume));
     } catch (error) {}
   }
 
@@ -119,31 +143,28 @@ export function createTaskEndSound(deps) {
       if (pressEmpty && releaseEmpty) return;
       const level = Number.isFinite(Number(volume)) ? Number(volume) : getSoundState().volume;
       const make = kind => {
-        const audio = new Audio('/dsh-whale/sound/' + kind + '.mp3?set=' + encodeURIComponent(groupId));
-        audio.volume = level;
-        return audio;
+        return makeAudio('/dsh-whale/sound/' + kind + '.mp3?set=' + encodeURIComponent(groupId), level);
       };
       if (pressEmpty) {
-        if (!releaseEmpty) make('release').play().catch(() => {});
+        if (!releaseEmpty) startAudio(make('release'));
         return;
       }
       const press = make('press');
       if (releaseEmpty) {
-        press.play().catch(() => {});
+        startAudio(press);
         return;
       }
-      const release = make('release');
       let played = false;
       press.onended = () => {
-        if (played) return;
+        release(press);
+        if (disposed || played) return;
         played = true;
-        release.currentTime = 0;
-        release.play().catch(() => {});
+        startAudio(make('release'));
       };
       press.currentTime = 0;
-      press.play().catch(() => {});
+      startAudio(press);
     } catch (error) {}
   }
 
-  return Object.freeze({ fillOptions, refreshAfterAudio, play });
+  return Object.freeze({ fillOptions, refreshAfterAudio, play, dispose });
 }

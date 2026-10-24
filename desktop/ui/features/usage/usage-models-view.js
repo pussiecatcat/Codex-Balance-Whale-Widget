@@ -1,6 +1,6 @@
 // Model summaries and their asynchronous list rendering share one request sequence.
 export function createUsageModelsView(deps) {
-  const { document, window, WhaleMoney, getPanel, now = Date.now } = deps;
+  const { document, editModel = () => {}, loadModels, refreshModel, WhaleMoney, getPanel, now = Date.now } = deps;
   let usageModelListEl = null, usageModelRefreshBtn = null, usageModelRenderSeq = 0;
     function usageApiModelSummary(model, value) {
       if (!value) return '加载中…';
@@ -32,15 +32,15 @@ export function createUsageModelsView(deps) {
       loading.className = 'dshwv-book-model-empty';
       loading.textContent = '正在读取模型…';
       list.appendChild(loading);
-      if (!window.WhaleApiModels || typeof window.WhaleApiModels.load !== 'function') {
+      if (typeof loadModels !== 'function') {
         loading.textContent = 'API 模型模块未加载';
         if (button) button.disabled = false;
         return;
       }
-      window.WhaleApiModels.load(!!force).then(function (data) {
+      loadModels(!!force).then(function (data) {
         var models = data && Array.isArray(data.models) ? data.models : [];
         return Promise.all(models.map(function (model) {
-          return window.WhaleApiModels.refresh(model.id, !!force).then(function (value) {
+          return refreshModel(model.id, !!force).then(function (value) {
             return { model: model, value: value };
           }).catch(function (error) {
             return { model: model, value: { error: error && error.message || '读取失败' } };
@@ -76,7 +76,7 @@ export function createUsageModelsView(deps) {
           settings.title = '设置 ' + name.textContent + ' 的接口、预算、提醒与额度';
           settings.addEventListener('click', function (event) {
             event.stopPropagation();
-            window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: entry.model.id } }));
+            editModel(entry.model.id);
           });
           row.appendChild(settings);
           list.appendChild(row);
@@ -121,7 +121,7 @@ export function createUsageModelsView(deps) {
       add.textContent = '＋ 添加模型（自定义 API）';
       add.addEventListener('click', function (event) {
         event.stopPropagation();
-        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: null } }));
+        editModel(null);
       });
       area.appendChild(add);
       var divider = document.createElement('div');

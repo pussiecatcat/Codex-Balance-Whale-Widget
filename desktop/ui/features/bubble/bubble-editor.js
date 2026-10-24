@@ -214,7 +214,7 @@ var bubbleColorSelect = createBubbleColorSelect({
     });
 var qColorSelectBuild = bubbleColorSelect.build;
 var bubbleQuickEditors = createBubbleQuickEditors({
-      document: ports.document, window: ports.window, qeditClose: qeditClose,
+      document: ports.document, modelOptions: ports.modelOptions, qeditClose: qeditClose,
       qRow: qRow, qLabel: qLabel, bubbleFontEditRow: bubbleFontEditRow,
       qColorSelectBuild: qColorSelectBuild, qeditPlace: qeditPlace,
       // Resolved at call time, not here. usageAlertBudgetEditor swaps both

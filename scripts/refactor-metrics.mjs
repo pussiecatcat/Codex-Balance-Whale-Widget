@@ -20,6 +20,7 @@ export const SOUND_RUNTIME_MODULES = Object.freeze([
 
 const SOUND_BOUNDARY_FILES = Object.freeze([
   'desktop/ui/sound-settings.js',
+  'desktop/ui/app/sound-settings.js',
   'desktop/ui/wait-notice.js',
   'desktop/ui/services/sound-reference.js',
   'desktop/ui/features/sound-settings/model.js',
@@ -45,21 +46,9 @@ export const GLOBAL_SURFACE = Object.freeze([
   'WhaleSelect',
 ]);
 
-// Reads of those globals from modules that have already been extracted, with the
-// count each one had when this gate was written. Dependency injection is the
-// replacement, so these numbers only go down; an entry whose module stopped
-// reading the global is reported as stale rather than failing, the way the line
-// caps above work.
-export const MODULE_GLOBAL_READS = Object.freeze({
-  'desktop/ui/features/sound-settings/controller.js': { WhaleRendering: 1, WhaleSelect: 1 },
-  'desktop/ui/features/bubble/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
-  'desktop/ui/features/bubble/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/bubble/bubble-rows-view.js': { WhaleApiModels: 2, WhaleQuota: 2 },
-  'desktop/ui/features/audio/task-end-sound.js': { WhaleFeedback: 4, WhaleFeedbackSources: 2 },
-  'desktop/ui/features/usage/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1 },
-  'desktop/ui/features/usage/usage-alerts.js': { WhaleAccountView: 1 },
-  'desktop/ui/features/usage/usage-models-view.js': { WhaleApiModels: 4 },
-});
+// Extracted features now take explicit operations. Classic-script compatibility
+// stays at the application composition boundary; no module read is exempt.
+export const MODULE_GLOBAL_READS = Object.freeze({});
 
 export const MODULE_DIRECT_REQUESTS = Object.freeze({});
 
@@ -190,8 +179,9 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
       for (const { spec, index } of syntax.imports) {
         if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
         const target = spec.startsWith('/') ? 'desktop/ui' + spec : path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
-        if (!target.startsWith('desktop/ui/features/')) continue;
-        if (target.slice('desktop/ui/features/'.length).split('/')[0] !== owner) {
+        const shared = target.startsWith('desktop/ui/services/') || target.startsWith('desktop/ui/components/');
+        const sameFeature = owner && target.startsWith('desktop/ui/features/' + owner + '/');
+        if (!shared && !sameFeature) {
           crossFeatureImports.push({ file: relative, line: lineOf(source, index), target });
         }
       }
@@ -241,7 +231,7 @@ export function dependencyErrors(dependency) {
     if (frozen === undefined) errors.push(`${relative} calls fetch directly; ${SHARED_REQUEST_CLIENT} is the one place that may.`);
     else if (count > frozen) errors.push(`${relative} calls fetch ${count} times, above the frozen ${frozen}.`);
   }
-  for (const item of dependency.crossFeatureImports) errors.push(`${item.file}:${item.line} imports ${item.target}: one feature does not import another, shared code belongs in desktop/ui/services/.`);
+  for (const item of dependency.crossFeatureImports) errors.push(`${item.file}:${item.line} imports ${item.target}: one feature does not import another or an application adapter; shared code belongs in desktop/ui/services/ or components/.`);
   for (const item of dependency.globalStorage) errors.push(`${item.file}:${item.line} uses the localStorage global; the storage a module writes is injected.`);
   return errors;
 }

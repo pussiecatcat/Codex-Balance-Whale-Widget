@@ -1,8 +1,12 @@
+import { createLifecycle } from '../../services/lifecycle.js';
+
 // Poll completed turns once, persist the cursor, and deliver fresh notices to the widget.
 export function createTurnNoticePoller(deps) {
   const { window, localStorage, fetch: fetchImpl, WhaleTurnNotice, CustomEvent,
     getCurrency, setLastTurnNotice, playTaskEndSound, getFeedbackVolume,
-    showCostBubble, now = Date.now } = deps;
+    showCostBubble, playFeedback = () => {}, isSubscription = () => false,
+    showSubscriptionNotice = () => {}, notifyQuotaSettled = () => {}, now = Date.now } = deps;
+  const lifecycle = createLifecycle();
   const LAST_TURN_URL = '/dsh-whale/last-turn.json';
   let lastCostSeq = 0;
   let lastCostAligned = false;
@@ -16,13 +20,13 @@ export function createTurnNoticePoller(deps) {
   } catch (err) {}
 
   function pollLastTurn() {
-    if (lastCostPending) return;
+    if (lifecycle.disposed || lastCostPending) return;
     lastCostPending = true;
     try {
-      fetchImpl(LAST_TURN_URL, { cache: 'no-store' }).then(function (r) {
-        return r.json();
+      return fetchImpl(LAST_TURN_URL, { cache: 'no-store', signal: lifecycle.signal }).then(function (r) {
+        return lifecycle.disposed ? null : r.json();
       }).then(function (d) {
-        if (!d || !d.ok || typeof d.seq !== 'number') return;
+        if (lifecycle.disposed || !d || !d.ok || typeof d.seq !== 'number') return;
         if (d.seq < lastCostSeq) return;
         const firstPoll = !lastCostAligned;
         lastCostAligned = true;
@@ -40,17 +44,17 @@ export function createTurnNoticePoller(deps) {
         if (!fresh) return;
         window.dispatchEvent(new CustomEvent('whale-turn-notice', { detail: notice }));
         if (notice.completionKind === 'success') playTaskEndSound();
-        else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && window.WhaleFeedback) {
-          window.WhaleFeedback.play(notice.completionKind, '', getFeedbackVolume());
+        else if (notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') {
+          playFeedback(notice.completionKind, '', getFeedbackVolume());
         }
-        if (window.WhaleAccountView?.mode === 'subscription') {
-          window.WhaleAccountView.notice(notice);
-          window.WhaleQuota?.settled();
+        if (isSubscription()) {
+          showSubscriptionNotice(notice);
+          notifyQuotaSettled();
         }
         showCostBubble(notice.amount, notice);
       }).catch(function () {}).finally(function () { lastCostPending = false; });
     } catch (err) { lastCostPending = false; }
   }
 
-  return Object.freeze({ poll: pollLastTurn });
+  return Object.freeze({ poll: pollLastTurn, dispose: lifecycle.dispose });
 }

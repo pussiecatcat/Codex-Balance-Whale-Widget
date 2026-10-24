@@ -6,46 +6,6 @@ import { createSoundMenuEntry, createSoundSettingsView } from './view.js';
 const SETTINGS_URL = '/api/sound-settings';
 const AUDIO_URL = '/dsh-whale/audio.json';
 
-function previewPlayer(windowRef) {
-  let audio = null;
-  const stop = () => {
-    if (audio) { audio.pause(); audio.currentTime = 0; audio = null; }
-    windowRef.WhaleAudio?.stop?.('notice');
-  };
-  return {
-    play(url, volume) {
-      stop();
-      if (!url) return;
-      if (windowRef.WhaleAudio) {
-        windowRef.WhaleAudio.play({ channel: 'notice', url, volume });
-        return;
-      }
-      audio = new windowRef.Audio(url);
-      audio.volume = Math.max(0, Math.min(1, Number(volume) || 0));
-      audio.play().catch(() => {});
-    },
-    stop,
-  };
-}
-
-export function waitForLegacySoundUi(windowRef = window, { signal } = {}) {
-  if (windowRef.WhaleLegacySoundUi) return Promise.resolve(windowRef.WhaleLegacySoundUi);
-  return new Promise((resolve, reject) => {
-    const ready = event => {
-      cleanup();
-      const adapter = event.detail || windowRef.WhaleLegacySoundUi;
-      if (adapter) resolve(adapter); else reject(new Error('旧挂件适配器未提供接口'));
-    };
-    const aborted = () => { cleanup(); reject(signal?.reason || new DOMException('Aborted', 'AbortError')); };
-    const cleanup = () => {
-      windowRef.removeEventListener('whale-legacy-sound-ready', ready);
-      signal?.removeEventListener('abort', aborted);
-    };
-    windowRef.addEventListener('whale-legacy-sound-ready', ready, { once: true });
-    if (signal?.aborted) aborted(); else signal?.addEventListener('abort', aborted, { once: true });
-  });
-}
-
 export class SoundSettingsController {
   constructor(options = {}) {
     this.window = options.windowRef || window;
@@ -55,7 +15,10 @@ export class SoundSettingsController {
     this.settings = options.settings || (options.request ? createSettingsClient(this.request) : settingsClient);
     this.createMenuEntry = options.createMenuEntry || createSoundMenuEntry;
     this.createView = options.createView || createSoundSettingsView;
-    this.player = options.player || previewPlayer(this.window);
+    if (!options.player) throw new TypeError('SoundSettingsController requires a preview player');
+    this.player = options.player;
+    this.getSelectEnhancer = options.getSelectEnhancer || (() => undefined);
+    this.presentFor = options.presentFor || (() => {});
     this.abortController = new AbortController();
     this.entry = null;
     this.unmount = null;
@@ -95,7 +58,7 @@ export class SoundSettingsController {
         documentRef: this.document,
         draft: this.draft,
         initialCatalog: this.catalog,
-        selectEnhancer: this.window.WhaleSelect,
+        selectEnhancer: this.getSelectEnhancer(),
         onSave: () => this.save(),
         onClose: () => { this.view = null; this.player.stop(); },
         onRestore: () => restoreSoundDefaults(this.draft),
@@ -104,7 +67,7 @@ export class SoundSettingsController {
         onPreview: (url, volume) => this.player.play(url, volume),
         onStopPreview: () => this.player.stop(),
       });
-      this.window.WhaleRendering?.presentFor?.(350);
+      this.presentFor(350);
       this.entry?.setLoading(false);
     } catch (error) {
       if (this.disposed || operation.signal.aborted || error?.name === 'AbortError' || error?.kind === 'aborted') return;
@@ -152,12 +115,4 @@ export class SoundSettingsController {
     this.unmount?.(); this.unmount = null;
     this.entry?.destroy(); this.entry = null;
   }
-}
-
-export async function startSoundSettings(options = {}) {
-  const windowRef = options.windowRef || window;
-  const legacy = options.legacy || await waitForLegacySoundUi(windowRef, { signal: options.signal });
-  const controller = new SoundSettingsController({ ...options, windowRef, legacy });
-  controller.start();
-  return controller;
 }

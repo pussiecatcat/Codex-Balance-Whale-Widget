@@ -34,7 +34,7 @@ import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault, bubble
 //  分段索引  SECTION INDEX
 //
 //  本文件是装配入口：DOM 装配与兼容适配留在这里，实现已迁到
-//  /features/widget/* 与 /services/* 的模块。分段索引标的是还留在本文件里的区段。
+//  /features/* 与 /services/* 的模块。分段索引标的是还留在本文件里的区段。
 //  各区段以方括号横幅（==== 加区段名）标记。取实时行号：
 //
 //      grep -n "==== \[" assets/whale-widget.js
@@ -272,7 +272,15 @@ var BUBBLE_MS = 5000;
 
     // ==== [任务结束音效] ====
     var taskEndSound = createTaskEndSound({
-      document: document, window: window, Audio: Audio, taskEndSelect: taskEndSel,
+      document: document, Audio: Audio, taskEndSelect: taskEndSel,
+      playFeedback: function (kind, url, volume) {
+        if (!window.WhaleFeedback) return false;
+        window.WhaleFeedback.play(kind, url, volume); return true;
+      },
+      rememberSuccessSource: function (url) {
+        if (!window.WhaleFeedback) return;
+        window.WhaleFeedbackSources ||= {}; window.WhaleFeedbackSources.success = url;
+      },
       getTaskEndDrop: function () { return taskEndDrop; },
       getUsageSettings: function () { return usageSet; },
       setUsageSettings: function (settings) { usageSet = settings; },
@@ -665,7 +673,13 @@ var BUBBLE_MS = 5000;
       usagePanel.appendChild(usageMainEl);
     }
     var usageModelsView = createUsageModelsView({
-      document: document, window: window, WhaleMoney: WhaleMoney,
+      document: document, WhaleMoney: WhaleMoney,
+      loadModels: async function (force) {
+        if (!window.WhaleApiModels?.load) throw new Error('API 模型模块未加载');
+        return window.WhaleApiModels.load(force);
+      },
+      refreshModel: async function (id, force) { return window.WhaleApiModels.refresh(id, force); },
+      editModel: function (id) { window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: id } })); },
       getPanel: function () { return usagePanel; }
     });
     var renderUsageModels = usageModelsView.render;
@@ -781,7 +795,8 @@ var BUBBLE_MS = 5000;
     function openResManager() { resourceManager.open().catch(assetFailure); }
     // Bubble and usage views call the same alert controller, including its day-level dedupe.
     var usageAlerts = createUsageAlerts({
-      document: document, window: window, WhaleMoney: WhaleMoney,
+      document: document, WhaleMoney: WhaleMoney,
+      isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
       whaleMoneyTemplates: whaleMoneyTemplates, fmt: fmt,
       bubbleTokenValue: function (value) { return bubbleTokenValue(value); },
       whaleCurrencySymbol: whaleCurrencySymbol, getUsageSet: function () { return usageSet; },
@@ -827,6 +842,7 @@ var BUBBLE_MS = 5000;
     });
     var openSnapModal = snapEditor.open;
     var bubbleEditor = createBubbleEditor({
+      modelOptions: function (...args) { return window.WhaleApiModels?.options(...args); },
       isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
 
       get document() { return document; },
@@ -1409,7 +1425,9 @@ function restoreBubbleLines() {
       }
     }
     var bubbleContent = createBubbleContent({
-      window: window, getState: function () { return state; },
+      modelText: function (mod) { return window.WhaleApiModels?.text(mod); },
+      quotaText: function (mod) { return window.WhaleQuota?.text(mod); },
+      getState: function () { return state; },
       getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
       whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
       bubbleCloneModule: bubbleCloneModule
@@ -1423,6 +1441,10 @@ function restoreBubbleLines() {
     });
     var bubbleTplHelpToggle = bubbleTemplateHelp.toggle;
     var bubbleRowsView = createBubbleRowsView({
+      clearQuotaBindings: function (node) { window.WhaleQuota?.clearBindings(node); },
+      clearModelBindings: function (node) { window.WhaleApiModels?.clearBindings(node); },
+      bindQuota: function (node, mod) { return window.WhaleQuota?.bind(node, mod); },
+      bindModel: function (node, mod) { return window.WhaleApiModels?.bind(node, mod); },
       document: document, window: window, WhaleMoney: WhaleMoney,
       bubbleSnapshot: bubbleSnapshot, bubbleModuleFontU: bubbleModuleFontU,
       bubbleRowsOf: bubbleRowsOf, bubbleIsImgMod: bubbleIsImgMod,
@@ -1979,7 +2001,8 @@ var characterInteraction = createCharacterInteraction({
     });
     window.addEventListener('beforeunload', function () {
       bubbleEditor.dispose(); roleImport.dispose(); audioEditor.dispose(); roleManager.dispose();
-      customSelect.dispose(); characterInteraction.dispose();
+      customSelect.dispose(); characterInteraction.dispose(); taskEndSound.dispose();
+      clearInterval(turnNoticeInterval); turnNoticePoller?.dispose();
     }, { once: true });
     var setupHitTest = characterInteraction.setupHitTest;
     var whaleLayoutRect = characterInteraction.layoutRect;
@@ -2197,13 +2220,17 @@ var characterInteraction = createCharacterInteraction({
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
       playTaskEndSound: playTaskEndSound,
+      playFeedback: function (...args) { window.WhaleFeedback?.play(...args); },
+      isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
+      showSubscriptionNotice: function (notice) { window.WhaleAccountView?.notice(notice); },
+      notifyQuotaSettled: function () { window.WhaleQuota?.settled(); },
       getFeedbackVolume: function () { return soundOn ? soundVol : 0; },
       showCostBubble: showCostBubble
     });
     function pollLastTurn() {
       return turnNoticePoller.poll();
     }
-    setInterval(pollLastTurn, 1000);
+    var turnNoticeInterval = setInterval(pollLastTurn, 1000);
     window.__dshWhaleInit = true;
     window.__dshWhaleInitLoading = false;
     return true;

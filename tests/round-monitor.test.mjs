@@ -195,6 +195,9 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
     setLastTurnNotice: notice => { lastTurnNotice = notice; },
     playTaskEndSound: sandbox.playTaskEndSound,
     getFeedbackVolume: () => 1,
+    isSubscription: () => sandbox.window.WhaleAccountView?.mode === 'subscription',
+    showSubscriptionNotice: notice => sandbox.window.WhaleAccountView.notice(notice),
+    notifyQuotaSettled: () => sandbox.window.WhaleQuota.settled(),
     showCostBubble: sandbox.showCostBubble,
   });
   const pollLastTurn = () => turnNoticePoller.poll();

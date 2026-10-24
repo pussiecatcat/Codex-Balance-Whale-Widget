@@ -7,6 +7,7 @@ function element(tag = 'div') {
   const node = {
     tagName: tag, className: '', textContent: '', title: '', type: '', value: '', placeholder: '',
     maxLength: 0, draggable: false, style: {}, children: [], listeners: {}, _html: '',
+    get options() { return this.children; },
     set innerHTML(value) { this._html = value; if (value === '') this.children = []; },
     get innerHTML() { return this._html; },
     appendChild(child) { this.children.push(child); return child; },
@@ -20,7 +21,7 @@ function element(tag = 'div') {
   return node;
 }
 
-function fixture() {
+function fixture(ports = {}) {
   const created = [];
   const documentStub = {
     createElement(tag) { const node = element(tag); created.push(node); return node; },
@@ -40,7 +41,7 @@ function fixture() {
     renderBubblePv: () => { calls.rendered++; },
     qeditPlace: (row, offset, flag) => calls.placed.push([offset, flag]),
     getPreviewElement: () => element('div'),
-    bubbleTplHelpToggle: (...args) => calls.helped.push(args),
+    bubbleTplHelpToggle: (...args) => calls.helped.push(args), ...ports,
   });
   const inputs = () => created.filter(node => node.tagName === 'input');
   return { editors, calls, box, created, inputs };
@@ -48,6 +49,17 @@ function fixture() {
 
 const lastInputWithClass = (fx, className) => [...fx.inputs()].reverse().find(node => node.className === className);
 const byClass = (fx, className) => fx.created.filter(node => node.className === className);
+
+test('module editor delegates model selection to its injected catalogue operation', () => {
+  let selection;
+  const fx = fixture({ modelOptions: (element, selected, onChange) => { selection = { element, selected, onChange }; } });
+  const module = { type: 'quota', apiModelId: 'old' };
+  fx.editors.openModule(module);
+  assert.equal(selection.selected, 'old');
+  selection.onChange('new');
+  assert.equal(module.apiModelId, 'new');
+  assert.ok(fx.calls.rendered > 0);
+});
 
 test('the text editor refuses anything that is not text or a link', () => {
   const fx = fixture();
