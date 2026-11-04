@@ -13,14 +13,14 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T18:51Z |
+| 采集时间 | 2026-11-04T18:54Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **572 tests / 569 pass / 3 fail** |
+| `npm test` | **573 tests / 570 pass / 3 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
 | `npm run test:desktop` | 通过；20 项 Electron 检查（角色、APNG、气泡、设置面板、模式切换、形状与退出） |
 | `npm run check:package` | 通过 |

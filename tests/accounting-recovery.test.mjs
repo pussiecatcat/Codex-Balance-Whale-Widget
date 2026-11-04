@@ -342,3 +342,24 @@ test('moving a split subagent row clears a cost that belongs to another currency
   assert.match(moved.note, /金额未知/);
   assert.equal(service.ledger.find(usd, child), null);
 });
+
+test('subscription turns stay on the identity ledger when API configuration changes', async t => {
+  const { make, provider, config } = fixture(t);
+  const models = { model: { input: 1, cachedInput: 1, output: 1 } };
+  const identity = { accountId: 'c'.repeat(24), key: '', model: '', baseUrl: '', keySource: 'none',
+    setting: { currency: 'USD', monitorSessions: true, models }, degraded: true };
+  config.identityContext = () => identity;
+  const service = make({ mode: () => 'subscription' });
+  const meta = round('subscription');
+  service.beginTurn(meta);
+  assert.equal(provider.calls, 0, 'subscription mode does not ask the API provider for a balance');
+  await service.finishTurn({ ...meta, byModel: usage(10) });
+  const identityScope = identity.accountId + '-USD';
+  assert.ok(service.ledger.find(identityScope, meta), 'the turn is written to the identity ledger');
+
+  // Repairing the API config must not move or hide the subscription history.
+  config.resolve = () => ({ accountId: 'a'.repeat(24), key: 'FIXTURE', model: 'model', baseUrl: 'https://api.example/v1',
+    setting: { currency: 'USD', monitorSessions: true, models } });
+  const records = service.usageRecords();
+  assert.ok(records.all.events.some(event => event.id === meta.id), 'subscription history remains visible after the API changes');
+});

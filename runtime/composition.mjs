@@ -27,17 +27,16 @@ export function createComposition({
   migrateData(dataDir);
   // One store instance backs both the Codex API settings and the DIY model
   // registry, so a save from either editor cannot overwrite the other's data.
+  const displayModeFile = path.join(dataDir, 'display-mode.json');
+  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
   const providerStore = new ProviderStore({ dataDir });
   try { providerStore.migrateLegacy(); } catch { /* a broken legacy file fails when it is read */ }
-  const whale = service || new WhaleService({ dataDir, store: providerStore, ...(fetchImpl ? { fetchImpl } : {}) });
+  const whale = service || new WhaleService({ dataDir, store: providerStore, mode: displayMode, ...(fetchImpl ? { fetchImpl } : {}) });
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
   const apiModels = new ApiModelRegistry({ dataDir, store: whale.config?.store || providerStore, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
   try { apiModels.migrate(); } catch {}
   const soundSettings = new SoundSettingsService({ dataDir, whale });
-
-  const displayModeFile = path.join(dataDir, 'display-mode.json');
-  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
 
   // The widget host declares each route — the methods it answers, how large a
   // body it accepts, whether its payload passes the migration filter — instead

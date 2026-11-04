@@ -13,6 +13,7 @@ import { TurnAccounting } from './turn-accounting.mjs';
 export class WhaleService {
   constructor(options = {}) {
     this.config = options.config || new ConfigStore(options);
+    this.mode = options.mode || (() => 'api');
     this.provider = options.provider || new BalanceProvider(options);
     this.ledger = new UsageLedger(this.config.dataDir);
     this.clock = options.clock || Date.now;
@@ -21,7 +22,7 @@ export class WhaleService {
     this.noticePublisher = new NoticePublisher({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
       dataDir: this.config.dataDir, noticeDelayMs: options.noticeDelayMs, clock: this.clock });
     this.turnAccounting = new TurnAccounting({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
-      notice: this.noticePublisher, dataDir: this.config.dataDir, pendingCostMs: options.pendingCostMs, clock: this.clock });
+      notice: this.noticePublisher, dataDir: this.config.dataDir, mode: this.mode, pendingCostMs: options.pendingCostMs, clock: this.clock });
   }
   get turns() { return this.turnAccounting.turns; }
   get journal() { return this.turnAccounting.journal; }
@@ -40,6 +41,11 @@ export class WhaleService {
   }
   scope(...args) { return this.balanceQuery.scope(...args); }
   usageContext() {
+    // Subscription views read the local identity ledger; API views keep the
+    // per-key account scope. This is also the scope used by token accounting.
+    if (this.mode() !== 'api') {
+      try { return this.config.identityContext?.() || null; } catch { return null; }
+    }
     try { return this.config.resolve(); }
     catch { return this.config.identityContext?.() || null; }
   }

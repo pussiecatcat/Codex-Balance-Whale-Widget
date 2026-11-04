@@ -4,12 +4,13 @@ import { TurnJournal, safeSample, safeTurn, safeUsage } from './turn-journal.mjs
 // Owns live turns, durable recovery, pending cost checks, and ledger writes.
 // BalanceQuery supplies observations; NoticePublisher owns publication.
 export class TurnAccounting {
-  constructor({ config, ledger, balance, notice, dataDir, pendingCostMs = 30000, clock = Date.now }) {
+  constructor({ config, ledger, balance, notice, dataDir, mode = () => 'api', pendingCostMs = 30000, clock = Date.now }) {
     this.config = config;
     this.ledger = ledger;
     this.balance = balance;
     this.notice = notice;
     this.clock = clock;
+    this.mode = mode;
     this.journal = new TurnJournal(dataDir);
     this.turns = new Map();
     this.settling = new Set();
@@ -27,6 +28,15 @@ export class TurnAccounting {
     let context;
     try { context = this.config.resolve(); }
     catch { context = this.config.identityContext?.() || null; }
+    // Subscription token stats are about the local Codex account, not whichever
+    // API key happens to be configured. Keeping them on the identity ledger
+    // makes them survive an API edit (and a temporarily broken config) without
+    // merging records from another key.
+    const subscription = this.mode() !== 'api';
+    if (subscription) {
+      try { context = this.config.identityContext?.() || context; }
+      catch { context = null; }
+    }
     if (!context) return;
     if (!meta.isSubagent) this.notice.started(meta);
     const roots = [...this.turns.values()].filter(active => !active.isSubagent);
@@ -35,11 +45,12 @@ export class TurnAccounting {
     // account over the configured one (they differ for DeepSeek + USD settings).
     const parent = meta.isSubagent ? this.findRoot(meta.rootTurnId) : null;
     const currency = parent?.currency || this.balance.currencyFor(context);
-    const entry = { ...safeTurn(meta), context, currency, pricingCurrency: context.setting.currency, scope: parent?.scope || this.balance.scope(context, currency),
-      scopeUsed: false, canQuery: context.degraded !== true, concurrent: !meta.isSubagent && roots.length > 0 };
+    const entry = { ...safeTurn(meta), context, currency, pricingCurrency: subscription ? '' : context.setting.currency,
+      scope: parent?.scope || this.balance.scope(context, currency),
+      scopeUsed: false, canQuery: !subscription && context.degraded !== true, concurrent: !meta.isSubagent && roots.length > 0 };
     if (!meta.isSubagent) for (const active of roots) active.concurrent = true;
     // Subagents contribute tokens, not overlapping API-balance intervals.
-    entry.start = meta.isSubagent || context.degraded === true ? null : this.balance.getBalance({ force: true, context });
+    entry.start = meta.isSubagent || subscription || context.degraded === true ? null : this.balance.getBalance({ force: true, context });
     this.turns.set(meta.id, entry);
     this.persistTurn(entry, 'active');
     if (entry.start) entry.start.then(sample => {
