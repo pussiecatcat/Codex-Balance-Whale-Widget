@@ -13,7 +13,7 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T22:14Z |
+| 采集时间 | 2026-11-04T22:19Z |
 
 ## 结果
 
