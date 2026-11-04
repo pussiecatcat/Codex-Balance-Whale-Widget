@@ -36,6 +36,27 @@ $whaleStateFile = Join-Path $DataDir 'supervisor-state.json'
 $whaleParentPid = (Get-CimInstance Win32_Process -Filter ('ProcessId=' + $PID)).ParentProcessId
 @{ pid=$PID; parentPid=$whaleParentPid; consoleAttached=[WhaleWindows]::HasConsole(); startedAt=[DateTime]::UtcNow.ToString('o'); host='PowerShell' } | ConvertTo-Json | Set-Content -LiteralPath $whaleStateFile -Encoding utf8
 function Read-WhaleJson([string]$File) { try { if (Test-Path -LiteralPath $File) { Get-Content -LiteralPath $File -Raw | ConvertFrom-Json } else { @{} } } catch { @{} } }
+# Configuration changes only on an explicit user action. Re-reading the same
+# files every 100 ms was part of the measured idle CPU cost; the timestamp is a
+# cheap way to keep the loop responsive without parsing each time.
+$whaleJsonCache = @{}
+function Read-WhaleJsonCached([string]$File) {
+    try {
+        $item = Get-Item -LiteralPath $File -ErrorAction Stop
+        $cached = $script:whaleJsonCache[$File]
+        if ($cached -and $cached.Stamp -eq $item.LastWriteTimeUtc.Ticks) { return $cached.Value }
+        $value = Read-WhaleJson $File
+        $script:whaleJsonCache[$File] = @{ Stamp = $item.LastWriteTimeUtc.Ticks; Value = $value }
+        return $value
+    } catch { return (Read-WhaleJson $File) }
+}
+function Write-WhaleJsonAtomic([string]$File, $Value) {
+    try {
+        $temp = $File + '.tmp'
+        [IO.File]::WriteAllText($temp, ($Value | ConvertTo-Json -Depth 6 -Compress), [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temp -Destination $File -Force
+    } catch { }
+}
 function Send-WhaleHost($State) {
     $whalePipeClient = $null; $whaleWriter = $null; $whaleReader = $null
     try {
@@ -58,19 +79,22 @@ function Send-WhaleHost($State) {
 $whaleFatal = $false
 $whaleStackAttempts = 0; $whaleStackRepairs = 0; $whaleLastStackAttempt = [DateTime]::MinValue
 try {
-    while (!$whaleStop.WaitOne(100)) {
+    while ($true) {
+        # While no widget is running there is nothing to follow: poll at 500 ms
+        # instead of 100 ms. Once a child exists, keep the tight cadence.
+        if ($whaleStop.WaitOne($(if ($whaleChild) { 100 } else { 500 }))) { break }
         $whaleNow = [DateTime]::UtcNow
         $whaleState = [WhaleWindows]::Probe()
-        $whaleConfig = Read-WhaleJson (Join-Path $DataDir 'follow-config.json')
+        $whaleConfig = Read-WhaleJsonCached (Join-Path $DataDir 'follow-config.json')
         $whaleStandalone = $whaleConfig.mode -eq 'standalone'
         $whaleState['mode'] = if ($whaleStandalone) { 'standalone' } else { 'follow-codex' }
         if ($whaleStandalone -and $whaleOwner -ne '0') { [WhaleWindows]::Detach([long]$whaleOverlay); $whaleOwner='0' }
-        $whalePause = Read-WhaleJson (Join-Path $DataDir 'pause-until-host-exit.json')
+        $whalePause = Read-WhaleJsonCached (Join-Path $DataDir 'pause-until-host-exit.json')
         if (!$whaleState.hostAlive -and !$whalePause.pauseAll) { Remove-Item -LiteralPath (Join-Path $DataDir 'pause-until-host-exit.json') -ErrorAction SilentlyContinue }
         if ($whaleChild -and $whaleChild.HasExited) { [WhaleWindows]::StopFollowing(); $whaleChild.Dispose(); $whaleChild = $null; $whaleOverlay='0'; $whaleOwner='0'; $whaleLastMessage='' }
         if (!$whaleChild -and ($whaleState.hostAlive -or $whaleStandalone) -and ($whaleNow - $whaleLastLaunch).TotalSeconds -gt 4) {
-            $whaleConfig = Read-WhaleJson (Join-Path $DataDir 'follow-config.json')
-            $whalePause = Read-WhaleJson (Join-Path $DataDir 'pause-until-host-exit.json')
+            $whaleConfig = Read-WhaleJsonCached (Join-Path $DataDir 'follow-config.json')
+            $whalePause = Read-WhaleJsonCached (Join-Path $DataDir 'pause-until-host-exit.json')
             if ($whaleConfig.enabled -eq $false -or $whalePause.pauseAll -eq $true -or ($whaleState.hostAlive -and [string]$whalePause.hostPid -eq [string]$whaleState.hostPid)) { continue }
             if (!(Test-Path -LiteralPath $whaleConfig.electronPath)) { throw 'Desktop runtime is missing.' }
             $whaleMain = Join-Path $whaleConfig.pluginRoot 'desktop\main.cjs'
@@ -122,7 +146,7 @@ try {
                     $whaleState['stackRepairRequests'] = $whaleStackRepairs
                     $whaleSequence++; $whaleState['serial'] = $whaleSequence
                     if (Send-WhaleHost $whaleState) {
-                        @{ childPid=$whaleChild.Id; state=$whaleState; native=[WhaleWindows]::FollowMetrics(); at=$whaleNow.ToString('o') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $DataDir 'follow-state.json') -Encoding utf8
+                        Write-WhaleJsonAtomic (Join-Path $DataDir 'follow-state.json') @{ childPid=$whaleChild.Id; state=$whaleState; native=[WhaleWindows]::FollowMetrics(); at=$whaleNow.ToString('o') }
                         $whaleLastMessage=$whaleMessage; $whaleHeartbeat=$whaleNow
                     }
                 } catch { @{ message=$_.Exception.Message; at=$whaleNow.ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DataDir 'follow-input-error.json') -Encoding utf8 }

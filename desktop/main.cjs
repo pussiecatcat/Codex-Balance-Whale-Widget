@@ -129,8 +129,15 @@ function setKeyboardFocus(editing) {
   keyboardFocus = editing;
   if (editing) window.focus();
 }
+let cursorPoll = null;
+function stopCursorPoll() { if (cursorPoll) { clearInterval(cursorPoll); cursorPoll = null; } }
+function ensureCursorPoll() {
+  if (cursorPoll || !window || window.isDestroyed() || !window.isVisible()) return;
+  cursorPoll = setInterval(sendCursor, usesWindowShape ? 16 : 50);
+  cursorPoll.unref?.();
+}
 function sendCursor(force = false) {
-  if (!window || window.isDestroyed() || !rendererReady || !window.isVisible()) return;
+  if (!window || window.isDestroyed() || !rendererReady || !window.isVisible()) { stopCursorPoll(); return; }
   const bounds = window.getContentBounds(), cursor = screen.getCursorScreenPoint();
   const point = { ...harness.cursorPoint({ x: cursor.x - bounds.x, y: cursor.y - bounds.y }), buttons: lastHost?.mouseButtons || 0, sampledAt: lastHost?.mouseSampleAt || 0 };
   const encoded = point.x + ',' + point.y + ',' + point.buttons;
@@ -152,6 +159,7 @@ function visibility() {
 }
 function show() {
   manuallyHidden = false;
+  ensureCursorPoll();
   // Showing during normal startup must not restart an already loading page.
   if (!rendererReady && !readyTimer && !recoveryTimer && window && !window.isDestroyed() && !window.webContents.isLoading()) {
     recoveryAttempts = 0; recoverRenderer('manual-recovery');
@@ -370,9 +378,14 @@ else {
     session.defaultSession.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
     registerIpcHandlers({ ipcMain, host: ipcHost });
     // Windows uses the native cursor sampler instead of forwarding ignored mouse
-    // messages into Chromium, which must not arbitrate the host cursor.
-    const cursorPoll = setInterval(sendCursor, usesWindowShape ? 16 : 50);
-    app.once('will-quit', () => clearInterval(cursorPoll));
+    // messages into Chromium, which must not arbitrate the host cursor. The
+    // sampler only runs while the window is visible; a hidden widget has no
+    // cursor to report and should not wake every 16 ms.
+    window.on('show', ensureCursorPoll);
+    window.on('hide', stopCursorPoll);
+    window.on('closed', stopCursorPoll);
+    ensureCursorPoll();
+    app.once('will-quit', stopCursorPoll);
     const icon = nativeImage.createFromPath(path.join(root, 'assets', 'DSniang1.png')).resize({ width: 24, height: 24 });
     tray = new Tray(icon); tray.setToolTip('Codex 小龙娘 · 跟随 Codex');
     updateTray();
