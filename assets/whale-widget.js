@@ -25,6 +25,7 @@ import { createAudioGroupEditor } from '/features/widget/audio-group-editor.js';
 import { createAudioCropEditor } from '/features/widget/audio-crop-editor.js';
 import { createModuleEditorView } from '/features/widget/module-editor-view.js';
 import { createBubblePreviewView } from '/features/widget/bubble-preview-view.js';
+import { createGifRoleDialog } from '/features/widget/gif-role-dialog.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -1867,97 +1868,11 @@ import {
       openGifRole: function (dataUrl, fileName, format) { openGifRoleModal(dataUrl, fileName, format); }
     });
     function onRoleFileChosen(input) { return roleCrop.openFile(input); }
-    var gifMask = document.createElement('div');
-    gifMask.className = 'dshwv-gifmask';
-    gifMask.style.display = 'none';
-    var gifCard = document.createElement('div');
-    gifCard.className = 'dshwv-gifwin';
-    var gifTitle = document.createElement('div');
-    gifTitle.className = 'dshwv-giftitle';
-    gifTitle.textContent = '导入动图角色';
-    var gifPreviewBox = document.createElement('div');
-    gifPreviewBox.className = 'dshwv-gifpreview';
-    var gifPreviewImg = document.createElement('img');
-    gifPreviewImg.className = 'dshwv-gifpreviewimg';
-    gifPreviewImg.alt = '动图预览';
-    gifPreviewImg.draggable = false;
-    gifPreviewBox.appendChild(gifPreviewImg);
-    var gifHint = document.createElement('div');
-    gifHint.className = 'dshwv-gifhint';
-    gifHint.textContent = 'GIF 动图不支持裁剪，将按原始尺寸原样导入';
-    var gifNameInput = document.createElement('input');
-    gifNameInput.type = 'text';
-    gifNameInput.className = 'dshwv-gifname';
-    gifNameInput.maxLength = 16;
-    gifNameInput.placeholder = '角色名称';
-    var gifBtns = document.createElement('div');
-    gifBtns.className = 'dshwv-cropbtns';
-    var gifCancelBtn = document.createElement('button');
-    gifCancelBtn.type = 'button';
-    gifCancelBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    gifCancelBtn.textContent = '取消';
-    var gifOkBtn = document.createElement('button');
-    gifOkBtn.type = 'button';
-    gifOkBtn.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    gifOkBtn.textContent = '确认';
-    gifBtns.appendChild(gifCancelBtn);
-    gifBtns.appendChild(gifOkBtn);
-    gifCard.appendChild(gifTitle);
-    gifCard.appendChild(gifPreviewBox);
-    gifCard.appendChild(gifHint);
-    gifCard.appendChild(gifNameInput);
-    gifCard.appendChild(gifBtns);
-    gifMask.appendChild(gifCard);
-    document.body.appendChild(gifMask);
-    gifCancelBtn.addEventListener('click', hideGifRoleModal);
-    gifOkBtn.addEventListener('click', confirmGifRole);
-    var gifRoleDataUrl = null;
-    var gifRoleAnimType = 'gif';
-    function openGifRoleModal(dataUrl, fileName, animType) {
-      gifRoleDataUrl = dataUrl;
-      gifRoleAnimType = animType === 'apng' ? 'apng' : 'gif';
-      if (gifRoleAnimType === 'apng') {
-        gifTitle.textContent = '导入 APNG 动图角色';
-        gifHint.textContent = 'APNG 动图不支持裁剪，将按原始尺寸原样导入';
-      } else {
-        gifTitle.textContent = '导入 GIF 动图角色';
-        gifHint.textContent = 'GIF 动图不支持裁剪，将按原始尺寸原样导入';
-      }
-      gifNameInput.value = '';
-      gifPreviewImg.src = dataUrl;
-      gifMask.style.display = 'flex';
-    }
-    function hideGifRoleModal() {
-      gifMask.style.display = 'none';
-      gifRoleDataUrl = null;
-      gifRoleAnimType = 'gif';
-      gifPreviewImg.src = '';
-    }
-
-    // ==== [GIF 角色确认] ====
-    function confirmGifRole() {
-      try {
-        var name = (gifNameInput.value || '').trim().slice(0, 16) || '新角色';
-        if (!gifRoleDataUrl) {
-          hideGifRoleModal();
-          return;
-        }
-        requestJson(ROLE_URL, {
-          method: 'POST',
-          body: {
-            name: name,
-            image: gifRoleDataUrl,
-            format: gifRoleAnimType
-          }
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.roles)) {
-            roleManager.useImported(d.roles);
-            hideGifRoleModal();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
+    var gifRoleDialog = createGifRoleDialog({
+      document: document, requestJson: requestJson, roleUrl: ROLE_URL,
+      roleManager: roleManager, requireSaved: requireSaved, assetFailure: assetFailure
+    });
+    var openGifRoleModal = gifRoleDialog.open;
     var audioEditMask = document.createElement('div');
     audioEditMask.className = 'dshwv-audiomask';
     audioEditMask.style.display = 'none';
