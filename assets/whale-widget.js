@@ -20,6 +20,7 @@ import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
 import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
 import { createAudioGroupList } from '/features/widget/audio-group-list.js';
+import { createAudioSlotPanel } from '/features/widget/audio-slot-panel.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -3974,22 +3975,21 @@ import {
     var renderAudioGroupPanel = audioGroupList.render;
     var editingAudioGroupId = null;
     var audioEditorSession = null;
-    var activeSlotPanel = null;
     var audioEditPressVal = 'ya1';
     var audioEditReleaseVal = 'ya2';
-    function audioSlotName(id) {
-      for (var i = 0; i < audioFragments.length; i++) if (audioFragments[i].id === id) return audioFragments[i].name;
-      return id;
-    }
-    function audioSlotBtnText(btn, id) {
-      try {
-        var txt = audioSlotName(id);
-        btn.style.opacity = txt ? '' : '.55';
-        btn.textContent = txt || '留空·不发声';
-        btn.title = '留空则该事件不发声;点击可选择音频片段';
-      } catch (err) {}
-      return btn;
-    }
+    var audioSlotPanel = createAudioSlotPanel({
+      document: document, viewport: viewport,
+      getFragments: function () { return audioFragments; },
+      getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
+      getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
+      getPressBtn: function () { return audioEditPressBtn; }, getReleaseBtn: function () { return audioEditReleaseBtn; },
+      getPressPanel: function () { return audioEditPressPanel; }, getReleasePanel: function () { return audioEditReleasePanel; },
+      makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
+      previewEnsure: audioEditPreviewEnsure, deleteFragment: audioDeleteFragmentInSlot
+    });
+    var toggleAudioSlotPanel = audioSlotPanel.toggle;
+    var closeAudioSlotPanels = audioSlotPanel.close;
+    var renderAudioSlotPanel = audioSlotPanel.render;
     function openAudioGroupEditor(group) {
       editingAudioGroupId = group && group.id ? group.id : null;
       audioEditTitle.textContent = editingAudioGroupId ? '编辑音效组' : '新建音效组';
@@ -3997,105 +3997,9 @@ import {
       var isNewGroup = !(group && group.id);
       audioEditPressVal = group && typeof group.press === 'string' ? group.press : isNewGroup ? '' : 'ya1';
       audioEditReleaseVal = group && typeof group.release === 'string' ? group.release : isNewGroup ? '' : 'ya2';
-      audioEditPressBtn.textContent = audioSlotName(audioEditPressVal);
-      audioEditReleaseBtn.textContent = audioSlotName(audioEditReleaseVal);
-      audioSlotBtnText(audioEditPressBtn, audioEditPressVal);
-      audioSlotBtnText(audioEditReleaseBtn, audioEditReleaseVal);
+      audioSlotPanel.refresh();
       audioEditPreviewEnsure();
       audioEditMask.style.display = 'flex';
-    }
-    function toggleAudioSlotPanel(slot) {
-      var btn = slot === 'press' ? audioEditPressBtn : audioEditReleaseBtn;
-      var panel = slot === 'press' ? audioEditPressPanel : audioEditReleasePanel;
-      if (activeSlotPanel === panel) {
-        closeAudioSlotPanels();
-        return;
-      }
-      closeAudioSlotPanels();
-      activeSlotPanel = panel;
-      renderAudioSlotPanel(slot);
-      try {
-        var b = btn.getBoundingClientRect();
-        var vp = viewport();
-        var panelW = Math.max(120, Math.round(b.width));
-        panel.style.width = panelW + 'px';
-        panel.style.left = Math.max(4, Math.min(b.left, vp.w - panelW - 4)) + 'px';
-        panel.style.top = b.bottom + 4 + 'px';
-        panel.style.display = 'block';
-      } catch (err) {}
-    }
-    function closeAudioSlotPanels() {
-      if (audioEditPressPanel) audioEditPressPanel.style.display = 'none';
-      if (audioEditReleasePanel) audioEditReleasePanel.style.display = 'none';
-      activeSlotPanel = null;
-    }
-    function renderAudioSlotPanel(slot) {
-      try {
-        var panel = slot === 'press' ? audioEditPressPanel : audioEditReleasePanel;
-        var current = slot === 'press' ? audioEditPressVal : audioEditReleaseVal;
-        panel.innerHTML = '';
-        var emptyItem = document.createElement('div');
-        emptyItem.className = 'dshwv-audioitem' + (!current ? ' dshwv-audioitem-cur' : '');
-        var emptyIcon = document.createElement('span');
-        emptyIcon.className = 'dshwv-audiothumb dshwv-audiothumb-empty';
-        emptyIcon.setAttribute('aria-hidden', 'true');
-        emptyItem.appendChild(emptyIcon);
-        var emptyName = makeNameCell('dshwv-audioname', '留空（不发声）');
-        emptyItem.appendChild(emptyName);
-        emptyItem.addEventListener('click', function () {
-          if (slot === 'press') {
-            audioEditPressVal = '';
-            audioSlotBtnText(audioEditPressBtn, '');
-          } else {
-            audioEditReleaseVal = '';
-            audioSlotBtnText(audioEditReleaseBtn, '');
-          }
-          audioEditPreviewEnsure(true);
-          closeAudioSlotPanels();
-        });
-        bindNameMarquee(emptyItem, emptyName);
-        panel.appendChild(emptyItem);
-        audioFragments.forEach(function (f) {
-          var item = document.createElement('div');
-          item.className = 'dshwv-audioitem' + (current === f.id ? ' dshwv-audioitem-cur' : '');
-          var thumb = document.createElement('span');
-          thumb.className = 'dshwv-audiothumb';
-          thumb.setAttribute('aria-hidden', 'true');
-          item.appendChild(thumb);
-          var name = makeNameCell('dshwv-audioname', f.name);
-          item.appendChild(name);
-          if (f.preset) {
-            var tag = document.createElement('span');
-            tag.className = 'dshwv-audiopreset';
-            tag.textContent = '预设';
-            item.appendChild(tag);
-          } else {
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'dshwv-audiodel';
-            del.textContent = '✕';
-            del.title = '删除该音频';
-            del.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioDeleteFragmentInSlot(slot, f.id);
-            });
-            item.appendChild(del);
-          }
-          item.addEventListener('click', function () {
-            if (slot === 'press') {
-              audioEditPressVal = f.id;
-              audioSlotBtnText(audioEditPressBtn, f.id);
-            } else {
-              audioEditReleaseVal = f.id;
-              audioSlotBtnText(audioEditReleaseBtn, f.id);
-            }
-            audioEditPreviewEnsure(true);
-            closeAudioSlotPanels();
-          });
-          bindNameMarquee(item, name);
-          panel.appendChild(item);
-        });
-      } catch (err) {}
     }
     function hideAudioEditor(outcome, detail) {
       stopAudioEditPreview();
@@ -4758,10 +4662,10 @@ import {
             if (ok) {
               if (audioCropTarget === 'press') {
                 audioEditPressVal = lastUploadedFragmentId || audioEditPressVal;
-                audioSlotBtnText(audioEditPressBtn, audioEditPressVal);
+                audioSlotPanel.refresh();
               } else if (audioCropTarget === 'release') {
                 audioEditReleaseVal = lastUploadedFragmentId || audioEditReleaseVal;
-                audioSlotBtnText(audioEditReleaseBtn, audioEditReleaseVal);
+                audioSlotPanel.refresh();
               }
               audioEditPreviewEnsure(true);
               hideAudioCrop();
@@ -4816,15 +4720,15 @@ import {
               if (Array.isArray(d.groups)) audioGroups = d.groups;
               if (slot === 'press' && audioEditPressVal === id) {
                 audioEditPressVal = 'ya1';
-                audioSlotBtnText(audioEditPressBtn, 'ya1');
+                audioSlotPanel.refresh();
               }
               if (slot === 'release' && audioEditReleaseVal === id) {
                 audioEditReleaseVal = 'ya2';
-                audioSlotBtnText(audioEditReleaseBtn, 'ya2');
+                audioSlotPanel.refresh();
               }
               audioEditPreviewEnsure(true);
               renderAudioGroupPanel();
-              if (activeSlotPanel) renderAudioSlotPanel(slot);
+              renderAudioSlotPanel(slot);
               refreshTaskEndAfterAudio();
             }
           }).catch(assetFailure);
