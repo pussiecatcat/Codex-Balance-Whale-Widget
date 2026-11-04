@@ -15,7 +15,7 @@ const units = value => {
 const money = value => Number(value) / MONEY_SCALE;
 
 export class UsageLedger {
-  constructor(dataDir) { this.dataDir = dataDir; this.warnings = new Map(); }
+  constructor(dataDir) { this.dataDir = dataDir; this.warnings = new Map(); this.lastSeen = new Map(); this.todayCache = new Map(); }
   file(scope) {
     if (!/^[a-f0-9]{24}-[A-Z]{3}$/.test(scope)) throw new Error('记账账户标识无效');
     return path.join(this.dataDir, 'ledgers', scope + '.json');
@@ -46,12 +46,15 @@ export class UsageLedger {
   }
   acknowledgeWarning(scope) {
     this.warnings.delete(scope);
+    this.todayCache.delete(scope);
     try { fs.rmSync(this.warningFile(scope), { force: true }); } catch (error) { ignoreError(error); }
   }
   save(scope, ledger, { backup = true } = {}) {
     ledger.revision = Number(ledger.revision || 0) + 1;
     writeJson(this.file(scope), ledger, { flush: true, backup });
+    this.todayCache.delete(scope);
   }
+  clearReadCache(scope) { if (scope) this.todayCache.delete(scope); else this.todayCache.clear(); }
   archiveFile(scope) { return path.join(this.dataDir, 'ledgers', scope + '.archive.json'); }
   archive(scope, entries, summaries = {}) {
     if (!entries.length && !Object.keys(summaries).length) return;
@@ -77,11 +80,16 @@ export class UsageLedger {
     // Only a strictly older reading is stale. Two callers can poll within the
     // same millisecond, and such a reading is new: dropping it would silently
     // lose consumption on fast machines while a duplicate contributes zero.
-    if (loaded.lastObservation && now < loaded.lastObservation.at) return loaded;
+    // The in-memory reading also orders polls that were intentionally not
+    // written to disk because nothing changed.
+    const seen = this.lastSeen.get(scope);
+    const ordering = seen && (!loaded.lastObservation || seen.at > loaded.lastObservation.at) ? seen : loaded.lastObservation;
+    if (ordering && now < ordering.at) return loaded;
+    const previousDate = loaded.date, previousFirst = loaded.firstObservation;
     const led = this.rollover(loaded, now);
     const balance = Number.isFinite(sample.totalBalance) ? sample.totalBalance : null;
     const used = Number.isFinite(sample.totalUsed) ? sample.totalUsed : null;
-    const last = led.lastObservation;
+    const last = loaded.lastObservation;
     let delta = 0n;
     const meterKey = typeof sample.meterKey === 'string' && /^[a-f0-9]{64}$/.test(sample.meterKey) ? sample.meterKey : null;
     // A newer reading can legitimately reset to zero. Ordering is handled by
@@ -93,7 +101,15 @@ export class UsageLedger {
     led.observed = money(units(led.observed) + delta);
     led.firstObservation ||= now;
     led.lastObservation = { balance, used, at: now, ...(meterKey ? { meterKey } : {}) };
-    this.save(scope, led); return led;
+    this.lastSeen.set(scope, led.lastObservation);
+    // A steady balance polled every minute changes only the timestamp. Keeping
+    // that in memory is enough for ordering; writing a 20k-event ledger each
+    // time is what made a successful query expensive. Any real change (amount,
+    // meter, date rollover or first observation) still reaches disk immediately.
+    const changed = delta !== 0n || !last || last.balance !== balance || last.used !== used ||
+      (last.meterKey || null) !== meterKey || previousDate !== led.date || previousFirst !== led.firstObservation;
+    if (changed) this.save(scope, led);
+    return led;
   }
   append(scope, event) {
     const led = this.load(scope);
@@ -207,16 +223,23 @@ export class UsageLedger {
   // Cheap read used by the balance decoration path: no 7-day/all-history
   // buckets, and no event list in the payload.
   today(scope, now = Date.now()) {
-    const led = this.rollover(this.load(scope), now);
     const day = dayKey(now);
+    let stamp = '';
+    try { const stat = fs.statSync(this.file(scope)); stamp = stat.mtimeMs + ':' + stat.size; } catch (error) { ignoreError(error); }
+    const cacheKey = day + '|' + stamp;
+    const cached = this.todayCache.get(scope);
+    if (cached && cached.key === cacheKey && stamp) return cached.value;
+    const led = this.rollover(this.load(scope), now);
     const models = new Map();
     for (const event of led.events) {
       if (event.day !== day || event.source !== 'configured-pricing-estimate') continue;
       models.set(event.model, (models.get(event.model) || 0) + (event.cost || 0));
     }
-    return { total: led.observed, models: modelRows(models), since: led.firstObservation,
+    const value = { total: led.observed, models: modelRows(models), since: led.firstObservation,
       source: (led.correctionLog || []).some(item => item.date === day) ? 'balance-corrected' : 'balance-observed',
       warning: this.warnings.get(scope) || '', note: USAGE_NOTE };
+    if (stamp) this.todayCache.set(scope, { key: cacheKey, value });
+    return value;
   }
 }
 

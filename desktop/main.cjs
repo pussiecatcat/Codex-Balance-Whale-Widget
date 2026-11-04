@@ -214,6 +214,7 @@ async function showStatusDialog() {
     buttons: ['关闭'],
   });
 }
+function relaunchApp() { app.relaunch(); app.exit(0); return true; }
 function pauseAndQuit() { save(path.join(dataDir, 'pause-until-host-exit.json'), { pauseAll: desktopMode === 'standalone', hostPid: lastHost?.hostPid || 0, hostSession: lastHost?.hostSession || '', hostWindow: lastHost?.window || '0' }); app.quit(); }
 
 async function openWebLink(value, gestureRequired = true) {
@@ -312,6 +313,7 @@ const ipcHost = {
   show,
   showStatusDialog,
   pauseAndQuit,
+  relaunch: relaunchApp,
   resetPosition: () => resetPosition(),
   openDiagnostics: () => openDiagnosticsFolder(),
   sendCommand,

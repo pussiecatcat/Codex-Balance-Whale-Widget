@@ -86,3 +86,16 @@ test('the recovery notice survives a restart until it is acknowledged', t => {
   restarted.acknowledgeWarning(scope);
   assert.equal(new UsageLedger(root).records(scope).warning, '');
 });
+
+test('a steady observation does not rewrite the ledger, but still orders older reads', t => {
+  const root = fixture(t), scope = 'c'.repeat(24) + '-USD', ledger = new UsageLedger(root), now = Date.now();
+  ledger.observe(scope, { totalUsed: 5 }, now);
+  const revision = ledger.load(scope).revision;
+  ledger.observe(scope, { totalUsed: 5 }, now + 1000);
+  assert.equal(ledger.load(scope).revision, revision, 'an unchanged balance is not written again');
+  ledger.observe(scope, { totalUsed: 1 }, now + 500);
+  assert.equal(ledger.load(scope).lastObservation.used, 5, 'a delayed older reading is still ignored');
+  ledger.observe(scope, { totalUsed: 6 }, now + 2000);
+  assert.ok(ledger.load(scope).revision > revision, 'a real consumption change is written');
+  assert.equal(ledger.load(scope).observed, 1);
+});

@@ -25,6 +25,7 @@ function registerIpcHandlers({ ipcMain, host }) {
     show: () => { host.show(); return true; },
     status: async () => { await host.showStatusDialog(); return true; },
     stop: () => { host.pauseAndQuit(); return true; },
+    restart: () => host.relaunch(),
     'reset-position': () => host.resetPosition(),
     diagnostics: () => host.openDiagnostics(),
     balance: () => host.sendCommand('balance'),

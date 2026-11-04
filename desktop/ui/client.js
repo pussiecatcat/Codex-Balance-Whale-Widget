@@ -90,6 +90,16 @@ import { requestJson } from '/services/request.js';
   // wrong endpoint or a missing environment variable is named here instead of
   // showing up later as an unexplained "查询暂不可用" on the widget.
   const connectionResult = $('api-connection-result');
+  $('restart-whale').addEventListener('click', async () => {
+    if (!window.whaleDesktop || typeof window.whaleDesktop.command !== 'function') {
+      toast('请在桌面挂件中重新启动，或手动退出后重新打开。');
+      return;
+    }
+    try {
+      const restarted = await window.whaleDesktop.command('restart');
+      if (restarted === false) toast('无法自动重新启动，请手动退出后重新打开。');
+    } catch { toast('无法自动重新启动，请手动退出后重新打开。'); }
+  });
   $('test-api-connection').addEventListener('click', async () => {
     const button = $('test-api-connection');
     button.disabled = true;
