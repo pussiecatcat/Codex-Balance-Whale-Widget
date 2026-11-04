@@ -143,3 +143,13 @@ test('saving prices stores the canonical cachedInput field', t => {
   assert.deepEqual(registry.publicModel(registry.model('priced')).prices,{input:1,cachedInput:.5,output:2});
   assert.equal(registry.estimate(registry.model('priced'),{byModel:{m:{input_tokens:1000000,output_tokens:0,cached_input_tokens:0}}}),1);
 });
+
+test('a draft model probe checks the provider without saving the model', async t => {
+  const dir=fixture(t),calls=[];
+  const registry=new ApiModelRegistry({dataDir:dir,env:{DEEPSEEK_API_KEY:'secret'},fetchImpl:async(url,init)=>{calls.push({url,auth:init.headers.authorization});return response({balance_infos:[{total_balance:'12.50'}]});}});
+  const result=await registry.probeDraft({template:'deepseek',id:'draft'});
+  assert.equal(result.detail,'连接正常');
+  assert.equal(calls[0].auth,'Bearer secret');
+  assert.equal(registry.list().models.length,0);
+  assert.equal(fs.existsSync(path.join(dir,'providers.json')),false,'a probe must not write the registry');
+});

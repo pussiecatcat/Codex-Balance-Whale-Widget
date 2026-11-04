@@ -19,6 +19,7 @@ import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-cont
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
 import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
+import { createAudioGroupList } from '/features/widget/audio-group-list.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -3961,99 +3962,16 @@ import {
     }
 
     // ==== [音频组与槽面板] ====
-    function renderAudioGroupPanel() {
-      try {
-        audioGroupPanel.innerHTML = '';
-        audioGroups.forEach(function (g) {
-          var item = document.createElement('div');
-          item.className = 'dshwv-audioitem' + (soundSet === g.id ? ' dshwv-audioitem-cur' : '');
-          var thumb = document.createElement('span');
-          thumb.className = 'dshwv-audiothumb';
-          thumb.setAttribute('aria-hidden', 'true');
-          item.appendChild(thumb);
-          var name = makeNameCell('dshwv-audioname', g.name);
-          item.appendChild(name);
-          if (g.preset) {
-            var tag = document.createElement('span');
-            tag.className = 'dshwv-audiopreset';
-            tag.textContent = '预设';
-            item.appendChild(tag);
-          } else {
-            var pin = document.createElement('button');
-            pin.type = 'button';
-            pin.className = 'dshwv-audiopin' + (g.pinned ? ' on' : '');
-            pin.textContent = '📌';
-            pin.title = g.pinned ? '取消置顶' : '置顶';
-            pin.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioPinGroup(g.id, !g.pinned);
-            });
-            item.appendChild(pin);
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'dshwv-audiodel';
-            del.textContent = '✕';
-            del.title = '删除音效组';
-            del.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioDeleteGroup(g.id);
-            });
-            item.appendChild(del);
-          }
-          item.addEventListener('click', function () {
-            setSoundSet(g.id);
-            closeAudioGroupPanel();
-          });
-          bindNameMarquee(item, name);
-          audioGroupPanel.appendChild(item);
-        });
-      } catch (err) {}
-    }
-    function audioPinGroup(id, pinned) {
-      try {
-        requestJson(AUDIO_URL, {
-          method: 'POST',
-          body: {
-            action: 'pin-group',
-            id: id,
-            pinned: pinned
-          }
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.groups)) {
-            audioGroups = d.groups;
-            renderAudioGroupPanel();
-            refreshTaskEndAfterAudio();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
-    function audioDeleteGroup(id) {
-      var g = null;
-      for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === id) {
-        g = audioGroups[i];
-        break;
-      }
-      showConfirm('确定删除音效组「' + (g ? g.name : id) + '」吗？', function () {
-        try {
-          requestJson(AUDIO_URL, {
-            method: 'POST',
-            body: {
-              action: 'delete-group',
-              id: id
-            }
-          }).then(function (d) {
-          requireSaved(d);
-            if (d && d.ok && Array.isArray(d.groups)) {
-              audioGroups = d.groups;
-              renderAudioGroupPanel();
-              refreshTaskEndAfterAudio();
-              if (soundSet === id) setSoundSet('duck');
-            }
-          }).catch(assetFailure);
-        } catch (err) { assetFailure(err); }
-      });
-    }
+    var audioGroupList = createAudioGroupList({
+      document: document, requestJson: requestJson, url: AUDIO_URL,
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
+      getPanel: function () { return audioGroupPanel; }, closePanel: closeAudioGroupPanel,
+      makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
+      requireSaved: requireSaved, assetFailure: assetFailure, showConfirm: showConfirm,
+      refreshTaskEnd: refreshTaskEndAfterAudio
+    });
+    var renderAudioGroupPanel = audioGroupList.render;
     var editingAudioGroupId = null;
     var audioEditorSession = null;
     var activeSlotPanel = null;

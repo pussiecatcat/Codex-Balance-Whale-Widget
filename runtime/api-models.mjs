@@ -70,7 +70,7 @@ export class ApiModelRegistry {
     return {...model,prices:normalizePrices(model.prices||{}),kind:model.manualQuota?'quota':t.kind||'balance',noBalanceApi:!!t.noBalanceApi,
       configured:{key:!!this.key(model,t),endpoint:!!(model.balanceUrl||t.balance?.url||model.baseUrl||t.probeUrl)}};
   }
-  save(input) {
+  normalize(input) {
     if(!input||typeof input!=='object'||Array.isArray(input))throw domainError('API 模型格式无效');
     const t=API_TEMPLATES[input.template];if(!t)throw domainError('未知服务商模板');
     const id=String(input.id||('api_'+Date.now().toString(36)));if(!idOk(id))throw domainError('API 模型 ID 无效');
@@ -115,9 +115,17 @@ export class ApiModelRegistry {
     // custom endpoint must use a separately named credential or be keyless.
     const builtIn=t.balance?.url||t.quota?.url||t.probeUrl;
     if(model.balanceUrl&&builtIn&&!builtIn.includes('{base}')&&new URL(model.balanceUrl).origin!==new URL(builtIn).origin&&model.keyEnv===t.keyEnv)throw domainError('自定义地址须使用专用密钥环境变量，不能发送服务商默认密钥');
-    const data=this.load(),index=data.models.findIndex(item=>item.id===id);
+    return model;
+  }
+  save(input) {
+    const model=this.normalize(input);
+    const data=this.load(),index=data.models.findIndex(item=>item.id===model.id);
     if(index>=0)data.models[index]=model;else data.models.push(model);
     this.store.writeModels(data.models);return {ok:true,model:this.publicModel(model)};
+  }
+  async probeDraft(input) {
+    const model=this.normalize(input);
+    return this.readModel(model,{probe:true});
   }
   delete(id) {
     if(!idOk(id))throw domainError('API 模型 ID 无效');const data=this.load();
@@ -146,7 +154,11 @@ export class ApiModelRegistry {
     return model.manualQuota ? Math.max(model.manualQuota.baseAt, this.quotaPeriodStart(model, now)) : null;
   }
   async read(id,{probe=false,usage=null}={}) {
-    const model=this.model(id);if(!model)throw domainError('API 模型不存在');const t=API_TEMPLATES[model.template];if(!t)throw domainError('未知服务商模板');
+    const model=this.model(id);if(!model)throw domainError('API 模型不存在');
+    return this.readModel(model,{probe,usage});
+  }
+  async readModel(model,{probe=false,usage=null}={}) {
+    const id=model.id;const t=API_TEMPLATES[model.template];if(!t)throw domainError('未知服务商模板');
     if(!probe&&model.manualQuota) {
       const q={...model.manualQuota},start=this.quotaPeriodStart(model);
       if(q.mode==='auto') {

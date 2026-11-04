@@ -84,7 +84,10 @@ export function createCoreRoutes(ctx) {
   });
 
   route('/api/models/probe', {
-    POST: async ({ body }) => jsonResult(200, await apiModels.read(json(body).id, { probe: true })),
+    POST: async ({ body }) => {
+    const input = json(body);
+    return jsonResult(200, input.template ? await apiModels.probeDraft(input) : await apiModels.read(input.id, { probe: true }));
+  },
   });
 
   route('/api/workshop/export', {

@@ -267,9 +267,16 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
       const error=el(overlay,'p','','notice');error.hidden=true;
       const actions=el(overlay,'div','','dialog-actions');
       const back=()=>{closeDialog(overlay);if(options.returnTo)openModelDetail(currentModel(options.returnTo)||existing);};
+      const buildBody=()=>{const body={id:existing?.id,template:template.value};for(const [key,input] of Object.entries(fields))if(key!=='template')body[key]=input.value.trim();body.scale=Number(body.scale);body.matchIds=body.matchIds.split(',').map(value=>value.trim()).filter(Boolean);return body;};
+      button(actions,'测试','quiet',async event=>{
+        const test=event.currentTarget;test.disabled=true;error.hidden=true;
+        try{const result=await request('/api/models/probe','POST',buildBody());window.whaleToast?.(result.detail||'连接正常');}
+        catch(ex){const view=statusView(statusForError(ex));error.textContent=(ex.message||view.label)+(view.action?'；'+view.action:'');error.hidden=false;}
+        finally{test.disabled=false;}
+      });
       button(actions,'取消','quiet',back);const save=button(actions,'保存','primary',async()=>{
         save.disabled=true;error.hidden=true;
-        try{const body={id:existing?.id,template:template.value};for(const [key,input] of Object.entries(fields))if(key!=='template')body[key]=input.value.trim();body.scale=Number(body.scale);body.matchIds=body.matchIds.split(',').map(value=>value.trim()).filter(Boolean);const result=await request('/api/models','PUT',body);await finishSave(existing?.id||result.model.id);closeDialog(overlay);await render();if(existing)openModelDetail(currentModel(result.model.id)||result.model);}
+        try{const result=await request('/api/models','PUT',buildBody());await finishSave(existing?.id||result.model.id);closeDialog(overlay);await render();if(existing)openModelDetail(currentModel(result.model.id)||result.model);}
         catch(ex){error.textContent=ex.message;error.hidden=false;save.disabled=false;}
       });
       overlay.addEventListener('cancel',event=>{event.preventDefault();back();});overlay.showModal();fields.name.focus();
