@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readJson, writeJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
 import { domainError } from '../lib/errors.mjs';
-import { readBoundedBodyText } from './bounded-body.mjs';
+import { normalizePrices, requestJson } from './provider-profile.mjs';
 
 const noBalance = (name, currency, keyEnv, probeUrl = '', matchIds = []) => ({ name, currency, keyEnv, noBalanceApi: true, probeUrl, matchIds });
 export const API_TEMPLATES = Object.freeze({
@@ -66,7 +66,7 @@ export class ApiModelRegistry {
   list() { return {ok:true,templates:Object.entries(API_TEMPLATES).map(publicTemplate),models:this.load().models.map(model=>this.publicModel(model))}; }
   publicModel(model) {
     const t=API_TEMPLATES[model.template]||{};
-    return {...model,kind:model.manualQuota?'quota':t.kind||'balance',noBalanceApi:!!t.noBalanceApi,
+    return {...model,prices:normalizePrices(model.prices||{}),kind:model.manualQuota?'quota':t.kind||'balance',noBalanceApi:!!t.noBalanceApi,
       configured:{key:!!this.key(model,t),endpoint:!!(model.balanceUrl||t.balance?.url||model.baseUrl||t.probeUrl)}};
   }
   save(input) {
@@ -97,10 +97,11 @@ export class ApiModelRegistry {
       if(!Array.isArray(cfg.lines)||cfg.lines.length>36||JSON.stringify(cfg.lines).length>100000)throw domainError('提醒泡泡模块超出限制');
       model.bubbleSettings[key]={lines:cfg.lines,autoClose:cfg.autoClose!==false,ttlSec:Math.max(0,Math.min(3600,Number(cfg.ttlSec)||0))};
     }
-    model.prices={...(current.prices||{})};
-    for(const key of ['input','cached','output'])if(Object.hasOwn(input,key+'Price')) {
-      const value=input[key+'Price'];if(value===''){delete model.prices[key];continue;}
-      const n=numeric(value);if(n===null||n<0||n>1e9)throw domainError('每百万 token 价格无效');model.prices[key]=n;
+    model.prices=normalizePrices(current.prices||{});
+    for(const [inputKey,field] of [['inputPrice','input'],['cachedPrice','cachedInput'],['cachedInputPrice','cachedInput'],['outputPrice','output'],['cacheWritePrice','cacheWrite']]) {
+      if(!Object.hasOwn(input,inputKey))continue;
+      const value=input[inputKey];if(value===''){delete model.prices[field];continue;}
+      const n=numeric(value);if(n===null||n<0||n>1e9)throw domainError('每百万 token 价格无效');model.prices[field]=n;
     }
     const manual=keep('manualQuota',null);
     if(manual) {
@@ -132,21 +133,7 @@ export class ApiModelRegistry {
   }
   key(model,t) { const name=Object.hasOwn(model,'keyEnv')?model.keyEnv:t.keyEnv;return name?String(this.env[name]||'').trim():''; }
   async json(url,key,auth='bearer') {
-    const headers={accept:'application/json'};let target=url;
-    if(auth==='query'&&key){const parsed=new URL(url);parsed.searchParams.set('key',key);target=parsed.toString();}
-    else if(key)headers.authorization=auth==='raw'?key:'Bearer '+key;
-    if(auth==='anthropic'&&key){delete headers.authorization;headers['x-api-key']=key;headers['anthropic-version']='2023-06-01';}
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);timer.unref?.();
-    try {
-      const response=await this.fetch(target,{headers,signal:controller.signal,redirect:'error'});
-      if(!response.ok)throw domainError('HTTP '+response.status);
-      const limit=2*1024*1024;
-      const text=await readBoundedBodyText(response,{maxBytes:limit,tooLarge:()=>domainError('响应过大'),unsupported:()=>domainError('响应过大'),
-        streamless:async r=>{const body=await r.text();if(Buffer.byteLength(body)>limit)throw domainError('响应过大');return body;}});
-      const data=JSON.parse(text);
-      if(data?.success===false||data?.is_available===false||data?.error)throw domainError('服务商返回业务错误');
-      return data;
-    } finally {clearTimeout(timer);}
+    return requestJson({ url, key, auth, fetchImpl: this.fetch, maxBytes: 2 * 1024 * 1024 });
   }
   quotaPeriodStart(model, now=Date.now()) {
     const q=model.manualQuota;if(!q)return null;
@@ -199,13 +186,28 @@ export class ApiModelRegistry {
     }
     return {ok:true,id,kind:'quota',available:windows.length>0,windows,source,observedAt:Date.now(),level:q.level?String(pickJsonPath(data,q.level)||''):''};
   }
+  migrate() {
+    const data=this.load(); let changed=0;
+    for(const model of data.models) {
+      if(!model.prices||!Object.hasOwn(model.prices,'cached'))continue;
+      model.prices=normalizePrices(model.prices); changed++;
+    }
+    if(changed)writeJson(this.file,data,{flush:true,backup:true});
+    return changed;
+  }
+  rollback() {
+    const data=readJson(this.file+'.bak',null);
+    if(!data||!Array.isArray(data.models))return false;
+    writeJson(this.file,data);return true;
+  }
   estimate(model,usage) {
     if(!Object.keys(model.prices||{}).length)return null;
+    const cachedPrice=Number.isFinite(model.prices.cachedInput)?model.prices.cachedInput:model.prices.cached;
     let total=0;
     for(const row of Object.values(usage.byModel||{})) {
       const input=Number(row.input_tokens)||0,output=Number(row.output_tokens)||0,cached=Math.min(input,Number(row.cached_input_tokens)||0);
-      if(input>cached&&!Number.isFinite(model.prices.input)||cached>0&&!Number.isFinite(model.prices.cached)||output>0&&!Number.isFinite(model.prices.output))return null;
-      total+=((input-cached)*(model.prices.input||0)+cached*(model.prices.cached||0)+output*(model.prices.output||0))/1e6;
+      if(input>cached&&!Number.isFinite(model.prices.input)||cached>0&&!Number.isFinite(cachedPrice)||output>0&&!Number.isFinite(model.prices.output))return null;
+      total+=((input-cached)*(model.prices.input||0)+cached*(cachedPrice||0)+output*(model.prices.output||0))/1e6;
     }
     return total;
   }

@@ -80,7 +80,13 @@ const PUBLISH_ROOTS = Object.freeze(['desktop/ui', 'assets/whale-widget.js']);
 // nothing, so they get one ceiling instead. Like the frozen counts above it only
 // moves down, and it is what stops the monolith's direct calls from growing
 // while the extraction is still working through it.
-export const LEGACY_DIRECT_FETCH_BUDGET = { total: 29 };
+export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
+
+// Empty catch blocks are this codebase's idiom for best-effort cleanup, so the
+// tree starts with a large count instead of failing lint wholesale. The number
+// may only shrink: a new empty catch has to either handle the error or carry a
+// comment explaining why swallowing it is deliberate.
+export const EMPTY_CATCH_BUDGET = { total: 292 };
 
 // The shared client is the module this whole gate funnels callers into, and
 // alpha-worker.js runs off the module graph in a Worker, where it is unreachable.
@@ -244,8 +250,29 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
   };
 }
 
-export function dependencyErrors(dependency) {
-  const errors = [];
+const EMPTY_CATCH_ROOTS = ['runtime', 'lib', 'desktop', 'assets', 'scripts'];
+function emptyCatchMetrics(root) {
+  const byFile = {}, rows = [];
+  const walk = directory => {
+    let entries;
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (/\.(?:mjs|cjs|js)$/.test(entry.name)) {
+        const count = (fs.readFileSync(file, 'utf8').match(/catch\s*(?:\([^)]*\))?\s*\{\s*\}/g) || []).length;
+        if (!count) continue;
+        const relative = path.relative(root, file).replaceAll('\\', '/');
+        byFile[relative] = count;
+        rows.push({ file: relative, count });
+      }
+    }
+  };
+  for (const directory of EMPTY_CATCH_ROOTS) walk(path.join(root, directory));
+  return { total: rows.reduce((sum, row) => sum + row.count, 0), byFile, rows };
+}
+
+export function dependencyErrors(dependency) {  const errors = [];
   const newGlobals = dependency.publishedGlobals.filter(name => !GLOBAL_SURFACE.includes(name));
   if (newGlobals.length) errors.push('Migrating a feature removes window globals, it never adds one; new: ' + newGlobals.join(', '));
   for (const [relative, reads] of Object.entries(dependency.moduleReads)) {
@@ -330,6 +357,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       combinedEndpointReferences: combinedEndpoint,
     },
     dependency: collectDependencyMetrics({ root }),
+    emptyCatch: emptyCatchMetrics(root),
   };
 }
 
@@ -346,6 +374,11 @@ export function refactorBoundaryErrors(metrics) {
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
   if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
   errors.push(...dependencyErrors(metrics.dependency));
+  if (metrics.emptyCatch.total > EMPTY_CATCH_BUDGET.total) {
+    const perFile = Object.entries(metrics.emptyCatch.byFile).sort((a, b) => b[1] - a[1])
+      .map(([file, count]) => `${file}:${count}`).join(', ');
+    errors.push(`Empty catch blocks must not exceed the existing budget of ${EMPTY_CATCH_BUDGET.total} (found ${metrics.emptyCatch.total}). Handle the error or add a comment explaining a deliberate best-effort catch, and lower the budget as sites are cleaned. By file — ${perFile}`);
+  }
   return errors;
 }
 
@@ -387,6 +420,10 @@ function summary(metrics) {
       legacyDirectFetchBudget: LEGACY_DIRECT_FETCH_BUDGET.total,
       crossFeatureImports: metrics.dependency.crossFeatureImports.length,
       globalStorage: metrics.dependency.globalStorage.length,
+    },
+    quality: {
+      emptyCatches: metrics.emptyCatch.total,
+      emptyCatchBudget: EMPTY_CATCH_BUDGET.total,
     },
   };
 }

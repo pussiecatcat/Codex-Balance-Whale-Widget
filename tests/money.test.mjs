@@ -6,8 +6,8 @@ import os from 'node:os';
 import vm from 'node:vm';
 import { createFxService, FX_URL } from '../runtime/fx.mjs';
 
-const box = { module: { exports: {} }, Intl, Date };
-vm.runInNewContext(await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8'), box);
+const box = { module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 6.7115, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
+vm.runInNewContext((await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/m, ''), box);
 const { createMoneyState } = box.module.exports;
 const quote = () => ({ usdCny: 6.7115, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false });
 const create = options => createMoneyState({ loadQuote: async () => quote(), ...options });

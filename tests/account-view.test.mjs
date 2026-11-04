@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-const source = await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8');
-const exported = { module: { exports: {} } }; vm.runInNewContext(source, exported);
+const source = (await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
+const exported = { module: { exports: {} }, requestJson: async () => ({}) }; vm.runInNewContext(source, exported);
 const { windowText, tokenText, noticeText, quotaLabel } = exported.module.exports;
 
 test('quota periods remain distinct regardless of incoming label',()=>{
@@ -25,14 +25,14 @@ test('subscription failure consumption displays tokens without API money or fun 
   assert.equal(noticeText({ completionKind: 'failed', failureKind: 'high-demand' }), '挤不进去...');
   assert.equal(noticeText({ completionKind: 'completed', tokens: 10, amount: 5 }), '本轮本机已观测：10 token');
 });
-function runtime(fetch) {
+function runtime(requestJson) {
   const storage = new Map(); const events = [];
-  const context = { document: { documentElement: {dataset:{}}, readyState: 'loading', addEventListener() {}, querySelectorAll(){return []} }, window: { dispatchEvent(e) { events.push(e); } }, localStorage: { getItem(k) { return storage.get(k); }, setItem(k,v) { storage.set(k,v); } }, fetch, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
+  const context = { document: { documentElement: {dataset:{}}, readyState: 'loading', addEventListener() {}, querySelectorAll(){return []} }, window: { dispatchEvent(e) { events.push(e); } }, localStorage: { getItem(k) { return storage.get(k); }, setItem(k,v) { storage.set(k,v); } }, requestJson, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
   vm.runInNewContext(source, context);
   return { api: context.window.WhaleAccountView, storage, events, window:context.window };
 }
 test('subscription completion and cancellation report tokens without an open card or API money',async()=>{
-  const r=runtime(async(_url,options)=>({ok:true,json:async()=>JSON.parse(options.body)}));
+  const r=runtime(async(_url,options={})=>options.body||{});
   const messages=[];r.window.whaleToast=message=>messages.push(message);
   await r.api.setMode('api');
   r.api.notice({completionKind:'success',tokens:12,amount:100});assert.equal(messages.length,0);
@@ -44,8 +44,8 @@ test('subscription completion and cancellation report tokens without an open car
   assert.ok(messages.every(m=>!/[\$¥]|USD|API/.test(m)));
 });
 test('a rejected save preserves mode and does not emit false switch events', async () => {
-  for (const fetch of [async () => ({ ok: false }), async () => ({ ok: true, json: async () => ({ mode: 'subscription' }) }), async () => { throw Error('offline'); }]) {
-    const { api, storage, events } = runtime(fetch);
+  for (const requestJson of [async () => ({ ok: false }), async () => ({ mode: 'subscription' }), async () => { throw Error('offline'); }]) {
+    const { api, storage, events } = runtime(requestJson);
     assert.equal(await api.setMode('api'), false);
     assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0); assert.equal(events.length, 0);
   }
@@ -56,9 +56,9 @@ test('successful switches persist display mode only after server acknowledgement
   const pending = api.setMode('api');
   assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0);
   assert.equal(await api.setMode('subscription'), false);
-  resolve({ ok: true, json: async () => ({ mode: 'api' }) });
+  resolve({ mode: 'api' });
   assert.equal(await pending, true); assert.equal(api.mode, 'api');
   assert.equal(storage.get('dshw-account-view'), 'api');
-  assert.equal(request.url, '/api/display-mode'); assert.equal(request.options.body, '{"mode":"api"}');
+  assert.equal(request.url, '/api/display-mode'); assert.equal(request.options.body.mode, 'api');
   assert.equal(events[0].type, 'whale-account-view'); assert.equal(events[0].detail.mode, 'api');
 });

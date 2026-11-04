@@ -3,6 +3,7 @@ import { ConfigStore } from './config.mjs';
 import { BalanceProvider } from './providers.mjs';
 import { UsageLedger, usageDefaults } from './ledger.mjs';
 import { readJson, writeJson, dayKey } from './paths.mjs';
+import { domainError } from '../lib/errors.mjs';
 import { BalanceQuery } from './balance-query.mjs';
 import { NoticePublisher } from './notice-publisher.mjs';
 import { TurnAccounting } from './turn-accounting.mjs';
@@ -38,6 +39,10 @@ export class WhaleService {
         error: accounting.recovery.error || publication.recoveryError || '' } };
   }
   scope(...args) { return this.balanceQuery.scope(...args); }
+  usageContext() {
+    try { return this.config.resolve(); }
+    catch { return this.config.identityContext?.() || null; }
+  }
   balanceIdentity(...args) { return this.balanceQuery.balanceIdentity(...args); }
   isCurrentBalanceContext(...args) { return this.balanceQuery.isCurrentBalanceContext(...args); }
   newestBalanceSample(...args) { return this.balanceQuery.newestBalanceSample(...args); }
@@ -46,17 +51,20 @@ export class WhaleService {
   getBalance(...args) { return this.balanceQuery.getBalance(...args); }
   decorate(...args) { return this.balanceQuery.decorate(...args); }
   usageRecords() {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return { ...this.ledger.records(scope), currency: scope.slice(-3), settings: this.readUsageSettings() };
   }
   reconcileUsage(input) {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return this.ledger.reconcile(scope, input);
   }
   apiModelUsage(matches, now = this.clock(), since = null) {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     const byModel = {};
     const events = this.ledger.load(scope).events || [];
@@ -80,7 +88,7 @@ export class WhaleService {
   resolveUsageSettings(saved = {}) {
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error('用量设置格式无效');
     const defaults = usageDefaults();
-    defaults.alert.lines.find(line => line.type === 'link').url = this.config.resolve().dashboardUrl;
+    defaults.alert.lines.find(line => line.type === 'link').url = this.usageContext()?.dashboardUrl || '';
     const result = { ...saved };
     for (const key of Object.keys(defaults)) {
       const value = saved[key];

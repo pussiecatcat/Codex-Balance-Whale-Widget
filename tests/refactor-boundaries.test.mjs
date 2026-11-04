@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 import {
   SOUND_FRONTEND_MODULES,
   SOUND_RUNTIME_MODULES,
+  EMPTY_CATCH_BUDGET,
   assertRefactorBoundaries,
   collectDependencyMetrics,
   collectRefactorMetrics,
   dependencyErrors,
+  refactorBoundaryErrors,
 } from '../scripts/refactor-metrics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -161,16 +163,27 @@ test('the preload bridge is allowed by name, a new window global is not', t => {
 // concentration of direct calls in the project would be the one nothing counts.
 test('the renderer that has not been split yet is held to a single fetch ceiling', t => {
   const metrics = collectDependencyMetrics({ root: ROOT });
-  assert.equal(metrics.legacyDirectRequests.length, 29,
-    'assets/whale-widget.js and the classic scripts hold twenty-nine direct calls; each conversion lowers this');
-  assert.equal(metrics.directRequests.length + metrics.legacyDirectRequests.length, 31,
-    'between the per-module rule and the ceiling every direct call in the renderer is counted');
+  assert.equal(metrics.legacyDirectRequests.length, 0,
+    'every renderer request goes through the shared client');
+  assert.equal(metrics.directRequests.length + metrics.legacyDirectRequests.length, 2,
+    'the only direct calls left are the two inside the shared module rule for role-manager');
   assert.ok(!metrics.legacyDirectRequests.some(item => item.file.endsWith('alpha-worker.js')),
     'a worker has no module graph to import the shared client from');
 
   const loud = fixture(t, {
     'desktop/ui/loud.js': Array.from({ length: 30 }, (_, n) => `fetch('/x${n}')`).join(';\n') + ';\n',
   });
-  assert.match(evaluate(loud).join('\n'), /must not exceed the existing budget of 29/);
+  assert.match(evaluate(loud).join('\n'), /must not exceed the existing budget of 0/);
   assert.match(evaluate(loud).join('\n'), /loud\.js:30/, 'the report names which file to convert first');
+});
+
+test('the empty-catch ratchet counts this tree and rejects a new site', () => {
+  const metrics = collectRefactorMetrics({ root: ROOT });
+  assert.equal(metrics.emptyCatch.total, EMPTY_CATCH_BUDGET.total,
+    'clean a site and lower EMPTY_CATCH_BUDGET rather than leaving slack');
+  assert.ok(metrics.emptyCatch.total > 0);
+  const over = { ...metrics, emptyCatch: { total: EMPTY_CATCH_BUDGET.total + 1, byFile: { 'runtime/loud.mjs': 1 }, rows: [] } };
+  const errors = refactorBoundaryErrors(over);
+  assert.match(errors.join('\n'), /Empty catch blocks must not exceed/);
+  assert.match(errors.join('\n'), /runtime\/loud\.mjs:1/, 'the report names which file to clean first');
 });

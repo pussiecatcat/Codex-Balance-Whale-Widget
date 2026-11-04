@@ -16,3 +16,12 @@ test('the shipped version has one source and the other copies agree with it', ()
   assert.equal(VERSION, manifest.split('+')[0], 'runtime VERSION must be the manifest base version');
   assert.equal(readJson('package.json').version, VERSION, 'package.json must not drift from the manifest base version');
 });
+
+test('no runtime or installer file repeats the release version as a literal', () => {
+  const literal = new RegExp('\\b' + VERSION.replace(/\./g, '\\.') + '\\b');
+  for (const file of ['scripts/install-package.ps1', 'scripts/build-release.py',
+    'runtime/providers.mjs', 'runtime/codex-rate-limits.mjs']) {
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.equal(literal.test(text), false, file + ' must read the version from the manifest');
+  }
+});

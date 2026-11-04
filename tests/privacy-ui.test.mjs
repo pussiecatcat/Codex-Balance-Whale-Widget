@@ -86,12 +86,12 @@ test('settings UI never echoes private values and blank saves never erase them',
   for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
-  const fetch = async (_url, options) => {
-    if (options.method === 'PUT') { const patch = JSON.parse(options.body); puts.push(patch); config.save(patch); }
-    return { json: async () => ({ ok: true, ...config.settingsInfo() }) };
+  const requestJson = async (_url, options = {}) => {
+    if (options.method === 'PUT') { puts.push(options.body); config.save(options.body); }
+    return { ok: true, ...config.settingsInfo() };
   };
-  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8');
-  vm.runInNewContext(source, { document, window, fetch, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
+  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
+  vm.runInNewContext(source, { document, window, requestJson, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
   await window.fire('whale-open-settings');
   for (const key of PRIVATE_SETTING_FIELDS.filter(k => k !== 'models')) {
     assert.equal(controls.get(key).value, ''); assert.match(controls.get(key).placeholder, /已配置/);

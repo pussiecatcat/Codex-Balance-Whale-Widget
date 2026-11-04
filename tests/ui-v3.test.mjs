@@ -13,8 +13,8 @@ function audioFixture() {
     createGain() { return { gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }; }
     createBufferSource() { const source = { connect() {}, start() { this.started = true; }, stop() { this.stopped = true; } }; sources.push(source); return source; }
   }
-  const context = { window: { addEventListener() {} }, AudioContext, fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) }), setTimeout: callback => { idle = callback; return 1; }, clearTimeout() {} };
-  vm.runInNewContext(read('audio-engine.js'), context);
+  const context = { window: { addEventListener() {} }, AudioContext, requestBytes: async () => new ArrayBuffer(1), setTimeout: callback => { idle = callback; return 1; }, clearTimeout() {} };
+  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/m, ''), context);
   return { api: context.window.WhaleAudio, sources, contexts: () => contexts, idle: () => idle() };
 }
 test('zero volume never opens audio hardware or fetches, release interrupts a 20-second press immediately', async () => {

@@ -58,7 +58,9 @@ test('media policy and the guarded script are served locally before widget start
   const script = await server.dispatch('/media-guard.js'); assert.equal(script.status, 200); assert.match(script.headers['content-type'], /javascript/); assert.match(script.body.toString(), /WhaleMediaGuard/);
   const head = await server.dispatch('/media-guard.js', { method: 'HEAD' }); assert.equal(head.body.length, 0);
   const html = (await server.dispatch('/widget.html')).body.toString();
-  assert.ok(html.indexOf('src="/media-guard.js"') >= 0 && html.indexOf('src="/media-guard.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
+  assert.equal(html.indexOf('src="/media-guard.js"'), -1, 'media-guard is imported by the widget entry, not a classic tag');
+  const widgetScript = (await server.dispatch('/dsh-whale/widget.js')).body.toString();
+  assert.match(widgetScript, /import '\/media-guard\.js';/);
   assert.ok(html.indexOf('src="/turn-notice.js"') >= 0 && html.indexOf('src="/turn-notice.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
   assert.match(html, /src="\/sound-settings\.js"/);
   assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
@@ -200,4 +202,25 @@ test('query-driven routes reach their handler with a parsed URL, not the request
       assert.equal(response.status, 200, `${route}${query} must answer 200, got ${response.status}: ${response.body}`);
     }
   }
+});
+
+test('malformed request JSON is a 400 instead of an internal error', async t => {
+  const { server } = await setup(t);
+  for (const route of ['/api/display-mode', '/dsh-whale/bubble.json']) {
+    const response = await server.dispatch(route, { method: 'POST', body: Buffer.from('{bad') });
+    assert.equal(response.status, 400, route);
+    assert.equal(JSON.parse(response.body.toString()).error, '请求内容不是有效的 JSON');
+  }
+});
+
+test('status stays ok and surfaces an API configuration error', async t => {
+  const { server, service } = await setup(t);
+  service.config.publicInfo = () => ({ providerName: '当前 API', hasKey: false, settings: {}, configured: {},
+    apiError: { code: 'BAD_REQUEST', message: '找不到所选 Codex profile' } });
+  const response = await server.dispatch('/api/status');
+  assert.equal(response.status, 200);
+  const payload = JSON.parse(response.body.toString());
+  assert.equal(payload.ok, true);
+  assert.equal(payload.provider.apiError.code, 'BAD_REQUEST');
+  assert.match(payload.provider.apiError.message, /profile/);
 });

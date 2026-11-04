@@ -1,5 +1,6 @@
 import { VERSION, writeJson } from '../paths.mjs';
 import { jsonResult } from '../http-shim.mjs';
+import { domainError } from '../../lib/errors.mjs';
 import { MEDIA_POLICY } from '../../lib/media-validation.mjs';
 import { pricingSchedule } from '../pricing-schedule.mjs';
 import { exportWorkshop, importWorkshop } from '../../lib/workshop.mjs';
@@ -13,18 +14,15 @@ import { exportWorkshop, importWorkshop } from '../../lib/workshop.mjs';
 // `url => ...` — that shipped once, and /api/quota answered 500 because
 // `url.searchParams` was really a Buffer. One named argument cannot be
 // half-right.
-//
-// `fallthrough: true` records a quirk of the code this replaced: those guards
-// only matched the listed methods, so any other method continued into static
-// resolution and ended as a 404 rather than a 405. Behaviour is preserved here
-// rather than silently tightened, because the tab-leaking difference between the
-// two is observable to callers.
 export function createCoreRoutes(ctx) {
   const { whale, insights, fx, apiModels, soundSettings, watcher, displayMode, displayModeFile, buildVersion, statusInfo, onStop, onShow, dataDir, faultLog } = ctx;
-  const json = body => JSON.parse(body.toString('utf8') || '{}');
+  const json = body => {
+    try { return JSON.parse(body.toString('utf8') || '{}'); }
+    catch { throw domainError('请求内容不是有效的 JSON'); }
+  };
   const routes = new Map();
-  const route = (pathname, handlers, { fallthrough = false, methodNotAllowed = null } = {}) =>
-    routes.set(pathname, { handlers, fallthrough, methodNotAllowed });
+  const route = (pathname, handlers, { methodNotAllowed = null } = {}) =>
+    routes.set(pathname, { handlers, methodNotAllowed });
 
   route('/api/display-mode', {
     GET: () => jsonResult(200, { ok: true, mode: displayMode() }),
@@ -38,19 +36,19 @@ export function createCoreRoutes(ctx) {
 
   route('/api/insights', {
     GET: ({ url }) => insights.get({ force: url.searchParams.get('refresh') === '1' }).then(payload => jsonResult(200, payload)),
-  }, { fallthrough: true });
+  });
 
   route('/api/quota', {
     GET: ({ url }) => insights.getQuota({ force: url.searchParams.get('refresh') === '1' }).then(payload => jsonResult(200, payload)),
-  }, { fallthrough: true });
+  });
 
   route('/dsh-whale/wait.json', {
     GET: () => jsonResult(200, whale.waitStatus()),
-  }, { fallthrough: true });
+  });
 
   route('/api/pricing', {
     GET: () => jsonResult(200, { ok: true, ...pricingSchedule(whale.config.resolve()) }),
-  }, { fallthrough: true });
+  });
 
   route('/api/reconcile', {
     GET: () => jsonResult(200, whale.usageRecords()),
@@ -78,19 +76,19 @@ export function createCoreRoutes(ctx) {
       const result = await apiModels.read(id, { usage: quotaUsage });
       return jsonResult(200, { ...usage, ...result, usageSource: usage.source, todayEstimate: apiModels.estimate(model, usage) });
     },
-  }, { fallthrough: true });
+  });
 
   route('/api/models/probe', {
     POST: async ({ body }) => jsonResult(200, await apiModels.read(json(body).id, { probe: true })),
-  }, { fallthrough: true });
+  });
 
   route('/api/workshop/export', {
     GET: () => jsonResult(200, exportWorkshop(dataDir)),
-  }, { fallthrough: true });
+  });
 
   route('/api/workshop/import', {
     POST: ({ body }) => jsonResult(200, importWorkshop(dataDir, json(body))),
-  }, { fallthrough: true });
+  });
 
   route('/api/status', {
     GET: () => jsonResult(200, {
@@ -100,7 +98,7 @@ export function createCoreRoutes(ctx) {
       dataDir, faults: faultLog.list(),
       ...statusInfo(),
     }),
-  }, { fallthrough: true });
+  });
 
   route('/api/config', {
     GET: () => jsonResult(200, { ok: true, ...whale.config.settingsInfo() }),
@@ -138,11 +136,11 @@ export function createCoreRoutes(ctx) {
 
   route('/api/show', {
     POST: () => { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); },
-  }, { fallthrough: true });
+  });
 
   route('/api/stop', {
     POST: () => { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); },
-  }, { fallthrough: true });
+  });
 
   return routes;
 }

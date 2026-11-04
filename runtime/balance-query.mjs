@@ -19,6 +19,16 @@ export class BalanceQuery {
   }
   close() { this.closed = true; }
   getActiveScope() { return this.#activeScope; }
+  currencyFor(c) {
+    // The ledger scope follows the currency the provider actually reports.
+    // The active scope is the last successful balance read; the latest query
+    // covers the window before the first UI read. Only then fall back to the
+    // configured currency.
+    const active = this.#activeScope;
+    if (active && active.startsWith(c.accountId + '-')) return active.slice(c.accountId.length + 1);
+    const latest = this.latestQueries.get(this.balanceIdentity(c));
+    return latest?.payload?.currency || c.setting.currency;
+  }
   scope(c, currency) { return c.accountId + '-' + currency; }
   balanceIdentity(c) {
     const s = c.setting || {};

@@ -65,6 +65,7 @@ let desktopMode = read(path.join(dataDir, 'follow-config.json')).mode === 'stand
 let desktopBoundsApplied = false, modePending = false;
 let recoveryAttempts = 0, recoveryTimer = null, readyTimer = null;
 let diagnosticShortcutRegistered = false;
+let toggleShortcutRegistered = false;
 const diagnostics = createDiagnostics({
   dataDir, save,
   // Every field belongs to this process's live state, so the main process hands
@@ -201,7 +202,7 @@ async function showStatusDialog() {
   await dialog.showMessageBox({
     type: 'info',
     title: '挂件运行状态',
-    message: 'API 余额小鲸鱼',
+    message: 'Codex 小龙娘',
     detail: lines.join('\n'),
     buttons: ['关闭'],
   });
@@ -268,13 +269,21 @@ async function setHost(host) {
 async function importLegacyStorage() {
   const marker = path.join(dataDir, 'legacy-storage-imported.json');
   if (fs.existsSync(marker) || harness.enabled) return;
-  const legacy = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
-  session.defaultSession.protocol.handle('http', request => new Response(request.url.startsWith('http://127.0.0.1:47321/') ? '<!doctype html><title>Local migration</title>' : '', { status: request.url.startsWith('http://127.0.0.1:47321/') ? 200 : 403, headers: { 'Content-Type': 'text/html' } }));
+  let legacy = null;
   try {
+    legacy = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    session.defaultSession.protocol.handle('http', request => new Response(request.url.startsWith('http://127.0.0.1:47321/') ? '<!doctype html><title>Local migration</title>' : '', { status: request.url.startsWith('http://127.0.0.1:47321/') ? 200 : 403, headers: { 'Content-Type': 'text/html' } }));
     await legacy.loadURL('http://127.0.0.1:47321/');
     const old = await legacy.webContents.executeJavaScript("Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)]))");
     storeValues({ ...old, ...values() }); save(marker, { complete: true, at: new Date().toISOString() });
-  } finally { legacy.destroy(); session.defaultSession.protocol.unhandle('http'); }
+  } catch (error) {
+    // A failed migration must not block startup or retry on every launch: the
+    // marker records it once, and the widget starts without the legacy values.
+    try { save(marker, { complete: false, at: new Date().toISOString(), error: String(error?.message || error).slice(0, 200) }); } catch {}
+  } finally {
+    try { legacy?.destroy(); } catch {}
+    try { session.defaultSession.protocol.unhandle('http'); } catch {}
+  }
 }
 
 // What desktop/ipc-handlers.cjs is allowed to reach. Listing it here keeps the
@@ -297,6 +306,7 @@ const ipcHost = {
   showStatusDialog,
   pauseAndQuit,
   resetPosition: () => resetPosition(),
+  openDiagnostics: () => openDiagnosticsFolder(),
   sendCommand,
 };
 
@@ -308,7 +318,7 @@ else {
     const { createDispatcher, UI_ORIGIN } = await import(pathToFileURL(path.join(root, 'runtime', 'dispatcher.mjs')));
     const { startBridge } = await import(pathToFileURL(path.join(root, 'runtime', 'bridge.mjs')));
     const testOptions = await harness.load(dataDir);
-    dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
+    dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
     await importLegacyStorage();
     session.defaultSession.protocol.handle('whale', async request => {
@@ -324,7 +334,7 @@ else {
     // native occlusion calculation even while its opaque pixels accept clicks.
     // Keep normal activation: Chromium's non-client handler consumes the first
     // mouse down (MA_NOACTIVATEANDEAT) when CanActivate/focusable is false.
-    window = new BrowserWindow({ ...area, ...(isMac ? { acceptFirstMouse: true } : { type: 'toolbar' }), transparent: true, frame: false, thickFrame: false, resizable: false, maximizable: false, fullscreenable: false, backgroundColor: '#00000000', hasShadow: false, skipTaskbar: true, show: false, title: 'API 余额小鲸鱼', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', additionalArguments: harness.extraArguments() } });
+    window = new BrowserWindow({ ...area, ...(isMac ? { acceptFirstMouse: true } : { type: 'toolbar' }), transparent: true, frame: false, thickFrame: false, resizable: false, maximizable: false, fullscreenable: false, backgroundColor: '#00000000', hasShadow: false, skipTaskbar: true, show: false, title: 'Codex 小龙娘', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', additionalArguments: harness.extraArguments() } });
     if (usesWindowShape) applyWindowShape(EMPTY_SHAPE);
     if (isMac) {
       if (app.dock) app.dock.hide();
@@ -364,9 +374,11 @@ else {
     const cursorPoll = setInterval(sendCursor, usesWindowShape ? 16 : 50);
     app.once('will-quit', () => clearInterval(cursorPoll));
     const icon = nativeImage.createFromPath(path.join(root, 'assets', 'DSniang1.png')).resize({ width: 24, height: 24 });
-    tray = new Tray(icon); tray.setToolTip('API 余额小鲸鱼 · 跟随 Codex');
+    tray = new Tray(icon); tray.setToolTip('Codex 小龙娘 · 跟随 Codex');
     updateTray();
-    tray.on('double-click', toggle); globalShortcut.register(isMac ? 'Command+Option+W' : 'Control+Alt+W', toggle);
+    tray.on('double-click', toggle);
+    toggleShortcutRegistered = globalShortcut.register(isMac ? 'Command+Option+W' : 'Control+Alt+W', toggle);
+    if (!toggleShortcutRegistered) diagnose('toggle-shortcut-unavailable');
     if (usesWindowShape && !harness.enabled) diagnosticShortcutRegistered = globalShortcut.register('Control+Alt+Shift+F10', reportVisibility);
     bridge = await startBridge(dispatcher, { dataDir, onHost: setHost, onMode: setMode, onResetPosition: resetPosition });
     markStartup('bridgeReady');
@@ -427,6 +439,14 @@ function resetPosition() {
   else if(!pendingCommands.includes('reset-position'))pendingCommands.push('reset-position');
   return true;
 }
+async function openDiagnosticsFolder() {
+  try {
+    const folder = path.join(dataDir, 'logs');
+    fs.mkdirSync(folder, { recursive: true });
+    const failure = await shell.openPath(folder);
+    return !failure;
+  } catch { return false; }
+}
 function recoverRenderer(reason) {
   diagnose(reason);
   if (quitting || recoveryTimer || recoveryAttempts >= 3 || !window || window.isDestroyed()) return;
@@ -450,7 +470,7 @@ function setMode(mode) {
 }
 function updateTray() {
   if (!tray) return;
-  tray.setToolTip('API 余额小鲸鱼 · ' + (desktopMode === 'standalone' ? '独立桌面' : '跟随 Codex'));
+  tray.setToolTip('Codex 小龙娘 · ' + (desktopMode === 'standalone' ? '独立桌面' : '跟随 Codex'));
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示 / 隐藏小鲸鱼', click: toggle }, { label: '恢复显示小鲸鱼', click: show },
     { label: desktopMode === 'standalone' ? '跟随 Codex' : '固定在桌面', click: () => setMode(desktopMode === 'standalone' ? 'follow-codex' : 'standalone') },

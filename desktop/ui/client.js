@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -17,10 +19,7 @@
   }
   window.whaleToast = toast;
   async function api(url, method = 'GET', body) {
-    const response = await fetch(url, { method, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
-    const result = await response.json();
-    if (result.ok === false) throw new Error(result.error || '操作未完成');
-    return result;
+    return requestJson(url, { method, body });
   }
   const form = $('settings-form');
   const element = name => form.elements.namedItem(name);

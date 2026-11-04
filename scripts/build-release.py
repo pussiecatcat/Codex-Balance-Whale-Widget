@@ -133,8 +133,11 @@ for file in sorted(ROOT.rglob('*')):
     files[name] = data
 
 manifest = json.loads(files['.codex-plugin/plugin.json'].decode('utf-8-sig'))
-assert manifest['name'] == 'api-balance-whale' and manifest['version'].split('+')[0] == '0.3.0'
-assert manifest['author']['name'] == 'Yang-huai406'
+package = json.loads(files['package.json'].decode('utf-8-sig'))
+assert manifest['name'] == 'api-balance-whale' and package['name'] == manifest['name']
+assert package['version'] == manifest['version'].split('+')[0], 'package.json must match the manifest base version'
+assert manifest['author']['name'] == 'pussiecatcat'
+assert manifest['homepage'] == 'https://github.com/pussiecatcat/Codex-Balance-Whale-Widget'
 for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']

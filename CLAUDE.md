@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + Node.js），显示 Codex 订阅额度、API 余额、本机观测用量与本地记账。主要面向 Windows；macOS 兼容代码和安装脚本已保留，但尚未实机验收。
+Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），显示 Codex 订阅额度、API 余额、本机观测用量与本地记账。主要面向 Windows；macOS 兼容代码和安装脚本已保留，但尚未实机验收。
 
 ## 运行与测试
 
@@ -60,7 +60,7 @@ Codex 桌面额度小鲸鱼：跟随 Codex 窗口的桌面挂件（Electron + No
 ## 注意
 
 - **口径必须分开**：ChatGPT 订阅额度、API 余额、本机观测 token 是三个不同来源，代码刻意分开显示。不要把观测值当官方账单，也不要为了显示好看删掉小额精度。
-- **`assets/whale-widget.js` 现在是装配入口，不再是单体**：约 6,445 行 / 264 KB，只占第一方源码的三成；气泡、用量、角色、音效等实现已迁到 `desktop/ui/features/**`（36 个模块）与 `desktop/ui/services/**`（2 个共享模块）。文件顶部保留分段索引，先 `grep -n "==== \[" assets/whale-widget.js` 取区段行号再定点读。**改某个功能前先确认它是否已经迁出**——留在这里的多半只剩 DOM 装配和兼容适配。
+- **`assets/whale-widget.js` 现在是装配入口，不再是单体**：只占第一方源码的三成；气泡、用量、角色、音效等实现已迁到 `desktop/ui/features/**` 与 `desktop/ui/services/**`。当前行数由 `npm run check:architecture` 的预算管住，不要在这里写快照数字。文件顶部保留分段索引，先 `grep -n "==== \[" assets/whale-widget.js` 取区段行号再定点读。**改某个功能前先确认它是否已经迁出**——留在这里的多半只剩 DOM 装配和兼容适配。
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
 - **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
 - **版本号只有一处真源**：`.codex-plugin/plugin.json` 的 `version`（`基础版本+构建后缀`，安装器比对的就是它）。`runtime/paths.mjs` 从它推导出 `VERSION`，不再自带字面量；`package.json` 仍留一份给 npm，由 `tests/release-version.test.mjs` 断言与真源一致。发版只改 plugin.json 一处，改了 package.json 忘了同步会被测试拦下。

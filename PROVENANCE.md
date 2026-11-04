@@ -5,6 +5,7 @@
 ## 本次范围和协作关系
 
 - 当前交付：Codex v0.3(fixed)，包内基线版本仍为 0.3.0（Windows 已做本机回归，macOS 保留兼容代码但待实机验证）；没有独立网页，不修改或注入 Codex 安装文件。
+- 当前维护者：[@pussiecatcat](https://github.com/pussiecatcat)，仓库：[pussiecatcat/Codex-Balance-Whale-Widget](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget)。
 - 原始上游仓库及作者：[@MeteorNOX](https://github.com/MeteorNOX) 的 [DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)。
 - Codex 适配历史维护者：[@Yang-huai406](https://github.com/Yang-huai406)。本仓库作为独立适配仓库发布，不改变上游仓库所有权，也不把上游素材或贡献改称为本仓库原创。
 - 上传前的 0.2.4/macOS 成果保留于 [原始提交](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/tree/8de181abf5593247f32d57995567dd9f4063e049) 和 [归档目录](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/tree/For-Codex/archive/for-codex-0.2.4)；v0.3 已整合 PR #128 兼容路径，原归档继续保留。

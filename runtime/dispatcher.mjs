@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, VERSION, readJson } from './paths.mjs';
 import { createComposition } from './composition.mjs';
+import { createRuntimeLog } from './log.mjs';
 import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, withSecurityHeaders } from './http-shim.mjs';
 import { createCoreRoutes } from './routes/core.mjs';
 import { stripRetiredModules } from './migration.mjs';
@@ -51,6 +52,7 @@ export function createDispatcher(options = {}) {
   const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}) } = options;
   const app = createComposition(options);
   const faults = createFaultLog();
+  const runtimeLog = createRuntimeLog({ dataDir: app.dataDir });
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
   const routes = createCoreRoutes({ ...app, buildVersion, statusInfo, onStop, onShow, faultLog: faults });
   let closing = false, closeJob = null;
@@ -70,9 +72,7 @@ export function createDispatcher(options = {}) {
       if (endpoint) {
         const handler = endpoint.handlers[method];
         if (handler) return await handler({ body: bytes, url });
-        // Earlier these guards matched the listed methods only, so any other
-        // method carried on into static resolution and finished as a 404.
-        if (!endpoint.fallthrough) return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
+        return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
       }
 
       let file = resolveUiFile(url.pathname);
@@ -96,9 +96,13 @@ export function createDispatcher(options = {}) {
       if (!declaration) return jsonResult(404, { ok: false, error: '未找到此功能' });
       if (!declaration.methods.includes(method)) return jsonResult(405, { ok: false });
       if (declaration.bodyLimit && bytes.length > declaration.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
-      const requestBody = declaration.stripRetired && ['POST', 'PUT'].includes(method)
-        ? Buffer.from(JSON.stringify(stripRetiredModules(JSON.parse(bytes.toString('utf8') || '{}'))))
-        : bytes;
+      let requestBody = bytes;
+      if (declaration.stripRetired && ['POST', 'PUT'].includes(method)) {
+        let parsed;
+        try { parsed = JSON.parse(bytes.toString('utf8') || '{}'); }
+        catch { return jsonResult(400, { ok: false, error: '请求内容不是有效的 JSON' }); }
+        requestBody = Buffer.from(JSON.stringify(stripRetiredModules(parsed)));
+      }
       // The handler answers with a value, and lib/route-response.mjs is the one
       // place that turns a value into a status, headers and body.
       return toResponse(await declaration.handler({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBody }), method);
@@ -108,6 +112,7 @@ export function createDispatcher(options = {}) {
       // request with a message telling the user to check settings that are fine.
       if (error instanceof DomainError) return jsonResult(error.status, { ok: false, code: error.code, error: error.message });
       const ref = faults.record(error, context);
+      runtimeLog.error(`${ref} ${context}\n${error?.stack || error}`);
       process.stderr.write(`[whale] ${ref} ${context}\n${error?.stack || error}\n`);
       return jsonResult(500, { ok: false, code: 'INTERNAL', error: '挂件内部错误，请查看运行日志', ref });
     }

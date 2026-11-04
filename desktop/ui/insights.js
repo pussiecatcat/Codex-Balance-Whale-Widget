@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   function text(parent, tag, value) { const el = document.createElement(tag); el.textContent = value; parent.append(el); return el; }
@@ -22,7 +24,7 @@
     async function load() {
       const own = ++generation; refresh.disabled = true; content.replaceChildren(); text(content, 'p', '正在读取…');
       try {
-        const response = await fetch('/api/insights', { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取额度'); const data = await response.json();
+        const data = await requestJson('/api/insights');
         if (own !== generation || !dialog.isConnected) return; content.replaceChildren();
         const p=data.pricing||{};
         if(p.visible){text(content,'p',p.phase==='peak'?'当前为高峰期':p.phase==='off-peak'?'当前为谷期':'规则待更新');text(content,'p','下次切换：'+time(p.nextChangeAt));text(content,'p',p.note||'');}
@@ -32,15 +34,16 @@
     }
     refresh.onclick = load; close.onclick = () => dialog.close(); dialog.onclose = () => { generation++; dialog.remove(); }; document.body.append(dialog); dialog.showModal(); load();
   }
-  const menu = document.querySelector('.dshwv-menu');
-  if (menu) {
+  function initMenu() {
+    const menu = document.querySelector('.dshwv-menu');
+    if (!menu) return;
     const container = menu.querySelector('.dshwv-menu-root') || menu.firstElementChild || menu;
     const row = document.createElement('div'); row.className = 'dshwv-menu-row';
     const insights = text(row, 'button', '峰谷时段'); insights.className = 'dshwv-sound';
     insights.onclick = open; container.append(row);
     const accountModeChanged=async()=>{
       const member=window.WhaleAccountView?.mode==='subscription';insights.hidden=true;row.hidden=true;
-      if(!member){try{const p=await fetch('/api/pricing').then(r=>r.json());if(window.WhaleAccountView?.mode!=='subscription'){insights.hidden=!p.visible;row.hidden=!p.visible;}}catch{}}
+      if(!member){try{const p=await requestJson('/api/pricing');if(window.WhaleAccountView?.mode!=='subscription'){insights.hidden=!p.visible;row.hidden=!p.visible;}}catch{}}
     };
     accountModeChanged(); window.addEventListener('whale-account-view',accountModeChanged);setInterval(accountModeChanged,60000);
     if (window.whaleDesktop?.command) {
@@ -55,4 +58,6 @@
     }
   }
   window.addEventListener('whale-open-insights', open);
+  if (document.readyState === 'complete') initMenu();
+  else document.addEventListener('DOMContentLoaded', initMenu, { once: true });
 })();

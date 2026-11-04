@@ -1,0 +1,11 @@
+{
+  "source": "https://api-docs.deepseek.com/quick_start/pricing",
+  "rulesCheckedAt": "2026-09-28",
+  "effectiveFrom": "2026-09-19T00:00:00+08:00",
+  "timeZone": "Asia/Shanghai",
+  "weekendOffPeak": true,
+  "peakHours": [[9, 12], [14, 18]],
+  "years": {
+    "2026": [[1, 1, 3], [2, 15, 23], [4, 4, 6], [5, 1, 5], [6, 19, 21], [9, 25, 27], [10, 1, 7]]
+  }
+}

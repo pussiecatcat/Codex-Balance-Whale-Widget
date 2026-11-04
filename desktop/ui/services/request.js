@@ -14,6 +14,30 @@ function messageOf(payload, fallback) {
     : fallback;
 }
 
+export async function requestBytes(url, options = {}) {
+  const { signal, timeoutMs = 15000, fetchImpl = globalThis.fetch } = options;
+  if (typeof fetchImpl !== 'function') throw new RequestError('请求接口不可用', { kind: 'network' });
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const timer = Number.isFinite(timeoutMs) && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : 0;
+  try {
+    let response;
+    try {
+      response = await fetchImpl(url, { cache: 'no-store', signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) throw new RequestError('资源读取已取消或超时', { kind: 'timeout', cause: error });
+      throw new RequestError('资源读取失败', { kind: 'network', cause: error });
+    }
+    if (!response.ok) throw new RequestError('资源读取失败', { kind: 'http', status: Number(response.status) || 0 });
+    return await response.arrayBuffer();
+  } finally {
+    if (timer) clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
 export async function requestJson(url, options = {}) {
   const {
     method = 'GET', body, signal, timeoutMs = 10000,

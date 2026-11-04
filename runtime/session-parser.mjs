@@ -47,6 +47,9 @@ export class SessionParser {
     if (d.type === 'session_meta') { this.identify(p); return; }
     if (d.type === 'response_item') {
       if (p.type === 'function_call') {
+        // Current Codex exposes request_user_input(_async) but not
+        // request_permissions, so the approval branch only covers builds that
+        // still emit it; the settings wording says "仅权限请求" for that reason.
         const kind = ['request_user_input', 'request_user_input_async'].includes(p.name) ? 'question' : p.name === 'request_permissions' ? 'approval' : '';
         const callId = p.call_id || p.id;
         if (kind && callId && !this.identity?.isSubagent) {

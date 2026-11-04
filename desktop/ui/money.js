@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (function (host) {
   'use strict';
   const DECIMALS = new Intl.NumberFormat('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -188,14 +190,12 @@
         if (force) query.push('refresh=1');
         const cause = force && reason === 'request' ? 'manual' : reason;
         if (cause !== 'request') query.push('reason=' + encodeURIComponent(cause));
-        const response = await fetch('/api/fx/usd-cny' + (query.length ? '?' + query.join('&') : ''), { cache: 'no-store' });
-        const value = await response.json();
-        if (!response.ok || !value.ok) {
-          const error = new Error(value.error || '汇率暂不可用，已保留原显示币种');
+        const response = await requestJson('/api/fx/usd-cny' + (query.length ? '?' + query.join('&') : '')).catch(error => {
+          const value = error.payload || {};
           for (const key of ['checkedAt', 'cooldownRemainingMs', 'retryAfterMs']) if (value[key] !== undefined) error[key] = value[key];
           throw error;
-        }
-        return value;
+        });
+        return response;
       },
     });
     host.WhaleMoney = money;

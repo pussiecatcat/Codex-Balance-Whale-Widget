@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   const labels = { 300: '5 小时', 10080: '每周' };
@@ -202,9 +204,7 @@
     current.promise = (async () => {
       const timeout = setTimeout(() => current.abort.abort(), 22000);
       try {
-        const response = await fetch('/api/quota' + (force ? '?refresh=1' : ''), { cache: 'no-store', signal: current.abort.signal });
-        if (!response.ok) throw Error('unavailable');
-        const data = await response.json();
+        const data = await requestJson('/api/quota' + (force ? '?refresh=1' : ''), { signal: current.abort.signal });
         if (ownRevision !== revision || stopped) return subscription;
         if (!data.subscription || data.ok === false) throw Error('unavailable');
         const before = JSON.stringify(subscription?.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
@@ -229,7 +229,7 @@
     // Pricing has its own cadence and cannot block quota rendering.
     if (!pricingAt || Date.now() - pricingAt >= 60000) {
       pricingAt = Date.now();
-      fetch('/api/pricing', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
+      requestJson('/api/pricing').then(data => {
         if (data && ownRevision === revision && !stopped) { pricing = data; paint(); }
       }).catch(() => {});
     }

@@ -13,14 +13,20 @@ export function createInsightsService(config, { readRateLimits, clock = Date.now
   const workers = new Set();
 
   function context() {
-    const c = config.resolve();
+    let c;
+    try { c = config.resolve(); }
+    catch { c = config.identityContext?.() || { accountId: 'unknown', setting: { monitorSessions: true, currency: 'USD', models: {} }, model: '' }; }
     let auth = {}, authChangedAt = 0;
     try {
       const file = path.join(config.codexHome, 'auth.json'), stat = fs.statSync(file);
       authChangedAt = stat.mtimeMs;
       if (stat.size < 1024 * 1024) auth = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
     } catch {}
-    const subscribed = !c.key && c.id === 'openai' && (auth.auth_mode === 'chatgpt' || !!auth.tokens?.access_token);
+    // Login state comes from auth.json alone. An API key in the environment
+    // (or a custom provider selection) must not hide a ChatGPT login; the
+    // app-server rate-limits read is the final authority and reports
+    // AUTH_REQUIRED when the token is gone.
+    const subscribed = auth.auth_mode === 'chatgpt' || !!auth.tokens?.access_token;
     const digest = value => crypto.createHash('sha256').update(value).digest('hex');
     // Keep credentials private; account/mode changes invalidate both data and in-flight reads.
     const credential = digest(String(auth.tokens?.access_token || ''));
@@ -69,7 +75,9 @@ export function createInsightsService(config, { readRateLimits, clock = Date.now
       subscription: { available: windows.length > 0, windows, observedAt: value?.observedAt || null,
         checkedAt, source, planType: value?.planType || null, stale, refreshing: !!pending,
         status: invalid ? 'unauthenticated' : failure ? (windows.length ? 'stale' : 'error') : windows.length ? 'ready' : 'unavailable',
-        reason: invalid ? '请在 Codex 中登录订阅账号' : failure ? '查询暂不可用，正在重试' : windows.length ? '' : 'Codex 当前未提供五小时或每周额度',
+        reason: invalid ? '请在 Codex 中登录订阅账号' :
+          failure === 'CODEX_NOT_FOUND' ? '未找到 Codex 可执行文件；请确认 Codex 已安装，或设置 CODEX_CLI_PATH' :
+          failure ? '查询暂不可用，正在重试' : windows.length ? '' : 'Codex 当前未提供五小时或每周额度',
         error: failure } };
   }
   async function getQuota({ force = false } = {}) {
@@ -97,7 +105,8 @@ export function createInsightsService(config, { readRateLimits, clock = Date.now
       } catch (error) {
         context();
         if (closed || ctx.epoch !== epoch || pending !== current) return;
-        checkedAt = clock(); failure = error.code === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'UNAVAILABLE';
+        checkedAt = clock();
+        failure = ['AUTH_REQUIRED', 'CODEX_NOT_FOUND'].includes(error.code) ? error.code : 'UNAVAILABLE';
         if (failure === 'AUTH_REQUIRED') lastGood = null;
         // Recovery data is optional and never holds up the official quota response.
         else if (!lastGood) void scan(ctx);

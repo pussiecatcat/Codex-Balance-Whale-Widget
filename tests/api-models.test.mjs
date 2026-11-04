@@ -108,3 +108,38 @@ test('eight-decimal correction uses fixed point even when float additions would 
   const result=ledger.reconcile(scope,{revision:0,opening:'0.10000000',credits:'0.20000000',otherDebits:'0',last:'0.29999999'},now);
   assert.equal(result.amount,0.00000001);
 });
+
+test('balance transport failures are classified instead of becoming internal errors', async t => {
+  const dir=fixture(t);
+  const make=fetchImpl=>new ApiModelRegistry({dataDir:dir,env:{DEEPSEEK_API_KEY:'fixture-key'},fetchImpl});
+  const network=make(async()=>{throw Error('network down');});
+  network.save({id:'net',template:'deepseek'});
+  await assert.rejects(network.read('net'),error=>error.code==='NETWORK'&&error.status===502);
+  const timeout=make(async()=>{const error=Error('aborted');error.name='AbortError';throw error;});
+  timeout.save({id:'timeout',template:'deepseek'});
+  await assert.rejects(timeout.read('timeout'),error=>error.code==='TIMEOUT'&&error.status===504);
+  const garbage=make(async()=>({ok:true,headers:{get(){return 'application/json';}},text:async()=>'not-json'}));
+  garbage.save({id:'garbage',template:'deepseek'});
+  await assert.rejects(garbage.read('garbage'),error=>error.code==='NOT_JSON'&&error.status===502);
+});
+
+test('legacy cached prices migrate to cachedInput with a backup and rollback', t => {
+  const dir=fixture(t),file=path.join(dir,'api-models.json');
+  fs.writeFileSync(file,JSON.stringify({version:1,models:[{id:'legacy',template:'deepseek',name:'Legacy',currency:'CNY',keyEnv:'K',prices:{input:1,cached:.5,output:2}}]}));
+  const registry=new ApiModelRegistry({dataDir:dir,env:{}});
+  assert.equal(registry.migrate(),1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file,'utf8')).models[0].prices,{input:1,cachedInput:.5,output:2});
+  assert.deepEqual(JSON.parse(fs.readFileSync(file+'.bak','utf8')).models[0].prices,{input:1,cached:.5,output:2});
+  const model=registry.model('legacy');
+  assert.equal(registry.estimate(model,{byModel:{m:{input_tokens:1000000,output_tokens:0,cached_input_tokens:0}}}),1);
+  assert.equal(registry.rollback(),true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file,'utf8')).models[0].prices,{input:1,cached:.5,output:2});
+});
+
+test('saving prices stores the canonical cachedInput field', t => {
+  const registry=new ApiModelRegistry({dataDir:fixture(t),env:{}});
+  registry.save({id:'priced',template:'deepseek',inputPrice:1,cachedPrice:.5,outputPrice:2});
+  assert.deepEqual(registry.model('priced').prices,{input:1,cachedInput:.5,output:2});
+  assert.deepEqual(registry.publicModel(registry.model('priced')).prices,{input:1,cachedInput:.5,output:2});
+  assert.equal(registry.estimate(registry.model('priced'),{byModel:{m:{input_tokens:1000000,output_tokens:0,cached_input_tokens:0}}}),1);
+});

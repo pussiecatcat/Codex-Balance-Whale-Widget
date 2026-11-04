@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { ConfigStore } from '../runtime/config.mjs';
+import { ConfigStore, cleanUrl } from '../runtime/config.mjs';
 import { BalanceProvider, readBoundedJsonText } from '../runtime/providers.mjs';
 import { createWidgetHost } from '../lib/widget-host.mjs';
 import { toResponse } from '../lib/route-response.mjs';
@@ -79,6 +79,23 @@ test('same-origin project settings and trusted user profiles remain usable', t =
   fs.writeFileSync(path.join(project, '.codex', 'config.toml'), 'model="changed-model"\n');
   const c = new ConfigStore({ codexHome: root, dataDir: path.join(root, 'data'), env: { B_KEY: 'TEST_VALUE' } });
   c.save({ projectDir: project, profile: 'work' }); assert.equal(c.resolve().baseUrl, 'https://b.example.test/v1'); assert.equal(c.resolve().model, 'changed-model');
+});
+
+test('local-address detection only trusts IP literals, never hostname prefixes', () => {
+  for (const url of ['http://10.evil.example/v1', 'http://192.168.evil.example', 'http://127.0.0.1.nip.io',
+    'http://172.16.attacker.example', 'http://169.254.evil.example']) {
+    assert.throws(() => cleanUrl(url), /HTTPS/, url);
+  }
+  for (const url of ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://10.0.0.5', 'http://192.168.1.10',
+    'http://172.16.0.1', 'http://172.31.255.254', 'http://[::1]:8080', 'http://[fd00::1]:8080']) {
+    assert.equal(cleanUrl(url), url, url);
+  }
+  assert.throws(() => cleanUrl('http://172.32.0.1'), /HTTPS/);
+  for (const url of ['http://169.254.169.254', 'http://0.0.0.0', 'http://100.100.100.200',
+    'http://metadata.google.internal', 'http://[fe80::1]']) {
+    assert.throws(() => cleanUrl(url), /云元数据|链路本地/, url);
+  }
+  assert.equal(cleanUrl('https://10.0.0.5'), 'https://10.0.0.5');
 });
 
 test('provider byte limit cancels an oversized chunked body before reading its tail', async () => {
@@ -241,4 +258,17 @@ test('atomic index write keeps a complete .bak and cleans failed rename temporar
   const failingFs = Object.create(fs); failingFs.renameSync = () => { throw fail(); };
   assert.throws(() => atomicResourceWrite(file, '{"third":true}', { fs: failingFs }), /保存失败/);
   assert.equal(fs.readFileSync(file, 'utf8'), '{"new":true}'); assert.equal(fs.readdirSync(root).some(name => name.endsWith('.tmp')), false);
+});
+
+test('a broken provider config still reports identity and a specific API error', t => {
+  const root = fixture(t);
+  const c = new ConfigStore({ codexHome: root, dataDir: path.join(root, 'data'), env: {} });
+  c.save({ profile: 'missing' });
+  assert.throws(() => c.resolve(), /profile/);
+  const info = c.publicInfo();
+  assert.equal(info.apiError.code, 'BAD_REQUEST');
+  assert.match(info.apiError.message, /profile/);
+  const identity = c.identityContext();
+  assert.match(identity.accountId, /^[a-f0-9]{24}$/);
+  assert.equal(identity.degraded, true);
 });

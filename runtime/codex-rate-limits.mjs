@@ -2,8 +2,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { VERSION } from './paths.mjs';
 
 const WINDOW_LABELS = new Map([[300, '5 小时'], [10080, '周']]);
+
+export function windowLabel(minutes) {
+  const known = WINDOW_LABELS.get(minutes);
+  if (known) return known;
+  if (!Number.isFinite(minutes) || minutes <= 0) return '';
+  if (minutes % 10080 === 0) return (minutes / 10080) + ' 周';
+  if (minutes % 1440 === 0) return (minutes / 1440) + ' 天';
+  if (minutes % 60 === 0) return (minutes / 60) + ' 小时';
+  return minutes + ' 分钟';
+}
 
 export function quotaFromAppServer(response, observedAt = Date.now()) {
   const limits = response?.rateLimitsByLimitId?.codex || response?.rateLimits;
@@ -11,81 +22,66 @@ export function quotaFromAppServer(response, observedAt = Date.now()) {
   for (const slot of ['primary', 'secondary']) {
     const item = limits?.[slot];
     const minutes = item?.windowDurationMins;
-    if (!WINDOW_LABELS.has(minutes) || typeof item.usedPercent !== 'number' ||
+    const label = windowLabel(minutes);
+    if (!label || typeof item.usedPercent !== 'number' ||
         !Number.isFinite(item.usedPercent) || item.usedPercent < 0 || item.usedPercent > 100) continue;
     const reset = typeof item.resetsAt === 'number' && Number.isFinite(item.resetsAt)
       ? (item.resetsAt < 1e12 ? item.resetsAt * 1000 : item.resetsAt) : null;
-    windows.push({ label: WINDOW_LABELS.get(minutes), windowDurationMins: minutes,
+    windows.push({ label, windowDurationMins: minutes,
       usedPercent: item.usedPercent, remainingPercent: 100 - item.usedPercent,
       resetsAt: reset, observedAt, stale: reset === null || reset <= observedAt });
   }
   return windows;
 }
 
+let cachedExecutable;
+
 export function findCodexExecutable(env = process.env) {
-  if (env.CODEX_CLI_PATH && fs.existsSync(env.CODEX_CLI_PATH)) return env.CODEX_CLI_PATH;
-  if (process.platform !== 'win32') return 'codex';
-  const bin = path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'OpenAI', 'Codex', 'bin');
-  try {
-    const dirs = fs.readdirSync(bin, { withFileTypes: true }).filter(entry => entry.isDirectory());
-    dirs.sort((a, b) => fs.statSync(path.join(bin, b.name)).mtimeMs - fs.statSync(path.join(bin, a.name)).mtimeMs);
-    for (const entry of dirs) {
-      const candidate = path.join(bin, entry.name, 'codex.exe');
-      if (fs.existsSync(candidate)) return candidate;
-    }
-  } catch {}
-  return 'codex';
+  if (env === process.env && cachedExecutable !== undefined) return cachedExecutable;
+  const found = locateCodex(env);
+  if (env === process.env) cachedExecutable = found;
+  return found;
 }
 
-export function readCodexRateLimits({ codexHome, executable = findCodexExecutable(), timeoutMs = 6000, spawnImpl = spawn, signal } = {}) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new Error('Codex 额度查询已取消'));
-    const child = spawnImpl(executable, ['app-server', '--stdio'], {
-      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
-      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
-    });
-    let settled = false, buffer = '';
-    const finish = (error, value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      signal?.removeEventListener('abort', onAbort);
-      child.stdin.destroy();
-      child.kill();
-      if (error) reject(error); else resolve(value);
-    };
-    const send = message => { if (!settled && child.stdin.writable) child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n'); };
-    const onAbort = () => finish(new Error('Codex 额度查询已取消'));
-    const timeout = setTimeout(() => finish(new Error('Codex 额度查询超时')), timeoutMs);
-    timeout.unref?.();
-    signal?.addEventListener('abort', onAbort, { once: true });
-    child.once('error', error => finish(error));
-    child.stdin.on('error', error => finish(error));
-    child.once('close', () => finish(new Error('Codex 额度查询已结束')));
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
-      buffer += chunk;
-      if (buffer.length > 2 * 1024 * 1024) return finish(new Error('Codex 额度响应过大'));
-      let end;
-      while ((end = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
-        let message;
-        try { message = JSON.parse(line); } catch { continue; }
-        if (message.id === 1) {
-          if (message.error) return finish(new Error('Codex 初始化失败'));
-          send({ method: 'initialized', params: {} });
-          send({ id: 2, method: 'account/rateLimits/read', params: {} });
-        } else if (message.id === 2) {
-          if (message.error || !message.result) return finish(new Error('Codex 额度不可用'));
-          return finish(null, { windows: quotaFromAppServer(message.result), observedAt: Date.now(),
-            planType: message.result.rateLimitsByLimitId?.codex?.planType || message.result.rateLimits?.planType || null });
-        }
-      }
-    });
-    send({ id: 1, method: 'initialize', params: { clientInfo: {
-      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: '0.3.0',
-    } } });
-  });
+function locateCodex(env) {
+  const candidates = [];
+  const add = value => { if (value && !candidates.includes(value)) candidates.push(value); };
+  add(env.CODEX_CLI_PATH);
+  const local = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const roaming = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  if (process.platform === 'win32') {
+    const bin = path.join(local, 'OpenAI', 'Codex', 'bin');
+    try {
+      const dirs = fs.readdirSync(bin, { withFileTypes: true }).filter(entry => entry.isDirectory());
+      dirs.sort((a, b) => fs.statSync(path.join(bin, b.name)).mtimeMs - fs.statSync(path.join(bin, a.name)).mtimeMs);
+      for (const entry of dirs) add(path.join(bin, entry.name, 'codex.exe'));
+    } catch {}
+    add(path.join(local, 'Programs', 'codex', 'codex.exe'));
+    add(path.join(local, 'Programs', 'Codex', 'codex.exe'));
+    add(path.join(env.ProgramFiles || 'C:\\Program Files', 'Codex', 'codex.exe'));
+    add(path.join(roaming, 'npm', 'codex.cmd'));
+  }
+  for (const candidate of candidates) {
+    try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+  }
+  if (process.platform !== 'win32') return 'codex';
+  for (const dir of String(env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const name of ['codex.exe', 'codex.cmd', 'codex.bat']) {
+      const candidate = path.join(dir, name);
+      try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+    }
+  }
+  return null;
+}
+
+// A .cmd/.bat shim has to run through the command processor; spawning it
+// directly fails with ENOENT even though the file exists.
+export function codexSpawnArgs(executable, args) {
+  if (process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)) {
+    return { executable: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', executable, ...args] };
+  }
+  return { executable, args };
 }
 
 // One bounded, private stdio connection per widget. No credentials or raw RPC
@@ -93,7 +89,7 @@ export function readCodexRateLimits({ codexHome, executable = findCodexExecutabl
 export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs = 5000,
   idleMs = 90000, spawnImpl = spawn, clock = Date.now } = {}) {
   let connection = null, nextId = 1, idleTimer = null, closed = false;
-  const error = code => Object.assign(new Error('Codex 额度查询暂不可用'), { code });
+  const error = (code, message = 'Codex 额度查询暂不可用') => Object.assign(new Error(message), { code });
   function destroy(own, reason = error('UNAVAILABLE')) {
     if (!own || own.dead) return;
     own.dead = true;
@@ -120,9 +116,11 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       catch { destroy(own); }
     });
   }
+  function resolvedExecutable() { return executable === '' ? null : (executable || findCodexExecutable()); }
   function connect(signal) {
     if (connection) return connection;
-    const child = spawnImpl(executable || findCodexExecutable(), ['app-server', '--stdio'], {
+    const launch = codexSpawnArgs(resolvedExecutable(), ['app-server', '--stdio']);
+    const child = spawnImpl(launch.executable, launch.args, {
       windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
       env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
     });
@@ -138,6 +136,9 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       while ((end = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         let message; try { message = JSON.parse(line); } catch { continue; }
+        // A server-initiated request or notification carries `method`; only
+        // replies are matched by id, so a colliding id cannot resolve a job.
+        if (message.method !== undefined) continue;
         const job = own.jobs.get(message.id);
         if (!job) continue;
         if (message.error) {
@@ -151,7 +152,7 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
     child.once('close', () => destroy(own));
     child.stdin.on('error', () => destroy(own));
     own.ready = rpc(own, 'initialize', { clientInfo: {
-      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: '0.3.0',
+      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: VERSION,
     } }, signal).then(() => {
       if (own.dead) throw error('UNAVAILABLE');
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }) + '\n');
@@ -160,6 +161,7 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
   }
   async function read({ signal } = {}) {
     clearTimeout(idleTimer);
+    if (!resolvedExecutable()) throw error('CODEX_NOT_FOUND', '未找到 Codex 可执行文件，请确认 Codex 已安装或设置 CODEX_CLI_PATH');
     for (let attempt = 0; attempt < 2; attempt++) {
       if (closed || signal?.aborted) throw error('ABORTED');
       let own;
@@ -172,7 +174,7 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
           planType: result.rateLimitsByLimitId?.codex?.planType || result.rateLimits?.planType || null };
       } catch (failure) {
         destroy(own);
-        if (closed || signal?.aborted || ['AUTH_REQUIRED', 'ABORTED'].includes(failure.code) || attempt === 1) throw failure;
+        if (closed || signal?.aborted || ['AUTH_REQUIRED', 'ABORTED', 'CODEX_NOT_FOUND'].includes(failure.code) || attempt === 1) throw failure;
       } finally {
         clearTimeout(idleTimer);
         if (!closed && connection) {

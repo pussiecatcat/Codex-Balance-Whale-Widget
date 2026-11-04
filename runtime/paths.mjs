@@ -25,16 +25,33 @@ export const VERSION = baseVersion();
 export const CODEX_HOME = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
 export const DATA_HOME = path.resolve(process.env.WHALE_HOME || path.join(CODEX_HOME, 'whale-widget'));
 
-export function readJson(file, fallback) {
+export function readJson(file, fallback, { backup = false, onRecover = null } = {}) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
   catch (error) {
     if (error.code === 'ENOENT') return structuredClone(fallback);
+    if (backup) {
+      try {
+        const value = JSON.parse(fs.readFileSync(file + '.bak', 'utf8'));
+        onRecover?.();
+        return value;
+      } catch {}
+    }
     throw domainError('本地数据文件损坏或不可读：' + path.basename(file));
   }
 }
 
-export function writeJson(file, data, { fs: fileSystem = fs } = {}) {
-  writeFileAtomicSync(file, JSON.stringify(data, null, 2), { fs: fileSystem });
+export function writeJson(file, data, { fs: fileSystem = fs, flush = false, backup = false } = {}) {
+  if (backup) {
+    try {
+      // Stage and flush the backup before replacing the live file: a crash can
+      // then leave at worst an older duplicate, never a half-written backup.
+      const previous = fileSystem.readFileSync(file, 'utf8');
+      writeFileAtomicSync(file + '.bak', previous, { fs: fileSystem, flush: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  writeFileAtomicSync(file, JSON.stringify(data, null, 2), { fs: fileSystem, flush });
 }
 
 // Accounting days are anchored to UTC+8 rather than the host timezone. That

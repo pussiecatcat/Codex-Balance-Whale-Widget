@@ -47,9 +47,11 @@ function cleanEntry(entry) {
   if (!entry || !/^[a-f0-9]{24}$/.test(entry.accountId || '') || !/^[A-Z]{3}$/.test(entry.currency || '')) return null;
   const meta = safeTurn(entry.meta || {});
   if (!meta.id || !['active', 'settling', 'pending-cost'].includes(entry.stage)) return null;
+  const scope = text(entry.scope);
   return { stage: entry.stage, accountId: entry.accountId, currency: entry.currency,
     pricing: safePrices(entry.pricing), meta, start: safeSample(entry.start),
-    concurrent: entry.concurrent === true, dueAt: finite(entry.dueAt), scope: text(entry.scope) };
+    concurrent: entry.concurrent === true, dueAt: finite(entry.dueAt),
+    scope: /^[a-f0-9]{24}-[A-Z]{3}$/.test(scope) && scope.startsWith(entry.accountId + '-') ? scope : '' };
 }
 
 // Explicit fields only: config, provider URLs, environment and credentials never enter this file.

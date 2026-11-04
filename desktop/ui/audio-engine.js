@@ -1,3 +1,5 @@
+import { requestBytes } from '/services/request.js';
+
 (() => {
   'use strict';
   let ctx, idle;
@@ -10,7 +12,7 @@
     if (buffers.has(url)) return buffers.get(url);
     if (pending.has(url)) return pending.get(url);
     const c = context();
-    const job = fetch(url).then(r => { if (!r.ok) throw Error('音频读取失败'); return r.arrayBuffer(); }).then(b => c.decodeAudioData(b)).then(b => { buffers.set(url, b); return b; }).finally(() => pending.delete(url));
+    const job = requestBytes(url).then(b => c.decodeAudioData(b)).then(b => { buffers.set(url, b); return b; }).finally(() => pending.delete(url));
     pending.set(url, job); return job;
   }
   function stop(channel) {

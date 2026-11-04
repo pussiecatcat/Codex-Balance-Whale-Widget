@@ -1,7 +1,7 @@
-# Codex 额度小鲸鱼
+# Codex 小龙娘
 
 <p align="center">
-  <img src="assets/DSniang1.png" alt="Codex 额度小鲸鱼" width="260">
+  <img src="assets/DSniang1.png" alt="Codex 小龙娘" width="260">
 </p>
 
 把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261009-quota-reliable`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
@@ -65,10 +65,10 @@
 ### 紧凑设置与音效
 
 - 设置页沿用原版小尺寸平铺布局，包含角色、大小、气泡开关、滚动条避让、吸附、翻转、菜单按钮、资源管理和模式切换。
-- “提示与音效设置”完整复刻原版四个折叠入口：按压音效、每轮消耗提示、提问提示和授权提示，默认全部收起并在入口显示当前状态摘要。
+- “提示与音效设置”完整复刻原版四个折叠入口：按压音效、每轮消耗提示、提问提示和授权提示（授权提示仅在 Codex 发起权限请求时触发），默认全部收起并在入口显示当前状态摘要。
 - 按压区提供音效组、新建音效组、音量和试听；每轮区提供冒泡内容、自动关闭、任务结束音、独立音量和试听；提问/授权区分别提供总开关、冒泡内容、音效开关、选音、音量和试听。
 - 设置先在草稿中编辑；只有保存才生效，取消、Esc 或点击遮罩会放弃本次改动。“恢复默认”也只修改草稿，可以继续取消。
-- Codex 进入等待回答或等待授权时会触发对应提示；提示常驻到交互完成，也可点气泡收起。可选“点按角色关闭提示气泡”，同一条挂起提示被收起后不会反复弹回。
+- Codex 进入等待回答时会触发提问提示；部分构建发起权限请求时会触发授权提示，当前版本的自动审批不产生等待事件。提示常驻到交互完成，也可点气泡收起。可选“点按角色关闭提示气泡”，同一条挂起提示被收起后不会反复弹回。
 - 支持内置音效组、自定义音效组、试听和 WAV 片段裁剪；关闭某项音效时下拉与音量置灰，音效开关和试听仍可操作。
 - 音效、API 模型、账户显示和按压手感等选择框统一使用原版风格的白色浮层；列表会避开窗口边缘，动态选项和禁用状态会自动同步。
 
@@ -94,7 +94,8 @@
 - 导航、外部链接、媒体、导入包、API 地址、重定向和响应大小均有校验。
 - 设置、账本和资源使用临时文件加同目录重命名进行原子保存；Windows 占用错误会有限重试。
 - 账本使用固定精度金额，处理充值、乱序余额观测、版本冲突、历史裁剪和归档。
-- 会话扫描在独立 worker 中运行，设有单文件、文件数和总读取量上限；不发送聊天正文。
+- 历史会话统计在独立 worker 中运行，只读最近 8 天的 rollout：单文件超过 32 MB 跳过，最多 400 个文件、总读取 96 MB，目录遍历上限 12,000 项；不发送聊天正文。
+- 实时跟随只观测最近 64 个会话文件（外加正在恢复的会话），按 4 MB 分块读取；对启动前已存在的旧文件会从头顺序补读一遍生命周期，单行缓冲上限 8 MB。
 
 ## 安装
 
@@ -177,8 +178,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 ## 验证状态
 
-- 本次 273 项 Node 单元测试全部通过。
-- 本次 9 项 Electron 额度专项检查通过，包含断网保留、恢复更新、开泡强刷与正常退出。
+- Node 单元测试通过；当前数量、环境与已知失败见 [验证基线](docs/BASELINE.md)。
+- Electron 额度专项检查通过，包含断网保留、恢复更新、开泡强刷与正常退出。
 - 本次真实查询能够返回五小时和每周窗口，同时观察到瞬时失败；耗时小样本不构成稳定速度或成功率保证。
 - 紧凑菜单、DSH 音效页面、Windows 原生区域、透明穿透、焦点和完整桌面烟测属于历史验证，本次未重跑完整验收。
 - macOS 实机、跨额度重置点刷新和长期多设备稳定性仍待验证。
@@ -235,6 +236,7 @@ python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
 
 ## 来源、贡献与许可
 
+- 当前维护者：[pussiecatcat](https://github.com/pussiecatcat)，仓库：[pussiecatcat/Codex-Balance-Whale-Widget](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget)。
 - 上游项目：[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)，作者 [MeteorNOX](https://github.com/MeteorNOX)。
 - Codex 适配历史维护者：[Yang-huai406](https://github.com/Yang-huai406)。
 - macOS 兼容实现来源：[PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128)，贡献者 [1llysviel](https://github.com/1llysviel)。

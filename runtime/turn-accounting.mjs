@@ -25,20 +25,41 @@ export class TurnAccounting {
     if (this.closed || this.settling.has(meta.id)) return;
     if (this.turns.has(meta.id)) { this.updateTurn(meta); return; }
     let context;
-    try { context = this.config.resolve(); } catch { return; }
+    try { context = this.config.resolve(); }
+    catch { context = this.config.identityContext?.() || null; }
+    if (!context) return;
     if (!meta.isSubagent) this.notice.started(meta);
     const roots = [...this.turns.values()].filter(active => !active.isSubagent);
-    const entry = { ...safeTurn(meta), context, canQuery: true, concurrent: !meta.isSubagent && roots.length > 0 };
+    // One ledger scope per turn, decided once. Subagents inherit the root's
+    // scope; otherwise prefer the provider currency last observed for this
+    // account over the configured one (they differ for DeepSeek + USD settings).
+    const parent = meta.isSubagent ? this.findRoot(meta.rootTurnId) : null;
+    const currency = parent?.currency || this.balance.currencyFor(context);
+    const entry = { ...safeTurn(meta), context, currency, scope: parent?.scope || this.balance.scope(context, currency),
+      scopeUsed: false, canQuery: context.degraded !== true, concurrent: !meta.isSubagent && roots.length > 0 };
     if (!meta.isSubagent) for (const active of roots) active.concurrent = true;
     // Subagents contribute tokens, not overlapping API-balance intervals.
-    entry.start = meta.isSubagent ? null : this.balance.getBalance({ force: true, context });
+    entry.start = meta.isSubagent || context.degraded === true ? null : this.balance.getBalance({ force: true, context });
     this.turns.set(meta.id, entry);
     this.persistTurn(entry, 'active');
     if (entry.start) entry.start.then(sample => {
       if (this.closed) return;
       entry.startSample = safeSample(sample);
+      // Lock the scope to the provider currency as soon as the opening sample
+      // arrives, so subagents spawned later inherit the same bucket.
+      if (!entry.scopeUsed && sample?.ok && sample.currency && sample.currency !== entry.currency) {
+        entry.currency = sample.currency;
+        entry.scope = this.balance.scope(entry.context, sample.currency);
+      }
       if (this.turns.get(meta.id) === entry) this.persistTurn(entry, 'active');
     }).catch(() => {});
+  }
+  findRoot(rootTurnId) {
+    if (!rootTurnId) return null;
+    for (const turn of this.turns.values()) {
+      if (!turn.isSubagent && (turn.turnId === rootTurnId || turn.id === rootTurnId)) return turn;
+    }
+    return null;
   }
   updateTurn(meta) {
     const turn = this.turns.get(meta.id);
@@ -51,8 +72,8 @@ export class TurnAccounting {
   }
   persistTurn(turn, stage, meta = turn, extra = {}) {
     if (this.closed) return;
-    this.journal.put({ stage, accountId: turn.context.accountId, currency: turn.context.setting.currency,
-      pricing: turn.context.setting.models, meta: { ...meta, partial: !!turn.partial }, start: turn.startSample,
+    this.journal.put({ stage, accountId: turn.context.accountId, currency: turn.currency || turn.context.setting.currency,
+      scope: turn.scope, pricing: turn.context.setting.models, meta: { ...meta, partial: !!turn.partial }, start: turn.startSample,
       concurrent: !!turn.concurrent, ...extra });
   }
   prepareRecovery() {
@@ -62,10 +83,14 @@ export class TurnAccounting {
     try { current = this.config.resolve(); } catch {}
     const waiting = [];
     for (const saved of this.journal.list()) {
-      const matches = current?.accountId === saved.accountId && current.setting.currency === saved.currency;
+      const scope = saved.scope || saved.accountId + '-' + saved.currency;
+      const currency = scope.slice(saved.accountId.length + 1);
+      // The account decides whether the balance can still be queried; the
+      // currency comes from the scope the turn was actually written under.
+      const matches = current?.accountId === saved.accountId;
       const context = matches ? { ...current, setting: { ...current.setting, models: saved.pricing } } :
-        { accountId: saved.accountId, model: '', setting: { currency: saved.currency, models: saved.pricing } };
-      const turn = { ...saved.meta, context, canQuery: matches, startSample: saved.start,
+        { accountId: saved.accountId, model: '', setting: { currency, models: saved.pricing } };
+      const turn = { ...saved.meta, context, currency, scope, scopeUsed: true, canQuery: matches, startSample: saved.start,
         start: Promise.resolve(saved.start || { ok: false }), concurrent: saved.concurrent };
       if (saved.stage === 'pending-cost') {
         // A restart cannot turn a later shared-key debit into an exact old bill.
@@ -78,7 +103,34 @@ export class TurnAccounting {
       else this.recoveryActive.add(saved.meta.id);
     }
     for (const meta of waiting) this.finishTurn({ ...meta, historical: true, notify: false, statusNotify: false }).catch(() => {});
+    this.repairSplitScopes();
     return [...this.recoveryActive];
+  }
+  // Older versions wrote subagent rows under the configured currency while the
+  // root row used the provider currency. Move orphaned children to the root's
+  // scope and re-run the estimate revision once.
+  repairSplitScopes() {
+    let current;
+    try { current = this.config.resolve(); } catch { return 0; }
+    const scopes = this.ledger.scopes(current.accountId);
+    if (scopes.length < 2) return 0;
+    const roots = new Map(), children = [];
+    for (const scope of scopes) {
+      for (const event of this.ledger.load(scope).events) {
+        if (event.isSubagent && event.rootTurnId) children.push({ scope, event });
+        else if (!event.isSubagent && event.turnId) roots.set(event.turnId, scope);
+      }
+    }
+    const touched = new Map();
+    for (const { scope, event } of children) {
+      const target = roots.get(event.rootTurnId);
+      if (!target || target === scope) continue;
+      if (this.ledger.moveEvent(scope, target, event.id)) {
+        touched.set(target + '\0' + event.rootTurnId, { scope: target, rootTurnId: event.rootTurnId });
+      }
+    }
+    for (const item of touched.values()) this.reviseRootEstimate(item.scope, item.rootTurnId);
+    return touched.size;
   }
   status() {
     return { activeTurns: [...this.turns.values()].filter(turn => !turn.isSubagent).length,
@@ -116,8 +168,13 @@ export class TurnAccounting {
       partial: !!turn.partial, historical: !!meta.historical, accountId: context.accountId,
       failureKind: outcome === 'failed' && meta.failureKind === 'high-demand' ? 'high-demand' : null };
     if (turn.isSubagent || meta.isSubagent) {
-      const estimate = !turn.partial ? estimateUsage(ownUsage, context.setting, base.ts) : null;
-      const scope = this.balance.scope(context, context.setting.currency);
+      const currency = turn.currency || this.balance.currencyFor(context);
+      const scope = turn.scope || this.balance.scope(context, currency);
+      // Configured prices are expressed in the configured currency; never mix
+      // them into a scope the provider reports in another one.
+      const estimate = !turn.partial && currency === context.setting.currency ? estimateUsage(ownUsage, context.setting, base.ts) : null;
+      const parent = this.findRoot(base.rootTurnId);
+      if (parent) parent.scopeUsed = true;
       this.ledger.append(scope, { ...base, isSubagent: true, byModel: ownUsage,
         model: (Object.keys(ownUsage).join(' + ') || context.model || '未知模型') + ' · 子任务用量',
         cost: estimate, costState: estimate === null ? 'unknown' : 'estimated', tokens: tokenTotal(ownUsage),
@@ -131,15 +188,22 @@ export class TurnAccounting {
     turn.startSample = safeSample(start); this.persistTurn(turn, 'settling', meta);
     const end = turn.canQuery === false ? { ok: false } : await this.balance.getBalance({ force: true, context });
     if (this.closed) return;
+    const observed = end.currency || start.currency || context.setting.currency;
+    // Adopt the first real observation only when no subagent already wrote
+    // into the scope chosen at beginTurn.
+    if (!turn.scopeUsed && observed !== turn.currency) {
+      turn.currency = observed; turn.scope = this.balance.scope(context, observed);
+    }
+    const currency = turn.currency || observed;
+    const scope = turn.scope || this.balance.scope(context, currency);
     let amount = null, source = 'token-only', costState = 'unknown', note = '没有可用的起止余额或模型价格，金额未知。';
-    let currency = end.currency || start.currency || context.setting.currency;
-    const children = this.ledger.load(this.balance.scope(context, context.setting.currency)).events.filter(e => e.isSubagent && e.rootTurnId === base.rootTurnId);
+    const children = this.ledger.load(scope).events.filter(e => e.isSubagent && e.rootTurnId === base.rootTurnId);
     const combined = mergeUsage([ownUsage, ...children.map(e => e.byModel || {})]);
     const estimate = estimateUsage(combined, context.setting, meta.ts || this.clock());
-    if (estimate !== null && !turn.partial && !children.some(e => e.partial)) {
-      amount = estimate; currency = context.setting.currency; source = 'configured-pricing-estimate'; costState = 'estimated';
+    if (estimate !== null && !turn.partial && !children.some(e => e.partial) && currency === context.setting.currency) {
+      amount = estimate; source = 'configured-pricing-estimate'; costState = 'estimated';
       note = '根据 Codex 记录的 token 数量与手动配置价格估算，包含本主轮已记录的子任务用量；服务商折扣、缓存策略和账单延迟可能造成差异。';
-    } else if (!meta.historical && outcome !== 'interrupted' && start.ok && end.ok && !start.stale && !end.stale && start.accountId === end.accountId && start.currency === end.currency) {
+    } else if (!meta.historical && outcome !== 'interrupted' && start.ok && end.ok && !start.stale && !end.stale && start.accountId === end.accountId && start.currency === end.currency && end.currency === currency) {
       if (typeof start.totalUsed === 'number' && typeof end.totalUsed === 'number' && end.totalUsed >= start.totalUsed) amount = rounded(end.totalUsed - start.totalUsed);
       else if (start.totalUsed == null && end.totalUsed == null && typeof start.totalBalance === 'number' && typeof end.totalBalance === 'number' && end.totalBalance <= start.totalBalance) amount = rounded(start.totalBalance - end.totalBalance);
       if (amount !== null) {
@@ -160,7 +224,6 @@ export class TurnAccounting {
       completionKind, notify: !meta.historical && !!completionKind && (outcome === 'completed' ? meta.notify !== false : meta.statusNotify === true || outcome === 'aborted' && outcomeCancelled),
       concurrent: !!turn.concurrent, childTurns: children.length, ownByModel: ownUsage, byModel: combined,
       pricing: context.setting.models };
-    const scope = this.balance.scope(context, currency);
     const models = Object.keys(combined).join(' + ') || context.model || '未知模型';
     const model = source === 'shared-key-interval' ? models + ' · 期间扣费（同密钥合计）' : source === 'token-only' ? models + ' · 仅 token 记录' : models;
     if (!this.ledger.append(scope, { ...event, model })) {

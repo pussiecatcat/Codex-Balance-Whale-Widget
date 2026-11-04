@@ -28,6 +28,7 @@ export function createComposition({
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
   const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
+  try { apiModels.migrate(); } catch {}
   const soundSettings = new SoundSettingsService({ dataDir, whale });
 
   const displayModeFile = path.join(dataDir, 'display-mode.json');

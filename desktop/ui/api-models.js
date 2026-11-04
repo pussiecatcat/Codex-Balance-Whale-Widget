@@ -1,11 +1,10 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   let registry = { templates: [], models: [] }, loadedAt = 0, pending = null;
   const values = new Map(), bindings = new Map();
-  const request = async (url, method = 'GET', body) => {
-    const response = await fetch(url, { method, cache: 'no-store', headers: body === undefined ? {} : {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body) });
-    const data = await response.json(); if (!response.ok || data.ok === false) throw Error(data.error || '操作失败'); return data;
-  };
+  const request = (url, method = 'GET', body) => requestJson(url, { method, body });
   async function load(force = false) {
     if (pending) return pending;
     if (!force && Date.now() - loadedAt < 30000) return registry;
@@ -121,10 +120,10 @@
     }
 
     function priceSummary(model) {
-      const prices=model.prices||{},configured=['input','cached','output'].some(key=>Number.isFinite(prices[key]));
+      const prices=model.prices||{},configured=['input','cachedInput','output'].some(key=>Number.isFinite(prices[key]));
       if(model.template==='deepseek'&&!configured)return '内置峰谷价（内置模型不支持自定义单价）';
       if(!configured)return '未设置';
-      return '入 '+(Number.isFinite(prices.input)?prices.input:'—')+' / 缓 '+(Number.isFinite(prices.cached)?prices.cached:'—')+' / 出 '+(Number.isFinite(prices.output)?prices.output:'—')+'（每百万 token）';
+      return '入 '+(Number.isFinite(prices.input)?prices.input:'—')+' / 缓 '+(Number.isFinite(prices.cachedInput)?prices.cachedInput:'—')+' / 出 '+(Number.isFinite(prices.output)?prices.output:'—')+'（每百万 token）';
     }
 
     async function openModelDetail(model) {
@@ -257,7 +256,7 @@
       const section=title=>{const node=el(overlay,'details');el(node,'summary',title);return node;};
       const connection=section('接口与用量匹配');field(connection,'baseUrl','Base URL（需要时填写）','url',existing?.baseUrl||'');field(connection,'balanceUrl','自定义余额 URL','url',existing?.balanceUrl||'');field(connection,'balanceField','余额 JSON 路径','text',existing?.balanceField||'');field(connection,'usedField','累计用量 JSON 路径','text',existing?.usedField||'');field(connection,'scale','金额倍率','number',existing?.scale??selected()?.scale??1);field(connection,'matchIds','模型名匹配（逗号分隔）','text',(existing?.matchIds||selected()?.matchIds||[]).join(', '));
       el(connection,'p','自定义地址使用专用密钥环境变量；支持本机模型服务。','help');
-      const prices=section('价格估算（每百万 token）');for(const [key,label] of [['input','未缓存输入'],['cached','缓存输入'],['output','输出']])field(prices,key+'Price',label,'number',existing?.prices?.[key]??'');
+      const prices=section('价格估算（每百万 token）');for(const [key,label] of [['input','未缓存输入'],['cachedInput','缓存输入'],['output','输出']])field(prices,key+'Price',label,'number',existing?.prices?.[key]??'');
       el(prices,'p','余额、预算、额度和提醒气泡请返回模型设置卡编辑。','help');
       template.onchange=()=>{const t=selected();if(!t)return;fields.name.value=t.name;fields.keyEnv.value=t.keyEnv||'';fields.currency.value=t.currency||'USD';fields.scale.value=t.scale||1;fields.matchIds.value=(t.matchIds||[]).join(', ');for(const key of ['baseUrl','balanceUrl','balanceField','usedField'])fields[key].value='';};
       const error=el(overlay,'p','','notice');error.hidden=true;

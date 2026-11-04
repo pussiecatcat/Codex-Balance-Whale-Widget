@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   const limit = 24 * 1024 * 1024;
@@ -16,11 +18,17 @@
       try { const parsed = JSON.parse(await candidate.text()); if (parsed.schema !== 'api-balance-whale-workshop' || parsed.version !== 1) throw Error('不是支持的工坊包'); selected = parsed; preview.replaceChildren(); status.textContent = ['roles','images','fragments','groups'].map((k,i) => ['角色','图片','音频片段','音效组'][i] + ' ' + (Array.isArray(parsed[k]) ? parsed[k].length : 0)).join(' · '); for(const [kind,label] of [['roles','角色'],['images','气泡图'],['fragments','音频'],['groups','音效组']])for(const item of (Array.isArray(parsed[kind])?parsed[kind]:[]).slice(0,30))preview.append(element('p',label+'：'+String(item.name||'未命名').slice(0,100))); importButton.disabled = false; } catch { status.textContent = '包格式无法识别，请选择有效的工坊 JSON。'; preview.replaceChildren(); }
     };
     importButton.onclick = async () => { if (!selected) return; importButton.disabled = true;
-      try { const response = await fetch('/api/workshop/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selected) }); const result = await response.json(); if (!response.ok || result.ok === false) throw Error(result.error || '导入未完成'); status.textContent = '导入完成。重新加载后可在角色、音效与气泡素材列表中选择。'; selected = null; file.value = ''; reload.hidden = false; } catch (error) { status.textContent = error.message; importButton.disabled = false; }
+      try { await requestJson('/api/workshop/import', { method: 'POST', body: selected }); status.textContent = '导入完成。重新加载后可在角色、音效与气泡素材列表中选择。'; selected = null; file.value = ''; reload.hidden = false; } catch (error) { status.textContent = error.message; importButton.disabled = false; }
     };
-    const exportButton = element('button', '导出本地素材'); exportButton.onclick = async () => { exportButton.disabled = true; try { const response = await fetch('/api/workshop/export', { cache: 'no-store' }); const pack = await response.json(); if (!response.ok || pack.ok === false) throw Error(pack.error || '导出未完成'); const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); if (blob.size > limit) throw Error('导出包超过 24 MiB，请先减少素材。'); const url = URL.createObjectURL(blob), link = element('a'); link.href = url; link.download = 'whale-workshop.json'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); status.textContent = '已生成素材包。'; } catch (error) { status.textContent = error.message; } finally { exportButton.disabled = false; } };
+    const exportButton = element('button', '导出本地素材'); exportButton.onclick = async () => { exportButton.disabled = true; try { const pack = await requestJson('/api/workshop/export'); const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); if (blob.size > limit) throw Error('导出包超过 24 MiB，请先减少素材。'); const url = URL.createObjectURL(blob), link = element('a'); link.href = url; link.download = 'whale-workshop.json'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); status.textContent = '已生成素材包。'; } catch (error) { status.textContent = error.message; } finally { exportButton.disabled = false; } };
     const reload = element('button', '重新加载素材列表'); reload.hidden = true; reload.onclick = () => location.reload();
     const close = element('button', '关闭'); close.onclick = () => dialog.close(); const actions = element('div'); actions.className = 'dialog-actions'; actions.append(exportButton, importButton, reload, close); dialog.append(file, status, actions); dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
   }
-  const menu = document.querySelector('.dshwv-menuview'); if (menu) { const row = menu.querySelector('.whale-mode-row') || element('div'); row.classList.add('dshwv-menu-row','whale-utility-row'); const button = element('button', '素材包导入/导出'); button.className = 'dshwv-sound whale-workshop-button'; button.title = '备份、分享或导入角色、气泡图和音效素材'; button.onclick = open; row.append(button); if (!row.isConnected) menu.append(row); }
+  function initMenu() {
+    const menu = document.querySelector('.dshwv-menuview');
+    if (!menu) return;
+    const row = menu.querySelector('.whale-mode-row') || element('div'); row.classList.add('dshwv-menu-row','whale-utility-row'); const button = element('button', '素材包导入/导出'); button.className = 'dshwv-sound whale-workshop-button'; button.title = '备份、分享或导入角色、气泡图和音效素材'; button.onclick = open; row.append(button); if (!row.isConnected) menu.append(row);
+  }
+  if (document.readyState === 'complete') initMenu();
+  else document.addEventListener('DOMContentLoaded', initMenu, { once: true });
 })();

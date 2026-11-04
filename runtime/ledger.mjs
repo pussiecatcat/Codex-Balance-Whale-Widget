@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson, dayKey, DAY_MS, rounded } from './paths.mjs';
 
@@ -11,13 +12,29 @@ const units = value => {
 const money = value => Number(value) / MONEY_SCALE;
 
 export class UsageLedger {
-  constructor(dataDir) { this.dataDir = dataDir; }
+  constructor(dataDir) { this.dataDir = dataDir; this.warnings = new Map(); }
   file(scope) {
     if (!/^[a-f0-9]{24}-[A-Z]{3}$/.test(scope)) throw new Error('记账账户标识无效');
     return path.join(this.dataDir, 'ledgers', scope + '.json');
   }
-  load(scope) { return readJson(this.file(scope), initialLedger()); }
-  save(scope, ledger) { ledger.revision = Number(ledger.revision || 0) + 1; writeJson(this.file(scope), ledger); }
+  load(scope) {
+    let recovered = false;
+    const value = readJson(this.file(scope), initialLedger(), {
+      backup: true,
+      onRecover: () => { recovered = true; },
+    });
+    if (recovered) {
+      // Put the recovered snapshot back so later reads are clean again. Do not
+      // back it up: the corrupt file must not replace the good backup.
+      try { this.save(scope, value, { backup: false }); } catch {}
+      this.warnings.set(scope, '账本文件损坏，已从上一份备份恢复。');
+    }
+    return value;
+  }
+  save(scope, ledger, { backup = true } = {}) {
+    ledger.revision = Number(ledger.revision || 0) + 1;
+    writeJson(this.file(scope), ledger, { flush: true, backup });
+  }
   archiveFile(scope) { return path.join(this.dataDir, 'ledgers', scope + '.archive.json'); }
   archive(scope, entries, summaries = {}) {
     if (!entries.length && !Object.keys(summaries).length) return;
@@ -111,6 +128,23 @@ export class UsageLedger {
       existing.id?.endsWith(event.sessionId + ':' + event.turnId));
   }
   find(scope, event) { return this.load(scope).events.find(e => this.sameEvent(e, event)) || null; }
+  scopes(accountId) {
+    try {
+      return fs.readdirSync(path.join(this.dataDir, 'ledgers'))
+        .filter(name => /^[a-f0-9]{24}-[A-Z]{3}\.json$/.test(name) && name.startsWith(accountId + '-'))
+        .map(name => name.slice(0, -5));
+    } catch { return []; }
+  }
+  moveEvent(from, to, id) {
+    if (from === to) return false;
+    const event = this.load(from).events.find(item => item.id === id);
+    if (!event) return false;
+    this.append(to, event);
+    const source = this.load(from);
+    const index = source.events.findIndex(item => item.id === id);
+    if (index >= 0) { source.events.splice(index, 1); this.save(from, source); }
+    return true;
+  }
   revise(scope, id, patch) {
     const led = this.load(scope), index = led.events.findIndex(e => e.id === id);
     if (index < 0) return null;
@@ -148,6 +182,7 @@ export class UsageLedger {
         total: rounded(days.reduce((n, day) => n + (totalDay(day) || 0), 0)), totalComplete: missingSummaryDays.length === 0,
         missingSummaryDays, events: led.events.slice(-20000).reverse(), storedEventCount: led.events.length, detailLimit: 20000,
         correctionLog: (led.correctionLog || []).slice(-50).reverse() },
+      warning: this.warnings.get(scope) || '',
       usageSource: 'observed-api-debits', note: '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。' };
   }
 }

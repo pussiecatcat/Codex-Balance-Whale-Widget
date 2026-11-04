@@ -4,6 +4,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { parentPort, workerData } from 'node:worker_threads';
 import { HISTORY_EVENT_PATTERN, decodeSessionEvent, normalizeSessionUsage,
   sessionCounterDifference, sessionTimestamp } from './session-events.mjs';
+import { windowLabel } from './codex-rate-limits.mjs';
 
 const count = v => Number.isSafeInteger(v) && v >= 0 ? v : 0;
 export function quotaWindows(value, at, now) {
@@ -14,12 +15,13 @@ export function quotaWindows(value, at, now) {
     const used = w?.used_percent ?? w?.usedPercent;
     if (!w || !Number.isFinite(used) || used < 0 || used > 100) continue;
     const mins = w.window_minutes ?? w.window_duration_mins ?? w.windowDurationMins;
-    if (mins !== 300 && mins !== 10080) continue;
+    const label = windowLabel(mins);
+    if (!label) continue;
     const raw = w.resets_at ?? w.resetsAt;
     const absolute = typeof raw === 'number' ? raw < 1e12 ? raw * 1000 : raw : typeof raw === 'string' ? Date.parse(raw) : NaN;
     const relative = w.resets_in_seconds ?? w.resetsInSeconds;
     const reset = Number.isFinite(absolute) ? absolute : Number.isFinite(relative) && relative >= 0 ? at + relative * 1000 : null;
-    result.push({ label:mins === 300 ? '5 小时' : '周', windowDurationMins:mins,
+    result.push({ label, windowDurationMins:mins,
       usedPercent:used, remainingPercent:100-used, resetsAt:reset,
       stale:now-at > 15*60000 || reset === null || reset <= now, observedAt:at });
   }

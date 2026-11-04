@@ -2,6 +2,17 @@ param([string]$DataDir, [switch]$Probe, [switch]$Stop, [switch]$Hit, [int]$X, [i
 $ErrorActionPreference = 'Stop'
 if (!$DataDir) { $whaleCodex = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }; $DataDir = if ($env:WHALE_HOME) { $env:WHALE_HOME } else { Join-Path $whaleCodex 'whale-widget' } }
 $DataDir = [IO.Path]::GetFullPath($DataDir)
+$whaleErrorLog = Join-Path $DataDir 'logs\supervisor-stderr.log'
+$whaleErrorBytes = 0
+function Add-WhaleStderr([string]$Line) {
+    if ([string]::IsNullOrEmpty($Line) -or $script:whaleErrorBytes -gt 2097152) { return }
+    try {
+        $folder = Split-Path -Parent $script:whaleErrorLog
+        if (!(Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
+        [IO.File]::AppendAllText($script:whaleErrorLog, $Line + "`n")
+        $script:whaleErrorBytes += $Line.Length + 1
+    } catch { }
+}
 $whaleHasher = [Security.Cryptography.SHA256]::Create()
 $whaleHash = [BitConverter]::ToString($whaleHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($DataDir.ToLowerInvariant()))).Replace('-', '').Substring(0,24)
 $whaleHasher.Dispose()
@@ -75,12 +86,16 @@ try {
             $whaleStart.EnvironmentVariables['WHALE_SUPERVISOR_PID'] = [string]$PID
             $whaleChild = [Diagnostics.Process]::new(); $whaleChild.StartInfo=$whaleStart
             [void]$whaleChild.Start(); $whaleLastLaunch=$whaleNow
-            $whaleOutput=$whaleChild.StandardOutput.ReadLineAsync(); $whaleErrors=$whaleChild.StandardError.ReadToEndAsync()
+            $whaleOutput=$whaleChild.StandardOutput.ReadLineAsync(); $whaleErrors=$whaleChild.StandardError.ReadLineAsync()
         }
         if ($whaleChild) {
             if ($whaleOutput -and $whaleOutput.IsCompleted) {
                 try { $whaleLine=$whaleOutput.GetAwaiter().GetResult(); if ($whaleLine) { $whaleResponse=$whaleLine | ConvertFrom-Json; if ($whaleResponse.overlayHandle) { $whaleOverlay=[string]$whaleResponse.overlayHandle; $whaleTransitionsDisabled=[WhaleWindows]::ConfigureOverlay([long]$whaleOverlay) } } } catch { }
                 $whaleOutput=$whaleChild.StandardOutput.ReadLineAsync()
+            }
+            if ($whaleErrors -and $whaleErrors.IsCompleted) {
+                try { $whaleErrorLine=$whaleErrors.GetAwaiter().GetResult(); if ($null -ne $whaleErrorLine) { Add-WhaleStderr $whaleErrorLine } } catch { }
+                $whaleErrors=$whaleChild.StandardError.ReadLineAsync()
             }
             if (!$whaleStandalone -and $whaleOverlay -ne '0' -and $whaleState.window -ne '0' -and $whaleOwner -ne $whaleState.window) {
                 if ([WhaleWindows]::Attach([long]$whaleOverlay, [long]$whaleState.window)) { $whaleOwner=[string]$whaleState.window }
