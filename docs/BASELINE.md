@@ -13,7 +13,7 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T22:33Z |
+| 采集时间 | 2026-11-04T23:19Z |
 
 ## 结果
 
@@ -27,7 +27,7 @@
 | `npm run check:architecture` | 通过（空 catch 284/284，CSS hex 138/138） |
 | CI `verify.yml` | lint、test、architecture、bench:ledger、check:calendar、build-release 全部执行 |
 | `npm run check:calendar` | 通过；提示峰谷日历覆盖到 2026-12-31 |
-| `npm run bench:ledger` | 通过；20,000 条真实字段事件 / 90 天 / 30 MB：load 约 116 ms、records 约 118 ms、today 冷读约 108 ms / 缓存命中约 0 ms、写入约 443 ms、无变化观测约 115 ms |
+| `npm run bench:ledger` | 通过；20,000 条真实字段事件 / 90 天 / 30 MB：load 约 135 ms、records 约 121 ms、today 冷读约 117 ms / 缓存命中约 0 ms、写入约 628 ms、无变化观测约 141 ms |
 | `python scripts/build-release.py` | 通过（文件总数随文档增减；sha 与文件数不记入基线） |
 
 `npm run verify` 串起上述全部检查，在本机会停在测试步骤——原因见下节的 3 条已知失败。
@@ -54,7 +54,8 @@ Date.UTC(2026, 9, 10) 的本地日 → 9      （断言期望 10）
 
 - 未在真实 Codex 会话中调用 MCP 工具（F-02 的最终验收）。
 - 设置菜单与气泡的常规渲染已由 `test:desktop` 覆盖；「运行日志 → 打开」「保存并测试连接」和账本恢复提示仍只做了源码/VM 级接线。
-- 深色模式与 150% 缩放的截图/对比度未验收。
+- 深色模式、气泡最小字号与 125%/150%/200% 缩放的截图/对比度未验收。
+- 已安装插件副本仍为旧代码；本轮只验证仓库工作区。
 - 未做真实服务商的「保存并测试连接」手工验收。
 - 深色模式改为令牌覆盖，但未截图验收对比度；FIX-08 仍需 Electron 实机确认。
 - macOS 路径完全未验证。
