@@ -22,6 +22,7 @@
 | `npm run lint` | 通过 |
 | `npm test` | **572 tests / 569 pass / 3 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
+| `npm run test:desktop` | 通过；20 项 Electron 检查（角色、APNG、气泡、设置面板、模式切换、形状与退出） |
 | `npm run check:package` | 通过 |
 | `npm run check:architecture` | 通过（空 catch 292/292，CSS hex 138/138） |
 | CI `verify.yml` | lint、test、architecture、bench:ledger、check:calendar、build-release 全部执行 |
@@ -51,9 +52,9 @@ Date.UTC(2026, 9, 10) 的本地日 → 9      （断言期望 10）
 
 ## 未覆盖
 
-- `npm run test:desktop`（Electron 桌面审计）未运行。
 - 未在真实 Codex 会话中调用 MCP 工具（F-02 的最终验收）。
-- UI 未渲染验证；设置菜单的「运行日志 → 打开」「保存并测试连接」以及账本恢复提示只做了源码级和 VM 级接线。
+- 设置菜单与气泡的常规渲染已由 `test:desktop` 覆盖；「运行日志 → 打开」「保存并测试连接」和账本恢复提示仍只做了源码/VM 级接线。
+- 深色模式与 150% 缩放的截图/对比度未验收。
 - 未做真实服务商的「保存并测试连接」手工验收。
 - 深色模式改为令牌覆盖，但未截图验收对比度；FIX-08 仍需 Electron 实机确认。
 - macOS 路径完全未验证。
