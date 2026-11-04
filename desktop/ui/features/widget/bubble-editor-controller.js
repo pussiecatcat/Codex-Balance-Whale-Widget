@@ -1,3 +1,5 @@
+import { bubblePresetItems } from './default-content.js';
+
 // Owns the bubble editor's open/save lifecycle and the queue rendering calls.
 // The edit buffer itself stays in the entry as `bubbleEditorState` because the
 // item editor and the reminder editor swap the same fields while their dialogs
@@ -55,10 +57,20 @@ export function createBubbleEditorController({
   }
 
   function reset() {
-    showConfirm(subscription() ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', () => {
+    showConfirm(subscription() ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=上轮用量)?', () => {
       state.items = defaultQueue();
       state.tapAdvance = false;
       getAdvance().setValue(false);
+      render();
+    });
+  }
+
+  function applyPreset(name) {
+    const labels = { quota: '额度优先', balance: '余额优先', minimal: '极简', companion: '小龙娘陪伴' };
+    showConfirm('用「' + (labels[name] || name) + '」预设替换当前泡泡序列？保存前不会写入，取消可放弃。', () => {
+      state.items = bubblePresetItems(name, subscription());
+      state.itemIdx = 0;
+      state.itemSide = 0;
       render();
     });
   }
@@ -74,5 +86,5 @@ export function createBubbleEditorController({
     } catch {}
   }
 
-  return { renderFirst, renderMore, dropToEnd, addMore, render, dirty, open, close, reset, save };
+  return { renderFirst, renderMore, dropToEnd, addMore, render, dirty, open, close, reset, save, applyPreset };
 }

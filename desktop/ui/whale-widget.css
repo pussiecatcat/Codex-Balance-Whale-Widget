@@ -517,3 +517,5 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-resempty{color:var(--text-hint);font-size:12px;padding:4px 8px}
 .dshwv-menu{max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .dshwv-trowtx,.dshwv-text{font-variant-numeric:tabular-nums}
+.dshwv-bubpresets{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.dshwv-bubpreset{border:1px solid var(--border);background:var(--surface-muted);color:var(--text);border-radius:999px;padding:5px 10px;font-size:11px;cursor:pointer}

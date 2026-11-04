@@ -1,6 +1,6 @@
 import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleChoiceWeight, bubbleSingleFromItem,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules, bubbleParseDefaultItems } from './default-content.js';
+  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from './default-content.js';
 import { bubbleRowsCanon } from './bubble-layout.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -51,7 +51,7 @@ export function saveBubbleEditorDraft(items, library, config, subscriptionMode, 
     ? tapAdvance
     : subscriptionMode ? config?.subscriptionTapAdvance === true : config?.tapAdvance === true;
   return { v: 1, editingMode: subscriptionMode ? 'subscription' : 'api',
-    items: subscriptionMode ? config?.items || bubbleParseDefaultItems() : savedItems,
+    items: subscriptionMode ? config?.items || bubbleDefaultQueue(false) : savedItems,
     subscriptionItems: subscriptionMode ? savedItems : config?.subscriptionItems || [],
     tapAdvance: subscriptionMode ? config?.tapAdvance === true : activeTapAdvance,
     subscriptionTapAdvance: subscriptionMode ? activeTapAdvance : config?.subscriptionTapAdvance === true,

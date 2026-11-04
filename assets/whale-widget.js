@@ -869,6 +869,7 @@ import {
     var bubbleDropToEnd = bubbleEditorApi.dropToEnd;
     var bubbleAddMore = bubbleEditorApi.addMore;
     var bubbleEditorDirty = bubbleEditorApi.dirty;
+    var bubbleApplyPreset = bubbleEditorApi.applyPreset;
     var openBubbleEditor = bubbleEditorApi.open;
     var closeBubbleEditor = bubbleEditorApi.close;
     var bubbleEditorReset = bubbleEditorApi.reset;
@@ -1440,6 +1441,21 @@ import {
     bubbleTitle.className = 'dshwv-bubtitle';
     bubbleTitle.textContent = '自定义泡泡';
     bubbleCard.appendChild(bubbleTitle);
+    var bubblePresetRow = document.createElement('div');
+    bubblePresetRow.className = 'dshwv-bubpresets';
+    var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
+      ? [['quota', '额度优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
+      : [['balance', '余额优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']];
+    presetSpecs.forEach(function (spec) {
+      var pbtn = document.createElement('button');
+      pbtn.type = 'button';
+      pbtn.className = 'dshwv-bubpreset';
+      pbtn.textContent = spec[1];
+      pbtn.title = '用预设替换当前泡泡序列（保存前不会写入）';
+      pbtn.addEventListener('click', function (e) { e.stopPropagation(); bubbleApplyPreset(spec[0]); });
+      bubblePresetRow.appendChild(pbtn);
+    });
+    bubbleCard.appendChild(bubblePresetRow);
     var bubbleSecFirst = document.createElement('div');
     bubbleSecFirst.className = 'dshwv-bubsec dshwv-bubsec-first';
     bubbleSecFirst.textContent = '首次点击弹出内容';
