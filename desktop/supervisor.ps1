@@ -4,8 +4,22 @@ if (!$DataDir) { $whaleCodex = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { J
 $DataDir = [IO.Path]::GetFullPath($DataDir)
 $whaleErrorLog = Join-Path $DataDir 'logs\supervisor-stderr.log'
 $whaleErrorBytes = 0
+if (Test-Path -LiteralPath $whaleErrorLog) {
+    try { $whaleErrorBytes = (Get-Item -LiteralPath $whaleErrorLog).Length } catch { $whaleErrorBytes = 0 }
+}
 function Add-WhaleStderr([string]$Line) {
-    if ([string]::IsNullOrEmpty($Line) -or $script:whaleErrorBytes -gt 2097152) { return }
+    if ([string]::IsNullOrEmpty($Line)) { return }
+    # The child writes provider errors and URLs here. Redact the same classes of
+    # secret as runtime/log.mjs before the line reaches disk.
+    $Line = [regex]::Replace($Line, '(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;"'']+', '$1[REDACTED]')
+    $Line = [regex]::Replace($Line, '(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}', '$1[REDACTED]')
+    $Line = [regex]::Replace($Line, '\bsk-[A-Za-z0-9_-]{8,}', 'sk-[REDACTED]')
+    $Line = [regex]::Replace($Line, '(?i)((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|cookie)\s*[:=]\s*["'']?)[^\s"''&,;}]+', '$1[REDACTED]')
+    $Line = [regex]::Replace($Line, '(?i)([?&](?:key|api_key|access_token)=)[^&\s#]+', '$1[REDACTED]')
+    if ($script:whaleErrorBytes -gt 2097152) {
+        try { Move-Item -LiteralPath $script:whaleErrorLog -Destination ($script:whaleErrorLog + '.1') -Force; $script:whaleErrorBytes = 0 }
+        catch { return }
+    }
     try {
         $folder = Split-Path -Parent $script:whaleErrorLog
         if (!(Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
@@ -117,8 +131,10 @@ try {
                 try { $whaleLine=$whaleOutput.GetAwaiter().GetResult(); if ($whaleLine) { $whaleResponse=$whaleLine | ConvertFrom-Json; if ($whaleResponse.overlayHandle) { $whaleOverlay=[string]$whaleResponse.overlayHandle; $whaleTransitionsDisabled=[WhaleWindows]::ConfigureOverlay([long]$whaleOverlay) } } } catch { }
                 $whaleOutput=$whaleChild.StandardOutput.ReadLineAsync()
             }
-            if ($whaleErrors -and $whaleErrors.IsCompleted) {
-                try { $whaleErrorLine=$whaleErrors.GetAwaiter().GetResult(); if ($null -ne $whaleErrorLine) { Add-WhaleStderr $whaleErrorLine } } catch { }
+            for ($whaleDrain = 0; $whaleDrain -lt 50 -and $whaleErrors -and $whaleErrors.IsCompleted; $whaleDrain++) {
+                try { $whaleErrorLine=$whaleErrors.GetAwaiter().GetResult() } catch { $whaleErrorLine=$null }
+                if ($null -eq $whaleErrorLine) { $whaleErrors=$null; break }
+                Add-WhaleStderr $whaleErrorLine
                 $whaleErrors=$whaleChild.StandardError.ReadLineAsync()
             }
             if (!$whaleStandalone -and $whaleOverlay -ne '0' -and $whaleState.window -ne '0' -and $whaleOwner -ne $whaleState.window) {

@@ -55,7 +55,7 @@ export function createBubbleEditorController({
   }
 
   function reset() {
-    showConfirm(subscription() ? '恢复为默认 Codex 额度气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', () => {
+    showConfirm(subscription() ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', () => {
       state.items = defaultQueue();
       state.tapAdvance = false;
       getAdvance().setValue(false);

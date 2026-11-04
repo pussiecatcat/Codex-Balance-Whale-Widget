@@ -171,10 +171,11 @@ def archive(name, selected):
     (output / (name + '.sha256')).write_text(digest + '  ' + name + '\n', encoding='utf-8')
     return {'name': name, 'sha256': digest, 'bytes': destination.stat().st_size, 'files': len(selected)}
 
-artifacts = [archive('api-balance-whale-v0.3(fixed).zip', {p: d for p, d in files.items() if not p.startswith(('.github/', 'tests/'))}),
-             archive('api-balance-whale-v0.3(fixed)-source.zip', files)]
+base_version = manifest['version'].split('+', 1)[0]
+artifacts = [archive('api-balance-whale-v' + base_version + '.zip', {p: d for p, d in files.items() if not p.startswith(('.github/', 'tests/'))}),
+             archive('api-balance-whale-v' + base_version + '-source.zip', files)]
 (output / 'SHA256SUMS').write_text(''.join(f"{item['sha256']}  {item['name']}\n" for item in artifacts), encoding='utf-8')
-report = {'displayVersion': 'v0.3(fixed)', 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
+report = {'displayVersion': 'v' + base_version, 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
           'lineEndings': 'LF for source and Mac launchers; CRLF for Windows .cmd and .ps1',
           'releaseTag': args.release_tag, 'offlineInstaller': False, 'macOS': 'static-checks-no-hardware-acceptance', 'subscriptionLiveAccount': 'verified-plus-five-hour-and-weekly-windows',
           'macOSPR': 'https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128',

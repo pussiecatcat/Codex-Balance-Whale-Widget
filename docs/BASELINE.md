@@ -13,14 +13,14 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T18:48Z |
+| 采集时间 | 2026-11-04T18:51Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **571 tests / 568 pass / 3 fail** |
+| `npm test` | **572 tests / 569 pass / 3 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
 | `npm run check:package` | 通过 |
 | `npm run check:architecture` | 通过（空 catch 292/292，CSS hex 138/138） |
@@ -55,6 +55,7 @@ Date.UTC(2026, 9, 10) 的本地日 → 9      （断言期望 10）
 - 未在真实 Codex 会话中调用 MCP 工具（F-02 的最终验收）。
 - UI 未渲染验证；设置菜单的「运行日志 → 打开」「保存并测试连接」以及账本恢复提示只做了源码级和 VM 级接线。
 - 未做真实服务商的「保存并测试连接」手工验收。
+- 深色模式改为令牌覆盖，但未截图验收对比度；FIX-08 仍需 Electron 实机确认。
 - macOS 路径完全未验证。
 
 ## 复现

@@ -18,12 +18,18 @@ test('records indexes per-day estimates once and today() matches the full view',
   for (let i = 0; i < 50; i++) {
     ledger.append(scope, { id: 'event-' + i, ts: now - i * 86400000, model: 'gpt', cost: 1, source: 'configured-pricing-estimate' });
   }
+  ledger.observe(scope, { totalUsed: 10 }, now - 3600000);
+  ledger.observe(scope, { totalUsed: 13 }, now);
   const records = ledger.records(scope, now);
   const today = ledger.today(scope, now);
   assert.equal(records.all.days.length, 50);
   assert.equal(records.all.days[0].models.length, 1);
+  assert.ok(today.total > 0, 'the fast path must include observed consumption');
   assert.deepEqual(today.models, records.today.models);
   assert.equal(today.total, records.today.total);
+  assert.equal(today.since, records.today.since);
+  assert.equal(today.source, records.today.source);
+  assert.equal(today.warning, records.warning);
   assert.equal(today.note, records.note);
 });
 

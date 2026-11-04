@@ -13,6 +13,7 @@ const RULES = [
   [/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/g, '$1[REDACTED]'],
   [/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-[REDACTED]'],
   [/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|cookie)\s*[:=]\s*["']?)[^\s"'&,;}]+/gi, '$1[REDACTED]'],
+  [/([?&](?:key|api_key|access_token)=)[^&\s#]+/gi, '$1[REDACTED]'],
   [/(https?:\/\/)[^/\s:@]+:[^/\s@]+@/gi, '$1[REDACTED]@'],
 ];
 

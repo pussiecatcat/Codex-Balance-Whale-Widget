@@ -115,3 +115,16 @@ test('restoreBackup restores both halves and a failed save does not leak into th
   assert.throws(() => registry.save({ id: 'lost', template: 'openrouter' }), /disk full/);
   assert.equal(registry.list().models.some(item => item.id === 'lost'), false, 'a failed save must not stay in memory');
 });
+
+test('startup migration merges legacy files once, even for read-only users', t => {
+  const dir = fixture(t);
+  fs.writeFileSync(path.join(dir, 'api-settings.json'), JSON.stringify({ provider: 'deepseek', currency: 'CNY' }));
+  fs.writeFileSync(path.join(dir, 'api-models.json'), JSON.stringify({ version: 1, models: [{ id: 'legacy', template: 'deepseek' }] }));
+  const store = new ProviderStore({ dataDir: dir });
+  assert.equal(store.migrateLegacy(), true);
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'providers.json'), 'utf8'));
+  assert.equal(saved.codexApi.provider, 'deepseek');
+  assert.equal(saved.diyModels[0].id, 'legacy');
+  assert.equal(store.migrateLegacy(), false, 'a second startup is a no-op');
+  assert.equal(fs.existsSync(path.join(dir, 'providers.legacy-backup.json')), true);
+});

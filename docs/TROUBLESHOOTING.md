@@ -56,6 +56,8 @@ npm run restore-providers
 
 它会从 `providers.json.bak`（或首次迁移留下的 `providers.legacy-backup.json`）恢复**两部分**配置。旧版 `api-settings.json` / `api-models.json` 不会被删除，回退到旧版本时仍可读取。
 
+升级时启动会一次性把旧文件合并成 `providers.json`，只读用户也会迁移；第二次启动不会重复合并。回退到旧版本时旧版本继续读旧文件，但看不到升级后写入新文件的修改。
+
 账本从备份恢复后，用量面板和消费记录窗口会显示一次「账本文件损坏，已从上一份备份恢复」，点「知道了」后不再提示。
 
 ## 测试数量与已知失败

@@ -108,7 +108,7 @@
 
 ### Windows
 
-1. 下载 Release 中的 `api-balance-whale-v0.3(fixed).zip` 并完整解压到固定目录。
+1. 下载 Release 中的 `api-balance-whale-v0.3.0.zip` 并完整解压到固定目录。
 2. 不要直接从 ZIP 内运行脚本；双击 `launchers/安装插件.cmd`。
 3. 安装完成后新建一个 Codex 聊天，让 Codex 加载新版插件工具。
 

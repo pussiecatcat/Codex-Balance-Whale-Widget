@@ -371,3 +371,13 @@ html.desktop .whale-utility-row>.dshwv-custwrap{flex:1 1 0;min-width:0}
 #api-connection-result.is-error{color:var(--status-critical)}
 .dshwv-ledger-warning{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;line-height:1.6}
 .dshwv-ledger-warning .quiet{flex:0 0 auto}
+@media (prefers-color-scheme: dark){
+  html.desktop dialog{background:var(--surface);color:var(--text);border-color:var(--border)}
+  html.desktop .dialog-header h2,html.desktop .dshwv-usage-wintitle{color:var(--text)}
+  html.desktop .dialog-header p,html.desktop .help,html.desktop dialog label,html.desktop dialog summary,html.desktop .dshwv-usage-hint,html.desktop .dshwv-usage-close{color:var(--text-muted)}
+  html.desktop dialog input,html.desktop dialog select{background:var(--surface-muted);color:var(--text);border-color:var(--border)}
+  html.desktop .privacy-help{background:var(--surface-muted)}
+  html.desktop .dialog-actions{background:var(--surface);border-color:var(--border)}
+  html.desktop .dshwv-usage-card{background:var(--surface);color:var(--text);border-color:var(--border)}
+  html.desktop .dshwv-usage-wintitle{border-color:var(--border)}
+}

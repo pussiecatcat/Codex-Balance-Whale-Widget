@@ -109,6 +109,16 @@ export class ProviderStore {
     return data;
   }
 
+  // Read-only users otherwise stay on the legacy files forever, so perform the
+  // merge once at startup instead of waiting for the first settings write.
+  migrateLegacy() {
+    if (fs.existsSync(this.file)) return false;
+    if (!fs.existsSync(this.configFile) && !fs.existsSync(this.modelsFile)) return false;
+    const data = this.readLegacy();
+    this.write(data, { flush: true, backup: false });
+    return true;
+  }
+
   writeCodex(codexApi) {
     this.update(data => { data.codexApi = codexApi; }, { flush: true, backup: true });
   }

@@ -30,8 +30,8 @@
 
 ## Release 附件
 
-- `api-balance-whale-v0.3(fixed).zip`
-- `api-balance-whale-v0.3(fixed)-source.zip`
+- `api-balance-whale-v0.3.0.zip`
+- `api-balance-whale-v0.3.0-source.zip`
 - 两份对应的 `.sha256`
 - `release-manifest.json`
 - `verification-report.json`（如构建生成）

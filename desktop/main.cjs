@@ -486,7 +486,7 @@ function updateTray() {
   if (!tray) return;
   tray.setToolTip('Codex 小龙娘 · ' + (desktopMode === 'standalone' ? '独立桌面' : '跟随 Codex'));
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示 / 隐藏小鲸鱼', click: toggle }, { label: '恢复显示小鲸鱼', click: show },
+    { label: '显示 / 隐藏小龙娘', click: toggle }, { label: '恢复显示小龙娘', click: show },
     { label: desktopMode === 'standalone' ? '跟随 Codex' : '固定在桌面', click: () => setMode(desktopMode === 'standalone' ? 'follow-codex' : 'standalone') },
     { label: '刷新余额', click: () => sendCommand('balance') }, { label: '查看用量记录', click: () => sendCommand('usage') },
     { label: 'API 设置', click: () => sendCommand('settings') }, { label: '查看运行状态', click: showStatusDialog },

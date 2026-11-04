@@ -13,8 +13,9 @@ test('runtime log redacts credentials, tokens and URLs before writing', () => {
     'password = hunter2',
     'https://user:pass@example.test/v1',
     'sk-abcdefghijk',
+    'https://generativelanguage.example/v1?key=QUERY_SECRET&x=1',
   ].join('\n'));
-  for (const secret of ['abcdef123456', 'sk-secret12345678', 'ghp_1234567890', 'hunter2', 'user:pass', 'sk-abcdefghijk']) {
+  for (const secret of ['abcdef123456', 'sk-secret12345678', 'ghp_1234567890', 'hunter2', 'user:pass', 'sk-abcdefghijk', 'QUERY_SECRET']) {
     assert.equal(text.includes(secret), false, secret);
   }
   assert.match(text, /\[REDACTED\]/);
