@@ -26,6 +26,7 @@ import { createAudioCropEditor } from '/features/widget/audio-crop-editor.js';
 import { createModuleEditorView } from '/features/widget/module-editor-view.js';
 import { createBubblePreviewView } from '/features/widget/bubble-preview-view.js';
 import { createGifRoleDialog } from '/features/widget/gif-role-dialog.js';
+import { createMenuControls } from '/features/widget/menu-controls.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -186,76 +187,16 @@ import {
       r.className = 'dshwv-menu-row';
       return r;
     }
-    var scaleInput = document.createElement('input');
-    scaleInput.type = 'range';
-    scaleInput.min = String(MIN_SCALE);
-    scaleInput.max = String(MAX_SCALE);
-    scaleInput.step = '0.1';
-    scaleInput.className = 'dshwv-range';
-    scaleInput.value = '1.5';
-    var scaleNumber = document.createElement('input');
-    scaleNumber.type = 'number';
-    scaleNumber.min = '1';
-    scaleNumber.max = '20';
-    scaleNumber.step = '1';
-    scaleNumber.className = 'dshwv-number';
-    scaleNumber.value = '10';
-    scaleInput.addEventListener('pointerdown', function () {
-      positioner.style.transition = 'none';
+    var menuControls = createMenuControls({
+      document: document, positioner: positioner, minScale: MIN_SCALE, maxScale: MAX_SCALE,
+      setScale: setScale, refreshFlip: refreshFlip,
+      toggleAudioGroupPanel: function () { return toggleAudioGroupPanel(); },
+      openAudioGroupEditor: function (group) { return openAudioGroupEditor(group); },
+      toggleUsagePanel: function () { return toggleUsagePanel(); }
     });
-    scaleInput.addEventListener('input', function () {
-      setScale(scaleInput.value);
-    });
-    scaleInput.addEventListener('change', function () {
-      positioner.style.transition = '';
-      try {
-        refreshFlip();
-      } catch (err) {}
-    });
-    scaleNumber.addEventListener('focus', function () {
-      positioner.style.transition = 'none';
-    });
-    scaleNumber.addEventListener('blur', function () {
-      positioner.style.transition = '';
-    });
-    scaleNumber.addEventListener('input', function () {
-      var v = Math.round(Number(scaleNumber.value));
-      var s = MIN_SCALE + Math.max(0, Math.min(20, v) - 1) * (MAX_SCALE - MIN_SCALE) / 19;
-      setScale(s);
-    });
-    scaleNumber.addEventListener('change', function () {
-      var v = Math.round(Number(scaleNumber.value));
-      var s = MIN_SCALE + Math.max(0, Math.min(20, v) - 1) * (MAX_SCALE - MIN_SCALE) / 19;
-      setScale(s);
-      positioner.style.transition = '';
-      try {
-        refreshFlip();
-      } catch (err) {}
-    });
-    var audioGroupBtn = document.createElement('button');
-    audioGroupBtn.type = 'button';
-    audioGroupBtn.className = 'dshwv-audiobtn';
-    audioGroupBtn.title = '选择音效组';
-    var audioGroupBtnLabel = document.createElement('span');
-    audioGroupBtnLabel.className = 'dshwv-btnlabel';
-    audioGroupBtnLabel.textContent = '小黄鸭';
-    audioGroupBtn.appendChild(audioGroupBtnLabel);
-    var audioGroupPanel = document.createElement('div');
-    audioGroupPanel.className = 'dshwv-audiolist';
-    var audioImportBtn = document.createElement('button');
-    audioImportBtn.type = 'button';
-    audioImportBtn.className = 'dshwv-audioimport';
-    audioImportBtn.textContent = '导入';
-    audioImportBtn.title = '新建/编辑音效组';
-    audioGroupBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      toggleAudioGroupPanel();
-    });
-    audioImportBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openAudioGroupEditor(null);
-    });
-    document.body.appendChild(audioGroupPanel);
+    var scaleInput = menuControls.scaleInput, scaleNumber = menuControls.scaleNumber;
+    var audioGroupBtn = menuControls.audioGroupBtn, audioGroupBtnLabel = menuControls.audioGroupBtnLabel, audioGroupPanel = menuControls.audioGroupPanel;
+    var audioImportBtn = menuControls.audioImportBtn, usageRecBtn = menuControls.usageRecBtn;
     var nameMarquee = createNameMarquee({ document: document });
     var makeNameCell = nameMarquee.makeCell;
     var bindNameMarquee = nameMarquee.bind;
