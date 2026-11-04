@@ -381,3 +381,16 @@ html.desktop .whale-utility-row>.dshwv-custwrap{flex:1 1 0;min-width:0}
   html.desktop .dshwv-usage-card{background:var(--surface);color:var(--text);border-color:var(--border)}
   html.desktop .dshwv-usage-wintitle{border-color:var(--border)}
 }
+.provider-list{margin:4px 0 18px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.provider-heading{padding:14px 16px;background:var(--surface-muted)}
+.provider-heading h3{margin:0 0 4px;font-size:14px;color:var(--text)}
+.provider-heading .help{margin:0}
+.provider-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--border)}
+.provider-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.provider-badge{font-size:10px;padding:2px 6px;border-radius:999px;background:var(--surface-muted);color:var(--text-muted)}
+.provider-status{font-size:11px;color:var(--text-muted)}
+.provider-status.is-ok{color:var(--status-ok)}
+.provider-status.is-error{color:var(--status-critical)}
+.provider-actions{display:flex;gap:6px;flex:0 0 auto}
+.provider-list #api-models-root{border-top:1px solid var(--border);padding:0 16px 12px}
+.api-model-row{border-top:1px solid var(--border)}

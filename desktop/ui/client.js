@@ -48,6 +48,11 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
       element('monitorSessions').checked = settings.monitorSessions;
       for (const key of ['priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite']) element(key).value = '';
       element('removePrice').checked = false;
+      const configured = info.configured || {};
+      const hasAuto = !!(configured.baseUrl || configured.keyEnv || configured.profile || configured.projectDir);
+      autoStatus.textContent = hasAuto ? (info.warning ? '已配置（已从备份恢复）' : '已配置') : '未配置';
+      autoStatus.className = 'provider-status ' + (hasAuto ? 'is-ok' : '');
+      autoStatus.title = info.warning || '';
       connectionResult.textContent = '';
       connectionResult.className = '';
       $('test-api-connection').disabled = false;
@@ -87,10 +92,45 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
       location.reload();
     } catch (error) { $('settings-error').hidden = false; $('settings-error').textContent = error.message; }
   });
-  // Guided setup: save the form and ask for a real balance in one click, so a
-  // wrong endpoint or a missing environment variable is named here instead of
-  // showing up later as an unexplained "查询暂不可用" on the widget.
+  // Guided setup: probe the draft and ask for a real balance in one click, so
+  // a wrong endpoint or a missing environment variable is named here instead
+  // of showing up later as an unexplained "查询暂不可用" on the widget.
   const connectionResult = $('api-connection-result');
+  const autoStatus = $('provider-auto-status');
+  async function probeSettings() {
+    const result = await api('/api/config/probe', 'POST', collectSettings(), { timeoutMs: 20000 });
+    if (result.stale) {
+      const at = result.updatedAt ? new Date(result.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+      throw new Error((result.error || '服务商暂时不可用') + (at ? `（当前显示的是 ${at} 的上次数据）` : '（当前显示的是上次数据）'));
+    }
+    if (!result.ok) throw new Error(result.error || '余额接口没有返回可用的余额');
+    return result;
+  }
+  function connectionSummary(result) {
+    const label = result.balanceLabel || result.providerName || '当前 API';
+    const amount = typeof result.totalBalance === 'number' ? ` · ${result.totalBalance} ${result.currency || ''}`.trimEnd() : '';
+    return `${label}${amount}`;
+  }
+  $('auto-api-edit').addEventListener('click', () => {
+    const group = $('current-api-settings');
+    if (group) group.open = true;
+    element('baseUrl').focus();
+  });
+  $('auto-api-test').addEventListener('click', async () => {
+    const button = $('auto-api-test');
+    button.disabled = true;
+    autoStatus.className = 'provider-status';
+    autoStatus.textContent = '正在测试…';
+    try {
+      const result = await probeSettings();
+      autoStatus.textContent = '已连接 · ' + connectionSummary(result);
+      autoStatus.className = 'provider-status is-ok';
+    } catch (error) {
+      const view = statusView(statusForError(error));
+      autoStatus.textContent = '连接失败：' + (error.message || view.label) + (view.action ? '。' + view.action : '');
+      autoStatus.className = 'provider-status is-error';
+    } finally { button.disabled = false; }
+  });
   $('restart-whale').addEventListener('click', async () => {
     if (!window.whaleDesktop || typeof window.whaleDesktop.command !== 'function') {
       toast('请在桌面挂件中重新启动，或手动退出后重新打开。');
@@ -109,15 +149,8 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
     try {
       // Probe the draft rather than saving it first. Cancelling the dialog
       // after a test must leave providers.json byte-for-byte unchanged.
-      const result = await api('/api/config/probe', 'POST', collectSettings(), { timeoutMs: 20000 });
-      if (result.stale) {
-        const at = result.updatedAt ? new Date(result.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
-        throw new Error((result.error || '服务商暂时不可用') + (at ? `（当前显示的是 ${at} 的上次数据）` : '（当前显示的是上次数据）'));
-      }
-      if (!result.ok) throw new Error(result.error || '余额接口没有返回可用的余额');
-      const label = result.balanceLabel || result.providerName || '当前 API';
-      const amount = typeof result.totalBalance === 'number' ? ` · ${result.totalBalance} ${result.currency || ''}`.trimEnd() : '';
-      connectionResult.textContent = `连接成功：${label}${amount}（尚未保存）`;
+      const result = await probeSettings();
+      connectionResult.textContent = `连接成功：${connectionSummary(result)}（尚未保存）`;
       connectionResult.className = 'is-ok';
     } catch (error) {
       const view = statusView(statusForError(error));

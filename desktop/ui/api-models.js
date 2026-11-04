@@ -1,6 +1,6 @@
 import { requestJson } from '/services/request.js';
 import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
-import { statusForError, statusView } from '/features/widget/status-tones.js';
+import { statusForCode, statusForError, statusView } from '/features/widget/status-tones.js';
 
 (() => {
   'use strict';
@@ -74,14 +74,17 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
     async function render() {
       root.replaceChildren(); let data; try{data=await load(true);}catch(error){el(root,'p',error.message,'notice');return;}
       const list=el(root,'div','','api-model-list');
+      if(!data.models.length)el(list,'p','尚未添加服务商模板。Codex 当前 API 仍可自动跟随；要单独查看余额，点下方“添加服务商”。','help');
       for(const model of data.models){
         const row=el(list,'div','','api-model-row'),meta=el(row,'div','', 'api-model-meta');
-        el(meta,'strong',model.name);el(meta,'small',(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);
+        const configured=model.configured||{};
+        const state=model.kind==='codex'?'本机统计':configured.key?'已配置':model.keyEnv?statusView(statusForCode('NO_KEY')).label:'未配置';
+        el(meta,'strong',model.name);el(meta,'small',state+' · '+(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);
         button(row,'测试','quiet',async event=>{const test=event.currentTarget;test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){const view=statusView(statusForError(error));window.whaleToast?.((error.message||view.label)+(view.action?'；'+view.action:''));}finally{test.disabled=false;}});
         button(row,'设置','quiet',()=>openModelDetail(model));
         button(row,'删除','quiet',async()=>{if(!await confirmRemoval(model))return;await request('/api/models?id='+encodeURIComponent(model.id),'DELETE',{});values.delete(model.id);loadedAt=0;await render();paint();notifyChanged();});
       }
-      button(root,'添加 API 模型','primary',()=>editor(null));
+      button(root,'添加服务商','primary',()=>editor(null));
       el(root,'p','密钥只读取环境变量，配置文件不保存密钥内容。余额、预算和额度提醒在每个模型的“设置”中单独管理。','help');
     }
 

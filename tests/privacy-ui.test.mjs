@@ -84,7 +84,7 @@ test('settings UI never echoes private values and blank saves never erase them',
   const config = fixture(t), before = config.load(), controls = new Map(), ids = new Map(), window = new Element('window'), puts = [];
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
   for (const name of names) controls.set(name, new Element(name));
-  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale']) ids.set(id, new Element(id));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (_url, options = {}) => {
@@ -111,13 +111,13 @@ test('settings UI never echoes private values and blank saves never erase them',
   assert.equal(puts.some(patch => JSON.stringify(patch).includes('内容隐藏')), false);
 });
 
-test('guided API setup saves the form, probes the provider and names a failure', async t => {
+test('guided API setup probes the draft without saving and names a failure', async t => {
   const controls = new Map(), ids = new Map(), window = new Element('window'), puts = [], probes = [], commands = [];
   window.whaleDesktop = { command: async command => { commands.push(command); return true; } };
   let probeResponse = { ok: true, totalBalance: 12.5, currency: 'CNY', balanceLabel: 'API 账户余额' };
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
   for (const name of names) controls.set(name, new Element(name));
-  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale']) ids.set(id, new Element(id));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (url, options = {}) => {
@@ -149,6 +149,14 @@ test('guided API setup saves the form, probes the provider and names a failure',
   await window.fire('whale-open-settings');
   assert.equal(result.textContent, '');
   assert.equal(result.className, '');
+  assert.equal(ids.get('provider-auto-status').textContent, '未配置');
+  probeResponse = { ok: true, totalBalance: 12.5, currency: 'CNY', balanceLabel: 'API 账户余额' };
+  const probesBeforeAuto = probes.length;
+  await ids.get('auto-api-test').fire('click');
+  assert.equal(probes.length, probesBeforeAuto + 1);
+  assert.match(ids.get('provider-auto-status').textContent, /已连接 · API 账户余额/);
+  await ids.get('auto-api-edit').fire('click');
+  assert.equal(ids.get('current-api-settings').open, true);
   await button.fire('click');
   await ids.get('restart-whale').fire('click');
   assert.deepEqual(commands, ['restart']);
