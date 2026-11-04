@@ -24,6 +24,7 @@ import { createAudioSlotPanel } from '/features/widget/audio-slot-panel.js';
 import { createAudioGroupEditor } from '/features/widget/audio-group-editor.js';
 import { createAudioCropEditor } from '/features/widget/audio-crop-editor.js';
 import { createModuleEditorView } from '/features/widget/module-editor-view.js';
+import { createBubblePreviewView } from '/features/widget/bubble-preview-view.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -1215,179 +1216,19 @@ import {
     }
 
     // ==== [气泡预览与样式] ====
-    function renderBubblePv() {
-      bubbleEditorState.pvEl.innerHTML = '';
-      var it = bubbleEditTarget();
-      if (!it) return;
-      var rows = bubbleRowsOf(it.modules || []);
-      for (var r = 0; r < rows.length; r++) {
-        (function (ri, rowMods) {
-          var isImgRow = bubbleIsImgMod(rowMods[0]);
-          var bar = document.createElement('div');
-          bar.className = 'dshwv-pvrow dshwv-pvrowline';
-          bar.title = isImgRow ? '图片独占一行:拖 ⠿ 可整行排序' : '同一行模块并排(≤6):拖 ⠿ 整行排序;拖模块块到某行左/右边缘=并入该行,上/下=另起一行';
-          var grip = document.createElement('span');
-          grip.className = 'dshwv-pvdrag';
-          grip.textContent = '⠿';
-          grip.title = '按住拖动整行排序';
-          grip.draggable = true;
-          grip.addEventListener('dragstart', function (e) {
-            e.stopPropagation();
-            try {
-              e.dataTransfer.setData('text/plain', 'prow:' + ri);
-            } catch (err) {}
-            bubbleRowDragIdx = ri;
-            bubbleModDrag = null;
-            bubblePvZone = '';
-          });
-          grip.addEventListener('dragend', function () {
-            bubbleRowDragIdx = null;
-            bubblePvZone = '';
-          });
-          bar.appendChild(grip);
-          for (var mi = 0; mi < rowMods.length; mi++) {
-            (function (m, mIdx) {
-              var blk = document.createElement('div');
-              blk.className = 'dshwv-pvmod' + (bubbleIsImgMod(m) ? ' dshwv-pvimg' : '');
-              blk.draggable = true;
-              blk.title = isImgRow ? '图片/动图(独占一行,可整行排序)' : '拖动到某行:左/右边缘=并入该行首/尾,上/下=另起一行';
-              blk.addEventListener('dragstart', function (e) {
-                e.stopPropagation();
-                try {
-                  e.dataTransfer.setData('text/plain', 'mod:' + ri + ':' + mIdx);
-                } catch (err) {}
-                bubbleRowDragIdx = null;
-                bubbleModDrag = {
-                  ri: ri,
-                  mi: mIdx
-                };
-                bubblePvZone = '';
-              });
-              blk.addEventListener('dragend', function () {
-                bubbleModDrag = null;
-                bubblePvZone = '';
-              });
-              var lab = document.createElement('span');
-              lab.className = 'dshwv-pvlab';
-              lab.textContent = bubbleModuleListLabel(m);
-              lab.title = '点击编辑该模块(内容/样式)';
-              lab.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubbleModuleEdit(m);
-              });
-              blk.appendChild(lab);
-              var ed = document.createElement('button');
-              ed.type = 'button';
-              ed.className = 'dshwv-bubmini';
-              ed.textContent = '✎';
-              ed.title = '编辑该模块(内容/样式)';
-              ed.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubbleModuleEdit(m);
-              });
-              blk.appendChild(ed);
-              var del = document.createElement('button');
-              del.type = 'button';
-              del.className = 'dshwv-bubmini';
-              del.textContent = '✕';
-              del.title = '删除该模块';
-              del.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubblePvDelBlock(ri, mIdx);
-              });
-              blk.appendChild(del);
-              bar.appendChild(blk);
-            })(rowMods[mi], mi);
-          }
-          if (!isImgRow) {
-            var add = document.createElement('button');
-            add.type = 'button';
-            add.className = 'dshwv-pvadd';
-            add.textContent = '+';
-            add.title = '把模块加入同一行(默认文本,并排显示;其余类型可把上方色板拖进本行)';
-            add.addEventListener('click', function (e) {
-              e.stopPropagation();
-              bubblePvAddToRow(ri);
-            });
-            bar.appendChild(add);
-          }
-          function highlight(zone) {
-            bubblePvZone = zone;
-            bar.style.boxShadow = '';
-            bar.style.outline = '';
-            if (zone === 'join') bar.style.outline = '2px solid rgba(32,49,112,.55)'; else {
-              var sh = bubbleDropShadow(zone);
-              if (sh) bar.style.boxShadow = sh;
-            }
-          }
-          bar.addEventListener('dragover', function (e) {
-            try {
-              var isMod = !!bubbleModDrag;
-              var isRow = bubbleRowDragIdx !== null && bubbleRowDragIdx !== undefined;
-              var isPal = !isMod && !isRow && !!bubbleDragKey;
-              if (!isMod && !isRow && !isPal) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              var rc = bar.getBoundingClientRect();
-              if (!rc.width) return;
-              if (isPal) {
-                highlight('join');
-                return;
-              }
-              var x = e.clientX - rc.left;
-              if (isMod && x < rc.width * 0.2) {
-                highlight('pairL');
-                return;
-              }
-              if (isMod && x > rc.width * 0.8) {
-                highlight('pairR');
-                return;
-              }
-              highlight(e.clientY - rc.top < rc.height / 2 ? 'before' : 'after');
-            } catch (err) {}
-          });
-          bar.addEventListener('dragleave', function () {
-            bubblePvZone = '';
-            bar.style.boxShadow = '';
-            bar.style.outline = '';
-          });
-          bar.addEventListener('drop', function (e) {
-            try {
-              e.preventDefault();
-              e.stopPropagation();
-              var zone = bubblePvZone;
-              bubblePvZone = '';
-              bar.style.boxShadow = '';
-              bar.style.outline = '';
-              if (bubbleRowDragIdx !== null && bubbleRowDragIdx !== undefined) {
-                var fromRow = bubbleRowDragIdx;
-                bubbleRowDragIdx = null;
-                if (fromRow !== ri) bubblePvMoveRow(fromRow, ri, zone);
-                return;
-              }
-              if (bubbleModDrag) {
-                var md = bubbleModDrag;
-                bubbleModDrag = null;
-                if (zone === 'join') zone = 'after';
-                bubblePvDropBlock(md.ri, md.mi, ri, zone);
-                return;
-              }
-              if (bubbleDragKey) {
-                var key = bubbleDragKey;
-                bubbleDragKey = null;
-                bubblePvPaletteToRow(key, ri);
-                return;
-              }
-            } catch (err) {}
-          });
-          bubbleEditorState.pvEl.appendChild(bar);
-        })(r, rows[r]);
-      }
-      try {
-        var rw = root && (root.offsetWidth || root.getBoundingClientRect().width) || 280;
-        bubblePreviewInto(bubbleEditorState.pvPrevEl, it.modules || [], Math.min(rw, 408));
-      } catch (err) {}
-    }
+    var bubblePreviewView = createBubblePreviewView({
+      document: document, rowsOf: bubbleRowsOf, isImgMod: bubbleIsImgMod,
+      moduleLabel: bubbleModuleListLabel, editModule: bubbleModuleEdit,
+      deleteBlock: bubblePvDelBlock, addToRow: bubblePvAddToRow,
+      moveRow: bubblePvMoveRow, dropBlock: bubblePvDropBlock,
+      paletteToRow: bubblePvPaletteToRow, dropShadow: bubbleDropShadow,
+      previewInto: function (element, modules, width) { return bubblePreviewInto(element, modules, width); },
+      getRowDrag: function () { return bubbleRowDragIdx; }, setRowDrag: function (value) { bubbleRowDragIdx = value; },
+      getModDrag: function () { return bubbleModDrag; }, setModDrag: function (value) { bubbleModDrag = value; },
+      getZone: function () { return bubblePvZone; }, setZone: function (value) { bubblePvZone = value; },
+      getKey: function () { return bubbleDragKey; }, setKey: function (value) { bubbleDragKey = value; }
+    });
+    function renderBubblePv() { return bubblePreviewView.render(bubbleEditorState, bubbleEditTarget, function () { return root; }); }
     var bubbleRowDragIdx = null;
     function bubbleItemDiscard() {
       try {
