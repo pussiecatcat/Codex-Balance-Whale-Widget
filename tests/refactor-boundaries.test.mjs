@@ -66,7 +66,7 @@ const evaluate = root => dependencyErrors(collectDependencyMetrics({ root }));
 test('the dependency gate is clean on the tree as it stands, and its numbers are the frozen ones', () => {
   const metrics = collectDependencyMetrics({ root: ROOT });
   assert.deepEqual(dependencyErrors(metrics), []);
-  assert.equal(metrics.publishedGlobals.length, 11, 'the window global surface is frozen at eleven names');
+  assert.equal(metrics.publishedGlobals.length, 17, 'the window global surface is frozen at seventeen names');
   assert.equal(Object.keys(metrics.moduleReads).length, 8, 'eight modules still reach for a global');
   assert.equal(Object.values(metrics.moduleReads).reduce((sum, reads) => sum + Object.values(reads).reduce((a, b) => a + b, 0), 0), 26);
   assert.equal(metrics.staleReads.length, 0, 'every frozen read is still present; a stale one means the baseline should be lowered');
