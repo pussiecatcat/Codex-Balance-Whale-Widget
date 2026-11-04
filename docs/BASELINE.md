@@ -11,18 +11,21 @@
 | Python | 3.12.14 |
 | 主机时区 | America/Los_Angeles |
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
-| 分支 | `refactor/architecture-round-2` @ `7962203` |
-| 工作区 | 未提交变更（A 桶修复，见 `评审处置清单.md`） |
-| 采集时间 | 2026-11-04T13:55Z |
+| 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
+| 工作区 | 干净；本文档随本轮评审修复提交 |
+| 采集时间 | 2026-11-04T17:30Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **528 tests / 525 pass / 3 fail** |
+| `npm test` | **554 tests / 551 pass / 3 fail** |
+| `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
 | `npm run check:package` | 通过 |
-| `npm run check:architecture` | 通过 |
+| `npm run check:architecture` | 通过（空 catch 292/292，CSS hex 138/138） |
+| `npm run check:calendar` | 通过；提示峰谷日历覆盖到 2026-12-31 |
+| `npm run bench:ledger` | 通过；20,000 事件 / 90 天，`records` 约 12 ms、`today` 约 11 ms |
 | `python scripts/build-release.py` | 通过（文件总数随文档增减；sha 与文件数不记入基线） |
 
 `npm run verify` 串起上述全部检查，在本机会停在测试步骤——原因见下节的 3 条已知失败。
@@ -58,7 +61,10 @@ Date.UTC(2026, 9, 10) 的本地日 → 9      （断言期望 10）
 npm ci
 npm run lint
 npm test
+npm run test:coverage
 npm run check:package
 npm run check:architecture
+npm run check:calendar
+npm run bench:ledger
 python scripts/build-release.py
 ```

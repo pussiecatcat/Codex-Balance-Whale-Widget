@@ -28,9 +28,9 @@
 
 ## 2. 合成样本
 
-可重复的历史样本位于 [`tests/fixtures/refactor-baseline-history.json`](../tests/fixtures/refactor-baseline-history.json)。它只包含固定的虚构会话、主任务、子任务和 token 数，不含用户路径、账号、接口地址或凭据。
+可重复的历史样本位于 [`tests/fixtures/refactor-baseline-history.json`](../../tests/fixtures/refactor-baseline-history.json)。它只包含固定的虚构会话、主任务、子任务和 token 数，不含用户路径、账号、接口地址或凭据。
 
-[`tests/refactor-baseline-fixture.test.mjs`](../tests/refactor-baseline-fixture.test.mjs)把样本送入真实 `SessionParser`，验证主任务与子任务投影，避免样本随实现变化后失效。音效事务测试都在操作系统临时目录生成数据，不读取用户配置。
+[`tests/refactor-baseline-fixture.test.mjs`](../../tests/refactor-baseline-fixture.test.mjs)把样本送入真实 `SessionParser`，验证主任务与子任务投影，避免样本随实现变化后失效。音效事务测试都在操作系统临时目录生成数据，不读取用户配置。
 
 ## 3. 验收入口
 
@@ -55,7 +55,7 @@ Windows GUI 结果单独记录。macOS 路径继续做静态和通用 Node 验�
 
 ## 4. 故障注入门槛
 
-[`tests/sound-settings.test.mjs`](../tests/sound-settings.test.mjs)覆盖：
+[`tests/sound-settings.test.mjs`](../../tests/sound-settings.test.mjs)覆盖：
 
 - stale revision 和两个并发保存只有一个成功；
 - 第二文件写入失败后完整回滚；
@@ -64,11 +64,11 @@ Windows GUI 结果单独记录。macOS 路径继续做静态和通用 Node 验�
 - 原文件不存在时恢复“仍不存在”；
 - journal 损坏时拒绝猜测状态。
 
-[`tests/sound-settings-ui.test.mjs`](../tests/sound-settings-ui.test.mjs)覆盖请求错误分类、声音引用、草稿隔离、取消零写入、单次组合 PUT、等待提示去重和生命周期销毁。
+[`tests/sound-settings-ui.test.mjs`](../../tests/sound-settings-ui.test.mjs)覆盖请求错误分类、声音引用、草稿隔离、取消零写入、单次组合 PUT、等待提示去重和生命周期销毁。
 
 ## 5. 可维护性指标
 
-指标由 [`scripts/refactor-metrics.mjs`](../scripts/refactor-metrics.mjs)计算并由单测守护。
+指标由 [`scripts/refactor-metrics.mjs`](../../scripts/refactor-metrics.mjs)计算并由单测守护。
 
 | 指标 | 重构前 | 阶段 2 后 |
 |---|---:|---:|

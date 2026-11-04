@@ -184,7 +184,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 - 紧凑菜单、DSH 音效页面、Windows 原生区域、透明穿透、焦点和完整桌面烟测属于历史验证，本次未重跑完整验收。
 - macOS 实机、跨额度重置点刷新和长期多设备稳定性仍待验证。
 
-完整证据与限制见 [验证记录](docs/VERIFICATION-0.3.md)，原版报告逐项覆盖情况见 [DSH 功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)。
+完整证据与限制见 [验证基线](docs/BASELINE.md) 与 [故障排查](docs/TROUBLESHOOTING.md)，原版报告逐项覆盖情况见 [DSH 功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)。
 
 ## 开发与项目结构
 
@@ -227,9 +227,9 @@ python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
 
 - [Codex 额度 DIY 说明](docs/CODEX-QUOTA-DIY.md)
 - [DSH 原版功能逐项对照](docs/ORIGINAL-FEATURE-AUDIT.md)
-- [开发摘要](docs/DEVELOPMENT_SUMMARY.md)
-- [验证记录](docs/VERIFICATION-0.3.md)
-- [用户验收清单](docs/USER_TEST_CHECKLIST.md)
+- [开发摘要](docs/history/DEVELOPMENT_SUMMARY.md)
+- [验证记录](docs/history/VERIFICATION-0.3.md)
+- [用户验收清单](docs/history/USER_TEST_CHECKLIST.md)
 - [显示与气泡生命周期说明](docs/SURFACE-LIFECYCLE-FIX.md)
 - [来源与改编范围](PROVENANCE.md)
 - [安全说明](SECURITY.md)

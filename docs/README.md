@@ -7,25 +7,40 @@
 
 | 文档 | 内容 |
 |---|---|
-| [架构审阅与渐进重构方案](REFACTOR-PLAN.md) | 基于 `c799866` 的代码证据、目标边界、分阶段实施顺序、验收和回滚；阶段 0–2 与 4–5 已实施，阶段 3 部分实施，阶段 6 待做（见该文件开头的实施状态） |
-| [阶段 0–2 基线与验收记录](REFACTOR-BASELINE.md) | 路由/事件/存储归属、合成样本、测试入口、故障恢复和可维护性指标 |
+| [架构审阅与渐进重构方案](REFACTOR-PLAN.md) | 代码证据、目标边界、分阶段实施顺序、验收和回滚；阶段状态见文件开头 |
+| [阶段 0–2 基线与验收记录](history/REFACTOR-BASELINE.md) | 历史记录：路由/事件/存储归属、合成样本、测试入口（已归档） |
 
 ## 规格与产品决定（改行为前必读）
 
 | 文档 | 什么时候读 |
 |---|---|
-| [v0.3 实施范围与来源](V0.3-PLAN-AND-PROVENANCE.md) | **数据口径的权威定义**：订阅额度、API 余额、本机观测 token 各自的确切语义与边界。另有 macOS 来源与本版限制 |
+| [v0.3 实施范围与来源](V0.3-PLAN-AND-PROVENANCE.md) | **数据口径的权威定义**：订阅额度、API 余额、本机观测 token 各自的确切语义与边界 |
 | [空白点击设计决定](OUTSIDE-CLICK-DECISION.md) | 想加「点击空白关闭」之前必读 —— 记录为什么刻意不做 |
-| [紧凑菜单与原 B 版功能对照](DASHBOARD-B.md) | 要动菜单或面板布局之前必读；记录了 B 版大面板撤下的产品决定，对应实现 `desktop/ui/dashboard.js` 已删除 |
+| [紧凑菜单与原 B 版功能对照](DASHBOARD-B.md) | 要动菜单或面板布局之前必读 |
+| [显示与气泡生命周期说明](SURFACE-LIFECYCLE-FIX.md) | 动气泡淡出、表面生命周期之前必读 |
 
 ## 当前版本的验收证据
 
 | 文档 | 内容 |
 |---|---|
-| [v0.3(fixed) 验证记录](VERIFICATION-0.3.md) | 已有证据范围、已知测试限制、尚待用户验收项 |
-| [用户测试清单](USER_TEST_CHECKLIST.md) | 交给用户的逐项验收步骤 |
+| [验证基线](BASELINE.md) | 环境、命令结果、已知失败与未覆盖项；每次改动后更新 |
+| [故障排查](TROUBLESHOOTING.md) | 按状态表排查「请登录」「暂无额度」「未找到 Codex」等常见状态 |
 
 判定口径：**旧版测试数量不能替代当前版本的通过证据**。
+
+## v0.3 过程记录（历史，仅追溯时读）
+
+以下文档记录 v0.3 那一轮的排查与修复过程，**不是当前行为的规格**。
+
+| 文档 | 内容 |
+|---|---|
+| [v0.3(fixed) 开发摘要](history/DEVELOPMENT_SUMMARY.md) | 一页版摘要 |
+| [v0.3 交互问题修复](history/FEEDBACK-FIX-0.3.md) | 问题定位与修复记录 |
+| [v0.3(fixed) 验证记录](history/VERIFICATION-0.3.md) | 历史证据范围与限制 |
+| [用户测试清单](history/USER_TEST_CHECKLIST.md) | 历史验收步骤 |
+| [阶段 4–5 记录](history/REFACTOR-STAGES-4-5.md) | 拆分阶段记录 |
+| [Windows 显示候选修复](history/VISIBILITY-CANDIDATE.md) | 显示候选改动、复现与回滚 |
+| [上游 README 快照](history/UPSTREAM-README.md) | 仅作来源记录；安装与计费口径不适用于本插件 |
 
 ## 功能对照
 
@@ -48,20 +63,3 @@
 | [来源与署名](ATTRIBUTION.md) | 上游署名与素材条款 |
 
 根目录另有 [PROVENANCE.md](../PROVENANCE.md)、[SECURITY.md](../SECURITY.md)、[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)、[CHANGELOG.md](../CHANGELOG.md)、[RELEASE_NOTES.md](../RELEASE_NOTES.md)。
-
-## v0.3 过程记录（历史，仅追溯时读）
-
-以下文档记录 v0.3 那一轮的排查与修复过程，**不是当前行为的规格**。要理解现状，读上面的「规格与产品决定」就够。
-
-| 文档 | 内容 |
-|---|---|
-| [v0.3(fixed) 开发摘要](DEVELOPMENT_SUMMARY.md) | 下面各篇的一页版摘要 —— 先读它即可，不必逐篇展开 |
-| [v0.3 交互问题修复](FEEDBACK-FIX-0.3.md) | 问题定位与修复记录 |
-| [气泡收起与菜单悬停修复](SURFACE-LIFECYCLE-FIX.md) | 绘制生命周期与悬停范围修复 |
-| [Windows 显示候选修复](VISIBILITY-CANDIDATE.md) | 显示候选改动、复现与回滚 |
-
-## 上游快照
-
-| 文档 | 内容 |
-|---|---|
-| [上游 README 快照](UPSTREAM-README.md) | DeepSeek 版原 README，仅作来源记录；其中安装与计费口径**不适用**于本插件 |
