@@ -16,6 +16,8 @@ import { createRoleManager } from '/features/widget/role-manager.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
 import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-control.js';
+import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
+import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -96,7 +98,8 @@ import {
     var GIF_URL = '/dsh-whale/rua.gif';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
-    var assetWarnings = Object.create(null);
+    var confirmDialog = createConfirmDialog({ document: document });
+    var showConfirm = confirmDialog.show;
 
     // The combined settings endpoint owns both settings files and guards them
     // with a revision, so a partial update has to read the pair, merge, and send
@@ -128,29 +131,12 @@ import {
     }
 
     // ==== [素材与媒体工具] ====
-    function assetNotice(message) {
-      if (window.whaleToast) window.whaleToast(String(message || '素材操作未完成，请重试'));
-    }
-    function assetWarning(data) {
-      if (data && data.warning && !assetWarnings[data.warning]) {
-        assetWarnings[data.warning] = true;
-        assetNotice(data.warning);
-      }
-    }
-    function requireSaved(data) {
-      if (!data || data.ok !== true) throw new Error(data && data.error || '保存未完成，请重试');
-      assetWarning(data);
-      return data;
-    }
-    function assetFailure(error) { assetNotice(error && error.message || '保存未完成，请重试'); }
-    function mediaDataUrl(blob) {
-      return new Promise(function (resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function () { resolve(String(reader.result || '')); };
-        reader.onerror = function () { reject(new Error('文件读取失败，请重新选择')); };
-        reader.readAsDataURL(blob);
-      });
-    }
+    var assetHelpers = createAssetHelpers({ window: window, FileReader: FileReader });
+    var assetNotice = assetHelpers.notice;
+    var assetWarning = assetHelpers.warning;
+    var requireSaved = assetHelpers.requireSaved;
+    var assetFailure = assetHelpers.failure;
+    var mediaDataUrl = assetHelpers.mediaDataUrl;
     var root = document.createElement('div');
     root.className = 'dshwv-root';
     var positioner = document.createElement('div');
@@ -2743,35 +2729,6 @@ import {
         }).catch(assetFailure);
       } catch (err) { assetFailure(err); }
     }
-    var confirmMask = document.createElement('div');
-    confirmMask.className = 'dshwv-confirmmask';
-    confirmMask.style.display = 'none';
-    var confirmCard = document.createElement('div');
-    confirmCard.className = 'dshwv-confirmwin';
-    var confirmText = document.createElement('div');
-    confirmText.className = 'dshwv-confirmtext';
-    var confirmBtns = document.createElement('div');
-    confirmBtns.className = 'dshwv-confirmbtns';
-    var confirmNoBtn = document.createElement('button');
-    confirmNoBtn.type = 'button';
-    confirmNoBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    confirmNoBtn.textContent = '取消';
-    var confirmYesBtn = document.createElement('button');
-    confirmYesBtn.type = 'button';
-    confirmYesBtn.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    confirmYesBtn.textContent = '删除';
-    confirmBtns.appendChild(confirmNoBtn);
-    confirmBtns.appendChild(confirmYesBtn);
-    confirmCard.appendChild(confirmText);
-    confirmCard.appendChild(confirmBtns);
-    confirmMask.appendChild(confirmCard);
-    document.body.appendChild(confirmMask);
-    confirmNoBtn.addEventListener('click', hideConfirm);
-    confirmYesBtn.addEventListener('click', function () {
-      var cb = confirmCb;
-      hideConfirm();
-      if (cb) cb();
-    });
     var audioEditMask = document.createElement('div');
     audioEditMask.className = 'dshwv-audiomask';
     audioEditMask.style.display = 'none';
@@ -4086,20 +4043,6 @@ import {
       } catch (err) {}
     }
     // ==== [角色面板与裁图确认] ====
-    var confirmCb = null;
-    function showConfirm(text, cb, okLabel) {
-      confirmCb = cb || null;
-      confirmText.textContent = text;
-      try {
-        if (!okLabel) okLabel = String(text || '').indexOf('删除') !== -1 ? '删除' : '确定';
-        confirmYesBtn.textContent = okLabel;
-      } catch (err) {}
-      confirmMask.style.display = 'flex';
-    }
-    function hideConfirm() {
-      confirmMask.style.display = 'none';
-      confirmCb = null;
-    }
     var cropState = null;
     async function onRoleFileChosen(input) {
       try {

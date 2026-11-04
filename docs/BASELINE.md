@@ -13,18 +13,18 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T19:31Z |
+| 采集时间 | 2026-11-04T19:36Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **584 tests / 581 pass / 3 fail** |
+| `npm test` | **587 tests / 584 pass / 3 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
 | `npm run test:desktop` | 通过；20 项 Electron 检查（角色、APNG、气泡、设置面板、模式切换、形状与退出） |
 | `npm run check:package` | 通过 |
-| `npm run check:architecture` | 通过（空 catch 292/292，CSS hex 138/138） |
+| `npm run check:architecture` | 通过（空 catch 291/291，CSS hex 138/138） |
 | CI `verify.yml` | lint、test、architecture、bench:ledger、check:calendar、build-release 全部执行 |
 | `npm run check:calendar` | 通过；提示峰谷日历覆盖到 2026-12-31 |
 | `npm run bench:ledger` | 通过；20,000 条真实字段事件 / 90 天 / 30 MB：load 约 116 ms、records 约 118 ms、today 冷读约 108 ms / 缓存命中约 0 ms、写入约 443 ms、无变化观测约 115 ms |
