@@ -173,6 +173,7 @@ def archive(name, selected):
 
 artifacts = [archive('api-balance-whale-v0.3(fixed).zip', {p: d for p, d in files.items() if not p.startswith(('.github/', 'tests/'))}),
              archive('api-balance-whale-v0.3(fixed)-source.zip', files)]
+(output / 'SHA256SUMS').write_text(''.join(f"{item['sha256']}  {item['name']}\n" for item in artifacts), encoding='utf-8')
 report = {'displayVersion': 'v0.3(fixed)', 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
           'lineEndings': 'LF for source and Mac launchers; CRLF for Windows .cmd and .ps1',
           'releaseTag': args.release_tag, 'offlineInstaller': False, 'macOS': 'static-checks-no-hardware-acceptance', 'subscriptionLiveAccount': 'verified-plus-five-hour-and-weekly-windows',

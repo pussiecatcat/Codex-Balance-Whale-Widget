@@ -159,7 +159,6 @@ function visibility() {
 }
 function show() {
   manuallyHidden = false;
-  ensureCursorPoll();
   // Showing during normal startup must not restart an already loading page.
   if (!rendererReady && !readyTimer && !recoveryTimer && window && !window.isDestroyed() && !window.webContents.isLoading()) {
     recoveryAttempts = 0; recoverRenderer('manual-recovery');
