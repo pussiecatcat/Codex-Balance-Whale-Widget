@@ -73,11 +73,32 @@ function createTestHarness({ enabled = process.env.WHALE_DESKTOP_TEST === '1', r
     // live window and exits the app when it is done.
     async run(context) {
       if (!enabled) return;
+      // macOS Electron has no screen.dipToScreenRect/screenToDipRect: native
+      // bounds are already DIP there. Fixtures are written against the Windows
+      // conversions, so give them identity ones instead of branching per call.
+      if (context.screen && !context.screen.dipToScreenRect) {
+        const identity = (_display, rect) => ({ ...rect });
+        context = { ...context, screen: Object.create(context.screen, {
+          dipToScreenRect: { value: identity },
+          screenToDipRect: { value: identity },
+        }) };
+      }
       const module = env.WHALE_VISIBILITY_STRESS === '1' ? 'visibility-stress-fixture.mjs'
         : env.WHALE_DESKTOP_AUDIT === '1' ? 'desktop-audit-fixture.mjs'
+        : env.WHALE_BUBBLE_VISUAL === '1' ? 'bubble-visual-fixture.mjs'
+        : env.WHALE_SETTINGS_FIXTURE === '1' ? 'settings-fixture.mjs'
         : 'desktop-fixture.mjs';
-      const { verifyDesktop } = await import(pathToFileURL(path.join(root, 'tests', module)));
-      await verifyDesktop({ ...context, errors, openedLinks });
+      const loaded = await import(pathToFileURL(path.join(root, 'tests', module)));
+      if (env.WHALE_BUBBLE_VISUAL === '1') return loaded.renderBubbleVisual({ ...context, errors });
+      if (env.WHALE_SETTINGS_FIXTURE === '1') {
+        const report = await loaded.verifySettingsWindow({ ...context, errors, output: env.WHALE_DESKTOP_VERIFY_DIR || null });
+        // 夹具拥有进程：写完报告退出，不进入正常的挂件生命周期。
+        const fs = require('node:fs');
+        fs.writeFileSync(path.join(env.WHALE_DESKTOP_VERIFY_DIR || context.dataDir, 'settings-window.json'), JSON.stringify(report, null, 2));
+        context.app.quit();
+        return report;
+      }
+      await loaded.verifyDesktop({ ...context, errors, openedLinks });
     },
   };
 }

@@ -1,4 +1,5 @@
 import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '/features/widget/input-policy.js';
+import { createStorageSync } from '/features/widget/storage-sync.js';
 
 (() => {
   'use strict';
@@ -8,7 +9,7 @@ import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } fro
   const pet = document.querySelector('.dshwv-img'), root = document.querySelector('.dshwv-root');
   if (!pet || !root) return;
   let pointerEventAt=0;
-  let point = { x: -1, y: -1 }, heldPointer = null, releaseEpoch = 0, interactive = false, keyboardFocus = false, lastStorage = '', externalDrag = false;
+  let point = { x: -1, y: -1 }, heldPointer = null, releaseEpoch = 0, interactive = false, keyboardFocus = false, externalDrag = false;
   const keyboardSurfaces = 'dialog[open],.dshwv-menu-open,.dshwv-rolelist,.dshwv-audiolist,[class*="mask"],.dshwv-qedit,.dshwv-usagepanel,.dshwv-custmenu,.dshwv-fx-info';
   const { hit } = createInputHitTester({ document, pet, root, rendering, getComputedStyle,
     viewport: () => ({ width: innerWidth, height: innerHeight }) });
@@ -74,11 +75,16 @@ import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } fro
   pet.addEventListener('load', roleHit.prepare);
   pet.addEventListener('error', roleHit.fallback);
   roleHit.prepare();
-  function save() {
-    const values = Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)]));
-    const encoded = JSON.stringify(values);
-    if (encoded !== lastStorage) { lastStorage = encoded; bridge.save(values); }
-  }
+  const storage = createStorageSync({ initial: bridge.storage,
+    read: () => Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)])),
+    write: patch => bridge.save(patch),
+    reconcile: (key, value) => {
+      if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
+      window.dispatchEvent(new Event('whale-storage-reconciled'));
+    },
+  });
+  window.WhaleStorageSync = storage;
+  const save = () => storage.save();
   // A hidden companion has no editable surfaces. Keep the last snapshot rather
   // than repeatedly serializing localStorage while Codex is minimized.
   setInterval(() => { if (!document.hidden) save(); }, 800);

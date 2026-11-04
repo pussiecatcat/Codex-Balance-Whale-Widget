@@ -17,6 +17,7 @@ import { SoundSettingsService } from './sound-settings.mjs';
 export function createComposition({
   dataDir = DATA_HOME,
   service = null,
+  insightsService = null,
   monitor = true,
   autoRefresh = true,
   fetchImpl,
@@ -26,7 +27,7 @@ export function createComposition({
   migrateData(dataDir);
   const whale = service || new WhaleService({ dataDir, ...(fetchImpl ? { fetchImpl } : {}) });
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
-  const insights = createInsightsService(whale.config);
+  const insights = insightsService || createInsightsService(whale.config);
   const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
   const soundSettings = new SoundSettingsService({ dataDir, whale });
 

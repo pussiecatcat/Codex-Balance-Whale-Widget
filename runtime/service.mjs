@@ -80,7 +80,15 @@ export class WhaleService {
   resolveUsageSettings(saved = {}) {
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error('用量设置格式无效');
     const defaults = usageDefaults();
-    defaults.alert.lines.find(line => line.type === 'link').url = this.config.resolve().dashboardUrl;
+    // Point the default dashboard link at the configured provider, but never
+    // fail the whole read when the config is not resolvable yet and never
+    // replace the link with an empty value. A user who saved their own
+    // alert.lines keeps it, because the saved array replaces the default one.
+    try {
+      const link = defaults.alert.lines.find(line => line && line.type === 'link');
+      const dashboard = this.config.resolve().dashboardUrl;
+      if (link && dashboard) link.url = dashboard;
+    } catch { /* 配置未就绪时保留默认占位链接 */ }
     const result = { ...saved };
     for (const key of Object.keys(defaults)) {
       const value = saved[key];
@@ -104,11 +112,24 @@ export class WhaleService {
   prepareUsageSettings(patch, { base } = {}) {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('用量设置格式无效');
     const result = this.resolveUsageSettings(base === undefined ? readJson(this.usageSettingsFile, {}) : base);
-    for (const key of Object.keys(result)) if (key !== 'events' && patch[key] && typeof patch[key] === 'object') result[key] = { ...result[key], ...patch[key] };
-    if (patch.events && typeof patch.events === 'object' && !Array.isArray(patch.events)) {
-      for (const kind of Object.keys(result.events)) if (patch.events[kind] && typeof patch.events[kind] === 'object') {
-        result.events[kind] = { ...result.events[kind], ...patch.events[kind] };
-      }
+    for (const key of Object.keys(result)) {
+      if (key === 'events' || !Object.hasOwn(patch, key)) continue;
+      // A domain is only replaced by a plain object. null is the one explicit
+      // way to say "drop my changes and restore this domain"; it used to be
+      // silently ignored, which made a cleared setting look saved but unchanged.
+      const value = patch[key];
+      if (value === null) { result[key] = this.resolveUsageSettings({})[key]; continue; }
+      if (typeof value !== 'object' || Array.isArray(value)) throw new Error('提醒设置「' + key + '」格式无效');
+      result[key] = { ...result[key], ...value };
+    }
+    if (Object.hasOwn(patch, 'events')) {
+      const value = patch.events;
+      if (value === null) result.events = this.resolveUsageSettings({}).events;
+      else if (typeof value === 'object' && !Array.isArray(value)) {
+        for (const kind of Object.keys(result.events)) if (value[kind] && typeof value[kind] === 'object') {
+          result.events[kind] = { ...result.events[kind], ...value[kind] };
+        }
+      } else throw new Error('提醒设置「events」格式无效');
     }
     return this.validateUsageSettings(result);
   }

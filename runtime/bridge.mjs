@@ -1,12 +1,31 @@
 import net from 'node:net';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { DATA_HOME, VERSION, readJson, writeJson } from './paths.mjs';
 
+// A Unix domain socket path is stored in sun_path, which is 104 bytes on macOS
+// (108 on Linux). A long data directory used to make listen() fail with EINVAL,
+// which killed the whole desktop app. Keep the per-data-dir hash in the name so
+// two data directories never collide, and only fall back to the temp directory
+// when the natural path does not fit. Authentication is unchanged: the token
+// still lives in the 0600 runtime.json inside the data directory.
+const SOCKET_PATH_BUDGET = process.platform === 'darwin' ? 100 : 104;
+
 export function pipeName(dataDir = DATA_HOME) {
   const hash = crypto.createHash('sha256').update(path.resolve(dataDir).toLowerCase()).digest('hex').slice(0, 24);
-  return process.platform === 'win32' ? '\\\\.\\pipe\\codex-whale-' + hash : path.join(dataDir, 'whale-' + hash + '.sock');
+  if (process.platform === 'win32') return '\\\\.\\pipe\\codex-whale-' + hash;
+  const name = 'whale-' + hash + '.sock';
+  const preferred = path.join(dataDir, name);
+  if (Buffer.byteLength(preferred) <= SOCKET_PATH_BUDGET) return preferred;
+  const fallback = path.join(os.tmpdir(), name);
+  if (Buffer.byteLength(fallback) <= SOCKET_PATH_BUDGET) return fallback;
+  // Still too long: shorten the hash rather than failing to start.
+  const short = 'w' + hash.slice(0, 12) + '.sock';
+  const compact = path.join(os.tmpdir(), short);
+  if (Buffer.byteLength(compact) <= SOCKET_PATH_BUDGET) return compact;
+  throw new Error('无法为挂件 IPC 找到可用的套接字路径（系统临时目录路径过长）');
 }
 // Every route reachable from outside the service process, with the one method
 // each accepts. The host callbacks (position reset, desktop mode, host state)

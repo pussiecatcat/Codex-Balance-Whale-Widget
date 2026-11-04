@@ -216,6 +216,70 @@ export async function verifyAuditUI({ window, ev, wait, clickAt, hitPoint, move,
     await capture('audit-small-menu-bottom');
     checks.push('at a 480×380 viewport the expanded menu stays bounded and its last control is reachable by scrolling');
     window.setBounds(originalBounds);
+
+    // Both reported bubbles overflowed their white body before the shape became
+    // selectable. Assert containment for each bubble under each shape.
+    const containment = () => ev(`(() => {
+      const frame = ${front};
+      const shape = document.querySelector('.dshwv-bshape');
+      if (!frame || !shape) return null;
+      const inverse = shape.getScreenCTM().inverse();
+      const inWhite = (x, y) => shape.isPointInFill(new DOMPoint(x, y).matrixTransform(inverse));
+      const ranges = [...frame.querySelectorAll('.dshwv-trow')].flatMap(el => {
+        const range = document.createRange(); range.selectNodeContents(el);
+        return [...range.getClientRects()].filter(r => r.width && r.height).map(r => ({
+          text: el.textContent,
+          insideWhite: [[r.left + .5, r.top + .5], [r.right - .5, r.top + .5], [r.left + .5, r.bottom - .5], [r.right - .5, r.bottom - .5]]
+            .every(([x, y]) => inWhite(x, y))
+        }));
+      });
+      return { fit: parseFloat(frame.style.getPropertyValue('--dshw-fit')) || 1,
+        box: frame.getBoundingClientRect().toJSON(), ranges };
+    })()`);
+    const quotaScene = [{ type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
+      { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
+      { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 1 }];
+    // Driven through scene() rather than showCost(), which no-ops unless the
+    // per-turn cost toggle happens to be on. Both paths share bubbleRenderModules.
+    const turnScene = [{ type: 'text', text: '本轮已完成', size: 6, bold: true },
+      { type: 'text', text: '12,840 tokens', size: 16, bold: true, color: '#4059b3' },
+      { type: 'text', text: '输入 10,240 · 输出 2,600 · 缓存 6,000', size: 2, color: '#63719a' }];
+
+    details.shapes = {};
+    for (const shapeName of ['ellipse', 'round']) {
+      await ev(`(() => { const sel = document.querySelector('#dshw-bubble-shape');
+        if (!sel) throw new Error('missing bubble shape control');
+        sel.value = ${JSON.stringify(shapeName)}; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await delay(120);
+
+      await ev(`${api}.scene(${JSON.stringify(quotaScene)}, 0)`);
+      await stable(); await delay(200);
+      const quota = await containment();
+      details.shapes[shapeName + '-quota'] = quota;
+      assert.ok(quota && quota.ranges.length > 0, `${shapeName} quota bubble rendered measurable text`);
+      assert.ok(quota.ranges.every(r => r.insideWhite),
+        `${shapeName} quota bubble text stays inside the white body: ` + JSON.stringify(quota.ranges.filter(r => !r.insideWhite)));
+
+      await ev(`${api}.scene(${JSON.stringify(turnScene)}, 0)`);
+      await stable(); await delay(200);
+      const token = await containment();
+      details.shapes[shapeName + '-token'] = token;
+      assert.ok(token && token.ranges.length > 0, `${shapeName} turn bubble rendered measurable text`);
+      assert.ok(token.ranges.every(r => r.insideWhite),
+        `${shapeName} turn bubble text stays inside the white body: ` + JSON.stringify(token.ranges.filter(r => !r.insideWhite)));
+      await capture('audit-bubble-' + shapeName);
+      await close();
+    }
+
+    // The rounded body is geometrically roomier, so it must not scale content down.
+    assert.ok(details.shapes['round-quota'].fit >= details.shapes['ellipse-quota'].fit,
+      'the rounded shape never needs a harsher scale than the ellipse');
+    assert.equal(details.shapes['ellipse-token'].fit <= 1 && details.shapes['round-token'].fit <= 1, true,
+      'the fit guard only ever shrinks content');
+    await ev(`(() => { const sel = document.querySelector('#dshw-bubble-shape');
+      sel.value = 'ellipse'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    checks.push('the Codex subscription and per-turn token bubbles keep every text range inside the white body under both the ellipse and rounded shapes');
+
     fs.writeFileSync(path.join(output, 'ui-audit-regression.json'), JSON.stringify({ ok: true, checks, details, dataDir }, null, 2));
     return { checks };
   } catch (error) {

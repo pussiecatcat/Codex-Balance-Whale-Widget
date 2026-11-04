@@ -26,7 +26,13 @@ export async function makeFixture(dataDir) {
     return { ok: true, totalBalance: this.amount, currency: this.currency, providerName: '桌面交互测试', accountId: c.accountId, updatedAt: new Date().toISOString() };
   } };
   const service = new WhaleService({ config, provider });
-  return { service, monitor: false, autoRefresh: false, fxFetchImpl: async () => new Response(JSON.stringify({ amount: 1, base: 'USD', date: '2026-09-15', rates: { CNY: 6.7115 } }), { headers: { 'Content-Type': 'application/json' } }) };
+  const insightOptions = {};
+  if (process.env.WHALE_BUBBLE_VISUAL === '1') {
+    service.fixtureSubscription = { status: 'ready', windows: [], planType: 'plus' };
+    const snapshot = () => ({ ok: true, subscription: { available: true, observedAt: Date.now(), ...service.fixtureSubscription }, pricing: {}, tokens: null });
+    insightOptions.insightsService = { get: async () => snapshot(), getQuota: async () => snapshot(), close() {} };
+  }
+  return { service, ...insightOptions, monitor: false, autoRefresh: false, fxFetchImpl: async () => new Response(JSON.stringify({ amount: 1, base: 'USD', date: '2026-09-15', rates: { CNY: 6.7115 } }), { headers: { 'Content-Type': 'application/json' } }) };
 }
 
 export async function verifyDesktop({ app, window, screen, setHost, setTestCursor, dispatcher, dataDir, errors, renderInfo }) {
