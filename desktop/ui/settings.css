@@ -1,0 +1,206 @@
+/* 大肥鱼完整设置窗口。
+   这是一个普通的不透明窗口，不是透明挂件，所以这里不复用 ui.css 里
+   html.desktop 那套规则：它把 [class*="mask"] 和 dialog::backdrop 强制设为
+   透明（ui.css:187-188），会让本窗口创建的每个浮层失去遮罩。 */
+:root {
+  --ink: #203170;
+  --ink-hover: #2f4488;
+  --ink-soft: #536ba9;
+  --muted: #6b7794;
+  --line: #dfe4ef;
+  --wash: #f6f8fd;
+  --wash-2: #f3f5fb;
+  --card: #ffffff;
+  --danger: #c0392b;
+  --focus: #6384d5;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--wash);
+  color: #293752;
+  font: 14px/1.65 "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 顶栏 ─────────────────────────────────────────────────────────────── */
+.set-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 22px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  flex: none;
+}
+.set-top h1 { margin: 0; font-size: 19px; color: var(--ink); }
+.set-top .set-hint { color: var(--muted); font-size: 12.5px; }
+.set-top .set-dirty {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: #8a6a1f;
+  background: #fff6e2;
+  border: 1px solid #f0dcae;
+  border-radius: 999px;
+  padding: 3px 11px;
+  white-space: nowrap;
+}
+.set-top .set-dirty[hidden] { display: none; }
+
+/* ── 主体：左侧分类 + 右侧滚动 ────────────────────────────────────────── */
+.set-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.set-nav {
+  flex: 0 0 190px;
+  border-right: 1px solid var(--line);
+  background: var(--card);
+  padding: 12px 10px;
+  overflow-y: auto;
+}
+.set-nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font: inherit;
+  color: #3c4a68;
+  cursor: pointer;
+}
+.set-nav button:hover { background: rgba(32, 49, 112, .06); }
+.set-nav button[aria-current="true"] { background: rgba(32, 49, 112, .1); color: var(--ink); font-weight: 600; }
+.set-nav button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.set-nav .set-nav-count { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+
+.set-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.set-content { flex: 1 1 auto; overflow-y: auto; padding: 20px 24px 28px; }
+.set-page-title { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
+.set-page-hint { margin: 0 0 18px; color: var(--muted); font-size: 12.5px; }
+
+/* ── 字段行 ───────────────────────────────────────────────────────────── */
+.set-group-title { margin: 22px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.set-group-title:first-child { margin-top: 0; }
+.set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+.set-row.is-dirty { border-color: #c3cfee; background: #fbfcff; }
+.set-row.is-bridged { background: var(--wash-2); }
+.set-row-main { flex: 1 1 auto; min-width: 0; }
+.set-row-label { font-weight: 600; color: #2f3d5c; }
+.set-row-label .set-id { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 8px; font-family: ui-monospace, Menlo, monospace; }
+.set-row-purpose { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.set-row-control { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+.set-row-control input[type="range"] { width: 168px; accent-color: var(--ink); }
+.set-row-control input[type="number"], .set-row-control input[type="text"], .set-row-control input[type="url"] {
+  width: 190px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fbfcfe; color: #34425c; font: inherit;
+}
+.set-row-control select { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; color: #34425c; font: inherit; max-width: 240px; }
+.set-row-control input:focus-visible, .set-row-control select:focus-visible, .set-row-control button:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 1px;
+}
+.set-output { color: var(--muted); font-size: 12px; min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
+.set-locked { color: var(--muted); font-size: 12.5px; }
+.set-row-bridge { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.set-summary { color: var(--muted); font-size: 12.5px; }
+
+/* ── 按钮 ─────────────────────────────────────────────────────────────── */
+.set-button {
+  border: 1px solid var(--line); background: var(--card); color: #34425c;
+  border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer;
+}
+.set-button:hover { background: rgba(32, 49, 112, .05); border-color: #c3cfee; }
+.set-button.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.set-button.primary:hover { background: var(--ink-hover); }
+.set-button:disabled { opacity: .55; cursor: default; }
+
+/* ── 底部操作条：始终可达，不随内容滚动 ───────────────────────────────── */
+.set-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+}
+.set-actions .set-scope { color: var(--muted); font-size: 12.5px; }
+.set-actions .set-spacer { flex: 1 1 auto; }
+
+/* ── 说明浮层 ─────────────────────────────────────────────────────────── */
+.set-help-button {
+  flex: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 1px solid #b9c4de;
+  background: #eef1f9;
+  color: #5a6a92;
+  font: 600 12px/1 system-ui, sans-serif;
+  cursor: pointer;
+  padding: 0;
+}
+.set-help-button:hover { background: #dfe6f7; }
+.set-help-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.set-help {
+  position: fixed;
+  z-index: 40;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 460px);
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(32, 46, 75, .18);
+  padding: 14px 16px;
+  font-size: 13px;
+}
+.set-help:focus { outline: none; }
+.set-help-title { font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.set-help-row { margin: 0 0 7px; color: #46557a; }
+.set-help-row strong { color: var(--ink); margin-right: 6px; font-weight: 600; }
+.set-help-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+.set-help-list li { margin-bottom: 2px; }
+
+/* ── 提示与确认 ───────────────────────────────────────────────────────── */
+.set-notice { margin: 0 0 14px; padding: 10px 12px; border-radius: 9px; font-size: 13px; }
+.set-notice.error { background: #fdeeee; border: 1px solid #f3c9c4; color: #8d2f24; }
+.set-notice.info { background: #f0f4ff; border: 1px solid #d3ddf7; color: #34477f; }
+.set-notice[hidden] { display: none; }
+.set-conflicts { border: 1px solid #f0dcae; background: #fffaef; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.set-conflicts[hidden] { display: none; }
+.set-conflicts h3 { margin: 0 0 6px; font-size: 13.5px; color: #7a5a12; }
+.set-conflicts ul { margin: 0 0 10px; padding-left: 20px; }
+.set-conflicts li { margin-bottom: 5px; color: #6a5320; }
+.set-conflicts .set-conflict-actions { display: flex; gap: 8px; }
+
+/* ── 窄窗口：分类收成顶部横向条，内容不横向溢出 ───────────────────────── */
+@media (max-width: 720px) {
+  .set-body { flex-direction: column; }
+  .set-nav {
+    flex: none;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 10px;
+  }
+  .set-nav button { width: auto; white-space: nowrap; }
+  .set-nav .set-nav-count { display: none; }
+  .set-content { padding: 16px 14px 22px; }
+  .set-actions { padding: 10px 14px; }
+  .set-row { flex-direction: column; }
+  .set-row-control { padding-top: 0; }
+  .set-row-control input[type="range"] { width: 100%; min-width: 140px; }
+}

@@ -39,7 +39,20 @@ fs.writeFileSync(path.join(dataDir, 'whale-roles', 'role_audit_apng.png'), Buffe
   chunk('IDAT', zlib.deflateSync(Buffer.from([0, 40, 80, 220, 255, 0, 0, 0, 0]))), chunk('fcTL', frame(1)),
   chunk('fdAT', Buffer.concat([second, zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0, 40, 80, 220, 255]))])), chunk('IEND', Buffer.alloc(0)),
 ]));
-const executable = path.join(DATA_HOME, 'desktop-runtime/node_modules/electron/dist/electron.exe');
+// Electron 可执行文件按平台定位（原脚本把 electron.exe 写死，只能在 Windows 跑）；
+// WHALE_HOME 可指向隔离的运行时目录。
+function electronExecutable() {
+  const dist = path.join(DATA_HOME, 'desktop-runtime', 'node_modules', 'electron', 'dist');
+  const candidates = process.platform === 'darwin'
+    ? [path.join(dist, 'Electron.app', 'Contents', 'MacOS', 'Electron')]
+    : process.platform === 'win32'
+      ? [path.join(dist, 'electron.exe')]
+      : [path.join(dist, 'electron')];
+  const found = candidates.find(fs.existsSync);
+  if (!found) throw new Error('未找到 Electron 可执行文件，请先安装桌面运行时到 ' + DATA_HOME);
+  return found;
+}
+const executable = electronExecutable();
 const env = { ...process.env, WHALE_DESKTOP_TEST: '1', WHALE_DESKTOP_AUDIT: '1', WHALE_DESKTOP_VERIFY_DIR: output };
 if (process.argv.includes('--quota-only')) env.WHALE_QUOTA_AUDIT = '1';
 delete env.ELECTRON_RUN_AS_NODE;

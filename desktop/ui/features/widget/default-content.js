@@ -28,10 +28,13 @@ export function bubbleDefaultFirstModules() {
   }];
 }
 export function bubbleDefaultSubscriptionQueue() {
+  // Both gauges share one row key so bubbleRowsOf groups them side by side.
+  // Stacked cards are taller than the bubble path is wide at that depth, so
+  // the lower card used to render outside the white body.
   return [{ kind: 'custom', modules: [
     { type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
-    { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 2 }
+    { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 1 }
   ] }];
 }
 export function bubbleLegacySubscriptionDefault(items) {
@@ -39,6 +42,17 @@ export function bubbleLegacySubscriptionDefault(items) {
     if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
     var modules = items[0].modules;
     if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;
+    // The previous three-module default stacked the two gauges on separate
+    // rows, which pushed the lower card outside the bubble body.
+    if (modules.length === 3) {
+      var plan = modules[0], short = modules[1], weekly = modules[2];
+      var isPlan = plan && plan.type === 'plan' && plan.quotaStyle === 'header' && !plan.apiModelId && String(plan.tpl || '{plan_name}') === '{plan_name}';
+      var isMeter = function (m, minutes, row) {
+        return m && m.type === 'quota' && m.quotaStyle === 'meter' && !m.apiModelId &&
+          m.windowDurationMins === minutes && m.row === row && !m.tpl;
+      };
+      return !!(isPlan && isMeter(short, 300, 1) && isMeter(weekly, 10080, 2));
+    }
     if (modules.length !== 7) return false;
     var quotaModules = modules.filter(function (m) { return m && m.type === 'quota'; });
     var quotaTemplates = quotaModules.map(function (m) { return String(m.tpl || ''); }).sort().join('|');

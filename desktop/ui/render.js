@@ -16,6 +16,91 @@
   }
   const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 
+  // The bubble's white body is a drawn SVG path, but its content lives in a
+  // fixed-percentage box that is deliberately allowed to overflow. Tall scenes
+  // (two stacked quota cards, six-row custom bubbles) can outgrow the shape, so
+  // scale the committed frame until its content sits inside the drawn path.
+  // Testing the real path keeps this independent of which shape is selected and
+  // mirrors the audit assertion in tests/audit-ui-regression.mjs.
+  const FIT_INSET_U = 15; // stroke half-width 9u plus breathing room
+  const FIT_STEPS = 7;
+  // 下限曾经设成 0.78 以打断「缩小→换行更多→更高→缩更多」的正反馈，
+  // 但那会让内容直接溢出气泡、把上下行切掉，比缩小更难看。
+  // 真正的解法是加大内容盒的宽度减少换行，不是给缩放兜底。
+  // 留一个很高很保守的下限，只防住极端退化，不参与正常布局。
+  const FIT_FLOOR = 0.5;
+
+  function contentRect(frame) {
+    let box = null;
+    for (const child of frame.children) {
+      const rect = child.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      box = box
+        ? { left: Math.min(box.left, rect.left), top: Math.min(box.top, rect.top), right: Math.max(box.right, rect.right), bottom: Math.max(box.bottom, rect.bottom) }
+        : { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    }
+    return box;
+  }
+
+  // Returns the largest scale in (0,1] that keeps the content inside the path.
+  function fitScaleForRect(path, inverse, box, half, inset) {
+    const probes = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]];
+    const fits = scale => probes.every(([sx, sy]) => {
+      const x = (box.left + box.right) / 2 + sx * half.width * scale;
+      const y = (box.top + box.bottom) / 2 + sy * half.height * scale;
+      return path.isPointInFill(new DOMPoint(x, y).matrixTransform(inverse));
+    });
+    if (fits(1)) return 1;
+    if (!fits(FIT_FLOOR)) return FIT_FLOOR;
+    let low = FIT_FLOOR, high = 1;
+    for (let step = 0; step < FIT_STEPS; step++) {
+      const mid = (low + high) / 2;
+      if (fits(mid)) low = mid; else high = mid;
+    }
+    return low;
+  }
+
+  function fitFrameToBubble(frame) {
+    const pop = frame.closest('.dshwv-pop');
+    const path = pop && pop.querySelector('.dshwv-bshape');
+    if (!frame.isConnected || !path || typeof path.isPointInFill !== 'function') return 1;
+    // getBoundingClientRect reports transformed geometry, so a scale left by the
+    // previous scene would shrink this measurement and compound the error.
+    frame.style.removeProperty('--dshw-fit');
+    const matrix = path.getScreenCTM();
+    if (!matrix) return 1;
+    // --dshw-u is declared as an unresolved calc(), so getPropertyValue returns
+    // a token stream rather than a length. The pop box is exactly 1026 user
+    // units wide (its aspect-ratio matches the viewBox), which resolves it.
+    const popWidth = pop.getBoundingClientRect().width;
+    const unit = popWidth / 1026;
+    if (!(unit > 0)) return 1;
+    const box = contentRect(frame);
+    if (!box) return 1;
+    const half = { width: (box.right - box.left) / 2, height: (box.bottom - box.top) / 2 };
+    const inset = FIT_INSET_U * unit;
+    if (half.width <= inset || half.height <= inset) return 1;
+    const scale = fitScaleForRect(path, matrix.inverse(), box, half, inset);
+    frame.style.setProperty('--dshw-fit', String(scale));
+    observeContent(frame);
+    return scale;
+  }
+
+  // A ticking countdown or a late quota repaint can resize committed content.
+  // Transform never changes layout size, so re-fitting cannot feed itself.
+  const fitObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+    for (const entry of entries) fitFrameToBubble(entry.target.parentElement);
+  }) : null;
+  const observedContent = new WeakSet();
+  function observeContent(frame) {
+    if (!fitObserver) return;
+    for (const child of frame.children) {
+      if (observedContent.has(child)) continue;
+      observedContent.add(child);
+      fitObserver.observe(child);
+    }
+  }
+
   // Alpha is only consulted for input. Chromium owns visual alpha/compositing.
   class AlphaHitCache {
     constructor() {
@@ -139,6 +224,7 @@
     reset(parts) {
       // Only the hidden buffer is edited. The four legacy nodes are reused.
       window.WhaleMoney?.clearBindings(parts.root);
+      parts.root.style.removeProperty('--dshw-fit');
       for (const child of [...parts.root.children]) {
         if (![parts.label, parts.amount, parts.hint, parts.gif].includes(child)) child.remove();
       }
@@ -169,6 +255,9 @@
         build(incoming);
         await this.ready(incoming);
         if (epoch !== this.epoch) return false;
+        // Layout is settled and the frame is still transparent: measure and fit
+        // here so the fade never reveals content outside the bubble shape.
+        fitFrameToBubble(incoming.root);
         onReady?.();
         const fade = this.hasFrame;
         outgoing.root.inert = true;
@@ -212,5 +301,10 @@
     const transform = getComputedStyle(root).transform;
     return transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
   }
-  window.WhaleRendering = Object.freeze({ BubbleRenderer, hitCache, mirrorScale, presentFor, onFrame: listener => { frameListeners.add(listener); return () => frameListeners.delete(listener); } });
+  // Switching the bubble shape changes the path the content must fit inside,
+  // so the visible frame has to be measured again.
+  function refitBubble() {
+    for (const frame of document.querySelectorAll('.dshwv-frame')) fitFrameToBubble(frame);
+  }
+  window.WhaleRendering = Object.freeze({ BubbleRenderer, hitCache, mirrorScale, presentFor, refitBubble, fitFrameToBubble, onFrame: listener => { frameListeners.add(listener); return () => frameListeners.delete(listener); } });
 })();

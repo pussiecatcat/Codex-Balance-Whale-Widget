@@ -24,6 +24,7 @@ import { requestJson } from '/services/request.js';
     const reload = element('button', '重新加载素材列表'); reload.hidden = true; reload.onclick = () => location.reload();
     const close = element('button', '关闭'); close.onclick = () => dialog.close(); const actions = element('div'); actions.className = 'dialog-actions'; actions.append(exportButton, importButton, reload, close); dialog.append(file, status, actions); dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
   }
+  window.WhaleWorkshopOpen = open;
   function initMenu() {
     const menu = document.querySelector('.dshwv-menuview');
     if (!menu) return;

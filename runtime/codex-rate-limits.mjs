@@ -49,6 +49,27 @@ function locateCodex(env) {
   add(env.CODEX_CLI_PATH);
   const local = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
   const roaming = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  if (process.platform === 'darwin') {
+    const executableFile = candidate => {
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return fs.statSync(candidate).isFile();
+      } catch { return false; }
+    };
+    for (const directory of String(env.PATH || '').split(path.delimiter).filter(Boolean)) {
+      const candidate = path.join(directory, 'codex');
+      if (executableFile(candidate)) return candidate;
+    }
+    for (const applications of [path.join(os.homedir(), 'Applications'), '/Applications']) {
+      for (const relative of [
+        ['Codex.app', 'Contents', 'Resources', 'codex'],
+        ['ChatGPT.app', 'Contents', 'Resources', 'codex-cli', 'CodexCLI.app', 'Contents', 'MacOS', 'codex'],
+      ]) {
+        const candidate = path.join(applications, ...relative);
+        if (executableFile(candidate)) return candidate;
+      }
+    }
+  }
   if (process.platform === 'win32') {
     const bin = path.join(local, 'OpenAI', 'Codex', 'bin');
     try {
@@ -84,12 +105,146 @@ export function codexSpawnArgs(executable, args) {
   return { executable, args };
 }
 
+// codex-cli 0.120.0 起 `app-server --stdio` 被移除，换成了 `--listen stdio://`
+// （stdio 本身就是默认值）。旧写法会让 CLI 直接报 unexpected argument 并以
+// 退出码 2 结束，表现为额度永远读不出来。这里按顺序尝试各写法，命中就记住，
+// 避免每次刷新都先白起一次进程。一次性查询和常驻连接共用这一份协商缓存；
+// 缓存命中但参数再次被拒（例如 codex 就地升级）时重新协商。
+const APP_SERVER_ARG_FORMS = [
+  ['app-server', '--listen', 'stdio://'],
+  ['app-server', '--stdio'],
+];
+// executable -> { working: 已验证可用的写法下标, rejected: 已被拒绝的下标 }
+const workingArgs = new Map();
+
+function argsIndex(args) {
+  return APP_SERVER_ARG_FORMS.findIndex(form => form === args || form.join(' ') === args.join(' '));
+}
+
+export function appServerArgsOrder(executable) {
+  const state = workingArgs.get(executable);
+  const all = APP_SERVER_ARG_FORMS.map((_, index) => index);
+  const candidates = state == null ? all
+    : (state.working == null ? all : [state.working, ...all.filter(index => index !== state.working)]);
+  const remaining = candidates.filter(index => !(state?.rejected ?? []).includes(index));
+  // 全部被拒（例如换了旧版本来回切换）时从默认顺序重来，保证有界可恢复。
+  return remaining.length ? remaining : all;
+}
+
+export function noteAppServerArgsRejected(executable, args) {
+  const index = argsIndex(args);
+  if (index < 0) return;
+  const state = workingArgs.get(executable) || { working: null, rejected: [] };
+  if (!state.rejected.includes(index)) state.rejected.push(index);
+  if (state.working === index) state.working = null;
+  workingArgs.set(executable, state);
+}
+
+export function noteAppServerArgsWorking(executable, args) {
+  const index = argsIndex(args);
+  if (index < 0) return;
+  const state = workingArgs.get(executable) || { working: null, rejected: [] };
+  state.working = index;
+  state.rejected = state.rejected.filter(candidate => candidate !== index);
+  workingArgs.set(executable, state);
+}
+
+// 只有「CLI 拒绝了参数」才值得换写法重试。没登录、网络不通这类真实失败
+// 重试只会白等一个完整超时，所以按 stderr 特征精确区分。stderr 只在这里
+// 做内部判定，不向界面或日志透出原始内容。
+export function looksLikeArgsRejected(stderr) {
+  return /unexpected argument|unrecognized (?:option|argument)|unknown option|invalid value .* for/i.test(String(stderr || ''));
+}
+
+// 仅供测试：清掉「哪种写法可用」的缓存。
+export function resetCodexRateLimitsArgsCache() { workingArgs.clear(); }
+
+function readRateLimitsOnce({ codexHome, executable, timeoutMs, spawnImpl, signal }, args) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('Codex 额度查询已取消'));
+    let stderr = '';
+    const launch = codexSpawnArgs(executable, args);
+    const child = spawnImpl(launch.executable, launch.args, {
+      windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
+    });
+    if (child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.setEncoding?.('utf8');
+      child.stderr.on('data', chunk => { if (stderr.length < 4096) stderr += chunk; });
+    }
+    let settled = false, buffer = '';
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', onAbort);
+      child.stdin.destroy();
+      child.kill();
+      if (error) {
+        if (looksLikeArgsRejected(stderr)) { noteAppServerArgsRejected(executable, args); error.argsRejected = true; }
+        reject(error);
+      } else { noteAppServerArgsWorking(executable, args); resolve(value); }
+    };
+    const send = message => { if (!settled && child.stdin.writable) child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n'); };
+    const onAbort = () => finish(new Error('Codex 额度查询已取消'));
+    const timeout = setTimeout(() => finish(new Error('Codex 额度查询超时')), timeoutMs);
+    timeout.unref?.();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    child.once('error', error => finish(error));
+    child.stdin.on('error', error => finish(error));
+    child.once('close', () => {
+      const rejected = looksLikeArgsRejected(stderr);
+      finish(new Error(rejected ? 'Codex 额度查询参数不被当前版本支持' : 'Codex 额度查询已结束'));
+    });
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', chunk => {
+      buffer += chunk;
+      if (buffer.length > 2 * 1024 * 1024) return finish(new Error('Codex 额度响应过大'));
+      let end;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
+        let message;
+        try { message = JSON.parse(line); } catch { continue; }
+        if (message.method !== undefined) continue;
+        if (message.id === 1) {
+          if (message.error) return finish(new Error('Codex 初始化失败'));
+          send({ method: 'initialized', params: {} });
+          send({ id: 2, method: 'account/rateLimits/read', params: {} });
+        } else if (message.id === 2) {
+          if (message.error || !message.result) return finish(new Error('Codex 额度不可用'));
+          return finish(null, { windows: quotaFromAppServer(message.result), observedAt: Date.now(),
+            planType: message.result.rateLimitsByLimitId?.codex?.planType || message.result.rateLimits?.planType || null });
+        }
+      }
+    });
+    send({ id: 1, method: 'initialize', params: { clientInfo: {
+      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: VERSION,
+    } } });
+  });
+}
+
+export async function readCodexRateLimits({ codexHome, executable = findCodexExecutable(), timeoutMs = 6000, spawnImpl = spawn, signal } = {}) {
+  const resolved = { codexHome, executable, timeoutMs, spawnImpl, signal };
+  let lastError;
+  for (const args of appServerArgsOrder(executable).map(index => APP_SERVER_ARG_FORMS[index])) {
+    try {
+      return await readRateLimitsOnce(resolved, args);
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // 参数被拒才换下一种写法；其它失败原样抛出，避免白等一个完整超时。
+      if (!error?.argsRejected) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('Codex 额度不可用');
+}
+
 // One bounded, private stdio connection per widget. No credentials or raw RPC
 // errors leave the reader, and a failed transport is discarded before retry.
 export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs = 5000,
   idleMs = 90000, spawnImpl = spawn, clock = Date.now } = {}) {
   let connection = null, nextId = 1, idleTimer = null, closed = false;
-  const error = (code, message = 'Codex 额度查询暂不可用') => Object.assign(new Error(message), { code });
+  const error = code => Object.assign(new Error('Codex 额度查询暂不可用'), { code });
   function destroy(own, reason = error('UNAVAILABLE')) {
     if (!own || own.dead) return;
     own.dead = true;
@@ -116,14 +271,20 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       catch { destroy(own); }
     });
   }
-  function resolvedExecutable() { return executable === '' ? null : (executable || findCodexExecutable()); }
   function connect(signal) {
     if (connection) return connection;
-    const launch = codexSpawnArgs(resolvedExecutable(), ['app-server', '--stdio']);
+    const target = executable === '' ? null : (executable || findCodexExecutable());
+    const args = APP_SERVER_ARG_FORMS[appServerArgsOrder(target)[0]];
+    const launch = codexSpawnArgs(target, args);
     const child = spawnImpl(launch.executable, launch.args, {
-      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
+      windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
       env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
     });
+    let stderr = '';
+    if (child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.setEncoding?.('utf8');
+      child.stderr.on('data', chunk => { if (stderr.length < 4096) stderr += chunk; });
+    }
     const own = { child, jobs: new Map(), dead: false, ready: null };
     connection = own;
     let buffer = '';
@@ -136,8 +297,6 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       while ((end = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         let message; try { message = JSON.parse(line); } catch { continue; }
-        // A server-initiated request or notification carries `method`; only
-        // replies are matched by id, so a colliding id cannot resolve a job.
         if (message.method !== undefined) continue;
         const job = own.jobs.get(message.id);
         if (!job) continue;
@@ -149,19 +308,24 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       }
     });
     child.once('error', () => destroy(own));
-    child.once('close', () => destroy(own));
+    child.once('close', () => {
+      // 参数被当前版本拒绝时登记，下一次连接换用下一种写法；其余失败不碰缓存。
+      if (!own.dead && looksLikeArgsRejected(stderr)) noteAppServerArgsRejected(target, args);
+      destroy(own);
+    });
     child.stdin.on('error', () => destroy(own));
     own.ready = rpc(own, 'initialize', { clientInfo: {
       name: 'codex_whale_widget', title: 'Codex Whale Widget', version: VERSION,
     } }, signal).then(() => {
       if (own.dead) throw error('UNAVAILABLE');
+      noteAppServerArgsWorking(target, args);
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }) + '\n');
     });
     return own;
   }
   async function read({ signal } = {}) {
     clearTimeout(idleTimer);
-    if (!resolvedExecutable()) throw error('CODEX_NOT_FOUND', '未找到 Codex 可执行文件，请确认 Codex 已安装或设置 CODEX_CLI_PATH');
+    if (executable === '' || (!executable && !findCodexExecutable())) throw error('CODEX_NOT_FOUND', '未找到 Codex 可执行文件，请确认 Codex 已安装或设置 CODEX_CLI_PATH');
     for (let attempt = 0; attempt < 2; attempt++) {
       if (closed || signal?.aborted) throw error('ABORTED');
       let own;
@@ -174,7 +338,7 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
           planType: result.rateLimitsByLimitId?.codex?.planType || result.rateLimits?.planType || null };
       } catch (failure) {
         destroy(own);
-        if (closed || signal?.aborted || ['AUTH_REQUIRED', 'ABORTED', 'CODEX_NOT_FOUND'].includes(failure.code) || attempt === 1) throw failure;
+        if (closed || signal?.aborted || ['AUTH_REQUIRED', 'ABORTED'].includes(failure.code) || attempt === 1) throw failure;
       } finally {
         clearTimeout(idleTimer);
         if (!closed && connection) {

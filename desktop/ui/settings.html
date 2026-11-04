@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- 普通不透明设置窗口。html 上刻意不加 class="desktop"：ui.css:187-188 会把
+     [class*="mask"] 和 dialog::backdrop 强制设为透明，只对透明挂件成立。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大肥鱼设置</title>
+<link rel="stylesheet" href="/settings.css">
+<script src="/settings-catalog.js" defer></script>
+<script src="/settings-help.js" defer></script>
+<script src="/settings-pages.js" defer></script>
+<script type="module" src="/settings.js"></script>
+</head>
+<body>
+  <header class="set-top">
+    <h1 id="set-page-title">大肥鱼设置</h1>
+    <span class="set-hint">常用项在鲸鱼菜单里就能改，这里是全部设置。</span>
+    <span class="set-dirty" id="set-dirty" hidden>有未保存的修改</span>
+  </header>
+  <div class="set-body">
+    <nav class="set-nav" id="set-nav" aria-label="设置分类"></nav>
+    <main class="set-main">
+      <div class="set-conflicts" id="set-conflicts" hidden></div>
+      <div class="set-content" id="set-content"></div>
+      <footer class="set-actions">
+        <span class="set-scope" id="set-scope">本页改动：0 项</span>
+        <span class="set-spacer"></span>
+        <button type="button" class="set-button" id="set-reset">恢复本页默认</button>
+        <button type="button" class="set-button" id="set-revert">撤销修改</button>
+        <button type="button" class="set-button primary" id="set-save">保存更改</button>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
