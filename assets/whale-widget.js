@@ -21,6 +21,7 @@ import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
 import { createAudioGroupList } from '/features/widget/audio-group-list.js';
 import { createAudioSlotPanel } from '/features/widget/audio-slot-panel.js';
+import { createAudioGroupEditor } from '/features/widget/audio-group-editor.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
@@ -3973,8 +3974,6 @@ import {
       refreshTaskEnd: refreshTaskEndAfterAudio
     });
     var renderAudioGroupPanel = audioGroupList.render;
-    var editingAudioGroupId = null;
-    var audioEditorSession = null;
     var audioEditPressVal = 'ya1';
     var audioEditReleaseVal = 'ya2';
     var audioSlotPanel = createAudioSlotPanel({
@@ -3990,213 +3989,35 @@ import {
     var toggleAudioSlotPanel = audioSlotPanel.toggle;
     var closeAudioSlotPanels = audioSlotPanel.close;
     var renderAudioSlotPanel = audioSlotPanel.render;
-    function openAudioGroupEditor(group) {
-      editingAudioGroupId = group && group.id ? group.id : null;
-      audioEditTitle.textContent = editingAudioGroupId ? '编辑音效组' : '新建音效组';
-      audioEditName.value = group && group.name ? group.name : '';
-      var isNewGroup = !(group && group.id);
-      audioEditPressVal = group && typeof group.press === 'string' ? group.press : isNewGroup ? '' : 'ya1';
-      audioEditReleaseVal = group && typeof group.release === 'string' ? group.release : isNewGroup ? '' : 'ya2';
-      audioSlotPanel.refresh();
-      audioEditPreviewEnsure();
-      audioEditMask.style.display = 'flex';
-    }
-    function hideAudioEditor(outcome, detail) {
-      stopAudioEditPreview();
-      audioEditMask.style.display = 'none';
-      editingAudioGroupId = null;
-      closeAudioSlotPanels();
-      if (audioEditorSession) {
-        var session = audioEditorSession;
-        audioEditorSession = null;
-        audioEditMask.style.zIndex = session.zIndex;
-        session.resolve(outcome === 'saved' ? Object.assign({ status: 'saved' }, detail || {}) : { status: 'cancelled' });
-      }
-    }
-    function openAudioEditorForFeature(options) {
-      options = options || {};
-      if (audioEditorSession) {
-        var previous = audioEditorSession;
-        audioEditorSession = null;
-        audioEditMask.style.zIndex = previous.zIndex;
-        previous.resolve({ status: 'cancelled' });
-      }
-      var group = null;
-      if (options.groupId) {
-        for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === options.groupId) group = audioGroups[i];
-      }
-      return new Promise(function (resolve) {
-        audioEditorSession = { resolve: resolve, zIndex: audioEditMask.style.zIndex };
-        audioEditMask.style.zIndex = '27000';
-        openAudioGroupEditor(group);
-      });
-    }
-    var audioEditPreviewEl = null;
-    var audioEditPreviewRelease = null;
-    var audioEditPreviewTimer = null;
-    var audioEditPreviewReady = false;
-    var audioEditPreviewPressing = false;
-    var audioEditPreviewPressEnded = false;
-    var audioEditPreviewReleasePlayed = false;
-    function audioEditPreviewEnsure(force) {
-      try {
-        if (!force && audioEditPreviewReady) return true;
-        var pressId = audioEditPressVal || '';
-        var releaseId = audioEditReleaseVal || '';
-        try {
-          stopAudioEditPreview();
-        } catch (err) {}
-        try {
-          if (audioEditPreviewEl) {
-            audioEditPreviewEl.pause();
-            audioEditPreviewEl = null;
-          }
-          if (audioEditPreviewRelease) {
-            audioEditPreviewRelease.pause();
-            audioEditPreviewRelease = null;
-          }
-        } catch (err) {}
-        if (pressId) {
-          audioEditPreviewEl = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(pressId));
-          audioEditPreviewEl.preload = 'auto';
-          audioEditPreviewEl.volume = soundVol;
-        }
-        if (releaseId) {
-          audioEditPreviewRelease = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(releaseId));
-          audioEditPreviewRelease.preload = 'auto';
-          audioEditPreviewRelease.volume = soundVol;
-        }
-        audioEditPreviewReady = true;
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
-    function audioEditPreviewDown() {
-      try {
-        stopAudioEditPreview();
-        if (!audioEditPreviewEnsure()) return;
-        audioEditPreviewPressing = true;
-        audioEditPreviewPressEnded = false;
-        audioEditPreviewReleasePlayed = false;
-        if (!audioEditPreviewEl) {
-          audioEditPreviewPressEnded = true;
-          return;
-        }
-        audioEditPreviewEl.onended = function () {
-          audioEditPreviewPressEnded = true;
-          if (!audioEditPreviewPressing && !audioEditPreviewReleasePlayed) audioEditPreviewUp();
-        };
-        var p = audioEditPreviewEl.play();
-        if (p && typeof p.catch === 'function') p.catch(function () {});
-      } catch (err) {}
-    }
-    function audioEditPreviewUp() {
-      try {
-        if (!audioEditPreviewPressing) return;
-        audioEditPreviewPressing = false;
-        if (!audioEditPreviewEl) {
-          audioEditPreviewPlayRelease();
-          return;
-        }
-        if (audioEditPreviewPressEnded) {
-          audioEditPreviewPlayRelease();
-          return;
-        }
-        var durKnown = false;
-        var remainMs = 0;
-        try {
-          var dur = audioEditPreviewEl ? audioEditPreviewEl.duration : 0;
-          if (isFinite(dur) && dur > 0) {
-            durKnown = true;
-            remainMs = (dur - audioEditPreviewEl.currentTime) * 1000;
-          }
-        } catch (err) {}
-        if (durKnown) {
-          audioEditPreviewTimer = setTimeout(function () {
-            audioEditPreviewTimer = null;
-            audioEditPreviewPlayRelease();
-          }, Math.max(0, remainMs - 100));
-        }
-      } catch (err) {}
-    }
-    function audioEditPreviewPlayRelease() {
-      try {
-        if (audioEditPreviewReleasePlayed || !audioEditPreviewRelease) return;
-        audioEditPreviewReleasePlayed = true;
-        audioEditPreviewRelease.currentTime = 0;
-        var p = audioEditPreviewRelease.play();
-        if (p && typeof p.catch === 'function') p.catch(function () {});
-      } catch (err) {}
-    }
-    function stopAudioEditPreview() {
-      try {
-        if (audioEditPreviewTimer) {
-          clearTimeout(audioEditPreviewTimer);
-          audioEditPreviewTimer = null;
-        }
-        if (audioEditPreviewEl) {
-          audioEditPreviewEl.pause();
-          audioEditPreviewEl.currentTime = 0;
-        }
-        if (audioEditPreviewRelease) {
-          audioEditPreviewRelease.pause();
-          audioEditPreviewRelease.currentTime = 0;
-        }
-        audioEditPreviewPressing = false;
-        audioEditPreviewPressEnded = false;
-        audioEditPreviewReleasePlayed = false;
-      } catch (err) {}
-    }
-    function saveAudioGroup() {
-      try {
-        stopAudioEditPreview();
-        var name = (audioEditName.value || '').trim().slice(0, 20);
-        if (!name) {
-          audioEditName.focus();
-          return;
-        }
-        requestJson(AUDIO_URL, {
-          method: 'POST',
-          body: {
-            action: 'save-group',
-            id: editingAudioGroupId || '',
-            name: name,
-            press: audioEditPressVal || '',
-            release: audioEditReleaseVal || ''
-          }
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.groups)) {
-            var openedFromFeature = !!audioEditorSession;
-            var selectedGroupId = editingAudioGroupId || '';
-            audioGroups = d.groups;
-            if (Array.isArray(d.fragments)) audioFragments = d.fragments;
-            renderAudioGroupPanel();
-            refreshTaskEndAfterAudio();
-            if (!editingAudioGroupId) {
-              var newest = d.groups.filter(function (x) {
-                return !x.preset;
-              }).sort(function (a, b) {
-                return (b.pinnedAt || 0) - (a.pinnedAt || 0);
-              })[0];
-              if (newest) {
-                selectedGroupId = newest.id;
-                if (!openedFromFeature) setSoundSet(newest.id);
-              }
-            } else if (!openedFromFeature && soundSet === editingAudioGroupId) {
-              try {
-                applySoundSet();
-              } catch (err) { assetFailure(err); }
-            }
-            hideAudioEditor('saved', {
-              selectedGroupId: selectedGroupId,
-              catalog: { groups: audioGroups.slice(), fragments: audioFragments.slice() }
-            });
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
+    var audioGroupEditorApi = createAudioGroupEditor({
+      Audio: Audio, requestJson: requestJson, url: AUDIO_URL,
+      elements: {
+        mask: audioEditMask, card: audioEditCard, title: audioEditTitle, name: audioEditName,
+        play: audioEditPlay, cancel: audioEditCancel, save: audioEditSave,
+        pressImport: audioEditPressImport, releaseImport: audioEditReleaseImport
+      },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getFragments: function () { return audioFragments; }, setFragments: function (fragments) { audioFragments = fragments; },
+      getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
+      getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
+      getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
+      getVolume: function () { return soundVol; }, renderGroups: renderAudioGroupPanel,
+      refreshTaskEnd: refreshTaskEndAfterAudio, applySoundSet: applySoundSet,
+      slotPanel: audioSlotPanel,
+      startImport: function (slot) {
+        audioCropTarget = slot;
+        audioCropFileInput.value = '';
+        audioCropFileInput.click();
+      },
+      requireSaved: requireSaved, assetFailure: assetFailure
+    });
+    function openAudioGroupEditor(group) { return audioGroupEditorApi.open(group); }
+    function hideAudioEditor(outcome, detail) { return audioGroupEditorApi.hide(outcome, detail); }
+    function openAudioEditorForFeature(options) { return audioGroupEditorApi.openForFeature(options); }
+    function saveAudioGroup() { return audioGroupEditorApi.save(); }
+    function audioEditPreviewDown() { return audioGroupEditorApi.previewDown(); }
+    function audioEditPreviewUp() { return audioGroupEditorApi.previewUp(); }
+    function audioEditPreviewEnsure(force) { return audioGroupEditorApi.ensurePreview(force); }
     var audioCropFileInput = document.createElement('input');
     audioCropFileInput.type = 'file';
     audioCropFileInput.accept = 'audio/*';
