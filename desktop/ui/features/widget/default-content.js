@@ -23,7 +23,7 @@ export function bubbleDefaultFirstModules() {
   }, {
     type: "today",
     size: 4,
-    color: "#9fb0d9",
+    color: "var(--text-muted)",
     tpl: "今日已观测 {expense_api}"
   }];
 }
@@ -430,7 +430,7 @@ var BUBBLE_DEFAULT_ITEMS = [{
   }, {
     "type": "today",
     "size": 4,
-    "color": "#9fb0d9",
+    "color": "var(--text-muted)",
     "tpl": "今日已观测 {expense_api}"
   }]
 }, {

@@ -1546,7 +1546,7 @@ import {
     bubbleItemCard.appendChild(bubbleEditorState.palEl);
     var bubbleSecPv = document.createElement('div');
     bubbleSecPv.className = 'dshwv-bubsec';
-    bubbleSecPv.textContent = '泡泡内容预览(同一行模块并排显示,≤6 个;拖模块块到行左/右边缘=并入该行、上/下=另起一行;拖 ⠿ 整行排序)';
+    bubbleSecPv.textContent = '泡泡内容预览（示例数据；同一行模块并排显示,≤6 个;拖模块块到行左/右边缘=并入该行、上/下=另起一行;拖 ⠿ 整行排序）';
     bubbleItemCard.appendChild(bubbleSecPv);
     bubbleEditorState.pvEl = document.createElement('div');
     bubbleEditorState.pvEl.className = 'dshwv-bubpvbox';

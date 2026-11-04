@@ -121,6 +121,14 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
         del.addEventListener('click', () => { if (deleteBubbleStep(getItems(), index)) renderMore(); });
         row.appendChild(del);
       }
+      const up = document.createElement('button');
+      up.type = 'button'; up.className = 'dshwv-bubmini'; up.textContent = '↑'; up.title = '上移该次点击（键盘替代拖拽）';
+      up.addEventListener('click', () => { if (moveBubbleStep(getItems(), index, -1)) renderMore(); });
+      const down = document.createElement('button');
+      down.type = 'button'; down.className = 'dshwv-bubmini'; down.textContent = '↓'; down.title = '下移该次点击（键盘替代拖拽）';
+      down.addEventListener('click', () => { if (moveBubbleStep(getItems(), index, 1)) renderMore(); });
+      row.appendChild(up);
+      row.appendChild(down);
       list.appendChild(row);
     }
   }

@@ -519,3 +519,6 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-trowtx,.dshwv-text{font-variant-numeric:tabular-nums}
 .dshwv-bubpresets{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
 .dshwv-bubpreset{border:1px solid var(--border);background:var(--surface-muted);color:var(--text);border-radius:999px;padding:5px 10px;font-size:11px;cursor:pointer}
+.dshwv-tplchips{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px}
+.dshwv-tplchip{border:1px solid var(--border);background:var(--surface-muted);color:var(--text-muted);border-radius:999px;padding:2px 7px;font-size:10px;cursor:pointer}
+.dshwv-tplchip:hover{color:var(--text)}
