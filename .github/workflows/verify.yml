@@ -66,6 +66,15 @@ jobs:
       - name: Architecture boundaries
         run: npm run check:architecture
 
+      # 合成账本的读取与今日快路径预算。与 `npm run verify` 保持一致；此前只写在
+      # verify 脚本里，工作流直接调用单步时漏掉了它。
+      - name: Ledger benchmark
+        run: npm run bench:ledger
+
+      # 峰谷日历覆盖不足 60 天时输出 GitHub warning，不阻塞合并。
+      - name: Pricing calendar
+        run: npm run check:calendar
+
       # 一次跑完：公开文件白名单、隐私扫描、Markdown 相对链接检查、ZIP 完整性，
       # 以及发行包必须包含的运行时依赖与入口脚本断言。
       - name: Release build checks

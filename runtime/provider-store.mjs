@@ -32,6 +32,11 @@ export class ProviderStore {
     this.configFile = path.join(dataDir, PROVIDER_LEGACY_CONFIG);
     this.modelsFile = path.join(dataDir, PROVIDER_LEGACY_MODELS);
     this.cache = null;
+    // A corrupt main file may be recovered from `.bak`. Keep the fact visible
+    // to /api/status, and never let the next save copy the corrupt file over
+    // the good backup.
+    this.recoveryWarning = '';
+    this.recoveredFromBackup = false;
   }
 
   // Include both legacy stamps so an external edit is noticed until the merged
@@ -49,17 +54,31 @@ export class ProviderStore {
   }
 
   readMerged() {
-    const raw = readJson(this.file, null);
+    const raw = readJson(this.file, null, {
+      backup: true,
+      onRecover: () => this.markRecovered('服务商配置损坏，已从上一份备份恢复。'),
+    });
     if (!isRecord(raw)) throw domainError('服务商配置损坏，请从备份恢复');
     return this.normalize(raw);
   }
 
   readLegacy() {
-    const config = readJson(this.configFile, {});
+    const config = readJson(this.configFile, {}, {
+      backup: true,
+      onRecover: () => this.markRecovered('API 设置损坏，已从上一份备份恢复。'),
+    });
     if (!isRecord(config)) throw domainError('API 设置损坏，请从备份恢复');
-    const models = readJson(this.modelsFile, { version: 1, models: [] });
+    const models = readJson(this.modelsFile, { version: 1, models: [] }, {
+      backup: true,
+      onRecover: () => this.markRecovered('API 模型配置损坏，已从上一份备份恢复。'),
+    });
     if (!isRecord(models) || !Array.isArray(models.models)) throw domainError('API 模型配置损坏，请从备份恢复');
     return { version: 2, codexApi: config, diyModels: models.models };
+  }
+
+  markRecovered(message) {
+    this.recoveredFromBackup = true;
+    this.recoveryWarning = message;
   }
 
   normalize(raw) {
@@ -74,7 +93,12 @@ export class ProviderStore {
       const legacy = this.readLegacy();
       writeJson(path.join(this.dataDir, 'providers.legacy-backup.json'), legacy, { flush: true });
     }
-    writeJson(this.file, { version: 2, codexApi: data.codexApi, diyModels: data.diyModels }, { flush, backup });
+    // After a recovery the live file is still corrupt; backing it up would
+    // destroy the only good copy. The existing `.bak` stays as the previous
+    // good snapshot, and the next save can rotate normally again.
+    const keepBackup = backup && !this.recoveredFromBackup;
+    writeJson(this.file, { version: 2, codexApi: data.codexApi, diyModels: data.diyModels }, { flush, backup: keepBackup });
+    this.recoveredFromBackup = false;
     this.cache = { stamp: this.stamp(), value: structuredClone(data) };
   }
 
@@ -89,8 +113,27 @@ export class ProviderStore {
     this.update(data => { data.codexApi = codexApi; }, { flush: true, backup: true });
   }
 
-  writeModels(diyModels, { flush = false } = {}) {
+  writeModels(diyModels, { flush = true } = {}) {
     this.update(data => { data.diyModels = diyModels; }, { flush, backup: true });
+  }
+
+  // Restore the whole provider document, not only the DIY half. The live file
+  // may be corrupt, so no backup rotation here: the file we are reading is the
+  // good snapshot and must stay intact.
+  restoreBackup() {
+    const candidates = [this.file + '.bak', path.join(this.dataDir, 'providers.legacy-backup.json')];
+    for (const candidate of candidates) {
+      let raw;
+      try { raw = readJson(candidate, null); } catch { continue; }
+      if (!isRecord(raw)) continue;
+      const data = this.normalize(raw);
+      if (!isRecord(raw.codexApi) && !Array.isArray(raw.diyModels)) continue;
+      writeJson(this.file, { version: 2, codexApi: data.codexApi, diyModels: data.diyModels }, { flush: true, backup: false });
+      this.cache = null;
+      this.recoveredFromBackup = false;
+      return true;
+    }
+    return false;
   }
 
   invalidate() { this.cache = null; }

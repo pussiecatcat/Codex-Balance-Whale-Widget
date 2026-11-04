@@ -56,6 +56,13 @@ export class WhaleService {
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return { ...this.ledger.records(scope), currency: scope.slice(-3), settings: this.readUsageSettings() };
   }
+  acknowledgeUsageWarning() {
+    const c = this.usageContext();
+    if (!c) return { ok: true };
+    const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
+    this.ledger.acknowledgeWarning(scope);
+    return { ok: true };
+  }
   reconcileUsage(input) {
     const c = this.usageContext();
     if (!c) throw domainError('当前 API 配置不可用，无法定位记账');

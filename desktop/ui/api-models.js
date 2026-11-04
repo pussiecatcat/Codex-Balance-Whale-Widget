@@ -1,4 +1,5 @@
 import { requestJson } from '/services/request.js';
+import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
 
 (() => {
   'use strict';
@@ -274,7 +275,23 @@ import { requestJson } from '/services/request.js';
     document.getElementById('api-models-panel')?.addEventListener('toggle',event=>{if(event.target.open)render();});
   }
   window.WhaleApiModels={load,options,bind,clearBindings,text:module=>valueText(module,values.get(module.apiModelId)?.data),refresh:refreshValue};
-  function monitor(){load().then(data=>Promise.allSettled(data.models.map(model=>refreshValue(model.id)))).catch(()=>{});}setInterval(monitor,60000);
+  const failures = new Map();
+  async function monitor(){
+    const data = await load().catch(() => null);
+    if (!data) return;
+    const bound = new Set([...bindings.values()].map(module => module.apiModelId));
+    const due = data.models.filter(model => needsModelPolling(model, { bound: bound.has(model.id), visible: !document.hidden }))
+      .filter(model => (failures.get(model.id)?.until || 0) <= Date.now());
+    await Promise.allSettled(due.map(async model => {
+      const value = await refreshValue(model.id);
+      if (value?.error) {
+        const count = (failures.get(model.id)?.count || 0) + 1;
+        failures.set(model.id, { count, until: Date.now() + nextPollDelay(count) });
+      } else failures.delete(model.id);
+    }));
+  }
+  setInterval(monitor, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) monitor(); });
   setInterval(()=>{if(bindings.size)paint();},1000);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPanel();window.WhaleMoney?.onChange(paint);monitor();},{once:true});else{initPanel();window.WhaleMoney?.onChange(paint);monitor();}
 })();

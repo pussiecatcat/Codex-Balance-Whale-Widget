@@ -5,6 +5,7 @@ import { readJson, writeJson, dayKey, DAY_MS, rounded } from './paths.mjs';
 const initialLedger = () => ({ version: 1, revision: 0, date: '', observed: 0, firstObservation: null, lastObservation: null, history: {}, events: [], correctionLog: [] });
 const MONEY_SCALE = 100000000;
 const USAGE_NOTE = '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。';
+const ignoreError = () => {};
 const modelRows = models => [...models].map(([model, cost]) => ({ model: model + '（估算）', cost: rounded(cost) })).sort((a, b) => b.cost - a.cost);
 const units = value => {
   const scaled = Math.round(Number(value) * MONEY_SCALE);
@@ -19,6 +20,7 @@ export class UsageLedger {
     if (!/^[a-f0-9]{24}-[A-Z]{3}$/.test(scope)) throw new Error('记账账户标识无效');
     return path.join(this.dataDir, 'ledgers', scope + '.json');
   }
+  warningFile(scope) { return this.file(scope).replace(/\.json$/, '.warning.json'); }
   load(scope) {
     let recovered = false;
     const value = readJson(this.file(scope), initialLedger(), {
@@ -29,9 +31,22 @@ export class UsageLedger {
       // Put the recovered snapshot back so later reads are clean again. Do not
       // back it up: the corrupt file must not replace the good backup.
       try { this.save(scope, value, { backup: false }); } catch {}
-      this.warnings.set(scope, '账本文件损坏，已从上一份备份恢复。');
+      const message = '账本文件损坏，已从上一份备份恢复。';
+      this.warnings.set(scope, message);
+      // The repaired file no longer looks corrupt on the next launch. Keep a
+      // marker so the user still sees the notice once, until they dismiss it.
+      try { writeJson(this.warningFile(scope), { message, at: new Date().toISOString() }); } catch (error) { ignoreError(error); }
+    } else if (!this.warnings.has(scope)) {
+      try {
+        const saved = readJson(this.warningFile(scope), null);
+        if (saved && typeof saved.message === 'string' && saved.message) this.warnings.set(scope, saved.message);
+      } catch (error) { ignoreError(error); }
     }
     return value;
+  }
+  acknowledgeWarning(scope) {
+    this.warnings.delete(scope);
+    try { fs.rmSync(this.warningFile(scope), { force: true }); } catch (error) { ignoreError(error); }
   }
   save(scope, ledger, { backup = true } = {}) {
     ledger.revision = Number(ledger.revision || 0) + 1;
@@ -137,11 +152,11 @@ export class UsageLedger {
         .map(name => name.slice(0, -5));
     } catch { return []; }
   }
-  moveEvent(from, to, id) {
+  moveEvent(from, to, id, patch = {}) {
     if (from === to) return false;
     const event = this.load(from).events.find(item => item.id === id);
     if (!event) return false;
-    this.append(to, event);
+    this.append(to, { ...event, ...patch, currency: to.slice(-3) });
     const source = this.load(from);
     const index = source.events.findIndex(item => item.id === id);
     if (index >= 0) { source.events.splice(index, 1); this.save(from, source); }

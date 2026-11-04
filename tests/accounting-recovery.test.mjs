@@ -305,3 +305,40 @@ test('an invalid API provider still records turn tokens under the identity scope
   assert.equal(row.costState, 'estimated');
   assert.equal(service.usageRecords().currency, 'USD');
 });
+
+test('a CNY ledger never re-estimates with prices configured in USD', t => {
+  const { make, dir } = fixture(t), cny = 'a'.repeat(24) + '-CNY', ledger = new UsageLedger(dir), now = Date.now();
+  const pricing = { model: { input: 1000000, cachedInput: 0, output: 0 } };
+  const root = { id: 'main:mismatch', turnId: 'mismatch', rootTurnId: 'mismatch', ts: now, currency: 'CNY',
+    source: 'token-only', cost: null, amount: null, costState: 'unknown', ownByModel: usage(100), byModel: usage(100),
+    tokens: 100, childTurns: 0, pricing, pricingCurrency: 'USD' };
+  const child = { id: 'child:mismatch', turnId: 'sub', rootTurnId: 'mismatch', isSubagent: true, ts: now + 1,
+    currency: 'CNY', source: 'subagent-token-only', cost: null, costState: 'unknown', byModel: usage(100) };
+  ledger.append(cny, root); ledger.append(cny, child);
+  const service = make();
+  service.turnAccounting.reviseRootEstimate(cny, 'mismatch');
+  const updated = service.ledger.find(cny, root);
+  assert.equal(updated.cost, null);
+  assert.equal(updated.amount, null);
+  assert.equal(updated.source, 'token-only');
+  assert.equal(updated.tokens, 200, 'token aggregation still happens');
+});
+
+test('moving a split subagent row clears a cost that belongs to another currency', async t => {
+  const { make, dir } = fixture(t), cny = 'a'.repeat(24) + '-CNY', usd = 'a'.repeat(24) + '-USD';
+  const ledger = new UsageLedger(dir), now = Date.now();
+  const root = { id: 'main:split-cost', turnId: 'split-cost', rootTurnId: 'split-cost', ts: now, currency: 'CNY',
+    source: 'shared-key-interval', cost: 2, amount: 2, costState: 'observed', ownByModel: usage(100), byModel: usage(100), tokens: 100 };
+  const child = { id: 'child:split-cost', turnId: 'sub', rootTurnId: 'split-cost', isSubagent: true, ts: now + 1,
+    currency: 'USD', source: 'subagent-pricing-estimate', cost: 5, amount: 5, costState: 'estimated', byModel: usage(100) };
+  ledger.append(cny, root); ledger.append(usd, child);
+  const service = make();
+  service.prepareRecovery();
+  const moved = service.ledger.find(cny, child);
+  assert.ok(moved, 'the subagent row joins the root scope');
+  assert.equal(moved.currency, 'CNY');
+  assert.equal(moved.cost, null);
+  assert.equal(moved.costState, 'unknown');
+  assert.match(moved.note, /金额未知/);
+  assert.equal(service.ledger.find(usd, child), null);
+});

@@ -26,9 +26,30 @@ export const CODEX_HOME = path.resolve(process.env.CODEX_HOME || path.join(os.ho
 export const DATA_HOME = path.resolve(process.env.WHALE_HOME || path.join(CODEX_HOME, 'whale-widget'));
 
 export function readJson(file, fallback, { backup = false, onRecover = null } = {}) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); }
   catch (error) {
     if (error.code === 'ENOENT') return structuredClone(fallback);
+    // Windows antivirus and sync clients briefly hold files open (EBUSY /
+    // EPERM). Retry without a sleeping loop, then report a temporary read
+    // failure. Never fall back to `.bak` here: a lock is not corruption, and
+    // accepting the older snapshot would silently drop the last write.
+    if (['EBUSY', 'EPERM', 'EACCES', 'EAGAIN'].includes(error.code)) {
+      for (let attempt = 0; attempt < 2 && text === undefined; attempt += 1) {
+        try { text = fs.readFileSync(file, 'utf8'); }
+        catch (retry) { error = retry; }
+      }
+      if (text !== undefined) return parseText(text, file, backup, onRecover);
+      throw domainError('本地数据文件暂时无法读取（可能被杀毒或同步软件占用），请重试：' + path.basename(file));
+    }
+    throw domainError('本地数据文件损坏或不可读：' + path.basename(file));
+  }
+  return parseText(text, file, backup, onRecover);
+}
+
+function parseText(text, file, backup, onRecover) {
+  try { return JSON.parse(text.replace(/^\uFEFF/, '')); }
+  catch {
     if (backup) {
       try {
         const value = JSON.parse(fs.readFileSync(file + '.bak', 'utf8'));

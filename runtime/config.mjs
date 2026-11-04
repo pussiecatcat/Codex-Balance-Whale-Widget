@@ -130,6 +130,7 @@ export class ConfigStore {
     this.settingCache = null;
     this.resolveCache = null;
     this.usedEnvNames = [];
+    this.configBroken = false;
   }
 
   invalidate() { this.settingCache = null; this.resolveCache = null; }
@@ -139,6 +140,7 @@ export class ConfigStore {
     if (this.settingCache && this.settingCache.stamp === stamp) return this.settingCache.value;
     const value = validateConfig(data.codexApi);
     this.settingCache = { stamp, value };
+    this.configBroken = false;
     return value;
   }
 
@@ -165,7 +167,7 @@ export class ConfigStore {
       if (PRIVATE_SETTING_FIELDS.includes(key)) configured[key] = key === 'models' ? Object.keys(current.models).length > 0 : !!current[key];
       else settings[key] = current[key];
     }
-    return { settings, configured };
+    return { settings, configured, warning: this.store?.recoveryWarning || '' };
   }
 
   resolve() {
@@ -252,7 +254,12 @@ export class ConfigStore {
   // Quota, status and token accounting use this when config.toml is invalid:
   // a broken provider must not hide the subscription or stop accounting.
   identityContext() {
-    const setting = this.load();
+    // A corrupt providers.json must not take down the subscription view or
+    // token accounting. Fall back to defaults instead of letting the same
+    // load() error escape the callers that use this as their recovery path.
+    let setting;
+    try { setting = this.load(); }
+    catch { setting = validateConfig({}); this.configBroken = true; }
     let auth = {};
     try { auth = readJson(path.join(this.codexHome, 'auth.json'), {}); } catch {}
     const account = auth?.tokens?.account_id || auth?.account_id || '';
@@ -260,17 +267,20 @@ export class ConfigStore {
       .update('identity\u0000' + (account || path.resolve(this.codexHome).toLowerCase()))
       .digest('hex').slice(0, 24);
     return { setting, id: 'openai', model: '', profileName: '', providerName: '当前 API',
-      baseUrl: '', key: '', keySource: 'none', accountId, dashboardUrl: '', degraded: true };
+      baseUrl: '', key: '', keySource: 'none', accountId, dashboardUrl: '', degraded: true,
+      configBroken: this.configBroken };
   }
 
   publicInfo() {
+    const warning = this.store?.recoveryWarning || '';
     try {
       const c = this.resolve();
       return { providerName: '当前 API', hasKey: !!c.key, ...this.settingsInfo() };
     } catch (error) {
+      this.configBroken = true;
       let info = { settings: {}, configured: {} };
       try { info = this.settingsInfo(); } catch {}
-      return { providerName: '当前 API', hasKey: false, ...info,
+      return { providerName: '当前 API', hasKey: false, ...info, configBroken: true, configWarning: warning,
         apiError: { code: error?.code || 'CONFIG', message: String(error?.message || error).slice(0, 300) } };
     }
   }

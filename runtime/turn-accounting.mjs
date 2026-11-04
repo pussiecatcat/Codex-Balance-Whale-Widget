@@ -35,7 +35,7 @@ export class TurnAccounting {
     // account over the configured one (they differ for DeepSeek + USD settings).
     const parent = meta.isSubagent ? this.findRoot(meta.rootTurnId) : null;
     const currency = parent?.currency || this.balance.currencyFor(context);
-    const entry = { ...safeTurn(meta), context, currency, scope: parent?.scope || this.balance.scope(context, currency),
+    const entry = { ...safeTurn(meta), context, currency, pricingCurrency: context.setting.currency, scope: parent?.scope || this.balance.scope(context, currency),
       scopeUsed: false, canQuery: context.degraded !== true, concurrent: !meta.isSubagent && roots.length > 0 };
     if (!meta.isSubagent) for (const active of roots) active.concurrent = true;
     // Subagents contribute tokens, not overlapping API-balance intervals.
@@ -73,7 +73,7 @@ export class TurnAccounting {
   persistTurn(turn, stage, meta = turn, extra = {}) {
     if (this.closed) return;
     this.journal.put({ stage, accountId: turn.context.accountId, currency: turn.currency || turn.context.setting.currency,
-      scope: turn.scope, pricing: turn.context.setting.models, meta: { ...meta, partial: !!turn.partial }, start: turn.startSample,
+      scope: turn.scope, pricing: turn.context.setting.models, pricingCurrency: turn.pricingCurrency || '', meta: { ...meta, partial: !!turn.partial }, start: turn.startSample,
       concurrent: !!turn.concurrent, ...extra });
   }
   prepareRecovery() {
@@ -90,7 +90,7 @@ export class TurnAccounting {
       const matches = current?.accountId === saved.accountId;
       const context = matches ? { ...current, setting: { ...current.setting, models: saved.pricing } } :
         { accountId: saved.accountId, model: '', setting: { currency, models: saved.pricing } };
-      const turn = { ...saved.meta, context, currency, scope, scopeUsed: true, canQuery: matches, startSample: saved.start,
+      const turn = { ...saved.meta, context, currency, pricingCurrency: saved.pricingCurrency || '', scope, scopeUsed: true, canQuery: matches, startSample: saved.start,
         start: Promise.resolve(saved.start || { ok: false }), concurrent: saved.concurrent };
       if (saved.stage === 'pending-cost') {
         // A restart cannot turn a later shared-key debit into an exact old bill.
@@ -125,7 +125,11 @@ export class TurnAccounting {
     for (const { scope, event } of children) {
       const target = roots.get(event.rootTurnId);
       if (!target || target === scope) continue;
-      if (this.ledger.moveEvent(scope, target, event.id)) {
+      if (this.ledger.moveEvent(scope, target, event.id, {
+        cost: null, amount: null, costState: 'unknown',
+        source: event.source === 'subagent-pricing-estimate' ? 'subagent-token-only' : event.source,
+        note: '旧版把这条子任务写在不同币种的账本；已移回主轮账本，金额未知，只保留 token。',
+      })) {
         touched.set(target + '\0' + event.rootTurnId, { scope: target, rootTurnId: event.rootTurnId });
       }
     }
@@ -172,7 +176,7 @@ export class TurnAccounting {
       const scope = turn.scope || this.balance.scope(context, currency);
       // Configured prices are expressed in the configured currency; never mix
       // them into a scope the provider reports in another one.
-      const estimate = !turn.partial && currency === context.setting.currency ? estimateUsage(ownUsage, context.setting, base.ts) : null;
+      const estimate = !turn.partial && currency === context.setting.currency && turn.pricingCurrency === currency ? estimateUsage(ownUsage, context.setting, base.ts) : null;
       const parent = this.findRoot(base.rootTurnId);
       if (parent) parent.scopeUsed = true;
       this.ledger.append(scope, { ...base, isSubagent: true, byModel: ownUsage,
@@ -200,7 +204,7 @@ export class TurnAccounting {
     const children = this.ledger.load(scope).events.filter(e => e.isSubagent && e.rootTurnId === base.rootTurnId);
     const combined = mergeUsage([ownUsage, ...children.map(e => e.byModel || {})]);
     const estimate = estimateUsage(combined, context.setting, meta.ts || this.clock());
-    if (estimate !== null && !turn.partial && !children.some(e => e.partial) && currency === context.setting.currency) {
+    if (estimate !== null && !turn.partial && !children.some(e => e.partial) && currency === context.setting.currency && turn.pricingCurrency === currency) {
       amount = estimate; source = 'configured-pricing-estimate'; costState = 'estimated';
       note = '根据 Codex 记录的 token 数量与手动配置价格估算，包含本主轮已记录的子任务用量；服务商折扣、缓存策略和账单延迟可能造成差异。';
     } else if (!meta.historical && outcome !== 'interrupted' && start.ok && end.ok && !start.stale && !end.stale && start.accountId === end.accountId && start.currency === end.currency && end.currency === currency) {
@@ -223,7 +227,7 @@ export class TurnAccounting {
     const event = { ...base, ok: true, turn: meta.turnId || meta.id, amount, cost: amount, costState, tokens, currency, source, label, note,
       completionKind, notify: !meta.historical && !!completionKind && (outcome === 'completed' ? meta.notify !== false : meta.statusNotify === true || outcome === 'aborted' && outcomeCancelled),
       concurrent: !!turn.concurrent, childTurns: children.length, ownByModel: ownUsage, byModel: combined,
-      pricing: context.setting.models };
+      pricing: context.setting.models, pricingCurrency: turn.pricingCurrency || '' };
     const models = Object.keys(combined).join(' + ') || context.model || '未知模型';
     const model = source === 'shared-key-interval' ? models + ' · 期间扣费（同密钥合计）' : source === 'token-only' ? models + ' · 仅 token 记录' : models;
     if (!this.ledger.append(scope, { ...event, model })) {
@@ -246,7 +250,11 @@ export class TurnAccounting {
     const children = events.filter(e => e.isSubagent && e.rootTurnId === rootTurnId);
     const combined = mergeUsage([root.ownByModel, ...children.map(e => e.byModel || {})]);
     const patch = { tokens: tokenTotal(combined), byModel: combined, childTurns: children.length };
-    if (root.pricing && ['configured-pricing-estimate', 'token-only'].includes(root.source)) {
+    // Prices are expressed in the currency that was configured when the turn
+    // ran. A scope in another currency must not receive that estimate again;
+    // old rows without the field are treated as untrusted rather than guessed.
+    const pricesMatch = !!root.pricing && root.pricingCurrency === scope.slice(-3);
+    if (pricesMatch && ['configured-pricing-estimate', 'token-only'].includes(root.source)) {
       const complete = !root.partial && !children.some(e => e.partial);
       const estimate = complete ? estimateUsage(combined, { models: root.pricing }, root.ts) : null;
       if (estimate !== null && ['configured-pricing-estimate', 'token-only'].includes(root.source)) {

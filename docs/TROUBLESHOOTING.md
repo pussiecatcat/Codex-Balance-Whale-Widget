@@ -32,6 +32,22 @@
 
 配置解析失败不应影响订阅额度、`/api/status` 或 token 记账。`/api/status` 的 `provider.apiError` 会给出具体原因；余额与 API 模型面板会继续报配置错误，这是预期行为。
 
+## 服务商配置损坏或回退版本
+
+`providers.json` 是 Codex 当前 API 设置与 DIY 模型注册表共用的唯一存储。文件损坏时：
+
+1. 启动时会尝试从 `providers.json.bak` 自动恢复，`/api/status` 的 `provider.configWarning` 会给出提示；
+2. 主文件和备份都损坏时，订阅额度与 token 记账仍可用，但 API 设置会显示具体的配置错误；
+3. 需要手动恢复时，在仓库或安装目录运行：
+
+```bash
+npm run restore-providers
+```
+
+它会从 `providers.json.bak`（或首次迁移留下的 `providers.legacy-backup.json`）恢复**两部分**配置。旧版 `api-settings.json` / `api-models.json` 不会被删除，回退到旧版本时仍可读取。
+
+账本从备份恢复后，用量面板和消费记录窗口会显示一次「账本文件损坏，已从上一份备份恢复」，点「知道了」后不再提示。
+
 ## 测试数量与已知失败
 
 当前结果见 [验证基线](BASELINE.md)。非 UTC+8 主机上会有 3 条时区相关测试失败，属于已知环境差异，不代表产品回归。

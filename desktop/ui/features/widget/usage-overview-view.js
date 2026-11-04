@@ -1,7 +1,9 @@
+import { createLedgerWarning } from './ledger-warning.js';
+
 // API usage overview formatting and its compact daily summary view.
 export function createUsageOverviewView(deps) {
   const { document, WhaleMoney, getCurrency, getMain, getPanel, openRecords,
-    nowMs = Date.now } = deps;
+    dismissLedgerWarning, nowMs = Date.now } = deps;
     function whaleCurrencySymbol() {
       return WhaleMoney.symbol();
     }
@@ -55,6 +57,7 @@ export function createUsageOverviewView(deps) {
         hostEl.appendChild(wrap);
         return;
       }
+      if (d.warning) hostEl.appendChild(createLedgerWarning(document, { text: d.warning, onDismiss: dismissLedgerWarning }));
       var today = d.today || ({});
       var todayModels = today.models || [];
       var hasEvToday = todayModels.length > 0;

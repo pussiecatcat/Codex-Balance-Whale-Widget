@@ -15,6 +15,9 @@ test('the automatic Codex profile and DIY profiles share one shape', () => {
     setting: { provider: 'auto', currency: 'CNY', keyEnv: 'KEY', models: { m: { input: 1, cached: 0.5, output: 2 } } } });
   assert.equal(auto.auto, true);
   assert.equal(auto.currency, 'CNY');
+  assert.equal(auto.endpointConfigured, true);
+  assert.equal(Object.hasOwn(auto, 'endpoint'), false);
+  assert.equal(JSON.stringify(auto).includes('KEY'), false, 'environment names stay out of the read model');
   assert.deepEqual(auto.prices.m, { input: 1, cachedInput: 0.5, output: 2 });
   const diy = { id: 'x', name: 'X', kind: 'balance', template: 'deepseek', currency: 'CNY', keyEnv: 'K',
     prices: { input: 1, cached: 0.5, output: 2 } };
@@ -22,6 +25,9 @@ test('the automatic Codex profile and DIY profiles share one shape', () => {
   assert.equal(list[0].id, 'codex');
   assert.equal(list[1].id, 'x');
   assert.deepEqual(list[1].prices.X, { input: 1, cachedInput: 0.5, output: 2 });
+  assert.equal(list[1].credential.configured, true);
+  assert.equal(Object.hasOwn(list[1].credential, 'env'), false);
+  assert.equal(Object.hasOwn(list[1], 'endpoint'), false);
 });
 
 test('requestJson applies the profile auth style', async () => {

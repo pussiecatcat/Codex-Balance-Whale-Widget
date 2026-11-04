@@ -51,6 +51,10 @@ export function createCoreRoutes(ctx) {
     GET: () => jsonResult(200, { ok: true, ...pricingSchedule(whale.config.resolve()) }),
   });
 
+  route('/api/usage-warning', {
+    POST: () => jsonResult(200, whale.acknowledgeUsageWarning()),
+  });
+
   route('/api/reconcile', {
     GET: () => jsonResult(200, whale.usageRecords()),
     POST: ({ body }) => {

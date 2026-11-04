@@ -369,3 +369,5 @@ html.desktop .whale-utility-row>.dshwv-custwrap{flex:1 1 0;min-width:0}
 #api-connection-result{font-size:11px;line-height:1.6;color:var(--text-muted);flex:1 1 180px}
 #api-connection-result.is-ok{color:var(--status-ok)}
 #api-connection-result.is-error{color:var(--status-critical)}
+.dshwv-ledger-warning{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;line-height:1.6}
+.dshwv-ledger-warning .quiet{flex:0 0 auto}

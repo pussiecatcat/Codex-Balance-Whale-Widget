@@ -30,9 +30,12 @@ export function profileFromCodex(context) {
     kind: 'codex',
     name: 'Codex 当前 API',
     auto: true,
-    endpoint: context?.baseUrl || '',
+    // The profile list is a read model, not a settings editor. Endpoint and
+    // environment names stay out of it until an editor asks for them through
+    // an authenticated detail path.
+    endpointConfigured: !!context?.baseUrl,
     credential: context?.keySource && context.keySource !== 'none'
-      ? { source: context.keySource, env: context.setting?.keyEnv || '' }
+      ? { source: context.keySource, configured: true }
       : null,
     adapter: context?.setting?.provider || 'auto',
     currency: context?.setting?.currency || 'USD',
@@ -47,8 +50,8 @@ export function profileFromModel(model) {
     kind: model.kind || 'balance',
     name: model.name || model.id,
     auto: false,
-    endpoint: model.balanceUrl || model.baseUrl || '',
-    credential: model.keyEnv ? { source: 'environment', env: model.keyEnv } : null,
+    endpointConfigured: !!(model.balanceUrl || model.baseUrl),
+    credential: model.keyEnv ? { source: 'environment', configured: true } : null,
     adapter: model.template || '',
     currency: model.currency || 'USD',
     prices: { [model.name || model.id]: normalizePrices(model.prices || {}) },

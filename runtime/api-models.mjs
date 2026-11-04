@@ -1,5 +1,3 @@
-import path from 'node:path';
-import { readJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
 import { domainError } from '../lib/errors.mjs';
 import { ProviderStore } from './provider-store.mjs';
@@ -61,7 +59,9 @@ export class ApiModelRegistry {
   load() {
     const models=this.store.read().diyModels;
     if(!Array.isArray(models))throw domainError('API 模型配置损坏，请从备份恢复');
-    return {version:2,models};
+    // Return a copy: save() edits the list in place, and a failed write must
+    // not leave an unsaved model in the shared cache for the next write.
+    return {version:2,models:structuredClone(models)};
   }
   model(id) { return this.load().models.find(item=>item.id===id)||null; }
   list() { return {ok:true,templates:Object.entries(API_TEMPLATES).map(publicTemplate),models:this.load().models.map(model=>this.publicModel(model))}; }
@@ -197,13 +197,7 @@ export class ApiModelRegistry {
     return changed;
   }
   rollback() {
-    const merged=readJson(this.file+'.bak',null);
-    if(merged&&Array.isArray(merged.diyModels)){this.store.writeModels(merged.diyModels);return true;}
-    const legacy=readJson(path.join(this.dataDir,'api-models.json.bak'),null);
-    if(legacy&&Array.isArray(legacy.models)){this.store.writeModels(legacy.models);return true;}
-    const migrated=readJson(path.join(this.dataDir,'providers.legacy-backup.json'),null);
-    if(!migrated||!Array.isArray(migrated.diyModels))return false;
-    this.store.writeModels(migrated.diyModels);return true;
+    return this.store.restoreBackup();
   }
   estimate(model,usage) {
     if(!Object.keys(model.prices||{}).length)return null;

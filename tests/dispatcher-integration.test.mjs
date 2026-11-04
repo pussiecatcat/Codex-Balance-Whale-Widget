@@ -234,5 +234,6 @@ test('one profiles view lists the Codex API and every DIY provider', async t => 
   assert.deepEqual(payload.profiles.map(profile => profile.id), ['codex', 'diy']);
   assert.equal(payload.profiles[0].auto, true);
   assert.equal(payload.profiles[1].currency, 'CNY');
-  assert.equal(JSON.stringify(payload).includes('DEEPSEEK_API_KEY'), true, 'only the environment name is exposed');
+  assert.equal(JSON.stringify(payload).includes('DEEPSEEK_API_KEY'), false, 'environment names stay out of the profile list');
+  assert.equal(payload.profiles[1].credential.configured, true);
 });

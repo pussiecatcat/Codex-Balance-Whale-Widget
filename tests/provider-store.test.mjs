@@ -64,3 +64,54 @@ test('a corrupt merged file fails closed instead of silently starting empty', t 
   assert.throws(() => config.load(), /损坏|不可读/);
   assert.throws(() => new ApiModelRegistry({ dataDir: dir, store, env: {} }).list(), /损坏|不可读/);
 });
+
+test('a corrupt merged file recovers from the backup and does not rotate it away', t => {
+  const dir = fixture(t), store = new ProviderStore({ dataDir: dir });
+  store.writeCodex({ provider: 'deepseek', currency: 'CNY' });
+  const file = path.join(dir, 'providers.json');
+  fs.copyFileSync(file, file + '.bak');
+  fs.writeFileSync(file, '{broken');
+
+  const recovered = new ProviderStore({ dataDir: dir });
+  const config = new ConfigStore({ dataDir: dir, store: recovered, codexHome: dir, env: {} });
+  assert.equal(config.load().provider, 'deepseek');
+  assert.match(recovered.recoveryWarning, /备份恢复/);
+
+  config.save({ refreshSeconds: 90 });
+  const backup = JSON.parse(fs.readFileSync(file + '.bak', 'utf8'));
+  assert.equal(backup.codexApi.provider, 'deepseek', 'the corrupt live file must not overwrite the good backup');
+  assert.equal(backup.codexApi.refreshSeconds ?? 60, 60);
+});
+
+test('identity fallback survives a corrupt merged file and its backup', t => {
+  const dir = fixture(t);
+  fs.writeFileSync(path.join(dir, 'providers.json'), '{broken');
+  fs.writeFileSync(path.join(dir, 'providers.json.bak'), '{also-broken');
+  const store = new ProviderStore({ dataDir: dir });
+  const config = new ConfigStore({ dataDir: dir, store, codexHome: dir, env: {} });
+  assert.throws(() => config.load(), /损坏|不可读/);
+  const context = config.identityContext();
+  assert.equal(context.degraded, true);
+  assert.equal(context.configBroken, true);
+  assert.equal(context.setting.currency, 'USD');
+  assert.ok(context.accountId);
+  assert.equal(config.publicInfo().configBroken, true);
+});
+
+test('restoreBackup restores both halves and a failed save does not leak into the cache', t => {
+  const dir = fixture(t), store = new ProviderStore({ dataDir: dir });
+  store.writeCodex({ provider: 'deepseek', currency: 'CNY' });
+  store.writeModels([{ id: 'kept', template: 'deepseek' }]);
+  const file = path.join(dir, 'providers.json');
+  fs.copyFileSync(file, file + '.bak');
+  fs.writeFileSync(file, '{broken');
+  assert.equal(store.restoreBackup(), true);
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.codexApi.provider, 'deepseek');
+  assert.deepEqual(saved.diyModels.map(item => item.id), ['kept']);
+
+  const registry = new ApiModelRegistry({ dataDir: dir, store, env: {} });
+  store.writeModels = () => { throw new Error('disk full'); };
+  assert.throws(() => registry.save({ id: 'lost', template: 'openrouter' }), /disk full/);
+  assert.equal(registry.list().models.some(item => item.id === 'lost'), false, 'a failed save must not stay in memory');
+});

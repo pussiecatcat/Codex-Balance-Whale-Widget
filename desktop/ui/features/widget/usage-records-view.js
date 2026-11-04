@@ -1,6 +1,8 @@
 // The usage history modal owns its expandable charts and daily event view.
+import { createLedgerWarning } from './ledger-warning.js';
+
 export function createUsageRecordsView(deps) {
-  const { document, card: usageMoreCard, close: closeUsageRecordsWindow,
+  const { document, card: usageMoreCard, close: closeUsageRecordsWindow, dismissLedgerWarning,
     bindUsageMoney, usageMoney, usageMoneyText, usageAggModels, usageRatioRows,
     usageDrawBarChart, usageTodayKeyStr, WhaleMoney, getCurrency } = deps;
     function usageSlide(el, open) {
@@ -122,6 +124,7 @@ export function createUsageRecordsView(deps) {
       title.className = 'dshwv-usage-wintitle';
       title.textContent = 'API 消费记录';
       card.appendChild(title);
+      if (d && d.warning) card.appendChild(createLedgerWarning(document, { text: d.warning, onDismiss: dismissLedgerWarning }));
       var closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.className = 'dshwv-usage-close';

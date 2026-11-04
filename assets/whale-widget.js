@@ -681,11 +681,14 @@ import {
       showWait: function (detail) { return showWaitBubble(detail || {}); },
       hideWait: function (id) { hideWaitBubble(false, id); }
     };
+    function dismissLedgerWarning() {
+      return requestJson('/api/usage-warning', { method: 'POST' }).catch(function () { return null; });
+    }
     var usageOverviewView = createUsageOverviewView({
       document: document, WhaleMoney: WhaleMoney,
       getCurrency: function () { return state.currency || 'USD'; },
       getMain: function () { return usageMainEl; }, getPanel: function () { return usagePanel; },
-      openRecords: openUsageRecordsWindow
+      openRecords: openUsageRecordsWindow, dismissLedgerWarning: dismissLedgerWarning
     });
     var whaleCurrencySymbol = usageOverviewView.currencySymbol;
     var usageMoney = usageOverviewView.money;
@@ -781,7 +784,8 @@ import {
       bindUsageMoney: bindUsageMoney, usageMoney: usageMoney, usageMoneyText: usageMoneyText,
       usageAggModels: usageAggModels, usageRatioRows: usageRatioRows,
       usageDrawBarChart: usageDrawBarChart, usageTodayKeyStr: usageTodayKeyStr,
-      WhaleMoney: WhaleMoney, getCurrency: function () { return state.currency || 'USD'; }
+      WhaleMoney: WhaleMoney, dismissLedgerWarning: dismissLedgerWarning,
+      getCurrency: function () { return state.currency || 'USD'; }
     });
     document.body.appendChild(rolePanel);
     var snapEditor = createSnapEditor({
