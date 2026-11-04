@@ -522,3 +522,12 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-tplchips{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px}
 .dshwv-tplchip{border:1px solid var(--border);background:var(--surface-muted);color:var(--text-muted);border-radius:999px;padding:2px 7px;font-size:10px;cursor:pointer}
 .dshwv-tplchip:hover{color:var(--text)}
+@media (min-resolution: 1.25dppx){
+  .dshwv-root{--dshw-base:clamp(122px,calc(min(250px,min(100vw,100vh) * 0.28) * var(--dshw-scale) * 1.12),625px)}
+}
+@media (min-resolution: 1.5dppx){
+  .dshwv-root{--dshw-base:clamp(122px,calc(min(250px,min(100vw,100vh) * 0.28) * var(--dshw-scale) * 1.22),625px)}
+}
+@media (min-resolution: 2dppx){
+  .dshwv-root{--dshw-base:clamp(122px,calc(min(250px,min(100vw,100vh) * 0.28) * var(--dshw-scale) * 1.35),625px)}
+}

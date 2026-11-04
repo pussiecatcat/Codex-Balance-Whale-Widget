@@ -983,7 +983,7 @@ import {
           openQuickTextEditor(m);
           return;
         }
-        if (m && (m.type === 'balance' || m.type === 'today' || m.type === 'quota' || m.type === 'turn')) {
+        if (m && (m.type === 'balance' || m.type === 'today' || m.type === 'quota' || m.type === 'turn' || m.type === 'session' || m.type === 'plan' || m.type === 'peak' || m.type === 'nextpeak' || m.type === 'source')) {
           openQuickModuleEditor(m);
           return;
         }
