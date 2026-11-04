@@ -110,6 +110,21 @@ export function createCoreRoutes(ctx) {
     PUT: ({ body }) => { whale.config.save(json(body)); return jsonResult(200, { ok: true, ...whale.config.settingsInfo() }); },
   });
 
+  // Draft connection test: same validation and credential-origin rules as a
+  // save, but no write, no resolve cache and no ledger observation.
+  route('/api/config/probe', {
+    POST: async ({ body }) => {
+      try {
+        const context = whale.config.probe(json(body));
+        const payload = await whale.provider.balance(context);
+        return jsonResult(200, { ...payload, providerName: context.providerName, dashboardUrl: context.dashboardUrl });
+      } catch (error) {
+        return jsonResult(error?.status && error.status < 500 ? error.status : 502,
+          { ok: false, code: error?.code || 'ERROR', error: String(error?.message || error) });
+      }
+    },
+  });
+
   // One read model for "the API Codex is using" and every DIY provider. The
   // settings editor can render both without depending on which JSON file a
   // profile happens to live in. A broken Codex endpoint must not hide the DIY

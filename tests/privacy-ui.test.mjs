@@ -6,6 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { ConfigStore, PRIVATE_SETTING_FIELDS } from '../runtime/config.mjs';
 import { WhaleService } from '../runtime/service.mjs';
+import { statusForError, statusView } from '../desktop/ui/features/widget/status-tones.js';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
 
 const marker = 'PRIVACY_FIXTURE_ONLY';
@@ -90,8 +91,8 @@ test('settings UI never echoes private values and blank saves never erase them',
     if (options.method === 'PUT') { puts.push(options.body); config.save(options.body); }
     return { ok: true, ...config.settingsInfo() };
   };
-  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
-  vm.runInNewContext(source, { document, window, requestJson, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
+  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/mg, '');
+  vm.runInNewContext(source, { document, window, requestJson, statusForError, statusView, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
   await window.fire('whale-open-settings');
   for (const key of PRIVATE_SETTING_FIELDS.filter(k => k !== 'models')) {
     assert.equal(controls.get(key).value, ''); assert.match(controls.get(key).placeholder, /已配置/);
@@ -111,7 +112,7 @@ test('settings UI never echoes private values and blank saves never erase them',
 });
 
 test('guided API setup saves the form, probes the provider and names a failure', async t => {
-  const controls = new Map(), ids = new Map(), window = new Element('window'), puts = [], commands = [];
+  const controls = new Map(), ids = new Map(), window = new Element('window'), puts = [], probes = [], commands = [];
   window.whaleDesktop = { command: async command => { commands.push(command); return true; } };
   let probeResponse = { ok: true, totalBalance: 12.5, currency: 'CNY', balanceLabel: 'API 账户余额' };
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
@@ -120,16 +121,17 @@ test('guided API setup saves the form, probes the provider and names a failure',
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (url, options = {}) => {
+    if (url === '/api/config/probe' && options.method === 'POST') { probes.push(options.body); return probeResponse; }
     if (url.startsWith('/api/config') && options.method === 'PUT') { puts.push(options.body); return { ok: true }; }
-    if (url.startsWith('/dsh-whale/balance.json')) return probeResponse;
     return { ok: true, settings: {}, configured: {} };
   };
-  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
-  vm.runInNewContext(source, { document, window, requestJson, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
+  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/mg, '');
+  vm.runInNewContext(source, { document, window, requestJson, statusForError, statusView, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
   const result = ids.get('api-connection-result'), button = ids.get('test-api-connection');
   await button.fire('click');
-  assert.equal(puts.length, 1);
-  assert.match(result.textContent, /连接成功：API 账户余额 · 12.5 CNY/);
+  assert.equal(probes.length, 1);
+  assert.equal(puts.length, 0, 'testing a draft must not save it');
+  assert.match(result.textContent, /连接成功：API 账户余额 · 12.5 CNY（尚未保存）/);
   assert.equal(result.className, 'is-ok');
   probeResponse = { ok: false, error: '未设置密钥环境变量 CUSTOM_API_KEY' };
   await button.fire('click');
@@ -143,6 +145,7 @@ test('guided API setup saves the form, probes the provider and names a failure',
   assert.match(result.textContent, /连接失败：服务商请求超时/);
   assert.match(result.textContent, /上次数据/);
   assert.equal(result.className, 'is-error');
+  assert.equal(puts.length, 0, 'a failed test still must not save');
   await window.fire('whale-open-settings');
   assert.equal(result.textContent, '');
   assert.equal(result.className, '');

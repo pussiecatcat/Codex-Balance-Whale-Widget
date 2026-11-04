@@ -1,4 +1,5 @@
 import { requestJson } from '/services/request.js';
+import { statusForError, statusView } from '/features/widget/status-tones.js';
 
 (() => {
   'use strict';
@@ -104,13 +105,11 @@ import { requestJson } from '/services/request.js';
     const button = $('test-api-connection');
     button.disabled = true;
     connectionResult.className = '';
-    connectionResult.textContent = '正在保存并测试连接…';
+    connectionResult.textContent = '正在测试连接…';
     try {
-      await api('/api/config', 'PUT', collectSettings());
-      // The balance route answers with `ok: true` plus the cached payload when
-      // the provider is temporarily unreachable. A test must not call that a
-      // success: the user would trust a number that is not current.
-      const result = await api('/dsh-whale/balance.json?refresh=1', 'GET', undefined, { timeoutMs: 20000 });
+      // Probe the draft rather than saving it first. Cancelling the dialog
+      // after a test must leave providers.json byte-for-byte unchanged.
+      const result = await api('/api/config/probe', 'POST', collectSettings(), { timeoutMs: 20000 });
       if (result.stale) {
         const at = result.updatedAt ? new Date(result.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
         throw new Error((result.error || '服务商暂时不可用') + (at ? `（当前显示的是 ${at} 的上次数据）` : '（当前显示的是上次数据）'));
@@ -118,10 +117,11 @@ import { requestJson } from '/services/request.js';
       if (!result.ok) throw new Error(result.error || '余额接口没有返回可用的余额');
       const label = result.balanceLabel || result.providerName || '当前 API';
       const amount = typeof result.totalBalance === 'number' ? ` · ${result.totalBalance} ${result.currency || ''}`.trimEnd() : '';
-      connectionResult.textContent = `连接成功：${label}${amount}`;
+      connectionResult.textContent = `连接成功：${label}${amount}（尚未保存）`;
       connectionResult.className = 'is-ok';
     } catch (error) {
-      connectionResult.textContent = '连接失败：' + error.message;
+      const view = statusView(statusForError(error));
+      connectionResult.textContent = '连接失败：' + (error.message || view.label) + (view.action ? '。' + view.action : '');
       connectionResult.className = 'is-error';
     } finally { button.disabled = false; }
   });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STATUS_TONES, statusView } from '../desktop/ui/features/widget/status-tones.js';
+import { STATUS_TONES, statusForCode, statusForError, statusView } from '../desktop/ui/features/widget/status-tones.js';
 
 test('every status carries a tone and a next action', () => {
   for (const [status, view] of Object.entries(STATUS_TONES)) {
@@ -21,3 +21,20 @@ test('quota states map to the same labels the panel already shows', () => {
   assert.equal(statusView('stale').tone, 'warn');
   assert.equal(statusView('unknown-state').tone, 'muted');
 });
+
+test('provider error codes map to the same status table', () => {
+  assert.equal(statusForCode('AUTH'), 'auth-failed');
+  assert.equal(statusForCode('HTTP_401'), 'auth-failed');
+  assert.equal(statusForCode('TIMEOUT'), 'unreachable');
+  assert.equal(statusForCode('NOT_JSON'), 'bad-response');
+  assert.equal(statusForCode('NO_KEY'), 'key-missing');
+  assert.equal(statusForCode('UNSUPPORTED'), 'no-balance-api');
+  assert.equal(statusForCode('HTTP_500'), 'provider-error');
+  assert.equal(statusForError({ payload: { code: 'AUTH' } }), 'auth-failed');
+  assert.equal(statusForCode('NO_KEY'), 'key-missing');
+  const view = statusView(statusForCode('NO_KEY'));
+  assert.equal(view.label, '未检测到密钥');
+  assert.match(view.action, /重新启动/);
+  assert.ok(view.icon);
+});
+

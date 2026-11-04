@@ -170,6 +170,21 @@ export class ConfigStore {
     return { settings, configured, warning: this.store?.recoveryWarning || '' };
   }
 
+  // Resolve a draft without writing it. The connection test must exercise the
+  // same credential-origin rules as a save, but it must not create a ledger
+  // entry, touch the resolve cache, or leave a half-valid configuration behind.
+  probe(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw domainError('设置必须是 JSON 对象');
+    if (Object.keys(patch).some(k => /secret|token|api.?key|password/i.test(k) && k !== 'keyEnv')) throw domainError('请填写密钥环境变量名；插件设置中不保存密钥');
+    const current = this.load();
+    const input = { ...current, ...patch };
+    delete input.pricingUpdate;
+    const setting = validateConfig(input);
+    const previousNames = this.usedEnvNames;
+    try { return this.resolveUncached(setting); }
+    finally { this.usedEnvNames = previousNames; }
+  }
+
   resolve() {
     const key = this.cacheKey();
     if (this.resolveCache && this.resolveCache.key === key) return this.resolveCache.value;
@@ -191,8 +206,7 @@ export class ConfigStore {
     return parts.join('\u0000');
   }
 
-  resolveUncached() {
-    const setting = this.load();
+  resolveUncached(setting = this.load()) {
     const seen = [];
     const envOf = name => { if (name) seen.push(name); return name ? this.env[name] : undefined; };
     const file = path.join(this.codexHome, 'config.toml');

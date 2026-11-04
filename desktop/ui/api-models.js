@@ -1,5 +1,6 @@
 import { requestJson } from '/services/request.js';
 import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
+import { statusForError, statusView } from '/features/widget/status-tones.js';
 
 (() => {
   'use strict';
@@ -17,7 +18,7 @@ import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling
   function valueText(module, value) {
     if(loadedAt&&!registry.models.some(model=>model.id===module.apiModelId))return 'API 模型未配置';
     if (!value) return modelName(module.apiModelId) + ' · 加载中';
-    if (value.error) return modelName(module.apiModelId) + ' · 暂不可用';
+    if (value.error) return modelName(module.apiModelId) + ' · ' + statusView(statusForError(value)).label;
     if (module.type === 'today') { const tokens=Number(value.todayTokens||0).toLocaleString()+' tokens',cost=value.todayEstimate==null?'金额未知':formatMoney(value.todayEstimate,value.currency||registry.models.find(item=>item.id===module.apiModelId)?.currency||'USD')+'（估算）';return (module.tpl || '今日 {api_tokens}').replaceAll('{api_tokens}',tokens).replaceAll('{expense_api}',cost).replaceAll('{api_cost}',cost).replaceAll('{api_name}',modelName(module.apiModelId)); }
     if (module.type === 'plan') return (module.tpl || '{plan_name}').replaceAll('{plan_name}',modelName(module.apiModelId)+(value.level?' · '+value.level:'')).replaceAll('{plan_type}',value.kind||'API');
     if (module.type === 'quota') {
@@ -34,7 +35,7 @@ import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling
   async function refreshValue(id, force = false) {
     const old = values.get(id); if (!force && old && Date.now() - old.at < 30000) return old.data;
     try { const data = await request('/api/models/value?id=' + encodeURIComponent(id)); values.set(id,{at:Date.now(),data}); }
-    catch (error) { values.set(id,{at:Date.now(),data:{error:error.message}}); }
+    catch (error) { values.set(id,{at:Date.now(),data:{error:error.message,code:error.payload?.code||error.code}}); }
     paint(); checkAlerts(id, values.get(id).data); return values.get(id).data;
   }
   function checkAlerts(id,value) {
@@ -76,7 +77,7 @@ import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling
       for(const model of data.models){
         const row=el(list,'div','','api-model-row'),meta=el(row,'div','', 'api-model-meta');
         el(meta,'strong',model.name);el(meta,'small',(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);
-        button(row,'测试','quiet',async event=>{const test=event.currentTarget;test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){window.whaleToast?.(error.message);}finally{test.disabled=false;}});
+        button(row,'测试','quiet',async event=>{const test=event.currentTarget;test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){const view=statusView(statusForError(error));window.whaleToast?.((error.message||view.label)+(view.action?'；'+view.action:''));}finally{test.disabled=false;}});
         button(row,'设置','quiet',()=>openModelDetail(model));
         button(row,'删除','quiet',async()=>{if(!await confirmRemoval(model))return;await request('/api/models?id='+encodeURIComponent(model.id),'DELETE',{});values.delete(model.id);loadedAt=0;await render();paint();notifyChanged();});
       }
@@ -104,7 +105,7 @@ import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling
     }
 
     function balanceSummary(model,value) {
-      if(value?.error)return '读取失败';
+      if(value?.error){const view=statusView(statusForError(value));return view.label+(view.action?' — '+view.action:'');}
       if(value?.noBalanceApi||value?.available===false)return '余额 —（无接口）';
       return numeric(value?.balance)===null?'余额尚未观测':'余额 '+money(value.balance,value.currency||model.currency);
     }
