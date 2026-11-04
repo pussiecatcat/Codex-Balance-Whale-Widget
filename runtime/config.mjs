@@ -3,8 +3,9 @@ import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { parse } from '../vendor/smol-toml/dist/index.js';
-import { CODEX_HOME, DATA_HOME, readJson, writeJson } from './paths.mjs';
+import { CODEX_HOME, DATA_HOME, readJson } from './paths.mjs';
 import { domainError } from '../lib/errors.mjs';
+import { ProviderStore } from './provider-store.mjs';
 
 export const DEFAULT_CONFIG = {
   provider: 'auto', baseUrl: '', keyEnv: '', profile: '', projectDir: '', currency: 'USD',
@@ -117,9 +118,10 @@ export function validateConfig(input) {
 }
 
 export class ConfigStore {
-  constructor({ dataDir = DATA_HOME, codexHome = CODEX_HOME, env = process.env } = {}) {
+  constructor({ dataDir = DATA_HOME, codexHome = CODEX_HOME, env = process.env, store } = {}) {
     this.dataDir = dataDir; this.codexHome = codexHome; this.env = env;
-    this.file = path.join(dataDir, 'api-settings.json');
+    this.store = store || new ProviderStore({ dataDir });
+    this.file = this.store.file;
     // resolve() reads four files, parses TOML and hashes the credential. It runs
     // on the session monitor's tick and on every usage request, so its result is
     // memoised until one of those inputs actually changes. Writes through save()
@@ -133,9 +135,9 @@ export class ConfigStore {
   invalidate() { this.settingCache = null; this.resolveCache = null; }
 
   load() {
-    const stamp = fileStamp(this.file);
+    const data = this.store.read(), stamp = this.store.stamp();
     if (this.settingCache && this.settingCache.stamp === stamp) return this.settingCache.value;
-    const value = validateConfig(readJson(this.file, DEFAULT_CONFIG));
+    const value = validateConfig(data.codexApi);
     this.settingCache = { stamp, value };
     return value;
   }
@@ -152,7 +154,7 @@ export class ConfigStore {
       else input.models[update.model] = update.prices;
     }
     const c = validateConfig(input);
-    writeJson(this.file, c);
+    this.store.writeCodex(c);
     this.invalidate();
     return c;
   }

@@ -83,7 +83,7 @@ test('settings UI never echoes private values and blank saves never erase them',
   const config = fixture(t), before = config.load(), controls = new Map(), ids = new Map(), window = new Element('window'), puts = [];
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
   for (const name of names) controls.set(name, new Element(name));
-  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast']) ids.set(id, new Element(id));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (_url, options = {}) => {
@@ -108,4 +108,33 @@ test('settings UI never echoes private values and blank saves never erase them',
   assert.equal(config.load().baseUrl, '');
   assert.equal(config.load().keyEnv, marker);
   assert.equal(puts.some(patch => JSON.stringify(patch).includes('内容隐藏')), false);
+});
+
+test('guided API setup saves the form, probes the provider and names a failure', async t => {
+  const controls = new Map(), ids = new Map(), window = new Element('window'), puts = [];
+  let probeError = '';
+  const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
+  for (const name of names) controls.set(name, new Element(name));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result']) ids.set(id, new Element(id));
+  ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
+  const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
+  const requestJson = async (url, options = {}) => {
+    if (url.startsWith('/api/config') && options.method === 'PUT') { puts.push(options.body); return { ok: true }; }
+    if (url.startsWith('/dsh-whale/balance.json')) {
+      return probeError ? { ok: false, error: probeError } : { ok: true, totalBalance: 12.5, currency: 'CNY', balanceLabel: 'API 账户余额' };
+    }
+    return { ok: true, settings: {}, configured: {} };
+  };
+  const source = fs.readFileSync(new URL('../desktop/ui/client.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
+  vm.runInNewContext(source, { document, window, requestJson, location: { reload() {} }, Set, Number, JSON, setTimeout: () => 0, clearTimeout() {} });
+  const result = ids.get('api-connection-result'), button = ids.get('test-api-connection');
+  await button.fire('click');
+  assert.equal(puts.length, 1);
+  assert.match(result.textContent, /连接成功：API 账户余额 · 12.5 CNY/);
+  assert.equal(result.className, 'is-ok');
+  probeError = '未设置密钥环境变量 CUSTOM_API_KEY';
+  await button.fire('click');
+  assert.match(result.textContent, /连接失败：未设置密钥环境变量 CUSTOM_API_KEY/);
+  assert.equal(result.className, 'is-error');
+  assert.equal(button.disabled, false);
 });

@@ -8,6 +8,7 @@ import { migrateData } from './migration.mjs';
 import { createFxService } from './fx.mjs';
 import { createInsightsService } from './insights.mjs';
 import { ApiModelRegistry } from './api-models.mjs';
+import { ProviderStore } from './provider-store.mjs';
 import { SoundSettingsService } from './sound-settings.mjs';
 
 // Builds every long-lived service and hands back one container. The dispatcher
@@ -24,10 +25,13 @@ export function createComposition({
 } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   migrateData(dataDir);
-  const whale = service || new WhaleService({ dataDir, ...(fetchImpl ? { fetchImpl } : {}) });
+  // One store instance backs both the Codex API settings and the DIY model
+  // registry, so a save from either editor cannot overwrite the other's data.
+  const providerStore = new ProviderStore({ dataDir });
+  const whale = service || new WhaleService({ dataDir, store: providerStore, ...(fetchImpl ? { fetchImpl } : {}) });
   const fx = createFxService({ dataDir, ...(fxFetchImpl ? { fetchImpl: fxFetchImpl } : {}) });
   const insights = createInsightsService(whale.config);
-  const apiModels = new ApiModelRegistry({ dataDir, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
+  const apiModels = new ApiModelRegistry({ dataDir, store: whale.config?.store || providerStore, env: whale.config.env, ...(fetchImpl ? { fetchImpl } : {}) });
   try { apiModels.migrate(); } catch {}
   const soundSettings = new SoundSettingsService({ dataDir, whale });
 

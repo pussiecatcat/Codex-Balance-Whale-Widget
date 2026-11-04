@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { readJson, writeJson } from './paths.mjs';
+import { readJson } from './paths.mjs';
 import { cleanUrl } from './config.mjs';
 import { domainError } from '../lib/errors.mjs';
+import { ProviderStore } from './provider-store.mjs';
 import { normalizePrices, requestJson } from './provider-profile.mjs';
 
 const noBalance = (name, currency, keyEnv, probeUrl = '', matchIds = []) => ({ name, currency, keyEnv, noBalanceApi: true, probeUrl, matchIds });
@@ -56,11 +57,11 @@ function publicTemplate([id,t]) { return {id,name:t.name,currency:t.currency,key
 
 const numeric = value => value !== null && value !== undefined && value !== '' && typeof value !== 'boolean' && Number.isFinite(Number(value)) ? Number(value) : null;
 export class ApiModelRegistry {
-  constructor({dataDir,env=process.env,fetchImpl=fetch}={}) { this.dataDir=dataDir;this.file=path.join(dataDir,'api-models.json');this.env=env;this.fetch=fetchImpl; }
+  constructor({dataDir,env=process.env,fetchImpl=fetch,store}={}) { this.dataDir=dataDir;this.env=env;this.fetch=fetchImpl;this.store=store||new ProviderStore({dataDir});this.file=this.store.file; }
   load() {
-    const data=readJson(this.file,{version:1,models:[]});
-    if(!Array.isArray(data.models))throw domainError('API 模型配置损坏，请从备份恢复');
-    return data;
+    const models=this.store.read().diyModels;
+    if(!Array.isArray(models))throw domainError('API 模型配置损坏，请从备份恢复');
+    return {version:2,models};
   }
   model(id) { return this.load().models.find(item=>item.id===id)||null; }
   list() { return {ok:true,templates:Object.entries(API_TEMPLATES).map(publicTemplate),models:this.load().models.map(model=>this.publicModel(model))}; }
@@ -116,12 +117,12 @@ export class ApiModelRegistry {
     if(model.balanceUrl&&builtIn&&!builtIn.includes('{base}')&&new URL(model.balanceUrl).origin!==new URL(builtIn).origin&&model.keyEnv===t.keyEnv)throw domainError('自定义地址须使用专用密钥环境变量，不能发送服务商默认密钥');
     const data=this.load(),index=data.models.findIndex(item=>item.id===id);
     if(index>=0)data.models[index]=model;else data.models.push(model);
-    writeJson(this.file,data);return {ok:true,model:this.publicModel(model)};
+    this.store.writeModels(data.models);return {ok:true,model:this.publicModel(model)};
   }
   delete(id) {
     if(!idOk(id))throw domainError('API 模型 ID 无效');const data=this.load();
     if(!data.models.some(item=>item.id===id))throw domainError('API 模型不存在');
-    data.models=data.models.filter(item=>item.id!==id);writeJson(this.file,data);
+    data.models=data.models.filter(item=>item.id!==id);this.store.writeModels(data.models);
     return {ok:true};
   }
   endpoint(model,t,kind) {
@@ -192,13 +193,17 @@ export class ApiModelRegistry {
       if(!model.prices||!Object.hasOwn(model.prices,'cached'))continue;
       model.prices=normalizePrices(model.prices); changed++;
     }
-    if(changed)writeJson(this.file,data,{flush:true,backup:true});
+    if(changed)this.store.writeModels(data.models,{flush:true});
     return changed;
   }
   rollback() {
-    const data=readJson(this.file+'.bak',null);
-    if(!data||!Array.isArray(data.models))return false;
-    writeJson(this.file,data);return true;
+    const merged=readJson(this.file+'.bak',null);
+    if(merged&&Array.isArray(merged.diyModels)){this.store.writeModels(merged.diyModels);return true;}
+    const legacy=readJson(path.join(this.dataDir,'api-models.json.bak'),null);
+    if(legacy&&Array.isArray(legacy.models)){this.store.writeModels(legacy.models);return true;}
+    const migrated=readJson(path.join(this.dataDir,'providers.legacy-backup.json'),null);
+    if(!migrated||!Array.isArray(migrated.diyModels))return false;
+    this.store.writeModels(migrated.diyModels);return true;
   }
   estimate(model,usage) {
     if(!Object.keys(model.prices||{}).length)return null;

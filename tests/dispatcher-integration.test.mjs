@@ -224,3 +224,15 @@ test('status stays ok and surfaces an API configuration error', async t => {
   assert.equal(payload.provider.apiError.code, 'BAD_REQUEST');
   assert.match(payload.provider.apiError.message, /profile/);
 });
+
+test('one profiles view lists the Codex API and every DIY provider', async t => {
+  const { request } = await setup(t);
+  const saved = await request('/api/models', 'PUT', Buffer.from(JSON.stringify({ id: 'diy', template: 'deepseek' })));
+  assert.equal(saved.status, 200);
+  const { status, payload } = await request('/api/profiles');
+  assert.equal(status, 200);
+  assert.deepEqual(payload.profiles.map(profile => profile.id), ['codex', 'diy']);
+  assert.equal(payload.profiles[0].auto, true);
+  assert.equal(payload.profiles[1].currency, 'CNY');
+  assert.equal(JSON.stringify(payload).includes('DEEPSEEK_API_KEY'), true, 'only the environment name is exposed');
+});

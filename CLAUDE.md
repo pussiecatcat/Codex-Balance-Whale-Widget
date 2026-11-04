@@ -22,6 +22,7 @@ Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），�
 - `runtime/faults.mjs` — 意外异常的环形缓冲，即 `/api/status` 的 `faults`
 - `lib/errors.mjs` — `DomainError`：调用方能自己修的失败，带自己的状态码和消息（4xx）。**没有抛 DomainError 的异常一律按本进程缺陷处理**，记引用号、细节写 stderr、对外回 500，不再伪装成「请检查设置」
 - `runtime/service.mjs` — WhaleService：余额、配置、账本
+- `runtime/provider-store.mjs` — Codex API 设置与 DIY 模型注册表共用的唯一存储（`providers.json`）。首次写入时从旧的 `api-settings.json` / `api-models.json` 合并，并留下 `providers.legacy-backup.json`；两边分别保存不会互相覆盖。
 - `runtime/bridge.mjs` — 具名管道 IPC（`ALLOWED` 与 `HOST_ROUTES` 两张表合起来才是完整的外部可达路径集）
 - `runtime/process.mjs` — 拉起/探测服务（Windows schtasks，macOS launchctl）
 - `lib/atomic-write.mjs` — 全项目唯一的原子写入实现（独占临时文件 + Windows 重命名重试 + 可选 fsync）。同步 `writeFileAtomicSync` 给 runtime/lib 与 Electron 主进程用，异步 `writeFileAtomic` 给 `UiStateStore` 这类在 promise 链上的调用者用。`lib/` 是最底层，`runtime/` 与 `desktop/` 都依赖它。Electron 侧用 `require()` 加载它（Electron 44 的 Node 支持 require ESM）

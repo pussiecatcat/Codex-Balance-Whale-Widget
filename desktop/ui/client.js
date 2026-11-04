@@ -52,31 +52,57 @@ import { requestJson } from '/services/request.js';
   }
   window.addEventListener('whale-open-settings', openSettings);
   for (const id of ['close-settings', 'cancel-settings']) $(id).addEventListener('click', () => $('settings-dialog').close());
+  function collectSettings() {
+    const settings = {};
+    for (const key of ['provider', 'currency']) settings[key] = element(key).value.trim();
+    for (const key of privateFields) {
+      const value = element(key).value.trim();
+      if (value) settings[key] = value;
+      else if (resetFields.has(key)) settings[key] = key === 'balanceField' ? 'data.balance' : '';
+    }
+    for (const key of ['balanceScale', 'billingUsageDivisor', 'quotaPerUnit']) settings[key] = Number(element(key).value);
+    settings.monitorSessions = element('monitorSessions').checked;
+    const fields = ['priceInput', 'priceCached', 'priceOutput'];
+    const hasPrice = [...fields, 'priceWrite'].some(key => element(key).value !== '');
+    const model = element('priceModel').value.trim();
+    if (element('removePrice').checked) {
+      if (!model || hasPrice) throw new Error('删除价格时请只填写模型名称，不填写价格');
+      settings.pricingUpdate = { model, prices: null };
+    } else if (hasPrice) {
+      if (!model || fields.some(key => element(key).value === '')) throw new Error('请完整填写模型名称、输入、缓存命中和输出价格');
+      const prices = { input: Number(element('priceInput').value), cachedInput: Number(element('priceCached').value), output: Number(element('priceOutput').value) };
+      if (element('priceWrite').value !== '') prices.cacheWrite = Number(element('priceWrite').value);
+      settings.pricingUpdate = { model, prices };
+    } else if (model) throw new Error('请填写完整价格，或选择删除该模型价格');
+    return settings;
+  }
   form.addEventListener('submit', async event => {
     event.preventDefault();
     try {
-      const settings = {};
-      for (const key of ['provider', 'currency']) settings[key] = element(key).value.trim();
-      for (const key of privateFields) {
-        const value = element(key).value.trim();
-        if (value) settings[key] = value;
-        else if (resetFields.has(key)) settings[key] = key === 'balanceField' ? 'data.balance' : '';
-      }
-      for (const key of ['balanceScale', 'billingUsageDivisor', 'quotaPerUnit']) settings[key] = Number(element(key).value);
-      settings.monitorSessions = element('monitorSessions').checked;
-      const fields = ['priceInput', 'priceCached', 'priceOutput'];
-      const hasPrice = [...fields, 'priceWrite'].some(key => element(key).value !== '');
-      const model = element('priceModel').value.trim();
-      if (element('removePrice').checked) {
-        if (!model || hasPrice) throw new Error('删除价格时请只填写模型名称，不填写价格');
-        settings.pricingUpdate = { model, prices: null };
-      } else if (hasPrice) {
-        if (!model || fields.some(key => element(key).value === '')) throw new Error('请完整填写模型名称、输入、缓存命中和输出价格');
-        const prices = { input: Number(element('priceInput').value), cachedInput: Number(element('priceCached').value), output: Number(element('priceOutput').value) };
-        if (element('priceWrite').value !== '') prices.cacheWrite = Number(element('priceWrite').value);
-        settings.pricingUpdate = { model, prices };
-      } else if (model) throw new Error('请填写完整价格，或选择删除该模型价格');
-      await api('/api/config', 'PUT', settings); location.reload();
+      await api('/api/config', 'PUT', collectSettings());
+      location.reload();
     } catch (error) { $('settings-error').hidden = false; $('settings-error').textContent = error.message; }
+  });
+  // Guided setup: save the form and ask for a real balance in one click, so a
+  // wrong endpoint or a missing environment variable is named here instead of
+  // showing up later as an unexplained "查询暂不可用" on the widget.
+  const connectionResult = $('api-connection-result');
+  $('test-api-connection').addEventListener('click', async () => {
+    const button = $('test-api-connection');
+    button.disabled = true;
+    connectionResult.className = '';
+    connectionResult.textContent = '正在保存并测试连接…';
+    try {
+      await api('/api/config', 'PUT', collectSettings());
+      const result = await api('/dsh-whale/balance.json?refresh=1');
+      if (!result.ok) throw new Error(result.error || '余额接口没有返回可用的余额');
+      const label = result.balanceLabel || result.providerName || '当前 API';
+      const amount = typeof result.totalBalance === 'number' ? ` · ${result.totalBalance} ${result.currency || ''}`.trimEnd() : '';
+      connectionResult.textContent = `连接成功：${label}${amount}`;
+      connectionResult.className = 'is-ok';
+    } catch (error) {
+      connectionResult.textContent = '连接失败：' + error.message;
+      connectionResult.className = 'is-error';
+    } finally { button.disabled = false; }
   });
 })();

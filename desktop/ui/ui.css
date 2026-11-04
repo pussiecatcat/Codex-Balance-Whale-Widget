@@ -364,3 +364,8 @@ html.desktop .whale-utility-row>.dshwv-custwrap{flex:1 1 0;min-width:0}
   html.desktop .api-model-card .api-model-fields{grid-template-columns:minmax(0,1fr)}
   html.desktop .api-model-card .api-model-fields>label:first-child,html.desktop .api-model-card .api-model-fields>label:nth-child(2){grid-column:1}
 }
+.connection-test{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.connection-test button{white-space:nowrap}
+#api-connection-result{font-size:11px;line-height:1.6;color:var(--text-muted);flex:1 1 180px}
+#api-connection-result.is-ok{color:var(--status-ok)}
+#api-connection-result.is-error{color:var(--status-critical)}

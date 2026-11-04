@@ -4,6 +4,7 @@ import { domainError } from '../../lib/errors.mjs';
 import { MEDIA_POLICY } from '../../lib/media-validation.mjs';
 import { pricingSchedule } from '../pricing-schedule.mjs';
 import { exportWorkshop, importWorkshop } from '../../lib/workshop.mjs';
+import { listProfiles } from '../provider-profile.mjs';
 
 // Every endpoint the dispatcher answers itself, as a table rather than a chain
 // of `if (url.pathname === ...)`. The widget host registers its own routes into
@@ -103,6 +104,19 @@ export function createCoreRoutes(ctx) {
   route('/api/config', {
     GET: () => jsonResult(200, { ok: true, ...whale.config.settingsInfo() }),
     PUT: ({ body }) => { whale.config.save(json(body)); return jsonResult(200, { ok: true, ...whale.config.settingsInfo() }); },
+  });
+
+  // One read model for "the API Codex is using" and every DIY provider. The
+  // settings editor can render both without depending on which JSON file a
+  // profile happens to live in. A broken Codex endpoint must not hide the DIY
+  // list, so fall back to the identity context instead of failing the route.
+  route('/api/profiles', {
+    GET: () => {
+      let context;
+      try { context = whale.config.resolve(); }
+      catch { context = whale.config.identityContext(); }
+      return jsonResult(200, { ok: true, profiles: listProfiles(context, apiModels.list().models) });
+    },
   });
 
   route('/api/fx/usd-cny', {

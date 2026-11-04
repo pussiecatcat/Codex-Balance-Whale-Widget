@@ -13,19 +13,19 @@
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
 | 分支 | `review/2026-11-04-followups`（基于 `refactor/architecture-round-2` @ `7962203`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-04T17:30Z |
+| 采集时间 | 2026-11-04T18:02Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **554 tests / 551 pass / 3 fail** |
+| `npm test` | **559 tests / 556 pass / 3 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
 | `npm run check:package` | 通过 |
 | `npm run check:architecture` | 通过（空 catch 292/292，CSS hex 138/138） |
 | `npm run check:calendar` | 通过；提示峰谷日历覆盖到 2026-12-31 |
-| `npm run bench:ledger` | 通过；20,000 事件 / 90 天，`records` 约 12 ms、`today` 约 11 ms |
+| `npm run bench:ledger` | 通过；20,000 事件 / 90 天，`records` 约 13 ms、`today` 约 9 ms |
 | `python scripts/build-release.py` | 通过（文件总数随文档增减；sha 与文件数不记入基线） |
 
 `npm run verify` 串起上述全部检查，在本机会停在测试步骤——原因见下节的 3 条已知失败。
@@ -52,7 +52,8 @@ Date.UTC(2026, 9, 10) 的本地日 → 9      （断言期望 10）
 
 - `npm run test:desktop`（Electron 桌面审计）未运行。
 - 未在真实 Codex 会话中调用 MCP 工具（F-02 的最终验收）。
-- UI 未渲染验证；设置菜单的「运行日志 → 打开」只做了源码级接线。
+- UI 未渲染验证；设置菜单的「运行日志 → 打开」与「保存并测试连接」只做了源码级和 VM 级接线。
+- 未做真实服务商的「保存并测试连接」手工验收。
 - macOS 路径完全未验证。
 
 ## 复现
