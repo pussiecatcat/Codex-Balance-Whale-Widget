@@ -1,7 +1,9 @@
+import { statusForCode, statusView } from './status-tones.js';
+
 // Snapshot content is selected once per bubble open, with prior random picks scoped here.
 export function createBubbleContent(deps) {
   const { window, getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
-    usageFillText, bubbleCloneModule, random = Math.random } = deps;
+    usageFillText, bubbleCloneModule, getMode = () => '', getQuotaSource = () => '', random = Math.random } = deps;
     function bubbleModuleFontU(level) {
       var n = Number(level) || 6;
       n = Math.max(1, Math.min(50, Math.round(n)));
@@ -10,17 +12,43 @@ export function createBubbleContent(deps) {
     function bubbleTokenValue(value) {
       return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value).toLocaleString('en-US') : '暂无';
     }
+    function bubbleClock(ts) {
+      try { return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; }
+    }
+    function bubbleSourceLine(values) {
+      values = values || {};
+      var mode = getMode();
+      if (mode === 'subscription') return getQuotaSource() || 'Codex 官方额度';
+      var at = values.updatedAt ? bubbleClock(values.updatedAt) : '';
+      if (values.status === 'error') return values.balance != null ? '上次数据' + (at ? ' · ' + at : '') + ' · 点击重试' : '读取失败 · 点击重试';
+      if (values.stale) return '上次数据' + (at ? ' · ' + at : '');
+      if (values.status === 'loading' || values.status == null) return '正在读取服务商…';
+      return '服务商返回' + (at ? ' · ' + at + ' 更新' : '');
+    }
+    function bubbleApiMoney(type, values) {
+      values = values || {};
+      var status = values.status || 'loading';
+      var view = statusView(statusForCode(values.code || 'ERROR'));
+      if (status === 'error') {
+        if (type === 'today') return values.todayUsage != null ? '今日已观测 ' + fmt(values.todayUsage, values.currency) + '（上次数据）' : '今日未观测';
+        return values.balance != null ? fmt(values.balance, values.currency) + '（上次数据）' : view.label;
+      }
+      if (status === 'loading' && values.balance == null) return type === 'today' ? '今日加载中…' : '加载中…';
+      if (type === 'today') return values.todayUsage != null ? '今日已观测 ' + fmt(values.todayUsage, values.currency) : '今日未观测';
+      if (values.balance == null) return '未观测';
+      return fmt(values.balance, values.currency) + (values.stale ? '（上次数据）' : '');
+    }
     function bubbleContentTokenMap(m, snapshot) {
       m = m || ({});
       var values = snapshot || getState();
       var v = '';
       var map = {};
       if (m.type === 'balance') {
-        v = values.balance === null ? '…' : fmt(values.balance, values.currency);
+        v = bubbleApiMoney('balance', values);
         map['balance_ds'] = v;
         map['balance_api'] = v;
       } else if (m.type === 'today') {
-        v = values.todayUsage !== null && values.todayUsage !== undefined ? fmt(values.todayUsage, values.currency) : '--';
+        v = values.todayUsage !== null && values.todayUsage !== undefined ? fmt(values.todayUsage, values.currency) : '未观测';
         map['expense_ds'] = v;
         map['expense_api'] = v;
       } else if (m.type === 'turn') {
@@ -31,6 +59,8 @@ export function createBubbleContent(deps) {
         map['turn_reasoning'] = bubbleTokenValue(values && values.reasoningOutputTokens);
       } else if (m.type === 'session') {
         map['session_name'] = values && values.sessionLabel ? String(values.sessionLabel) : '当前会话';
+      } else if (m.type === 'source') {
+        map['source_line'] = bubbleSourceLine(values);
       }
       return map;
     }
@@ -53,6 +83,7 @@ export function createBubbleContent(deps) {
         add('turn_tokens', '上轮总 token'); add('turn_input', '输入 token'); add('turn_output', '输出 token');
         add('turn_cached', '缓存输入 token'); add('turn_reasoning', '推理输出 token');
       } else if (m.type === 'session') add('session_name', '当前 Codex 项目或工作区名称');
+      else if (m.type === 'source') add('source_line', '数据来源和更新时间');
       else if (m.type === 'plan') { add('plan_name', 'Codex 套餐名称'); add('plan_type', '套餐原始标识'); }
       else if (m.type === 'peak' || m.type === 'nextpeak') {
         add('peak_phase', '当前峰谷状态'); add('peak_countdown', '距离下次切换'); add('peak_switch_at', '下次切换时间'); add('peak_note', '峰谷规则说明');
@@ -96,6 +127,13 @@ export function createBubbleContent(deps) {
       mod = mod || ({});
       var state = getState();
       var lastTurnNotice = getLastTurnNotice();
+      var mode = getMode();
+      // Cross-mode modules are hidden, never rendered as zero. A DIY model
+      // module keeps its own apiModelId and is not affected by this rule.
+      if (!mod.apiModelId && ((mode === 'subscription' && (mod.type === 'balance' || mod.type === 'today')) ||
+        (mode === 'api' && (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak')))) {
+        return { txt: '', line: null, hidden: true };
+      }
       if (mod.apiModelId && (mod.type === 'balance' || mod.type === 'today' || mod.type === 'quota' || mod.type === 'plan')) {
         var apiModelText = function () { return window.WhaleApiModels?.text(mod) || 'API 模型加载中…'; };
         return { txt: apiModelText(), line: null, apiModelText: apiModelText };
@@ -112,14 +150,17 @@ export function createBubbleContent(deps) {
         var defaultSessionText = lastTurnNotice && lastTurnNotice.sessionLabel ? '当前会话 · ' + lastTurnNotice.sessionLabel : '当前会话';
         return { txt: bubbleContentText(mod, defaultSessionText, lastTurnNotice || {}), line: null };
       }
+      if (mod.type === 'source') {
+        var sourceValues = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD',
+          status: state.status, code: state.code, stale: state.stale, updatedAt: state.updatedAt };
+        var sourceText = function () { return bubbleSourceLine(sourceValues); };
+        return { txt: bubbleContentText(mod, sourceText(), sourceValues), line: null, sourceText: sourceText };
+      }
       if (mod.type === 'balance' || mod.type === 'today') {
-        var captured = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD' };
-        var moneyText = function () {
-          var value = mod.type === 'balance' ? captured.balance === null ? '…' : fmt(captured.balance, captured.currency) :
-            '今日已观测 ' + (captured.todayUsage != null ? fmt(captured.todayUsage, captured.currency) : '--');
-          return bubbleContentText(mod, value, captured);
-        };
-        return { txt: moneyText(), line: null, moneyText: moneyText };
+        var captured = { balance: state.balance, todayUsage: state.todayUsage, currency: state.currency || 'USD',
+          status: state.status, code: state.code, stale: state.stale, updatedAt: state.updatedAt };
+        var moneyText = function () { return bubbleApiMoney(mod.type, captured); };
+        return { txt: bubbleContentText(mod, moneyText(), captured), line: null, moneyText: moneyText };
       }
       var reminder = whaleMoneyTemplates.get(mod);
       function reminderText(template) {
@@ -161,9 +202,10 @@ export function createBubbleContent(deps) {
         }
         var content = bubbleRowContentOf(copy);
         if (remember && copy.type === 'random' && original && typeof original === 'object') bubblePreviousPicks.set(original, copy._lastPick);
+        if (content.hidden) return null;
         rows.set(copy, Object.freeze(content));
         return copy;
-      });
+      }).filter(Boolean);
       return { modules: copies, rows: rows };
     }
   return { fontU: bubbleModuleFontU, tokenValue: bubbleTokenValue,

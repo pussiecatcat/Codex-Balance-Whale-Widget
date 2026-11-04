@@ -256,7 +256,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await wait("document.querySelector('.dshwv-bubmask')?.style.display==='flex' && document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip')?.textContent.includes('首次点击')", 'bubble draft editor renders its first row');
     assert.ok(await ev("document.querySelectorAll('.dshwv-bubmask .dshwv-bubrow-drag').length") >= 1);
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");
-    await wait("document.querySelector('.dshwv-bubpal')?.children.length>=13", 'bubble palette renders available modules');
+    await wait("document.querySelector('.dshwv-bubpal')?.children.length>=11", 'bubble palette renders available modules');
     await ev("document.querySelector('.dshwv-pvlab').click()");
     await wait("document.querySelector('.dshwv-qedit')?.style.display==='block' && document.querySelector('.dshwv-qcolwrap')", 'quick module editor renders color controls');
     await ev("document.querySelector('.dshwv-qcolwrap .dshwv-rgbhead').click()");

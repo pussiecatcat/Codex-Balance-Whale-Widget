@@ -516,3 +516,4 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-resdel:disabled{opacity:.4;cursor:not-allowed}
 .dshwv-resempty{color:var(--text-hint);font-size:12px;padding:4px 8px}
 .dshwv-menu{max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.dshwv-trowtx,.dshwv-text{font-variant-numeric:tabular-nums}

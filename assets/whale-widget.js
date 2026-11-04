@@ -967,6 +967,7 @@ import {
       document: document, getPaletteElement: function () { return bubbleEditorState.palEl; },
       getLibrary: function () { return bubbleEditorState.lib; },
       setDragKey: function (key) { bubbleDragKey = key; },
+      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
       bubbleModuleAdd: bubbleModuleAdd, bubbleModuleNew: bubbleModuleNew,
       bubblePickImageToAdd: bubblePickImageToAdd, bubblePaletteModule: bubblePaletteModule,
       bubbleCloneModule: bubbleCloneModule, bubbleDefaultSecondModules: bubbleDefaultSecondModules,
@@ -1202,6 +1203,7 @@ import {
       };
       if (key === 'plan') return { type: 'plan', size: 5, bold: true, tpl: '{plan_name}' };
       if (key === 'session') return { type: 'session', size: 4, tpl: '当前会话 · {session_name}' };
+      if (key === 'source') return { type: 'source', size: 3, tpl: '{source_line}' };
       if (key === 'peak') return { type: 'peak', size: 5, bold: true, tpl: '{peak_phase} · {peak_countdown}' };
       if (key === 'link') return {
         type: 'link',
@@ -1867,6 +1869,7 @@ import {
       if (t === 'image') return '图片/动图';
       if (t === 'randimg') return '随机图片';
       if (t === 'random') return '随机语句模块';
+      if (t === 'source') return '来源行';
       return '文本模块';
     }
 
@@ -3102,6 +3105,8 @@ import {
       todayUsage: null,
       status: 'loading',
       message: '',
+      code: '',
+      updatedAt: null,
       flip: false
     };
     var drag = { active: false };
@@ -3503,6 +3508,7 @@ import {
     }
     var bubbleContent = createBubbleContent({
       window: window, getState: function () { return state; },
+      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
       getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
       whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
       bubbleCloneModule: bubbleCloneModule
@@ -3728,6 +3734,8 @@ import {
           state.currency = nc;
           WhaleMoney.setNativeCurrency(nc);
           state.message = '';
+          state.code = '';
+          state.updatedAt = Number(data.updatedAt) || Date.now();
           state.todayUsage = data.todayUsage !== undefined ? data.todayUsage : null;
           state.unlimited = !!data.unlimited;
           state.providerName = data.providerName || '';
@@ -3741,6 +3749,7 @@ import {
           state.status = 'ok';
         } else {
           state.status = 'error';
+          state.code = data && data.code || 'ERROR';
           state.message = data && data.error ? String(data.error) : '获取失败';
           window.dispatchEvent(new CustomEvent('whale-balance', {
             detail: data || ({
@@ -3750,6 +3759,7 @@ import {
         }
       }).catch(function () {
         state.status = 'error';
+        state.code = 'NETWORK';
         state.message = '获取失败';
       }).finally(function () {
         busy = false;

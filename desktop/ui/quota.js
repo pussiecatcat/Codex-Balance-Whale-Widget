@@ -267,5 +267,15 @@ import { statusView } from '/features/widget/status-tones.js';
     stopped = true; revision++; pending?.abort.abort(); clearInterval(ticker);
     for (const timer of settledTimers) clearTimeout(timer); settledTimers = [];
   }, { once: true });
-  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, text: module => moduleText(module, subscription, pricing) };
+  function sourceLine() {
+    if (!subscription) return '额度加载中…';
+    const at = snapshotAt(subscription.observedAt);
+    if (subscription.status === 'unauthenticated') return '请登录 Codex';
+    if (subscription.status === 'unavailable' || subscription.available === false) return 'Codex 暂未返回额度';
+    if (subscription.stale) return '上次数据' + (at ? ' · ' + at : '') + ' · 正在重试';
+    if (subscription.source === 'local-session') return '本机会话记录 · 非实时';
+    if (subscription.source === 'codex-app-server') return 'Codex 官方' + (at ? ' · ' + at + ' 更新' : '');
+    return 'Codex 额度' + (at ? ' · ' + at + ' 更新' : '');
+  }
+  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, text: module => moduleText(module, subscription, pricing) };
 })();
