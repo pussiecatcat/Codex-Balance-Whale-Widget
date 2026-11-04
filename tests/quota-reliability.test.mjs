@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createCodexRateLimitsClient } from '../runtime/codex-rate-limits.mjs';
+import { statusView } from '../desktop/ui/features/widget/status-tones.js';
 import { createInsightsService } from '../runtime/insights.mjs';
 
 const defer = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -153,7 +154,7 @@ test('explicit authentication errors clear cached quota; authoritative empty win
   assert.equal((await fixture.service.getQuota({ force: true })).subscription.available, false);
 });
 
-const quotaSource = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
+const quotaSource = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
 function frontend() {
   let now = Date.now(), response = { ok: true, subscription: { available: true, status: 'ready', source: 'codex-app-server', observedAt: now,
     windows: [{ windowDurationMins: 300, usedPercent: 20, resetsAt: now + 3600000 }] } }, failing = false;
@@ -163,6 +164,7 @@ function frontend() {
     setInterval: (fn, ms) => { intervals.set(++timerId, { fn, ms }); return timerId; }, clearInterval: id => intervals.delete(id),
     setTimeout: (fn, ms) => { timeouts.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timeouts.delete(id),
     requestJson: async url => { requests.push(url); if (failing) throw Error('offline'); return url.startsWith('/api/pricing') ? {} : structuredClone(response); },
+    statusView,
   };
   vm.runInNewContext(quotaSource, box);
   return { api: box.window.WhaleQuota, requests, listeners, intervals, timeouts,

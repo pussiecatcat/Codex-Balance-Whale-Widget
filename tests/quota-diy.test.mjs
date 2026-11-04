@@ -9,8 +9,8 @@ import { PassThrough, Writable } from 'node:stream';
 import { quotaFromAppServer, createCodexRateLimitsClient, findCodexExecutable, codexSpawnArgs } from '../runtime/codex-rate-limits.mjs';
 import { createInsightsService } from '../runtime/insights.mjs';
 
-const source = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
-const context = { module: { exports: {} }, requestJson: async () => ({}) };
+const source = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
+const context = { module: { exports: {} }, requestJson: async () => ({}), statusView: () => ({ label: '' }) };
 vm.runInNewContext(source, context);
 const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
 
