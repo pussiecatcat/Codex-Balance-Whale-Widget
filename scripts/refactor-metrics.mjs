@@ -88,6 +88,20 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // comment explaining why swallowing it is deliberate.
 export const EMPTY_CATCH_BUDGET = { total: 292 };
 
+// A design token pass only pays off if the raw palette stops growing. The
+// budget counts distinct hex values across the two stylesheets and the widget
+// entry; migrate a surface, then lower the number.
+export const CSS_HEX_BUDGET = { total: 138 };
+const CSS_HEX_FILES = ['desktop/ui/whale-widget.css', 'desktop/ui/ui.css', 'assets/whale-widget.js'];
+function cssHexMetrics(root) {
+  const values = new Set();
+  for (const relative of CSS_HEX_FILES) {
+    let text; try { text = fs.readFileSync(path.join(root, relative), 'utf8'); } catch { continue; }
+    for (const match of text.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) values.add(match[0].toLowerCase());
+  }
+  return { total: values.size, values: [...values].sort() };
+}
+
 // The shared client is the module this whole gate funnels callers into, and
 // alpha-worker.js runs off the module graph in a Worker, where it is unreachable.
 const LEGACY_REQUEST_EXEMPT = new Set(['desktop/ui/services/request.js', 'desktop/ui/alpha-worker.js']);
@@ -358,6 +372,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
     },
     dependency: collectDependencyMetrics({ root }),
     emptyCatch: emptyCatchMetrics(root),
+    cssHex: cssHexMetrics(root),
   };
 }
 
@@ -378,6 +393,9 @@ export function refactorBoundaryErrors(metrics) {
     const perFile = Object.entries(metrics.emptyCatch.byFile).sort((a, b) => b[1] - a[1])
       .map(([file, count]) => `${file}:${count}`).join(', ');
     errors.push(`Empty catch blocks must not exceed the existing budget of ${EMPTY_CATCH_BUDGET.total} (found ${metrics.emptyCatch.total}). Handle the error or add a comment explaining a deliberate best-effort catch, and lower the budget as sites are cleaned. By file — ${perFile}`);
+  }
+  if (metrics.cssHex.total > CSS_HEX_BUDGET.total) {
+    errors.push(`Distinct CSS hex colours must not exceed the existing budget of ${CSS_HEX_BUDGET.total} (found ${metrics.cssHex.total}). Use a design token instead, and lower the budget as surfaces are migrated.`);
   }
   return errors;
 }
@@ -424,6 +442,8 @@ function summary(metrics) {
     quality: {
       emptyCatches: metrics.emptyCatch.total,
       emptyCatchBudget: EMPTY_CATCH_BUDGET.total,
+      cssHexValues: metrics.cssHex.total,
+      cssHexBudget: CSS_HEX_BUDGET.total,
     },
   };
 }

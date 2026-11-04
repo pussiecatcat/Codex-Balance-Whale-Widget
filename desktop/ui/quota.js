@@ -1,4 +1,5 @@
 import { requestJson } from '/services/request.js';
+import { statusView } from '/features/widget/status-tones.js';
 
 (() => {
   'use strict';
@@ -212,8 +213,8 @@ import { requestJson } from '/services/request.js';
         const after = JSON.stringify(subscription.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
         const failed = ['stale', 'error'].includes(subscription.status);
         failures = failed ? Math.min(5, failures + 1) : 0;
-        syncStatus = failed ? '同步失败，稍后重试' : subscription.status === 'unauthenticated' ? '请登录 Codex' :
-          !subscription.available ? subscription.reason || '暂无额度窗口' : before === after ? '已同步，额度未变化' : '额度已更新';
+        const view = statusView(subscription.status, { failed, changed: before !== after, reason: subscription.reason || '暂无额度窗口' });
+        syncStatus = failed ? '同步失败，稍后重试' : view.label;
       } catch {
         if (ownRevision !== revision || stopped) return subscription;
         failures = Math.min(5, failures + 1);

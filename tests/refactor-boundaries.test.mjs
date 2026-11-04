@@ -8,6 +8,7 @@ import {
   SOUND_FRONTEND_MODULES,
   SOUND_RUNTIME_MODULES,
   EMPTY_CATCH_BUDGET,
+  CSS_HEX_BUDGET,
   assertRefactorBoundaries,
   collectDependencyMetrics,
   collectRefactorMetrics,
@@ -186,4 +187,12 @@ test('the empty-catch ratchet counts this tree and rejects a new site', () => {
   const errors = refactorBoundaryErrors(over);
   assert.match(errors.join('\n'), /Empty catch blocks must not exceed/);
   assert.match(errors.join('\n'), /runtime\/loud\.mjs:1/, 'the report names which file to clean first');
+});
+
+test('the CSS palette ratchet counts this tree and rejects a new hex value', () => {
+  const metrics = collectRefactorMetrics({ root: ROOT });
+  assert.equal(metrics.cssHex.total, CSS_HEX_BUDGET.total,
+    'use a design token and lower CSS_HEX_BUDGET instead of adding a raw colour');
+  const over = { ...metrics, cssHex: { total: CSS_HEX_BUDGET.total + 1, values: [] } };
+  assert.match(refactorBoundaryErrors(over).join('\n'), /Distinct CSS hex colours must not exceed/);
 });
