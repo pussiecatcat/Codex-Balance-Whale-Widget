@@ -4,6 +4,8 @@ import { readJson, writeJson, dayKey, DAY_MS, rounded } from './paths.mjs';
 
 const initialLedger = () => ({ version: 1, revision: 0, date: '', observed: 0, firstObservation: null, lastObservation: null, history: {}, events: [], correctionLog: [] });
 const MONEY_SCALE = 100000000;
+const USAGE_NOTE = '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。';
+const modelRows = models => [...models].map(([model, cost]) => ({ model: model + '（估算）', cost: rounded(cost) })).sort((a, b) => b.cost - a.cost);
 const units = value => {
   const scaled = Math.round(Number(value) * MONEY_SCALE);
   if (!Number.isSafeInteger(scaled)) throw new Error('金额超出八位小数安全范围');
@@ -156,14 +158,16 @@ export class UsageLedger {
   records(scope, now = Date.now()) {
     const led = this.rollover(this.load(scope), now);
     const today = dayKey(now);
-    const modelsFor = day => {
-      const models = new Map();
-      for (const e of led.events) {
-        if (e.day !== day || e.source !== 'configured-pricing-estimate') continue;
-        models.set(e.model, (models.get(e.model) || 0) + (e.cost || 0));
-      }
-      return [...models].map(([model, cost]) => ({ model: model + '（估算）', cost: rounded(cost) })).sort((a, b) => b.cost - a.cost);
-    };
+    // Index estimated model costs once; every day in the response would
+    // otherwise rescan the full event list.
+    const modelIndex = new Map();
+    for (const event of led.events) {
+      if (event.source !== 'configured-pricing-estimate') continue;
+      const dayModels = modelIndex.get(event.day) || new Map();
+      dayModels.set(event.model, (dayModels.get(event.model) || 0) + (event.cost || 0));
+      modelIndex.set(event.day, dayModels);
+    }
+    const modelsFor = day => modelRows(modelIndex.get(day) || new Map());
     const totalDay = day => day === today ? led.observed : Object.hasOwn(led.history, day) ? Number(led.history[day].total || 0) : null;
     const days7 = [];
     for (let i = 0; i < 7; i++) {
@@ -183,7 +187,21 @@ export class UsageLedger {
         missingSummaryDays, events: led.events.slice(-20000).reverse(), storedEventCount: led.events.length, detailLimit: 20000,
         correctionLog: (led.correctionLog || []).slice(-50).reverse() },
       warning: this.warnings.get(scope) || '',
-      usageSource: 'observed-api-debits', note: '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。' };
+      usageSource: 'observed-api-debits', note: USAGE_NOTE };
+  }
+  // Cheap read used by the balance decoration path: no 7-day/all-history
+  // buckets, and no event list in the payload.
+  today(scope, now = Date.now()) {
+    const led = this.rollover(this.load(scope), now);
+    const day = dayKey(now);
+    const models = new Map();
+    for (const event of led.events) {
+      if (event.day !== day || event.source !== 'configured-pricing-estimate') continue;
+      models.set(event.model, (models.get(event.model) || 0) + (event.cost || 0));
+    }
+    return { total: led.observed, models: modelRows(models), since: led.firstObservation,
+      source: (led.correctionLog || []).some(item => item.date === day) ? 'balance-corrected' : 'balance-observed',
+      warning: this.warnings.get(scope) || '', note: USAGE_NOTE };
   }
 }
 
