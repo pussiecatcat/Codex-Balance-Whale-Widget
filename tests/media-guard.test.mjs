@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { MEDIA_POLICY, validateImage } from '../lib/media-validation.mjs';
 
-const source = fs.readFileSync(new URL('../desktop/ui/media-guard.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../desktop/ui/media-guard.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
 function load() {
   const box = { module: { exports: {} }, Uint8Array, ArrayBuffer, DataView };
   vm.runInNewContext(source, box); return box.module.exports;
@@ -41,7 +41,7 @@ test('frontend defaults exactly match the single backend media policy', () => {
 test('policy refresh is deduplicated and malformed responses leave the previous policy intact', async () => {
   let calls = 0;
   const next = { ...MEDIA_POLICY, roleBytes: 1024 };
-  const guard = api.createMediaGuard({ fetch: async () => { calls++; return { ok: true, json: async () => ({ ok: true, policy: next }) }; } });
+  const guard = api.createMediaGuard({ requestJson: async () => { calls++; return { ok: true, policy: next }; } });
   await Promise.all([guard.refreshPolicy(), guard.refreshPolicy()]); assert.equal(calls, 1);
   assert.equal(guard.getPolicy().roleBytes, 1024); assert.equal(guard.policy.roleBytes, 1024);
   assert.throws(() => guard.checkFile({ size: 1025 }, 'role'), /最多/);

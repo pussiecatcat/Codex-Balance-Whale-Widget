@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createBubblePalette } from '../desktop/ui/features/widget/bubble-palette.js';
 
-function fixture() {
+function fixture(mode = '') {
   const element = (tag = 'div') => ({
     tagName: tag, className: '', textContent: '', title: '', draggable: false,
     children: [], listeners: {},
@@ -17,6 +17,7 @@ function fixture() {
     document: { createElement: element },
     getPaletteElement: () => root,
     getLibrary: () => [],
+    getMode: () => mode,
     setDragKey: () => {},
     bubbleModuleAdd: module => state.added.push(module),
     bubbleModuleNew: module => state.added.push(module),
@@ -39,11 +40,11 @@ test('every palette chip builds its module through bubblePaletteModule', () => {
   for (const chip of chips(root)) chip.click();
   // The order is the entry table's, and each key is the chip's own.
   assert.deepEqual(state.paletteKeys, ['text', 'balance', 'today', 'quota5', 'quotaWeek', 'turn',
-    'plan', 'session', 'peak', 'link', 'randimg']);
+    'plan', 'session', 'source', 'peak', 'link', 'randimg']);
   // The random chip sits between peak and link in the entry table and adds a
   // cloned text module, so it contributes a text entry before link's.
   assert.deepEqual(state.added.map(module => module.type),
-    ['text', 'balance', 'today', 'quota5', 'quotaWeek', 'turn', 'plan', 'session', 'peak',
+    ['text', 'balance', 'today', 'quota5', 'quotaWeek', 'turn', 'plan', 'session', 'source', 'peak',
       'text', 'link', 'randimg']);
   assert.ok(state.added.every(module => module.type !== undefined));
 });
@@ -61,7 +62,7 @@ test('the two chips that are not plain module entries keep their own path', () =
 
 test('the palette offers one chip per entry plus the new-module chip', () => {
   const { root } = fixture();
-  assert.equal(chips(root).length, 13);
+  assert.equal(chips(root).length, 14);
   const newChip = root.children.find(child => child.className === 'dshwv-paladd');
   assert.equal(newChip.textContent, '+ 新建模块');
   // The new-module chip goes through bubbleModuleAdd with a palette module too.
@@ -102,4 +103,19 @@ test('module library chips clone the stored module and delete behind a confirmat
   assert.deepEqual(state.deleted, []);
   state.confirmed.run();
   assert.deepEqual(state.deleted, ['lib_1']);
+});
+
+test('the palette hides modules that belong to the other mode', () => {
+  const subscription = fixture('subscription');
+  assert.equal(chipFor(subscription.root, '余额数值'), undefined);
+  assert.equal(chipFor(subscription.root, '今日已观测'), undefined);
+  assert.ok(chipFor(subscription.root, '来源行'));
+  assert.ok(chipFor(subscription.root, '5 小时额度'));
+
+  const api = fixture('api');
+  assert.equal(chipFor(api.root, '5 小时额度'), undefined);
+  assert.equal(chipFor(api.root, '每周额度'), undefined);
+  assert.equal(chipFor(api.root, 'Codex 套餐'), undefined);
+  assert.ok(chipFor(api.root, '来源行'));
+  assert.ok(chipFor(api.root, '余额数值'));
 });

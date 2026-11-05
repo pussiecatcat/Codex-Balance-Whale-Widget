@@ -78,11 +78,28 @@ const appGlobals = Object.fromEntries([
   'WhaleFeedback', 'WhaleFeedbackSources', 'WhaleGesture', 'WhaleLegacySoundUi',
   'WhaleLegacyUsage', 'WhaleMediaGuard', 'WhaleMoney', 'WhaleQuota',
   'WhaleRendering', 'WhaleSelect', 'WhaleTurnNotice', 'whaleToast',
+  'WhaleBubbleShape', 'WhaleSettingsHelp', 'WhaleSettingsPages', 'WhaleSettingsTest',
+  'WhaleStorageSync', 'WhaleWorkshopOpen',
 ].map(name => [name, 'readonly']));
 
 // Renderer code loaded with <script type="module"> or imported by the monolith.
 const rendererModules = [
   'assets/whale-widget.js',
+  'desktop/ui/client.js',
+  'desktop/ui/api-models.js',
+  'desktop/ui/money.js',
+  'desktop/ui/quota.js',
+  'desktop/ui/account-view.js',
+  'desktop/ui/insights.js',
+  'desktop/ui/workshop.js',
+  'desktop/ui/media-guard.js',
+  'desktop/ui/audio-engine.js',
+  'desktop/ui/render.js',
+  'desktop/ui/turn-notice.js',
+  'desktop/ui/gesture.js',
+  'desktop/ui/preferences-v3.js',
+  'desktop/ui/select-enhancer.js',
+  'desktop/ui/shape.js',
   'desktop/ui/input.js',
   'desktop/ui/sound-settings.js',
   'desktop/ui/wait-notice.js',
@@ -91,11 +108,10 @@ const rendererModules = [
   'desktop/ui/services/**/*.js',
 ];
 
-// The three ESM entries under desktop/ui/ are excluded from the classic block.
-const classicEntries = ['desktop/ui/input.js', 'desktop/ui/sound-settings.js', 'desktop/ui/wait-notice.js'];
-// settings.js 以 type="module" 加载（要 import 共享的 requestJson），所以它归入
-// rendererModules 而不是这份经典脚本清单。
-classicEntries.push('desktop/ui/settings.js');
+// Every desktop/ui script is an ES module now; the classic branch below is kept
+// so a new classic file has to be registered deliberately instead of inheriting
+// global script semantics by accident.
+const classicEntries = ['desktop/ui/client.js', 'desktop/ui/api-models.js', 'desktop/ui/money.js', 'desktop/ui/quota.js', 'desktop/ui/account-view.js', 'desktop/ui/insights.js', 'desktop/ui/workshop.js', 'desktop/ui/media-guard.js', 'desktop/ui/audio-engine.js', 'desktop/ui/render.js', 'desktop/ui/turn-notice.js', 'desktop/ui/gesture.js', 'desktop/ui/preferences-v3.js', 'desktop/ui/select-enhancer.js', 'desktop/ui/shape.js', 'desktop/ui/input.js', 'desktop/ui/sound-settings.js', 'desktop/ui/wait-notice.js', 'desktop/ui/settings.js'];
 
 const browserGlobals = { ...globals.browser, ...appGlobals };
 
@@ -128,6 +144,15 @@ export default [
   },
 
   {
+    // Modules that already handle every failure explicitly. New modules should
+    // start here; a file joins this list once its remaining empty catches are
+    // either commented or removed. The whole tree is held to a shrinking total
+    // budget in scripts/refactor-metrics.mjs.
+    files: ['runtime/mcp-projection.mjs', 'runtime/mcp-args.mjs', 'runtime/pricing-schedule.mjs', 'scripts/check-pricing-calendar.mjs'],
+    rules: { 'no-empty': ['error', { allowEmptyCatch: false }] },
+  },
+
+  {
     files: ['runtime/**/*.mjs', 'lib/**/*.mjs', 'scripts/**/*.mjs', 'tests/**/*.mjs', 'desktop/**/*.mjs', '*.mjs', 'eslint.config.js'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node } },
   },
@@ -150,7 +175,7 @@ export default [
 
   {
     files: rendererModules,
-    languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: browserGlobals },
+    languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...browserGlobals, module: 'writable' } },
   },
 
   {

@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { ConfigStore } from '../runtime/config.mjs';
+import { ConfigStore, cleanUrl } from '../runtime/config.mjs';
 import { BalanceProvider, readBoundedJsonText } from '../runtime/providers.mjs';
 import { createWidgetHost } from '../lib/widget-host.mjs';
+import { toResponse } from '../lib/route-response.mjs';
 import { MEDIA_POLICY, validateImage, validateWav, decodeMediaDataUrl } from '../lib/media-validation.mjs';
 import { atomicResourceWrite, resourcePath, checkMediaBudget } from '../lib/resource-store.mjs';
 
@@ -22,15 +23,15 @@ function fixture(t) {
 function fail(message = 'test ENOSPC', code = 'ENOSPC') { return Object.assign(new Error(message), { code }); }
 function host(t, injectedFs = fs, root = fixture(t)) {
   const routes = new Map();
-  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, webServer: { register: entry => { routes.set(entry.path, entry.handler); return () => {}; }, tapIndex: () => () => {} }, effect: () => {} });
+  createWidgetHost(root, { fs: injectedFs }).apply({ whale: {}, declareRoute: declaration => { routes.set(declaration.path, declaration); return () => {}; }, effect: () => {} });
   return { root, async request(route, method = 'GET', body) {
     // The host hands the body over as a buffer; there is no stream to consume.
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
-    let status = 200, result, headers;
-    const res = { writeHead(value, h) { status = value; headers = h; }, end(value) { result = value; } };
-    await routes.get(route.split('?')[0])(req, res);
+    // The interpreter the dispatcher uses too, so this fixture cannot drift
+    // from what a route really answers.
+    const { status, headers, body: result } = toResponse(await routes.get(route.split('?')[0]).handler(req), method);
     let payload; try { payload = JSON.parse(result); } catch {}
-    return { status, headers, payload, bytes: Buffer.isBuffer(result) ? result : Buffer.from(result || '') };
+    return { status, headers, payload, bytes: result };
   } };
 }
 function crc(bytes) { let c = 0xffffffff; for (const n of bytes) { c ^= n; for (let i = 0; i < 8; i++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; } return (c ^ 0xffffffff) >>> 0; }
@@ -80,6 +81,23 @@ test('same-origin project settings and trusted user profiles remain usable', t =
   c.save({ projectDir: project, profile: 'work' }); assert.equal(c.resolve().baseUrl, 'https://b.example.test/v1'); assert.equal(c.resolve().model, 'changed-model');
 });
 
+test('local-address detection only trusts IP literals, never hostname prefixes', () => {
+  for (const url of ['http://10.evil.example/v1', 'http://192.168.evil.example', 'http://127.0.0.1.nip.io',
+    'http://172.16.attacker.example', 'http://169.254.evil.example']) {
+    assert.throws(() => cleanUrl(url), /HTTPS/, url);
+  }
+  for (const url of ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://10.0.0.5', 'http://192.168.1.10',
+    'http://172.16.0.1', 'http://172.31.255.254', 'http://[::1]:8080', 'http://[fd00::1]:8080']) {
+    assert.equal(cleanUrl(url), url, url);
+  }
+  assert.throws(() => cleanUrl('http://172.32.0.1'), /HTTPS/);
+  for (const url of ['http://169.254.169.254', 'http://0.0.0.0', 'http://100.100.100.200',
+    'http://metadata.google.internal', 'http://[fe80::1]']) {
+    assert.throws(() => cleanUrl(url), /云元数据|链路本地/, url);
+  }
+  assert.equal(cleanUrl('https://10.0.0.5'), 'https://10.0.0.5');
+});
+
 test('provider byte limit cancels an oversized chunked body before reading its tail', async () => {
   let pulls = 0, cancelled = false;
   const stream = new ReadableStream({ pull(controller) { pulls++; controller.enqueue(new Uint8Array(128)); }, cancel() { cancelled = true; } }, { highWaterMark: 0 });
@@ -118,7 +136,7 @@ test('JPEG and WebP imports retain their actual format and response MIME', async
     const role = uploaded.payload.roles.find(item => item.name === mime);
     assert.ok(fs.existsSync(path.join(app.root, 'whale-roles', role.id + '.' + extension)));
     const response = await app.request('/dsh-whale/role-image.png?id=' + role.id);
-    assert.equal(response.headers['Content-Type'], mime); assert.deepEqual(response.bytes, bytes);
+    assert.equal(response.headers['content-type'], mime); assert.deepEqual(response.bytes, bytes);
   }
 });
 
@@ -240,4 +258,17 @@ test('atomic index write keeps a complete .bak and cleans failed rename temporar
   const failingFs = Object.create(fs); failingFs.renameSync = () => { throw fail(); };
   assert.throws(() => atomicResourceWrite(file, '{"third":true}', { fs: failingFs }), /保存失败/);
   assert.equal(fs.readFileSync(file, 'utf8'), '{"new":true}'); assert.equal(fs.readdirSync(root).some(name => name.endsWith('.tmp')), false);
+});
+
+test('a broken provider config still reports identity and a specific API error', t => {
+  const root = fixture(t);
+  const c = new ConfigStore({ codexHome: root, dataDir: path.join(root, 'data'), env: {} });
+  c.save({ profile: 'missing' });
+  assert.throws(() => c.resolve(), /profile/);
+  const info = c.publicInfo();
+  assert.equal(info.apiError.code, 'BAD_REQUEST');
+  assert.match(info.apiError.message, /profile/);
+  const identity = c.identityContext();
+  assert.match(identity.accountId, /^[a-f0-9]{24}$/);
+  assert.equal(identity.degraded, true);
 });

@@ -19,6 +19,16 @@ export class BalanceQuery {
   }
   close() { this.closed = true; }
   getActiveScope() { return this.#activeScope; }
+  currencyFor(c) {
+    // The ledger scope follows the currency the provider actually reports.
+    // The active scope is the last successful balance read; the latest query
+    // covers the window before the first UI read. Only then fall back to the
+    // configured currency.
+    const active = this.#activeScope;
+    if (active && active.startsWith(c.accountId + '-')) return active.slice(c.accountId.length + 1);
+    const latest = this.latestQueries.get(this.balanceIdentity(c));
+    return latest?.payload?.currency || c.setting.currency;
+  }
   scope(c, currency) { return c.accountId + '-' + currency; }
   balanceIdentity(c) {
     const s = c.setting || {};
@@ -91,7 +101,7 @@ export class BalanceQuery {
         if (this.closed) return this.stoppedBalance();
         const fallback = this.balanceCache(c, cacheKey);
         if (error.transient && fallback) return { ...this.decorate(c, fallback.payload), stale: true, error: error.message };
-        return { ok: false, code: error.code || 'ERROR', error: error.code ? error.message : '余额服务暂时不可用', providerName: c.providerName, dashboardUrl: c.dashboardUrl, baseUrl: c.baseUrl, todayUsage: this.ledger.records(this.scope(c, c.setting.currency)).today.total, currency: c.setting.currency, usageMode: 'ledger' };
+        return { ok: false, code: error.code || 'ERROR', error: error.code ? error.message : '余额服务暂时不可用', providerName: c.providerName, dashboardUrl: c.dashboardUrl, baseUrl: c.baseUrl, todayUsage: this.ledger.today(this.scope(c, c.setting.currency)).total, currency: c.setting.currency, usageMode: 'ledger' };
       } finally { this.inFlight.delete(cacheKey); }
     })();
     this.inFlight.set(cacheKey, request);
@@ -99,8 +109,8 @@ export class BalanceQuery {
   }
   decorate(c, payload, { activate = true } = {}) {
     const scope = this.scope(c, payload.currency);
-    const records = this.ledger.records(scope);
+    const today = this.ledger.today(scope);
     if (activate && this.isCurrentBalanceContext(c)) this.#activeScope = scope;
-    return { ...payload, todayUsage: records.today.total, observedSince: records.today.since, usageMode: 'ledger', usageNote: records.note };
+    return { ...payload, todayUsage: today.total, observedSince: today.since, usageMode: 'ledger', usageNote: today.note };
   }
 }

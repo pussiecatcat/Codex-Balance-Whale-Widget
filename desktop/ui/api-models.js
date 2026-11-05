@@ -1,11 +1,12 @@
+import { requestJson } from '/services/request.js';
+import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
+import { statusForCode, statusForError, statusView } from '/features/widget/status-tones.js';
+
 (() => {
   'use strict';
   let registry = { templates: [], models: [] }, loadedAt = 0, pending = null;
   const values = new Map(), bindings = new Map();
-  const request = async (url, method = 'GET', body) => {
-    const response = await fetch(url, { method, cache: 'no-store', headers: body === undefined ? {} : {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body) });
-    const data = await response.json(); if (!response.ok || data.ok === false) throw Error(data.error || '操作失败'); return data;
-  };
+  const request = (url, method = 'GET', body) => requestJson(url, { method, body });
   async function load(force = false) {
     if (pending) return pending;
     if (!force && Date.now() - loadedAt < 30000) return registry;
@@ -17,7 +18,7 @@
   function valueText(module, value) {
     if(loadedAt&&!registry.models.some(model=>model.id===module.apiModelId))return 'API 模型未配置';
     if (!value) return modelName(module.apiModelId) + ' · 加载中';
-    if (value.error) return modelName(module.apiModelId) + ' · 暂不可用';
+    if (value.error) return modelName(module.apiModelId) + ' · ' + statusView(statusForError(value)).label;
     if (module.type === 'today') { const tokens=Number(value.todayTokens||0).toLocaleString()+' tokens',cost=value.todayEstimate==null?'金额未知':formatMoney(value.todayEstimate,value.currency||registry.models.find(item=>item.id===module.apiModelId)?.currency||'USD')+'（估算）';return (module.tpl || '今日 {api_tokens}').replaceAll('{api_tokens}',tokens).replaceAll('{expense_api}',cost).replaceAll('{api_cost}',cost).replaceAll('{api_name}',modelName(module.apiModelId)); }
     if (module.type === 'plan') return (module.tpl || '{plan_name}').replaceAll('{plan_name}',modelName(module.apiModelId)+(value.level?' · '+value.level:'')).replaceAll('{plan_type}',value.kind||'API');
     if (module.type === 'quota') {
@@ -34,7 +35,7 @@
   async function refreshValue(id, force = false) {
     const old = values.get(id); if (!force && old && Date.now() - old.at < 30000) return old.data;
     try { const data = await request('/api/models/value?id=' + encodeURIComponent(id)); values.set(id,{at:Date.now(),data}); }
-    catch (error) { values.set(id,{at:Date.now(),data:{error:error.message}}); }
+    catch (error) { values.set(id,{at:Date.now(),data:{error:error.message,code:error.payload?.code||error.code}}); }
     paint(); checkAlerts(id, values.get(id).data); return values.get(id).data;
   }
   function checkAlerts(id,value) {
@@ -73,14 +74,17 @@
     async function render() {
       root.replaceChildren(); let data; try{data=await load(true);}catch(error){el(root,'p',error.message,'notice');return;}
       const list=el(root,'div','','api-model-list');
+      if(!data.models.length)el(list,'p','尚未添加服务商模板。Codex 当前 API 仍可自动跟随；要单独查看余额，点下方“添加服务商”。','help');
       for(const model of data.models){
         const row=el(list,'div','','api-model-row'),meta=el(row,'div','', 'api-model-meta');
-        el(meta,'strong',model.name);el(meta,'small',(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);
-        button(row,'测试','quiet',async event=>{const test=event.currentTarget;test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){window.whaleToast?.(error.message);}finally{test.disabled=false;}});
+        const configured=model.configured||{};
+        const state=model.kind==='codex'?'本机统计':configured.key?'已配置':model.keyEnv?statusView(statusForCode('NO_KEY')).label:'未配置';
+        el(meta,'strong',model.name);el(meta,'small',state+' · '+(model.kind==='quota'?'订阅额度':model.kind==='codex'?'本地统计':model.noBalanceApi?'无余额接口':'余额接口')+' · '+model.currency);
+        button(row,'测试','quiet',async event=>{const test=event.currentTarget;test.disabled=true;try{const result=await request('/api/models/probe','POST',{id:model.id});window.whaleToast?.(result.detail||'连接正常');}catch(error){const view=statusView(statusForError(error));window.whaleToast?.((error.message||view.label)+(view.action?'；'+view.action:''));}finally{test.disabled=false;}});
         button(row,'设置','quiet',()=>openModelDetail(model));
         button(row,'删除','quiet',async()=>{if(!await confirmRemoval(model))return;await request('/api/models?id='+encodeURIComponent(model.id),'DELETE',{});values.delete(model.id);loadedAt=0;await render();paint();notifyChanged();});
       }
-      button(root,'添加 API 模型','primary',()=>editor(null));
+      button(root,'添加服务商','primary',()=>editor(null));
       el(root,'p','密钥只读取环境变量，配置文件不保存密钥内容。余额、预算和额度提醒在每个模型的“设置”中单独管理。','help');
     }
 
@@ -104,7 +108,7 @@
     }
 
     function balanceSummary(model,value) {
-      if(value?.error)return '读取失败';
+      if(value?.error){const view=statusView(statusForError(value));return view.label+(view.action?' — '+view.action:'');}
       if(value?.noBalanceApi||value?.available===false)return '余额 —（无接口）';
       return numeric(value?.balance)===null?'余额尚未观测':'余额 '+money(value.balance,value.currency||model.currency);
     }
@@ -121,10 +125,10 @@
     }
 
     function priceSummary(model) {
-      const prices=model.prices||{},configured=['input','cached','output'].some(key=>Number.isFinite(prices[key]));
+      const prices=model.prices||{},configured=['input','cachedInput','output'].some(key=>Number.isFinite(prices[key]));
       if(model.template==='deepseek'&&!configured)return '内置峰谷价（内置模型不支持自定义单价）';
       if(!configured)return '未设置';
-      return '入 '+(Number.isFinite(prices.input)?prices.input:'—')+' / 缓 '+(Number.isFinite(prices.cached)?prices.cached:'—')+' / 出 '+(Number.isFinite(prices.output)?prices.output:'—')+'（每百万 token）';
+      return '入 '+(Number.isFinite(prices.input)?prices.input:'—')+' / 缓 '+(Number.isFinite(prices.cachedInput)?prices.cachedInput:'—')+' / 出 '+(Number.isFinite(prices.output)?prices.output:'—')+'（每百万 token）';
     }
 
     async function openModelDetail(model) {
@@ -257,15 +261,22 @@
       const section=title=>{const node=el(overlay,'details');el(node,'summary',title);return node;};
       const connection=section('接口与用量匹配');field(connection,'baseUrl','Base URL（需要时填写）','url',existing?.baseUrl||'');field(connection,'balanceUrl','自定义余额 URL','url',existing?.balanceUrl||'');field(connection,'balanceField','余额 JSON 路径','text',existing?.balanceField||'');field(connection,'usedField','累计用量 JSON 路径','text',existing?.usedField||'');field(connection,'scale','金额倍率','number',existing?.scale??selected()?.scale??1);field(connection,'matchIds','模型名匹配（逗号分隔）','text',(existing?.matchIds||selected()?.matchIds||[]).join(', '));
       el(connection,'p','自定义地址使用专用密钥环境变量；支持本机模型服务。','help');
-      const prices=section('价格估算（每百万 token）');for(const [key,label] of [['input','未缓存输入'],['cached','缓存输入'],['output','输出']])field(prices,key+'Price',label,'number',existing?.prices?.[key]??'');
+      const prices=section('价格估算（每百万 token）');for(const [key,label] of [['input','未缓存输入'],['cachedInput','缓存输入'],['output','输出']])field(prices,key+'Price',label,'number',existing?.prices?.[key]??'');
       el(prices,'p','余额、预算、额度和提醒气泡请返回模型设置卡编辑。','help');
       template.onchange=()=>{const t=selected();if(!t)return;fields.name.value=t.name;fields.keyEnv.value=t.keyEnv||'';fields.currency.value=t.currency||'USD';fields.scale.value=t.scale||1;fields.matchIds.value=(t.matchIds||[]).join(', ');for(const key of ['baseUrl','balanceUrl','balanceField','usedField'])fields[key].value='';};
       const error=el(overlay,'p','','notice');error.hidden=true;
       const actions=el(overlay,'div','','dialog-actions');
       const back=()=>{closeDialog(overlay);if(options.returnTo)openModelDetail(currentModel(options.returnTo)||existing);};
+      const buildBody=()=>{const body={id:existing?.id,template:template.value};for(const [key,input] of Object.entries(fields))if(key!=='template')body[key]=input.value.trim();body.scale=Number(body.scale);body.matchIds=body.matchIds.split(',').map(value=>value.trim()).filter(Boolean);return body;};
+      button(actions,'测试','quiet',async event=>{
+        const test=event.currentTarget;test.disabled=true;error.hidden=true;
+        try{const result=await request('/api/models/probe','POST',buildBody());window.whaleToast?.(result.detail||'连接正常');}
+        catch(ex){const view=statusView(statusForError(ex));error.textContent=(ex.message||view.label)+(view.action?'；'+view.action:'');error.hidden=false;}
+        finally{test.disabled=false;}
+      });
       button(actions,'取消','quiet',back);const save=button(actions,'保存','primary',async()=>{
         save.disabled=true;error.hidden=true;
-        try{const body={id:existing?.id,template:template.value};for(const [key,input] of Object.entries(fields))if(key!=='template')body[key]=input.value.trim();body.scale=Number(body.scale);body.matchIds=body.matchIds.split(',').map(value=>value.trim()).filter(Boolean);const result=await request('/api/models','PUT',body);await finishSave(existing?.id||result.model.id);closeDialog(overlay);await render();if(existing)openModelDetail(currentModel(result.model.id)||result.model);}
+        try{const result=await request('/api/models','PUT',buildBody());await finishSave(existing?.id||result.model.id);closeDialog(overlay);await render();if(existing)openModelDetail(currentModel(result.model.id)||result.model);}
         catch(ex){error.textContent=ex.message;error.hidden=false;save.disabled=false;}
       });
       overlay.addEventListener('cancel',event=>{event.preventDefault();back();});overlay.showModal();fields.name.focus();
@@ -275,7 +286,23 @@
     document.getElementById('api-models-panel')?.addEventListener('toggle',event=>{if(event.target.open)render();});
   }
   window.WhaleApiModels={load,options,bind,clearBindings,text:module=>valueText(module,values.get(module.apiModelId)?.data),refresh:refreshValue};
-  function monitor(){load().then(data=>Promise.allSettled(data.models.map(model=>refreshValue(model.id)))).catch(()=>{});}setInterval(monitor,60000);
+  const failures = new Map();
+  async function monitor(){
+    const data = await load().catch(() => null);
+    if (!data) return;
+    const bound = new Set([...bindings.values()].map(module => module.apiModelId));
+    const due = data.models.filter(model => needsModelPolling(model, { bound: bound.has(model.id), visible: !document.hidden }))
+      .filter(model => (failures.get(model.id)?.until || 0) <= Date.now());
+    await Promise.allSettled(due.map(async model => {
+      const value = await refreshValue(model.id);
+      if (value?.error) {
+        const count = (failures.get(model.id)?.count || 0) + 1;
+        failures.set(model.id, { count, until: Date.now() + nextPollDelay(count) });
+      } else failures.delete(model.id);
+    }));
+  }
+  setInterval(monitor, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) monitor(); });
   setInterval(()=>{if(bindings.size)paint();},1000);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPanel();window.WhaleMoney?.onChange(paint);monitor();},{once:true});else{initPanel();window.WhaleMoney?.onChange(paint);monitor();}
 })();

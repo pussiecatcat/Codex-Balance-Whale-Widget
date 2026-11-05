@@ -1,3 +1,6 @@
+import { requestJson } from '/services/request.js';
+import { statusForError, statusView } from '/features/widget/status-tones.js';
+
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -16,11 +19,8 @@
     }, 6000);
   }
   window.whaleToast = toast;
-  async function api(url, method = 'GET', body) {
-    const response = await fetch(url, { method, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
-    const result = await response.json();
-    if (result.ok === false) throw new Error(result.error || '操作未完成');
-    return result;
+  async function api(url, method = 'GET', body, options = {}) {
+    return requestJson(url, { method, body, ...options });
   }
   const form = $('settings-form');
   const element = name => form.elements.namedItem(name);
@@ -48,36 +48,114 @@
       element('monitorSessions').checked = settings.monitorSessions;
       for (const key of ['priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite']) element(key).value = '';
       element('removePrice').checked = false;
+      const configured = info.configured || {};
+      const hasAuto = !!(configured.baseUrl || configured.keyEnv || configured.profile || configured.projectDir);
+      autoStatus.textContent = hasAuto ? (info.warning ? '已配置（已从备份恢复）' : '已配置') : '未配置';
+      autoStatus.className = 'provider-status ' + (hasAuto ? 'is-ok' : '');
+      autoStatus.title = info.warning || '';
+      connectionResult.textContent = '';
+      connectionResult.className = '';
+      $('test-api-connection').disabled = false;
       $('settings-error').hidden = true; $('settings-dialog').showModal();
     } catch (error) { toast(error.message); }
   }
   window.addEventListener('whale-open-settings', openSettings);
   for (const id of ['close-settings', 'cancel-settings']) $(id).addEventListener('click', () => $('settings-dialog').close());
+  function collectSettings() {
+    const settings = {};
+    for (const key of ['provider', 'currency']) settings[key] = element(key).value.trim();
+    for (const key of privateFields) {
+      const value = element(key).value.trim();
+      if (value) settings[key] = value;
+      else if (resetFields.has(key)) settings[key] = key === 'balanceField' ? 'data.balance' : '';
+    }
+    for (const key of ['balanceScale', 'billingUsageDivisor', 'quotaPerUnit']) settings[key] = Number(element(key).value);
+    settings.monitorSessions = element('monitorSessions').checked;
+    const fields = ['priceInput', 'priceCached', 'priceOutput'];
+    const hasPrice = [...fields, 'priceWrite'].some(key => element(key).value !== '');
+    const model = element('priceModel').value.trim();
+    if (element('removePrice').checked) {
+      if (!model || hasPrice) throw new Error('删除价格时请只填写模型名称，不填写价格');
+      settings.pricingUpdate = { model, prices: null };
+    } else if (hasPrice) {
+      if (!model || fields.some(key => element(key).value === '')) throw new Error('请完整填写模型名称、输入、缓存命中和输出价格');
+      const prices = { input: Number(element('priceInput').value), cachedInput: Number(element('priceCached').value), output: Number(element('priceOutput').value) };
+      if (element('priceWrite').value !== '') prices.cacheWrite = Number(element('priceWrite').value);
+      settings.pricingUpdate = { model, prices };
+    } else if (model) throw new Error('请填写完整价格，或选择删除该模型价格');
+    return settings;
+  }
   form.addEventListener('submit', async event => {
     event.preventDefault();
     try {
-      const settings = {};
-      for (const key of ['provider', 'currency']) settings[key] = element(key).value.trim();
-      for (const key of privateFields) {
-        const value = element(key).value.trim();
-        if (value) settings[key] = value;
-        else if (resetFields.has(key)) settings[key] = key === 'balanceField' ? 'data.balance' : '';
-      }
-      for (const key of ['balanceScale', 'billingUsageDivisor', 'quotaPerUnit']) settings[key] = Number(element(key).value);
-      settings.monitorSessions = element('monitorSessions').checked;
-      const fields = ['priceInput', 'priceCached', 'priceOutput'];
-      const hasPrice = [...fields, 'priceWrite'].some(key => element(key).value !== '');
-      const model = element('priceModel').value.trim();
-      if (element('removePrice').checked) {
-        if (!model || hasPrice) throw new Error('删除价格时请只填写模型名称，不填写价格');
-        settings.pricingUpdate = { model, prices: null };
-      } else if (hasPrice) {
-        if (!model || fields.some(key => element(key).value === '')) throw new Error('请完整填写模型名称、输入、缓存命中和输出价格');
-        const prices = { input: Number(element('priceInput').value), cachedInput: Number(element('priceCached').value), output: Number(element('priceOutput').value) };
-        if (element('priceWrite').value !== '') prices.cacheWrite = Number(element('priceWrite').value);
-        settings.pricingUpdate = { model, prices };
-      } else if (model) throw new Error('请填写完整价格，或选择删除该模型价格');
-      await api('/api/config', 'PUT', settings); location.reload();
+      await api('/api/config', 'PUT', collectSettings());
+      location.reload();
     } catch (error) { $('settings-error').hidden = false; $('settings-error').textContent = error.message; }
+  });
+  // Guided setup: probe the draft and ask for a real balance in one click, so
+  // a wrong endpoint or a missing environment variable is named here instead
+  // of showing up later as an unexplained "查询暂不可用" on the widget.
+  const connectionResult = $('api-connection-result');
+  const autoStatus = $('provider-auto-status');
+  async function probeSettings() {
+    const result = await api('/api/config/probe', 'POST', collectSettings(), { timeoutMs: 20000 });
+    if (result.stale) {
+      const at = result.updatedAt ? new Date(result.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+      throw new Error((result.error || '服务商暂时不可用') + (at ? `（当前显示的是 ${at} 的上次数据）` : '（当前显示的是上次数据）'));
+    }
+    if (!result.ok) throw new Error(result.error || '余额接口没有返回可用的余额');
+    return result;
+  }
+  function connectionSummary(result) {
+    const label = result.balanceLabel || result.providerName || '当前 API';
+    const amount = typeof result.totalBalance === 'number' ? ` · ${result.totalBalance} ${result.currency || ''}`.trimEnd() : '';
+    return `${label}${amount}`;
+  }
+  $('auto-api-edit').addEventListener('click', () => {
+    const group = $('current-api-settings');
+    if (group) group.open = true;
+    element('baseUrl').focus();
+  });
+  $('auto-api-test').addEventListener('click', async () => {
+    const button = $('auto-api-test');
+    button.disabled = true;
+    autoStatus.className = 'provider-status';
+    autoStatus.textContent = '正在测试…';
+    try {
+      const result = await probeSettings();
+      autoStatus.textContent = '已连接 · ' + connectionSummary(result);
+      autoStatus.className = 'provider-status is-ok';
+    } catch (error) {
+      const view = statusView(statusForError(error));
+      autoStatus.textContent = '连接失败：' + (error.message || view.label) + (view.action ? '。' + view.action : '');
+      autoStatus.className = 'provider-status is-error';
+    } finally { button.disabled = false; }
+  });
+  $('restart-whale').addEventListener('click', async () => {
+    if (!window.whaleDesktop || typeof window.whaleDesktop.command !== 'function') {
+      toast('请在桌面挂件中重新启动，或手动退出后重新打开。');
+      return;
+    }
+    try {
+      const restarted = await window.whaleDesktop.command('restart');
+      if (restarted === false) toast('无法自动重新启动，请手动退出后重新打开。');
+    } catch { toast('无法自动重新启动，请手动退出后重新打开。'); }
+  });
+  $('test-api-connection').addEventListener('click', async () => {
+    const button = $('test-api-connection');
+    button.disabled = true;
+    connectionResult.className = '';
+    connectionResult.textContent = '正在测试连接…';
+    try {
+      // Probe the draft rather than saving it first. Cancelling the dialog
+      // after a test must leave providers.json byte-for-byte unchanged.
+      const result = await probeSettings();
+      connectionResult.textContent = `连接成功：${connectionSummary(result)}（尚未保存）`;
+      connectionResult.className = 'is-ok';
+    } catch (error) {
+      const view = statusView(statusForError(error));
+      connectionResult.textContent = '连接失败：' + (error.message || view.label) + (view.action ? '。' + view.action : '');
+      connectionResult.className = 'is-error';
+    } finally { button.disabled = false; }
   });
 })();

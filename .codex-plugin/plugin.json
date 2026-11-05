@@ -1,25 +1,27 @@
 {
   "name": "api-balance-whale",
-  "version": "0.3.0+codex.20261017-dialog-optimization",
-  "description": "\u968f Codex \u684c\u9762\u5e94\u7528\u81ea\u52a8\u542f\u505c\u7684 API \u4f59\u989d\u5c0f\u9cb8\u9c7c\uff1b\u65e0\u72ec\u7acb\u7f51\u9875\uff0c\u4fdd\u7559\u62d6\u52a8\u3001\u70b9\u51fb\u3001\u89d2\u8272\u3001\u6c14\u6ce1\u3001\u97f3\u6548\u548c\u8d26\u672c\u3002",
+  "version": "0.3.0+codex.20261104-review",
+  "description": "随 Codex 桌面应用自动启停的桌面挂件；显示订阅额度、API 余额与本机记账，保留拖动、点击、角色、气泡和音效。",
   "author": {
-    "name": "Yang-huai406",
-    "url": "https://github.com/Yang-huai406"
+    "name": "pussiecatcat",
+    "url": "https://github.com/pussiecatcat"
   },
+  "homepage": "https://github.com/pussiecatcat/Codex-Balance-Whale-Widget",
+  "repository": "https://github.com/pussiecatcat/Codex-Balance-Whale-Widget",
   "skills": "./skills/",
   "interface": {
-    "displayName": "API \u4f59\u989d\u5c0f\u9cb8\u9c7c",
+    "displayName": "Codex \u5c0f\u9f99\u5a18",
     "shortDescription": "\u652f\u6301 Windows/macOS \u7684\u4f59\u989d\u4e0e\u8ba2\u9605\u7528\u91cf\u6302\u4ef6\uff0c\u53ef\u8ddf\u968f Codex \u6216\u72ec\u7acb\u663e\u793a\u3002",
     "longDescription": "\u4fdd\u7559 PR #128 macOS \u652f\u6301\uff1b\u63d0\u4f9b\u5f53\u524d API \u4f59\u989d\u3001\u672c\u673a\u5df2\u89c2\u6d4b token\u3001\u8ba2\u9605\u989d\u5ea6\u5feb\u7167\u3001DeepSeek \u5cf0\u8c37\u3001\u97f3\u6548\u4e0e\u672c\u5730\u5de5\u574a\u3002\u91d1\u989d\u4e0e\u8ba2\u9605\u989d\u5ea6\u5206\u522b\u5c55\u793a\uff0c\u4e0d\u628a\u89c2\u6d4b\u7edf\u8ba1\u5f53\u4f5c\u5b98\u65b9\u8d26\u5355\u3002",
-    "developerName": "Yang-huai406",
+    "developerName": "pussiecatcat",
     "category": "Productivity",
     "capabilities": [
       "Interactive"
     ],
     "defaultPrompt": [
-      "\u663e\u793a API \u4f59\u989d\u5c0f\u9cb8\u9c7c",
+      "\u663e\u793a Codex \u5c0f\u9f99\u5a18",
       "\u67e5\u770b\u5f53\u524d API \u4f59\u989d\u4e0e\u4eca\u65e5\u7528\u91cf",
-      "\u68c0\u67e5\u5c0f\u9cb8\u9c7c\u81ea\u52a8\u8ddf\u968f\u72b6\u6001"
+      "\u68c0\u67e5 Codex \u5c0f\u9f99\u5a18\u81ea\u52a8\u8ddf\u968f\u72b6\u6001"
     ],
     "brandColor": "#146B70",
     "composerIcon": "./assets/DSniang1.png",

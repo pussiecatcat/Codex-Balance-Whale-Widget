@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8');
-const box = { module: { exports: {} }, Intl, Date };
+const source = (await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
+const box = { module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 7, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
 vm.runInNewContext(source, box);
 const { createMoneyState } = box.module.exports;
 const clockAt = Date.parse('2026-09-16T04:00:00Z');
@@ -150,7 +150,7 @@ test('browser refresh requests carry force/reason and automatic events only stag
     MutationObserver: class { observe() {} disconnect() { disconnected = true; } },
     addEventListener(name, callback) { browserEvents.set(name, callback); }, removeEventListener(name) { browserEvents.delete(name); },
     setInterval(callback, ms) { intervals.set(1, { callback, ms }); return 1; }, clearInterval(id) { intervals.delete(id); },
-    fetch: async (url, options) => { urls.push(url); assert.equal(options.cache, 'no-store'); assert.equal(options.headers, undefined); return { ok: true, json: async () => ({ ok: true, ...quote(rate, { retrievedAt: new Date().toISOString() }) }) }; },
+    requestJson: async (url) => { urls.push(url); return { ok: true, ...quote(rate, { retrievedAt: new Date().toISOString() }) }; },
   };
   vm.runInNewContext(source, browser); await tick();
   const money = browser.WhaleMoney; assert.ok(money.state().quote); assert.equal(intervals.get(1).ms, 60000);

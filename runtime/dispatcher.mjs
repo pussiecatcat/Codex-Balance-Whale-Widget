@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, VERSION, readJson } from './paths.mjs';
 import { createComposition } from './composition.mjs';
-import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, collectResponse, withSecurityHeaders } from './http-shim.mjs';
-import { createCoreRoutes, applyWidgetRoutePolicy } from './routes/core.mjs';
+import { createRuntimeLog } from './log.mjs';
+import { UI_ORIGIN, MIME, ASSET_MIME, jsonResult, withSecurityHeaders } from './http-shim.mjs';
+import { createCoreRoutes } from './routes/core.mjs';
+import { stripRetiredModules } from './migration.mjs';
+import { toResponse } from '../lib/route-response.mjs';
 import { DomainError } from '../lib/errors.mjs';
 import { createFaultLog } from './faults.mjs';
 
@@ -49,6 +52,7 @@ export function createDispatcher(options = {}) {
   const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}) } = options;
   const app = createComposition(options);
   const faults = createFaultLog();
+  const runtimeLog = createRuntimeLog({ dataDir: app.dataDir });
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
   const routes = createCoreRoutes({ ...app, buildVersion, statusInfo, onStop, onShow, faultLog: faults });
   let closing = false, closeJob = null;
@@ -68,9 +72,7 @@ export function createDispatcher(options = {}) {
       if (endpoint) {
         const handler = endpoint.handlers[method];
         if (handler) return await handler({ body: bytes, url });
-        // Earlier these guards matched the listed methods only, so any other
-        // method carried on into static resolution and finished as a 404.
-        if (!endpoint.fallthrough) return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
+        return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
       }
 
       let file = resolveUiFile(url.pathname);
@@ -86,21 +88,31 @@ export function createDispatcher(options = {}) {
         else return { status: 200, headers: { 'content-type': mimeFor(file) }, body: method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file) };
       }
 
-      const widget = app.widgetRoutes.get(url.pathname);
-      if (!widget) return jsonResult(404, { ok: false, error: '未找到此功能' });
-      const policy = applyWidgetRoutePolicy(url.pathname, method, bytes);
-      if (policy.reject) return policy.reject;
-      // Plain collectors rather than Writable/Readable: the widget host handlers
-      // only ever call writeHead and end, and the response is assembled from those.
-      const { res, read } = collectResponse();
-      await widget({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: policy.body ?? bytes }, res);
-      return read();
+      // The host declares each route: the methods it answers, how large a body it
+      // accepts, and whether its payload passes the migration filter. Those three
+      // rules used to sit between a path regex here and the handlers themselves,
+      // so a route could answer a method it never meant to answer.
+      const declaration = app.widgetRoutes.get(url.pathname);
+      if (!declaration) return jsonResult(404, { ok: false, error: '未找到此功能' });
+      if (!declaration.methods.includes(method)) return jsonResult(405, { ok: false });
+      if (declaration.bodyLimit && bytes.length > declaration.bodyLimit) return jsonResult(413, { ok: false, error: '导入文件过大' });
+      let requestBody = bytes;
+      if (declaration.stripRetired && ['POST', 'PUT'].includes(method)) {
+        let parsed;
+        try { parsed = JSON.parse(bytes.toString('utf8') || '{}'); }
+        catch { return jsonResult(400, { ok: false, error: '请求内容不是有效的 JSON' }); }
+        requestBody = Buffer.from(JSON.stringify(stripRetiredModules(parsed)));
+      }
+      // The handler answers with a value, and lib/route-response.mjs is the one
+      // place that turns a value into a status, headers and body.
+      return toResponse(await declaration.handler({ url: route, method, headers: { 'content-type': 'application/json', ...headers }, body: requestBody }), method);
     } catch (error) {
       // A DomainError is something the caller can act on and carries its own
       // status. Anything else is a defect here: it must not be reported as a bad
       // request with a message telling the user to check settings that are fine.
       if (error instanceof DomainError) return jsonResult(error.status, { ok: false, code: error.code, error: error.message });
       const ref = faults.record(error, context);
+      runtimeLog.error(`${ref} ${context}\n${error?.stack || error}`);
       process.stderr.write(`[whale] ${ref} ${context}\n${error?.stack || error}\n`);
       return jsonResult(500, { ok: false, code: 'INTERNAL', error: '挂件内部错误，请查看运行日志', ref });
     }

@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (() => {
   'use strict';
   const validMode = value => value === 'api' || value === 'subscription';
@@ -52,10 +54,8 @@
     if (!validMode(next) || switching) return false;
     modeRevision++; switching = true; updateButtons(); if (status) status.textContent = '正在保存…';
     try {
-      const response = await fetch('/api/display-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: next }) });
-      if (!response.ok) throw Error('切换失败，请重试');
-      const result = await response.json();
-      if (result.ok === false || (result.mode || result.displayMode) !== next) throw Error('模式未保存，请重试');
+      const result = await requestJson('/api/display-mode', { method: 'POST', body: { mode: next } });
+      if ((result.mode || result.displayMode) !== next) throw Error('模式未保存，请重试');
       commit(next); if (status) status.textContent = next === 'subscription' ? '已切换。点击下方按钮查看额度。' : '已切换为 API 余额模式。'; return true;
     } catch (e) { if (status) status.textContent = e.message || '切换失败，请重试'; return false; }
     finally { switching = false; updateButtons(); }
@@ -66,8 +66,7 @@
     if (!ownContent) return;
     ownContent.replaceChildren(); text(ownContent, 'p', '正在读取订阅快照…'); position();
     try {
-      const response = await fetch('/api/insights' + (force ? '?refresh=1' : ''), { cache: 'no-store' }); if (!response.ok) throw Error('暂时无法读取订阅快照');
-      const data = await response.json(); if (own !== generation || !card || content !== ownContent) return;
+      const data = await requestJson('/api/insights' + (force ? '?refresh=1' : '')); if (own !== generation || !card || content !== ownContent) return;
       ownContent.replaceChildren(); const sub = data.subscription || {};
       if (!sub.available) text(ownContent, 'p', sub.reason || '暂无可用订阅额度快照。使用订阅账号完成 Codex 请求后刷新。');
       else {
@@ -110,15 +109,15 @@
       const view = menu.querySelector('.dshwv-menuview');
       if (view) {
         const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch';
-        text(row, 'span', '查看数据');
-        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '查看数据');
-        for (const [value, label] of [['subscription', 'Codex 额度'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }
+        text(row, 'span', '数据显示');
+        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '数据显示');
+        for (const [value, label] of [['subscription', 'Codex 订阅'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }
         modeSelect.addEventListener('change', () => setMode(modeSelect.value)); row.append(modeSelect);
         status = document.createElement('span'); status.hidden = true; status.setAttribute('role', 'status'); row.append(status); updateButtons();
       }
     }
     const initialRevision = modeRevision;
-    fetch('/api/display-mode', { cache: 'no-store' }).then(async response => { if (!response.ok) return; const data = await response.json(); const next = data.mode || data.displayMode; if (validMode(next) && !switching && modeRevision === initialRevision) commit(next); }).catch(() => {});
+    requestJson('/api/display-mode').then(data => { const next = data.mode || data.displayMode; if (validMode(next) && !switching && modeRevision === initialRevision) commit(next); }).catch(() => {});
     window.addEventListener('resize', position);
     window.addEventListener('whale-mode-changing', close);
   }

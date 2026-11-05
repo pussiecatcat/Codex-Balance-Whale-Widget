@@ -1,12 +1,14 @@
 import readline from 'node:readline';
 import { serviceRequest, launchDesktop } from './process.mjs';
+import { desktopModeArg } from './mcp-args.mjs';
+import { projectToolOutput } from './mcp-projection.mjs';
 import { VERSION } from './paths.mjs';
 
 const toolSpecs = [
   { name: 'whale_balance', description: '查询当前 Codex API 服务商的余额、余额口径、币种及今日已观测用量。金额来源于当前 API；不会返回密钥，也不会将 ChatGPT 订阅配额当作 API 余额。', inputSchema: { type: 'object', properties: { refresh: { type: 'boolean', description: '立即从 API 刷新' } }, additionalProperties: false }, annotations: { readOnlyHint: true } },
-  { name: 'whale_usage', description: '读取小鲸鱼今日、近七天和历史用量记录。每日合计只覆盖挂件已观测时段，逐模型金额为配置价格估算。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true } },
-  { name: 'whale_status', description: '读取当前服务商、挂件状态和 Codex 会话用量监听状态，不返回 API 密钥。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true } },
-  { name: 'whale_open', description: '显示跟随 Codex 窗口的 API 余额小鲸鱼。使用本地透明挂件，无网页地址；角色、音效、气泡编辑和资源管理均在挂件中操作。', inputSchema: { type: 'object', properties: { desktop: { type: 'boolean', description: 'true 时固定在桌面独立显示，false（默认）时跟随 Codex 窗口' } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
+  { name: 'whale_usage', description: '读取小龙娘今日、近七天和历史用量记录。每日合计只覆盖挂件已观测时段，逐模型金额为配置价格估算。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true } },
+  { name: 'whale_status', description: '读取当前服务商、挂件状态和 Codex 会话用量监听状态。不返回 API 密钥、本机路径、接口地址或会话标签，只返回摘要字段。', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true } },
+  { name: 'whale_open', description: '显示跟随 Codex 窗口的 Codex 小龙娘桌面挂件。使用本地透明窗口，无网页地址；角色、音效、气泡编辑和资源管理均在挂件中操作。', inputSchema: { type: 'object', properties: { desktop: { type: 'boolean', description: 'true 时固定在桌面独立显示，false（默认）时跟随 Codex 窗口' } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
 ];
 
 const send = value => process.stdout.write(JSON.stringify(value) + '\n');
@@ -25,8 +27,9 @@ async function dispatch(message) {
       if (params.name === 'whale_balance') output = await serviceRequest('/dsh-whale/balance.json' + (args.refresh ? '?refresh=1' : ''));
       else if (params.name === 'whale_usage') output = await serviceRequest('/dsh-whale/usage-records.json');
       else if (params.name === 'whale_status') output = await serviceRequest('/api/status');
-      else if (params.name === 'whale_open') output = await launchDesktop(args.desktop ? { mode: 'standalone' } : {});
+      else if (params.name === 'whale_open') output = await launchDesktop(desktopModeArg(args));
       else throw new Error('未知工具');
+      output = projectToolOutput(params.name, output);
       result = { content: [{ type: 'text', text: JSON.stringify(output) }], isError: output.ok === false };
     } else { send({ jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } }); return; }
     send({ jsonrpc: '2.0', id, result });

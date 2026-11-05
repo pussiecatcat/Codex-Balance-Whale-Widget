@@ -227,6 +227,37 @@ export function createBubbleQuickEditors(deps) {
         });
         r.appendChild(qb2);
         box.appendChild(r);
+        var tokens = m.type === 'balance' ? ['{balance_api}', '{balance_ds}']
+          : m.type === 'today' ? ['{expense_api}', '{expense_ds}']
+          : m.type === 'quota' ? ['{quota_left}', '{quota_left_round}', '{quota_used}', '{quota_reset_short}', '{quota_reset}', '{quota_reset_at}', '{quota_bar}', '{quota_label}', '{quota_source}']
+          : m.type === 'turn' ? ['{turn_tokens}', '{turn_input}', '{turn_output}', '{turn_cached}', '{turn_reasoning}']
+          : m.type === 'session' ? ['{session_name}']
+          : m.type === 'plan' ? ['{plan_name}', '{plan_type}']
+          : m.type === 'peak' || m.type === 'nextpeak' ? ['{peak_phase}', '{peak_countdown}', '{peak_switch_at}', '{peak_note}']
+          : m.type === 'source' ? ['{source_line}'] : [];
+        if (tokens.length) {
+          var chips = document.createElement('div');
+          chips.className = 'dshwv-tplchips';
+          tokens.forEach(function (token) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'dshwv-tplchip';
+            chip.textContent = token.replace(/[{}]/g, '');
+            chip.title = '插入 ' + token;
+            chip.addEventListener('click', function (e) {
+              e.stopPropagation();
+              var start = inp.selectionStart == null ? inp.value.length : inp.selectionStart;
+              var end = inp.selectionEnd == null ? start : inp.selectionEnd;
+              inp.value = inp.value.slice(0, start) + token + inp.value.slice(end);
+              inp.focus();
+              inp.selectionStart = inp.selectionEnd = start + token.length;
+              m.tpl = inp.value;
+              changed();
+            });
+            chips.appendChild(chip);
+          });
+          box.appendChild(chips);
+        }
       }
       if (m.type === 'balance' || m.type === 'today' || m.type === 'quota') {
         var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));

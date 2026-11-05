@@ -2,8 +2,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { VERSION } from './paths.mjs';
 
 const WINDOW_LABELS = new Map([[300, '5 小时'], [10080, '周']]);
+
+export function windowLabel(minutes) {
+  const known = WINDOW_LABELS.get(minutes);
+  if (known) return known;
+  if (!Number.isFinite(minutes) || minutes <= 0) return '';
+  if (minutes % 10080 === 0) return (minutes / 10080) + ' 周';
+  if (minutes % 1440 === 0) return (minutes / 1440) + ' 天';
+  if (minutes % 60 === 0) return (minutes / 60) + ' 小时';
+  return minutes + ' 分钟';
+}
 
 export function quotaFromAppServer(response, observedAt = Date.now()) {
   const limits = response?.rateLimitsByLimitId?.codex || response?.rateLimits;
@@ -11,19 +22,33 @@ export function quotaFromAppServer(response, observedAt = Date.now()) {
   for (const slot of ['primary', 'secondary']) {
     const item = limits?.[slot];
     const minutes = item?.windowDurationMins;
-    if (!WINDOW_LABELS.has(minutes) || typeof item.usedPercent !== 'number' ||
+    const label = windowLabel(minutes);
+    if (!label || typeof item.usedPercent !== 'number' ||
         !Number.isFinite(item.usedPercent) || item.usedPercent < 0 || item.usedPercent > 100) continue;
     const reset = typeof item.resetsAt === 'number' && Number.isFinite(item.resetsAt)
       ? (item.resetsAt < 1e12 ? item.resetsAt * 1000 : item.resetsAt) : null;
-    windows.push({ label: WINDOW_LABELS.get(minutes), windowDurationMins: minutes,
+    windows.push({ label, windowDurationMins: minutes,
       usedPercent: item.usedPercent, remainingPercent: 100 - item.usedPercent,
       resetsAt: reset, observedAt, stale: reset === null || reset <= observedAt });
   }
   return windows;
 }
 
+let cachedExecutable;
+
 export function findCodexExecutable(env = process.env) {
-  if (env.CODEX_CLI_PATH && fs.existsSync(env.CODEX_CLI_PATH)) return env.CODEX_CLI_PATH;
+  if (env === process.env && cachedExecutable !== undefined) return cachedExecutable;
+  const found = locateCodex(env);
+  if (env === process.env) cachedExecutable = found;
+  return found;
+}
+
+function locateCodex(env) {
+  const candidates = [];
+  const add = value => { if (value && !candidates.includes(value)) candidates.push(value); };
+  add(env.CODEX_CLI_PATH);
+  const local = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const roaming = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
   if (process.platform === 'darwin') {
     const executableFile = candidate => {
       try {
@@ -31,9 +56,6 @@ export function findCodexExecutable(env = process.env) {
         return fs.statSync(candidate).isFile();
       } catch { return false; }
     };
-    // LaunchAgents have a minimal PATH, unlike an interactive terminal. Keep
-    // installed CLI precedence, then use an existing app's native CLI directly
-    // (npm launchers also need Node, which may be absent from that PATH).
     for (const directory of String(env.PATH || '').split(path.delimiter).filter(Boolean)) {
       const candidate = path.join(directory, 'codex');
       if (executableFile(candidate)) return candidate;
@@ -48,17 +70,39 @@ export function findCodexExecutable(env = process.env) {
       }
     }
   }
+  if (process.platform === 'win32') {
+    const bin = path.join(local, 'OpenAI', 'Codex', 'bin');
+    try {
+      const dirs = fs.readdirSync(bin, { withFileTypes: true }).filter(entry => entry.isDirectory());
+      dirs.sort((a, b) => fs.statSync(path.join(bin, b.name)).mtimeMs - fs.statSync(path.join(bin, a.name)).mtimeMs);
+      for (const entry of dirs) add(path.join(bin, entry.name, 'codex.exe'));
+    } catch {}
+    add(path.join(local, 'Programs', 'codex', 'codex.exe'));
+    add(path.join(local, 'Programs', 'Codex', 'codex.exe'));
+    add(path.join(env.ProgramFiles || 'C:\\Program Files', 'Codex', 'codex.exe'));
+    add(path.join(roaming, 'npm', 'codex.cmd'));
+  }
+  for (const candidate of candidates) {
+    try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+  }
   if (process.platform !== 'win32') return 'codex';
-  const bin = path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'OpenAI', 'Codex', 'bin');
-  try {
-    const dirs = fs.readdirSync(bin, { withFileTypes: true }).filter(entry => entry.isDirectory());
-    dirs.sort((a, b) => fs.statSync(path.join(bin, b.name)).mtimeMs - fs.statSync(path.join(bin, a.name)).mtimeMs);
-    for (const entry of dirs) {
-      const candidate = path.join(bin, entry.name, 'codex.exe');
-      if (fs.existsSync(candidate)) return candidate;
+  for (const dir of String(env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const name of ['codex.exe', 'codex.cmd', 'codex.bat']) {
+      const candidate = path.join(dir, name);
+      try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
     }
-  } catch {}
-  return 'codex';
+  }
+  return null;
+}
+
+// A .cmd/.bat shim has to run through the command processor; spawning it
+// directly fails with ENOENT even though the file exists.
+export function codexSpawnArgs(executable, args) {
+  if (process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)) {
+    return { executable: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', executable, ...args] };
+  }
+  return { executable, args };
 }
 
 // codex-cli 0.120.0 起 `app-server --stdio` 被移除，换成了 `--listen stdio://`
@@ -119,7 +163,8 @@ function readRateLimitsOnce({ codexHome, executable, timeoutMs, spawnImpl, signa
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Codex 额度查询已取消'));
     let stderr = '';
-    const child = spawnImpl(executable, args, {
+    const launch = codexSpawnArgs(executable, args);
+    const child = spawnImpl(launch.executable, launch.args, {
       windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
       env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
     });
@@ -160,6 +205,7 @@ function readRateLimitsOnce({ codexHome, executable, timeoutMs, spawnImpl, signa
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         let message;
         try { message = JSON.parse(line); } catch { continue; }
+        if (message.method !== undefined) continue;
         if (message.id === 1) {
           if (message.error) return finish(new Error('Codex 初始化失败'));
           send({ method: 'initialized', params: {} });
@@ -172,7 +218,7 @@ function readRateLimitsOnce({ codexHome, executable, timeoutMs, spawnImpl, signa
       }
     });
     send({ id: 1, method: 'initialize', params: { clientInfo: {
-      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: '0.3.0',
+      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: VERSION,
     } } });
   });
 }
@@ -227,9 +273,10 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
   }
   function connect(signal) {
     if (connection) return connection;
-    const resolvedExecutable = executable || findCodexExecutable();
-    const args = APP_SERVER_ARG_FORMS[appServerArgsOrder(resolvedExecutable)[0]];
-    const child = spawnImpl(resolvedExecutable, args, {
+    const target = executable === '' ? null : (executable || findCodexExecutable());
+    const args = APP_SERVER_ARG_FORMS[appServerArgsOrder(target)[0]];
+    const launch = codexSpawnArgs(target, args);
+    const child = spawnImpl(launch.executable, launch.args, {
       windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
       env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
     });
@@ -250,6 +297,7 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
       while ((end = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         let message; try { message = JSON.parse(line); } catch { continue; }
+        if (message.method !== undefined) continue;
         const job = own.jobs.get(message.id);
         if (!job) continue;
         if (message.error) {
@@ -262,21 +310,22 @@ export function createCodexRateLimitsClient({ codexHome, executable, timeoutMs =
     child.once('error', () => destroy(own));
     child.once('close', () => {
       // 参数被当前版本拒绝时登记，下一次连接换用下一种写法；其余失败不碰缓存。
-      if (!own.dead && looksLikeArgsRejected(stderr)) noteAppServerArgsRejected(resolvedExecutable, args);
+      if (!own.dead && looksLikeArgsRejected(stderr)) noteAppServerArgsRejected(target, args);
       destroy(own);
     });
     child.stdin.on('error', () => destroy(own));
     own.ready = rpc(own, 'initialize', { clientInfo: {
-      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: '0.3.0',
+      name: 'codex_whale_widget', title: 'Codex Whale Widget', version: VERSION,
     } }, signal).then(() => {
       if (own.dead) throw error('UNAVAILABLE');
-      noteAppServerArgsWorking(resolvedExecutable, args);
+      noteAppServerArgsWorking(target, args);
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }) + '\n');
     });
     return own;
   }
   async function read({ signal } = {}) {
     clearTimeout(idleTimer);
+    if (executable === '' || (!executable && !findCodexExecutable())) throw error('CODEX_NOT_FOUND', '未找到 Codex 可执行文件，请确认 Codex 已安装或设置 CODEX_CLI_PATH');
     for (let attempt = 0; attempt < 2; attempt++) {
       if (closed || signal?.aborted) throw error('ABORTED');
       let own;

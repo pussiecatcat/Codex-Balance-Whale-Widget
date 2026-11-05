@@ -1,3 +1,5 @@
+import { requestJson } from '/services/request.js';
+
 (function (host, factory) {
   'use strict';
   const api = factory(host);
@@ -33,12 +35,10 @@
       policy = Object.freeze(next); return policy;
     }
     async function refreshPolicy() {
-      if (!environment.fetch) return false;
+      const request = environment.requestJson || (typeof requestJson === 'function' ? requestJson : null);
+      if (!request) return false;
       if (!policyJob) policyJob = Promise.resolve().then(async () => {
-        const response = await environment.fetch('/api/media-policy', { cache: 'no-store', ...(environment.AbortSignal?.timeout ? { signal: environment.AbortSignal.timeout(3000) } : {}) });
-        if (!response.ok) error('素材规则暂时无法读取');
-        const payload = await response.json();
-        if (payload.ok === false) error('素材规则暂时无法读取');
+        const payload = await request('/api/media-policy', { timeoutMs: 3000 });
         setPolicy(payload.policy || payload); return true;
       }).finally(() => { policyJob = null; });
       return policyJob;

@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createCodexRateLimitsClient, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
+import { statusView } from '../desktop/ui/features/widget/status-tones.js';
 import { createInsightsService } from '../runtime/insights.mjs';
 
 const defer = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -40,6 +41,28 @@ test('quota reader reuses one initialized connection and closes it on shutdown',
   } finally { client.close(); }
   assert.ok(fake.children.every(x => x.killed));
   await assert.rejects(client.read(), { code: 'ABORTED' });
+});
+test('server-initiated requests with a colliding id are not mistaken for replies', async () => {
+  let spawned = 0;
+  const child = new EventEmitter(); child.stdout = new PassThrough(); child.killed = false;
+  child.stdin = new Writable({ write(chunk, encoding, callback) {
+    const message = JSON.parse(String(chunk));
+    queueMicrotask(() => {
+      if (message.method === 'initialize') child.stdout.write(JSON.stringify({ id: message.id, result: {} }) + '\n');
+      else if (message.method === 'account/rateLimits/read') {
+        // The app server may send its own request with the same id; it must be
+        // ignored rather than rejecting the pending read.
+        child.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: message.id, method: 'item/started', params: {} }) + '\n');
+        child.stdout.write(JSON.stringify({ id: message.id, result: result(30) }) + '\n');
+      }
+    }); callback();
+  } });
+  child.kill = () => { child.killed = true; child.emit('close'); };
+  const client = createCodexRateLimitsClient({ spawnImpl: () => { spawned++; return child; }, executable: 'fixture' });
+  try {
+    assert.equal((await client.read()).windows[0].usedPercent, 30);
+    assert.equal(spawned, 1);
+  } finally { client.close(); }
 });
 test('transient RPC failure retries once on a new connection; authentication failure does not retry', async () => {
   const fake = fakeProcess((_message, processCount) => processCount === 1 ? { error: { message: 'temporary outage' } } : { result: result(21) });
@@ -129,7 +152,7 @@ async function serviceFixture(t, options = {}) {
   const value = used => ({ observedAt: now, planType: 'plus', windows: [{ observedAt: now, windowDurationMins: 300, usedPercent: used, resetsAt: now + 3600000 }] });
   const service = createInsightsService(config, { clock: () => now, collectLocal: async () => ({}), ...options });
   t.after(async () => { service.close(); await fs.rm(codexHome, { recursive: true, force: true }); });
-  return { service, value, auth, codexHome, advance: ms => { now += ms; } };
+  return { service, value, auth, codexHome, config, advance: ms => { now += ms; } };
 }
 test('failed refresh preserves successful quota and its original observation time; next success recovers', async t => {
   let fail = false, calls = 0, fixture;
@@ -186,7 +209,7 @@ test('explicit authentication errors clear cached quota; authoritative empty win
   assert.equal((await fixture.service.getQuota({ force: true })).subscription.available, false);
 });
 
-const quotaSource = await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8');
+const quotaSource = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
 function frontend() {
   let now = Date.now(), response = { ok: true, subscription: { available: true, status: 'ready', source: 'codex-app-server', observedAt: now,
     windows: [{ windowDurationMins: 300, usedPercent: 20, resetsAt: now + 3600000 }] } }, failing = false;
@@ -195,7 +218,8 @@ function frontend() {
     window: { addEventListener: (name, fn) => { listeners[name] = fn; } },
     setInterval: (fn, ms) => { intervals.set(++timerId, { fn, ms }); return timerId; }, clearInterval: id => intervals.delete(id),
     setTimeout: (fn, ms) => { timeouts.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timeouts.delete(id),
-    fetch: async url => { requests.push(url); if (failing) throw Error('offline'); return { ok: true, json: async () => url.startsWith('/api/pricing') ? {} : structuredClone(response) }; },
+    requestJson: async url => { requests.push(url); if (failing) throw Error('offline'); return url.startsWith('/api/pricing') ? {} : structuredClone(response); },
+    statusView,
   };
   vm.runInNewContext(quotaSource, box);
   return { api: box.window.WhaleQuota, requests, listeners, intervals, timeouts,
@@ -218,4 +242,47 @@ test('stale quota across the reset boundary stays explicitly historical, never b
   const ui = frontend(); await ui.api.refresh(true); ui.advance(3600001);
   const text = ui.api.text({ windowDurationMins: 300 });
   assert.match(text, /80\.0%.*等待额度更新.*上次数据/); assert.doesNotMatch(text, /100\.0%/);
+});
+test('ChatGPT login is decided by auth.json, not an environment API key or provider selection', async t => {
+  let calls = 0, fixture;
+  fixture = await serviceFixture(t, { readRateLimits: async () => { calls++; return fixture.value(18); } });
+  const resolved = fixture.config.resolve;
+  fixture.config.resolve = () => ({ ...resolved(), key: 'sk-environment-canary', id: 'openai' });
+  const withKey = (await fixture.service.getQuota()).subscription;
+  assert.equal(withKey.status, 'ready');
+  assert.equal(withKey.windows[0].usedPercent, 18);
+  assert.equal(calls, 1);
+
+  fixture.config.resolve = () => ({ ...resolved(), key: '', id: 'custom' });
+  const custom = (await fixture.service.getQuota({ force: true })).subscription;
+  assert.equal(custom.status, 'ready');
+  assert.equal(custom.windows[0].usedPercent, 18);
+});
+test('API-key-only and logged-out auth never query the subscription quota', async t => {
+  let calls = 0, fixture;
+  fixture = await serviceFixture(t, { readRateLimits: async () => { calls++; return fixture.value(1); } });
+  await fs.writeFile(path.join(fixture.codexHome, 'auth.json'), JSON.stringify({ auth_mode: 'apikey', OPENAI_API_KEY: 'sk-test' }));
+  const apiKey = (await fixture.service.getQuota({ force: true })).subscription;
+  assert.equal(apiKey.status, 'unauthenticated');
+  assert.equal(apiKey.available, false);
+  await fs.writeFile(path.join(fixture.codexHome, 'auth.json'), '{}');
+  const loggedOut = (await fixture.service.getQuota({ force: true })).subscription;
+  assert.equal(loggedOut.status, 'unauthenticated');
+  assert.equal(calls, 0);
+});
+test('subscription quota survives an invalid API provider configuration', async t => {
+  let fixture;
+  fixture = await serviceFixture(t, { readRateLimits: async () => fixture.value(20) });
+  fixture.config.resolve = () => { throw new Error('bad provider'); };
+  fixture.config.identityContext = () => ({ accountId: 'b'.repeat(24), model: '', baseUrl: '',
+    setting: { monitorSessions: true, currency: 'USD', models: {} }, degraded: true });
+  const subscription = (await fixture.service.getQuota()).subscription;
+  assert.equal(subscription.status, 'ready');
+  assert.equal(subscription.windows[0].usedPercent, 20);
+});
+test('a missing Codex executable surfaces an actionable quota reason', async t => {
+  const fixture = await serviceFixture(t, { readRateLimits: async () => { throw Object.assign(new Error('missing'), { code: 'CODEX_NOT_FOUND' }); } });
+  const subscription = (await fixture.service.getQuota()).subscription;
+  assert.equal(subscription.status, 'error');
+  assert.match(subscription.reason, /CODEX_CLI_PATH/);
 });

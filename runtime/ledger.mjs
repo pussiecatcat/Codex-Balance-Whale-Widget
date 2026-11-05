@@ -1,8 +1,12 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson, dayKey, DAY_MS, rounded } from './paths.mjs';
 
 const initialLedger = () => ({ version: 1, revision: 0, date: '', observed: 0, firstObservation: null, lastObservation: null, history: {}, events: [], correctionLog: [] });
 const MONEY_SCALE = 100000000;
+const USAGE_NOTE = '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。';
+const ignoreError = () => {};
+const modelRows = models => [...models].map(([model, cost]) => ({ model: model + '（估算）', cost: rounded(cost) })).sort((a, b) => b.cost - a.cost);
 const units = value => {
   const scaled = Math.round(Number(value) * MONEY_SCALE);
   if (!Number.isSafeInteger(scaled)) throw new Error('金额超出八位小数安全范围');
@@ -11,13 +15,46 @@ const units = value => {
 const money = value => Number(value) / MONEY_SCALE;
 
 export class UsageLedger {
-  constructor(dataDir) { this.dataDir = dataDir; }
+  constructor(dataDir) { this.dataDir = dataDir; this.warnings = new Map(); this.lastSeen = new Map(); this.todayCache = new Map(); }
   file(scope) {
     if (!/^[a-f0-9]{24}-[A-Z]{3}$/.test(scope)) throw new Error('记账账户标识无效');
     return path.join(this.dataDir, 'ledgers', scope + '.json');
   }
-  load(scope) { return readJson(this.file(scope), initialLedger()); }
-  save(scope, ledger) { ledger.revision = Number(ledger.revision || 0) + 1; writeJson(this.file(scope), ledger); }
+  warningFile(scope) { return this.file(scope).replace(/\.json$/, '.warning.json'); }
+  load(scope) {
+    let recovered = false;
+    const value = readJson(this.file(scope), initialLedger(), {
+      backup: true,
+      onRecover: () => { recovered = true; },
+    });
+    if (recovered) {
+      // Put the recovered snapshot back so later reads are clean again. Do not
+      // back it up: the corrupt file must not replace the good backup.
+      try { this.save(scope, value, { backup: false }); } catch {}
+      const message = '账本文件损坏，已从上一份备份恢复。';
+      this.warnings.set(scope, message);
+      // The repaired file no longer looks corrupt on the next launch. Keep a
+      // marker so the user still sees the notice once, until they dismiss it.
+      try { writeJson(this.warningFile(scope), { message, at: new Date().toISOString() }); } catch (error) { ignoreError(error); }
+    } else if (!this.warnings.has(scope)) {
+      try {
+        const saved = readJson(this.warningFile(scope), null);
+        if (saved && typeof saved.message === 'string' && saved.message) this.warnings.set(scope, saved.message);
+      } catch (error) { ignoreError(error); }
+    }
+    return value;
+  }
+  acknowledgeWarning(scope) {
+    this.warnings.delete(scope);
+    this.todayCache.delete(scope);
+    try { fs.rmSync(this.warningFile(scope), { force: true }); } catch (error) { ignoreError(error); }
+  }
+  save(scope, ledger, { backup = true } = {}) {
+    ledger.revision = Number(ledger.revision || 0) + 1;
+    writeJson(this.file(scope), ledger, { flush: true, backup });
+    this.todayCache.delete(scope);
+  }
+  clearReadCache(scope) { if (scope) this.todayCache.delete(scope); else this.todayCache.clear(); }
   archiveFile(scope) { return path.join(this.dataDir, 'ledgers', scope + '.archive.json'); }
   archive(scope, entries, summaries = {}) {
     if (!entries.length && !Object.keys(summaries).length) return;
@@ -43,11 +80,16 @@ export class UsageLedger {
     // Only a strictly older reading is stale. Two callers can poll within the
     // same millisecond, and such a reading is new: dropping it would silently
     // lose consumption on fast machines while a duplicate contributes zero.
-    if (loaded.lastObservation && now < loaded.lastObservation.at) return loaded;
+    // The in-memory reading also orders polls that were intentionally not
+    // written to disk because nothing changed.
+    const seen = this.lastSeen.get(scope);
+    const ordering = seen && (!loaded.lastObservation || seen.at > loaded.lastObservation.at) ? seen : loaded.lastObservation;
+    if (ordering && now < ordering.at) return loaded;
+    const previousDate = loaded.date, previousFirst = loaded.firstObservation;
     const led = this.rollover(loaded, now);
     const balance = Number.isFinite(sample.totalBalance) ? sample.totalBalance : null;
     const used = Number.isFinite(sample.totalUsed) ? sample.totalUsed : null;
-    const last = led.lastObservation;
+    const last = loaded.lastObservation;
     let delta = 0n;
     const meterKey = typeof sample.meterKey === 'string' && /^[a-f0-9]{64}$/.test(sample.meterKey) ? sample.meterKey : null;
     // A newer reading can legitimately reset to zero. Ordering is handled by
@@ -59,7 +101,15 @@ export class UsageLedger {
     led.observed = money(units(led.observed) + delta);
     led.firstObservation ||= now;
     led.lastObservation = { balance, used, at: now, ...(meterKey ? { meterKey } : {}) };
-    this.save(scope, led); return led;
+    this.lastSeen.set(scope, led.lastObservation);
+    // A steady balance polled every minute changes only the timestamp. Keeping
+    // that in memory is enough for ordering; writing a 20k-event ledger each
+    // time is what made a successful query expensive. Any real change (amount,
+    // meter, date rollover or first observation) still reaches disk immediately.
+    const changed = delta !== 0n || !last || last.balance !== balance || last.used !== used ||
+      (last.meterKey || null) !== meterKey || previousDate !== led.date || previousFirst !== led.firstObservation;
+    if (changed) this.save(scope, led);
+    return led;
   }
   append(scope, event) {
     const led = this.load(scope);
@@ -111,6 +161,23 @@ export class UsageLedger {
       existing.id?.endsWith(event.sessionId + ':' + event.turnId));
   }
   find(scope, event) { return this.load(scope).events.find(e => this.sameEvent(e, event)) || null; }
+  scopes(accountId) {
+    try {
+      return fs.readdirSync(path.join(this.dataDir, 'ledgers'))
+        .filter(name => /^[a-f0-9]{24}-[A-Z]{3}\.json$/.test(name) && name.startsWith(accountId + '-'))
+        .map(name => name.slice(0, -5));
+    } catch { return []; }
+  }
+  moveEvent(from, to, id, patch = {}) {
+    if (from === to) return false;
+    const event = this.load(from).events.find(item => item.id === id);
+    if (!event) return false;
+    this.append(to, { ...event, ...patch, currency: to.slice(-3) });
+    const source = this.load(from);
+    const index = source.events.findIndex(item => item.id === id);
+    if (index >= 0) { source.events.splice(index, 1); this.save(from, source); }
+    return true;
+  }
   revise(scope, id, patch) {
     const led = this.load(scope), index = led.events.findIndex(e => e.id === id);
     if (index < 0) return null;
@@ -122,14 +189,16 @@ export class UsageLedger {
   records(scope, now = Date.now()) {
     const led = this.rollover(this.load(scope), now);
     const today = dayKey(now);
-    const modelsFor = day => {
-      const models = new Map();
-      for (const e of led.events) {
-        if (e.day !== day || e.source !== 'configured-pricing-estimate') continue;
-        models.set(e.model, (models.get(e.model) || 0) + (e.cost || 0));
-      }
-      return [...models].map(([model, cost]) => ({ model: model + '（估算）', cost: rounded(cost) })).sort((a, b) => b.cost - a.cost);
-    };
+    // Index estimated model costs once; every day in the response would
+    // otherwise rescan the full event list.
+    const modelIndex = new Map();
+    for (const event of led.events) {
+      if (event.source !== 'configured-pricing-estimate') continue;
+      const dayModels = modelIndex.get(event.day) || new Map();
+      dayModels.set(event.model, (dayModels.get(event.model) || 0) + (event.cost || 0));
+      modelIndex.set(event.day, dayModels);
+    }
+    const modelsFor = day => modelRows(modelIndex.get(day) || new Map());
     const totalDay = day => day === today ? led.observed : Object.hasOwn(led.history, day) ? Number(led.history[day].total || 0) : null;
     const days7 = [];
     for (let i = 0; i < 7; i++) {
@@ -148,7 +217,29 @@ export class UsageLedger {
         total: rounded(days.reduce((n, day) => n + (totalDay(day) || 0), 0)), totalComplete: missingSummaryDays.length === 0,
         missingSummaryDays, events: led.events.slice(-20000).reverse(), storedEventCount: led.events.length, detailLimit: 20000,
         correctionLog: (led.correctionLog || []).slice(-50).reverse() },
-      usageSource: 'observed-api-debits', note: '每日合计来自同密钥累计消耗或余额差值；停机或跨午夜的观测间隔归入再次观测日，不能拆成精确逐请求账单。日汇总保留 365 天，明细保留 90 天且最多 20000 条。旧版已删除的日汇总显示未知，不冒充零消费；模型金额为配置价格估算。' };
+      warning: this.warnings.get(scope) || '',
+      usageSource: 'observed-api-debits', note: USAGE_NOTE };
+  }
+  // Cheap read used by the balance decoration path: no 7-day/all-history
+  // buckets, and no event list in the payload.
+  today(scope, now = Date.now()) {
+    const day = dayKey(now);
+    let stamp = '';
+    try { const stat = fs.statSync(this.file(scope)); stamp = stat.mtimeMs + ':' + stat.size; } catch (error) { ignoreError(error); }
+    const cacheKey = day + '|' + stamp;
+    const cached = this.todayCache.get(scope);
+    if (cached && cached.key === cacheKey && stamp) return cached.value;
+    const led = this.rollover(this.load(scope), now);
+    const models = new Map();
+    for (const event of led.events) {
+      if (event.day !== day || event.source !== 'configured-pricing-estimate') continue;
+      models.set(event.model, (models.get(event.model) || 0) + (event.cost || 0));
+    }
+    const value = { total: led.observed, models: modelRows(models), since: led.firstObservation,
+      source: (led.correctionLog || []).some(item => item.date === day) ? 'balance-corrected' : 'balance-observed',
+      warning: this.warnings.get(scope) || '', note: USAGE_NOTE };
+    if (stamp) this.todayCache.set(scope, { key: cacheKey, value });
+    return value;
   }
 }
 

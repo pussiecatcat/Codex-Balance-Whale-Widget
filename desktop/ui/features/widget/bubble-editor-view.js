@@ -46,6 +46,7 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       weight.type = 'text'; weight.inputMode = 'numeric'; weight.maxLength = 2;
       weight.className = 'dshwv-winput'; weight.value = String(bubbleChoiceWeight(option));
       weight.title = (side === 0 ? 'A' : 'B') + ' 泡出现权重(直接输入数字,1~99,默认1:1)';
+      weight.setAttribute('aria-label', weight.title);
       weight.addEventListener('change', () => {
         option.w = bubbleChoiceWeight({ w: weight.value });
         weight.value = String(option.w);
@@ -120,6 +121,14 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
         del.addEventListener('click', () => { if (deleteBubbleStep(getItems(), index)) renderMore(); });
         row.appendChild(del);
       }
+      const up = document.createElement('button');
+      up.type = 'button'; up.className = 'dshwv-bubmini'; up.textContent = '↑'; up.title = '上移该次点击（键盘替代拖拽）';
+      up.addEventListener('click', () => { if (moveBubbleStep(getItems(), index, -1)) renderMore(); });
+      const down = document.createElement('button');
+      down.type = 'button'; down.className = 'dshwv-bubmini'; down.textContent = '↓'; down.title = '下移该次点击（键盘替代拖拽）';
+      down.addEventListener('click', () => { if (moveBubbleStep(getItems(), index, 1)) renderMore(); });
+      row.appendChild(up);
+      row.appendChild(down);
       list.appendChild(row);
     }
   }

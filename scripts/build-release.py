@@ -17,7 +17,7 @@ output = args.output.resolve()
 allowed = {'.codex-plugin', '.github', 'assets', 'desktop', 'docs', 'launchers', 'lib', 'runtime', 'scripts', 'skills', 'tests', 'vendor'}
 root_files = {'.mcp.json', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', 'eslint.config.js', 'CLAUDE.md', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'RELEASE_NOTES.md', 'PROVENANCE.md', 'SECURITY.md'}
 blocked = {'node_modules', '.git', 'dist', 'qa', 'qa-output', 'outputs', 'backups', 'desktop-profile', 'desktop-runtime', '__pycache__', 'archive', 'packages'}
-private_names = {'auth.json', 'config.toml', 'api-settings.json', 'usage-settings.json', 'runtime.json', 'service.lock', 'installation.json', 'ui-state.json', 'follow-state.json', 'last-turn.json'}
+private_names = {'auth.json', 'config.toml', 'api-settings.json', 'api-models.json', 'providers.json', 'providers.legacy-backup.json', 'usage-settings.json', 'runtime.json', 'service.lock', 'installation.json', 'ui-state.json', 'follow-state.json', 'last-turn.json'}
 private_ext = {'.log', '.jsonl', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.pfx', '.bak', '.tmp', '.mp4', '.exe', '.dll'}
 text_ext = {'.json', '.js', '.mjs', '.cjs', '.md', '.ps1', '.cmd', '.command', '.swift', '.txt', '.html', '.css', '.cs', '.py', '.yml', '.yaml'}
 patterns = [re.compile(r'[A-Z]:[/\\]+(?:Users[/\\]+PC(?:[/\\]|\b)|Codex_work(?:place)?(?:[/\\]|\b)|QQ[/\\]+downloads)', re.I),
@@ -133,8 +133,11 @@ for file in sorted(ROOT.rglob('*')):
     files[name] = data
 
 manifest = json.loads(files['.codex-plugin/plugin.json'].decode('utf-8-sig'))
-assert manifest['name'] == 'api-balance-whale' and manifest['version'].split('+')[0] == '0.3.0'
-assert manifest['author']['name'] == 'Yang-huai406'
+package = json.loads(files['package.json'].decode('utf-8-sig'))
+assert manifest['name'] == 'api-balance-whale' and package['name'] == manifest['name']
+assert package['version'] == manifest['version'].split('+')[0], 'package.json must match the manifest base version'
+assert manifest['author']['name'] == 'pussiecatcat'
+assert manifest['homepage'] == 'https://github.com/pussiecatcat/Codex-Balance-Whale-Widget'
 for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']
@@ -168,9 +171,11 @@ def archive(name, selected):
     (output / (name + '.sha256')).write_text(digest + '  ' + name + '\n', encoding='utf-8')
     return {'name': name, 'sha256': digest, 'bytes': destination.stat().st_size, 'files': len(selected)}
 
-artifacts = [archive('api-balance-whale-v0.3(fixed).zip', {p: d for p, d in files.items() if not p.startswith(('.github/', 'tests/'))}),
-             archive('api-balance-whale-v0.3(fixed)-source.zip', files)]
-report = {'displayVersion': 'v0.3(fixed)', 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
+base_version = manifest['version'].split('+', 1)[0]
+artifacts = [archive('api-balance-whale-v' + base_version + '.zip', {p: d for p, d in files.items() if not p.startswith(('.github/', 'tests/'))}),
+             archive('api-balance-whale-v' + base_version + '-source.zip', files)]
+(output / 'SHA256SUMS').write_text(''.join(f"{item['sha256']}  {item['name']}\n" for item in artifacts), encoding='utf-8')
+report = {'displayVersion': 'v' + base_version, 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
           'lineEndings': 'LF for source and Mac launchers; CRLF for Windows .cmd and .ps1',
           'releaseTag': args.release_tag, 'offlineInstaller': False, 'macOS': 'static-checks-no-hardware-acceptance', 'subscriptionLiveAccount': 'verified-plus-five-hour-and-weekly-windows',
           'macOSPR': 'https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128',

@@ -1,5 +1,6 @@
-import { rounded } from './paths.mjs';
+import { rounded, VERSION } from './paths.mjs';
 import { readBoundedBodyText } from './bounded-body.mjs';
+import { requestJson } from './provider-profile.mjs';
 
 export class ProviderError extends Error {
   constructor(code, message, transient = false) { super(message); this.code = code; this.transient = transient; }
@@ -32,24 +33,13 @@ function field(data, key) {
 export class BalanceProvider {
   constructor({ fetchImpl = fetch, timeoutMs = 12000 } = {}) { this.fetch = fetchImpl; this.timeoutMs = timeoutMs; this.detected = new Map(); }
   async json(url, key) {
-    let response;
-    try {
-      response = await this.fetch(url, { headers: { Authorization: 'Bearer ' + key, Accept: 'application/json', 'User-Agent': 'API-Balance-Whale/0.3.0' }, redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs) });
-    } catch { throw new ProviderError('NETWORK', '余额接口暂时无法连接，请稍后刷新', true); }
-    if (!response.ok) {
-      try { await response.body?.cancel(); } catch {}
-      if (response.status === 401 || response.status === 403) throw new ProviderError('AUTH', '当前密钥无权访问此余额接口（HTTP ' + response.status + '）');
-      throw new ProviderError('HTTP_' + response.status, '余额接口返回 HTTP ' + response.status, response.status >= 500 || response.status === 429);
-    }
-    if (!(response.headers.get('content-type') || '').includes('json')) {
-      try { await response.body?.cancel(); } catch {}
-      throw new ProviderError('NOT_JSON', '服务商返回了网页或验证页，当前路径不是可用的余额接口');
-    }
-    const raw = await readBoundedJsonText(response);
-    let data;
-    try { data = JSON.parse(raw); } catch { throw new ProviderError('SHAPE', '余额响应不是有效 JSON'); }
-    if (data?.success === false || data?.code === false) throw new ProviderError('API_ERROR', '服务商拒绝了余额查询，请检查密钥权限和接口类型');
-    return data;
+    return requestJson({
+      url, key, fetchImpl: this.fetch, timeoutMs: this.timeoutMs,
+      userAgent: 'API-Balance-Whale/' + VERSION, requireJsonContentType: true,
+      isBusinessError: data => data?.success === false || data?.code === false,
+      fail: (code, message) => new ProviderError(code, message,
+        code === 'NETWORK' || code === 'TIMEOUT' || /^HTTP_(?:429|5\d\d)$/.test(code)),
+    });
   }
   async billing(c) {
     const base = c.baseUrl.replace(/\/$/, '');

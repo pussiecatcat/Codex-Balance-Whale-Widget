@@ -16,6 +16,8 @@ desktop-profile/
 .env
 .env.*
 api-settings.json
+api-models.json
+providers.json
 usage-settings.json
 runtime.json
 service.lock

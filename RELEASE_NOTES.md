@@ -1,10 +1,20 @@
-# Codex 额度小鲸鱼 v0.3(fixed.19)
+# Codex 小龙娘 v0.3.0 评审整改
 
-**标签 `codex-v0.3.0-fixed.19`，构建 `0.3.0+codex.20261017-dialog-optimization`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261104-review`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
-## 气泡显示
+## 2026-11-04 评审整改
+
+- 安全边界：私网地址只信任 IP 字面量，MCP 输出字段白名单，IPC 路由表与文档双向校验。
+- 配置与存储：Codex API 设置与 DIY 模型合并为 `providers.json`，支持备份恢复、草稿探测和 `restore-providers`；配置损坏时订阅额度与 token 记账继续工作。
+- 记账：订阅 token 固定走身份账本；账本按日索引、今日快路径与稳态缓存；恢复提示持久化；跨币种估算不再混入。
+- 设置：服务商列表首屏、当前 API 自动卡片、DIY 草稿测试、统一状态词表；`setx` 后可直接重启挂件。
+- 气泡：API 错误态区分加载/失败/上次数据/未观测；新增来源行；API 默认第二屏改为上一轮用量/会话/来源；预设卡、模式过滤、字号下限与高 DPI 倍率。
+- 工程：入口从 5,602 行降到 3,565 行，抽出确认框、素材辅助、角色裁剪、音频组/槽面板/裁剪、模块编辑器、预览、GIF 对话框等模块；CI 增加账本基准与峰谷日历。
+- 最终验证：596 项测试 / 593 通过 / 3 条已知主机时区差异；Electron 桌面审计 20 项通过；lint、依赖、架构、发布构建均通过。详见 `docs/BASELINE.md`。
+
+## 气泡显示（fixed.19）
 
 - 新增气泡形状切换，可在椭圆与圆角方形之间选择，选择会被记住，重启后保持不变。
 - 订阅额度改为五小时与每周两张卡片并排显示，数字更大，两个额度的对比一目了然。
@@ -29,8 +39,8 @@
 
 ## 安装附件
 
-- `api-balance-whale-v0.3(fixed.19).zip`：完整解压后安装的插件包。
-- `api-balance-whale-v0.3(fixed.19)-source.zip`：源码、测试与文档。
+- `api-balance-whale-v0.3.0.zip`：完整解压后安装的插件包。
+- `api-balance-whale-v0.3.0-source.zip`：源码、测试与文档。
 - 两份 `.sha256` 与 `release-manifest.json`：文件校验、隐私扫描和构建摘要。
 
-Windows 完整解压后运行「launchers/安装插件.cmd」覆盖安装，原有配置与记账数据均会保留；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。Mac 安装范围与未验证限制见 [平台说明](docs/MACOS.md)。标签 `codex-v0.3.0-fixed.19` 对应本次发行版本。
+Windows 完整解压后运行「launchers/安装插件.cmd」覆盖安装，原有配置与记账数据均会保留；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。Mac 安装范围与未验证限制见 [平台说明](docs/MACOS.md)。本次发行以 `plugin.json` 的版本为准，标签在发版时创建。

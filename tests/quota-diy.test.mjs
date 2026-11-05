@@ -6,11 +6,11 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { quotaFromAppServer, readCodexRateLimits, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
+import { quotaFromAppServer, createCodexRateLimitsClient, findCodexExecutable, codexSpawnArgs, readCodexRateLimits, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
 import { createInsightsService } from '../runtime/insights.mjs';
 
-const source = await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8');
-const context = { module: { exports: {} } };
+const source = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
+const context = { module: { exports: {} }, requestJson: async () => ({}), statusView: () => ({ label: '' }) };
 vm.runInNewContext(source, context);
 const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
 
@@ -100,7 +100,7 @@ test('forced Codex insight refresh bypasses the thirty-second snapshot cache', a
   assert.equal(calls, 2);
 });
 
-test('direct Codex reader initializes app-server and requests rate limits without a login flow', async () => {
+test('the Codex client initializes app-server and requests rate limits without a login flow', async () => {
   resetCodexRateLimitsArgsCache();
   const sent = [];
   function spawnImpl(executable, args, options) {
@@ -112,9 +112,9 @@ test('direct Codex reader initializes app-server and requests rate limits withou
     child.stdout = new PassThrough();
     child.stdin = new Writable({ write(chunk, _encoding, done) {
       const message = JSON.parse(String(chunk)); sent.push(message);
-      if (message.method === 'initialize') queueMicrotask(() => child.stdout.write(JSON.stringify({ id: 1, result: {} }) + '\n'));
+      if (message.method === 'initialize') queueMicrotask(() => child.stdout.write(JSON.stringify({ id: message.id, result: {} }) + '\n'));
       if (message.method === 'account/rateLimits/read') queueMicrotask(() => {
-        child.stdout.write(JSON.stringify({ id: 2, result: { rateLimits: {
+        child.stdout.write(JSON.stringify({ id: message.id, result: { rateLimits: {
           primary: { windowDurationMins: 300, usedPercent: 40, resetsAt: Math.ceil(Date.now() / 1000) + 3600 },
         } } }) + '\n');
       });
@@ -123,8 +123,11 @@ test('direct Codex reader initializes app-server and requests rate limits withou
     child.kill = () => { child.emit('close', 0); return true; };
     return child;
   }
-  const result = await readCodexRateLimits({ codexHome: 'C:/test-codex-home', executable: 'mock-codex', spawnImpl });
-  assert.equal(result.windows[0].remainingPercent, 60);
+  const client = createCodexRateLimitsClient({ codexHome: 'C:/test-codex-home', executable: 'mock-codex', spawnImpl });
+  try {
+    const result = await client.read();
+    assert.equal(result.windows[0].remainingPercent, 60);
+  } finally { client.close(); }
   assert.deepEqual(sent.map(message => message.method), ['initialize', 'initialized', 'account/rateLimits/read']);
   assert.ok(sent.every(message => !/login|token|secret/i.test(JSON.stringify(message))));
   resetCodexRateLimitsArgsCache();
@@ -228,4 +231,39 @@ test('a genuine failure is not retried with the other argument form', async () =
   );
   assert.equal(attempts, 1, '非参数类失败不应重试（实际 ' + attempts + ' 次）');
   resetCodexRateLimitsArgsCache();
+});
+
+test('unknown quota windows keep a duration-derived label', () => {
+  const now = Date.now();
+  const windows = quotaFromAppServer({ rateLimits: {
+    primary: { windowDurationMins: 1440, usedPercent: 10, resetsAt: Math.ceil(now / 1000) + 3600 },
+    secondary: { windowDurationMins: 60, usedPercent: 20 },
+  } }, now);
+  assert.deepEqual(windows.map(window => window.label), ['1 天', '1 小时']);
+  assert.equal(windows[0].remainingPercent, 90);
+  assert.equal(quotaFromAppServer({ rateLimits: { primary: { windowDurationMins: 300, usedPercent: 1 } } }, now)[0].label, '5 小时');
+});
+
+test('Codex lookup validates known locations and reports a missing executable', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'whale-codex-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const executable = path.join(dir, 'codex.exe');
+  await fs.writeFile(executable, '');
+  assert.equal(findCodexExecutable({ CODEX_CLI_PATH: executable }), executable);
+  const missing = findCodexExecutable({ CODEX_CLI_PATH: path.join(dir, 'missing.exe'), LOCALAPPDATA: dir, APPDATA: dir, ProgramFiles: dir, PATH: '' });
+  if (process.platform === 'win32') assert.equal(missing, null); else assert.equal(missing, 'codex');
+});
+
+test('cmd shims run through the command processor on Windows', () => {
+  const launch = codexSpawnArgs('C:\\tools\\codex.cmd', ['app-server']);
+  if (process.platform === 'win32') {
+    assert.match(launch.executable, /cmd\.exe$/i);
+    assert.deepEqual(launch.args.slice(-2), ['C:\\tools\\codex.cmd', 'app-server']);
+  } else assert.deepEqual(launch, { executable: 'C:\\tools\\codex.cmd', args: ['app-server'] });
+});
+
+test('a missing Codex executable is a specific failure, not a generic retry', async () => {
+  const client = createCodexRateLimitsClient({ executable: '' });
+  try { await assert.rejects(client.read(), error => error.code === 'CODEX_NOT_FOUND'); }
+  finally { client.close(); }
 });

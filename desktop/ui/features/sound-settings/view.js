@@ -180,7 +180,7 @@ export function createSoundSettingsView(options) {
     controls[kind + 'Volume'] = volume(volumeRow, config.vol, value => { config.vol = value; });
   };
   waitSection('question', '提问提示', '提问提示音效');
-  waitSection('approval', '授权提示', '授权提示音');
+  waitSection('approval', '授权提示（仅权限请求）', '授权提示音');
 
   const charRow = element(documentRef, card, 'div', '', 'whale-sound-charclose');
   controls.charClose = check(charRow, draft.wait.charClose, value => { draft.wait.charClose = value; });
@@ -189,7 +189,7 @@ export function createSoundSettingsView(options) {
   charLabel.htmlFor = controls.charClose.id;
   const help = element(documentRef, charRow, 'button', '?', 'whale-sound-help');
   help.type = 'button'; help.setAttribute('aria-label', '查看说明');
-  const tip = element(documentRef, charRow, 'div', '等待提问或授权时，默认点气泡即可收起，同一条挂起提示不会再次弹回。打开后，点角色也能收起提示气泡。', 'whale-sound-help-pop');
+  const tip = element(documentRef, charRow, 'div', '等待提问或权限请求时，默认点气泡即可收起，同一条挂起提示不会再次弹回。当前 Codex 的自动审批不写入会话记录，因此不会触发授权提示。打开后，点角色也能收起提示气泡。', 'whale-sound-help-pop');
   help.addEventListener('click', event => { event.stopPropagation(); tip.classList.toggle('is-open'); });
 
   const actions = element(documentRef, card, 'div', '', 'dshwv-bubbtns whale-sound-actions');

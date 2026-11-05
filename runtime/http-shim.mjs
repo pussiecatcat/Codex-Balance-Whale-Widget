@@ -32,21 +32,6 @@ export function jsonResult(status, payload) {
   return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body: Buffer.from(JSON.stringify(payload)) };
 }
 
-// The widget host's handlers were written against Node's http res. Collect their
-// writeHead/end calls into a plain result rather than handing them a stream they
-// have no use for.
-export function collectResponse() {
-  const headers = {};
-  let status = 200;
-  let payload = Buffer.alloc(0);
-  const res = {
-    setHeader(name, value) { headers[String(name).toLowerCase()] = String(value); },
-    writeHead(code, values = {}) { status = code; for (const [name, value] of Object.entries(values)) res.setHeader(name, value); return res; },
-    end(value) { payload = value == null ? Buffer.alloc(0) : Buffer.isBuffer(value) ? value : Buffer.from(String(value)); },
-  };
-  return { res, read: () => ({ status, headers, body: payload }) };
-}
-
 // Attached to every dispatch result. `no-store` because these responses carry
 // balances and ledger rows, and the policy because the renderer loads this
 // content into a privileged scheme.

@@ -3,6 +3,7 @@ import { ConfigStore } from './config.mjs';
 import { BalanceProvider } from './providers.mjs';
 import { UsageLedger, usageDefaults } from './ledger.mjs';
 import { readJson, writeJson, dayKey } from './paths.mjs';
+import { domainError } from '../lib/errors.mjs';
 import { BalanceQuery } from './balance-query.mjs';
 import { NoticePublisher } from './notice-publisher.mjs';
 import { TurnAccounting } from './turn-accounting.mjs';
@@ -12,6 +13,7 @@ import { TurnAccounting } from './turn-accounting.mjs';
 export class WhaleService {
   constructor(options = {}) {
     this.config = options.config || new ConfigStore(options);
+    this.mode = options.mode || (() => 'api');
     this.provider = options.provider || new BalanceProvider(options);
     this.ledger = new UsageLedger(this.config.dataDir);
     this.clock = options.clock || Date.now;
@@ -20,7 +22,7 @@ export class WhaleService {
     this.noticePublisher = new NoticePublisher({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
       dataDir: this.config.dataDir, noticeDelayMs: options.noticeDelayMs, clock: this.clock });
     this.turnAccounting = new TurnAccounting({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
-      notice: this.noticePublisher, dataDir: this.config.dataDir, pendingCostMs: options.pendingCostMs, clock: this.clock });
+      notice: this.noticePublisher, dataDir: this.config.dataDir, mode: this.mode, pendingCostMs: options.pendingCostMs, clock: this.clock });
   }
   get turns() { return this.turnAccounting.turns; }
   get journal() { return this.turnAccounting.journal; }
@@ -38,6 +40,15 @@ export class WhaleService {
         error: accounting.recovery.error || publication.recoveryError || '' } };
   }
   scope(...args) { return this.balanceQuery.scope(...args); }
+  usageContext() {
+    // Subscription views read the local identity ledger; API views keep the
+    // per-key account scope. This is also the scope used by token accounting.
+    if (this.mode() !== 'api') {
+      try { return this.config.identityContext?.() || null; } catch { return null; }
+    }
+    try { return this.config.resolve(); }
+    catch { return this.config.identityContext?.() || null; }
+  }
   balanceIdentity(...args) { return this.balanceQuery.balanceIdentity(...args); }
   isCurrentBalanceContext(...args) { return this.balanceQuery.isCurrentBalanceContext(...args); }
   newestBalanceSample(...args) { return this.balanceQuery.newestBalanceSample(...args); }
@@ -46,17 +57,27 @@ export class WhaleService {
   getBalance(...args) { return this.balanceQuery.getBalance(...args); }
   decorate(...args) { return this.balanceQuery.decorate(...args); }
   usageRecords() {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return { ...this.ledger.records(scope), currency: scope.slice(-3), settings: this.readUsageSettings() };
   }
+  acknowledgeUsageWarning() {
+    const c = this.usageContext();
+    if (!c) return { ok: true };
+    const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
+    this.ledger.acknowledgeWarning(scope);
+    return { ok: true };
+  }
   reconcileUsage(input) {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     return this.ledger.reconcile(scope, input);
   }
   apiModelUsage(matches, now = this.clock(), since = null) {
-    const c = this.config.resolve();
+    const c = this.usageContext();
+    if (!c) throw domainError('当前 API 配置不可用，无法定位记账');
     const scope = this.activeScope?.startsWith(c.accountId + '-') ? this.activeScope : this.scope(c, c.setting.currency);
     const byModel = {};
     const events = this.ledger.load(scope).events || [];
@@ -86,7 +107,7 @@ export class WhaleService {
     // alert.lines keeps it, because the saved array replaces the default one.
     try {
       const link = defaults.alert.lines.find(line => line && line.type === 'link');
-      const dashboard = this.config.resolve().dashboardUrl;
+      const dashboard = this.usageContext()?.dashboardUrl;
       if (link && dashboard) link.url = dashboard;
     } catch { /* 配置未就绪时保留默认占位链接 */ }
     const result = { ...saved };

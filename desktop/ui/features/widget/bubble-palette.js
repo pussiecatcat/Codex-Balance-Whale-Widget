@@ -1,7 +1,7 @@
 // Palette entries are rendered from current library data and call editor commands.
 export function createBubblePalette(deps) {
   const { document, getPaletteElement, getLibrary, setDragKey, bubbleModuleAdd,
-    bubbleModuleNew, bubblePickImageToAdd, bubblePaletteModule,
+    getMode = () => '', bubbleModuleNew, bubblePickImageToAdd, bubblePaletteModule,
     bubbleCloneModule, bubbleDefaultSecondModules, showConfirm, bubbleLibDel } = deps;
     function renderBubblePal() {
       var bubblePalEl = getPaletteElement();
@@ -44,6 +44,9 @@ export function createBubblePalette(deps) {
         key: 'session', label: '当前会话', pin: true,
         cb: function () { bubbleModuleAdd(bubblePaletteModule('session')); }
       }, {
+        key: 'source', label: '来源行', pin: true,
+        cb: function () { bubbleModuleAdd(bubblePaletteModule('source')); }
+      }, {
         key: 'peak', label: '峰谷时段', pin: true,
         cb: function () { bubbleModuleAdd(bubblePaletteModule('peak')); }
       }, {
@@ -71,6 +74,12 @@ export function createBubblePalette(deps) {
           bubbleModuleNew(bubblePaletteModule('randimg'));
         }
       }];
+      // A subscription bubble should not offer an API amount module, and an
+      // API bubble should not offer the subscription quota modules. Existing
+      // cross-mode modules are hidden at render time, not deleted.
+      var mode = getMode();
+      var hiddenDefs = mode === 'subscription' ? ['balance', 'today'] : mode === 'api' ? ['quota5', 'quotaWeek', 'plan', 'peak'] : [];
+      defs = defs.filter(function (d) { return hiddenDefs.indexOf(d.key) < 0; });
       for (var i = 0; i < defs.length; i++) {
         (function (d) {
           var chip = document.createElement('div');

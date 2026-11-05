@@ -23,7 +23,7 @@ export function bubbleDefaultFirstModules() {
   }, {
     type: "today",
     size: 4,
-    color: "#9fb0d9",
+    color: "var(--text-muted)",
     tpl: "今日已观测 {expense_api}"
   }];
 }
@@ -444,7 +444,7 @@ var BUBBLE_DEFAULT_ITEMS = [{
   }, {
     "type": "today",
     "size": 4,
-    "color": "#9fb0d9",
+    "color": "var(--text-muted)",
     "tpl": "今日已观测 {expense_api}"
   }]
 }, {
@@ -691,8 +691,41 @@ export function bubbleParseDefaultItems() {
     return [];
   }
 }
+export function bubbleDefaultApiSecondModules() {
+  return [
+    { type: 'text', text: '上一轮用量', size: 5, bold: true },
+    { type: 'turn', size: 5, tpl: '上轮使用 {turn_tokens} tokens' },
+    { type: 'session', size: 3, tpl: '当前会话 · {session_name}' },
+    { type: 'source', size: 2, tpl: '{source_line}' }
+  ];
+}
 export function bubbleDefaultQueue(isSubscription = false) {
-  return isSubscription ? bubbleDefaultSubscriptionQueue() : bubbleParseDefaultItems();
+  if (isSubscription) return bubbleDefaultSubscriptionQueue();
+  return [
+    { kind: 'custom', modules: bubbleDefaultFirstModules() },
+    { kind: 'custom', modules: bubbleDefaultApiSecondModules() }
+  ];
+}
+export function bubbleDefaultCompanionQueue(isSubscription = false) {
+  if (!isSubscription) return bubbleParseDefaultItems();
+  return [
+    { kind: 'custom', modules: bubbleDefaultSubscriptionQueue()[0].modules },
+    { kind: 'custom', modules: bubbleDefaultSecondModules() }
+  ];
+}
+export function bubblePresetItems(name, isSubscription = false) {
+  if (name === 'minimal') {
+    return [{
+      kind: 'custom',
+      modules: isSubscription
+        ? [{ type: 'quota', quotaStyle: 'meter', windowDurationMins: 300 }]
+        : [{ type: 'balance', size: 20, rgb: 'macaron', color: '#203170', tpl: '{balance_api}' }]
+    }];
+  }
+  if (name === 'companion') return bubbleDefaultCompanionQueue(isSubscription);
+  if (name === 'quota') return isSubscription ? bubbleDefaultSubscriptionQueue() : bubbleDefaultQueue(false);
+  if (isSubscription) return bubbleDefaultSubscriptionQueue();
+  return bubbleDefaultQueue(false);
 }
 export function bubbleKindLabel(kind) {
   return BUBBLE_KIND_LABEL[kind === 'random' ? 'random' : kind === 'custom' ? 'custom' : 'normal'];

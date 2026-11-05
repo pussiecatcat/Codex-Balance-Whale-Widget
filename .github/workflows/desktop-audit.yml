@@ -1,4 +1,4 @@
-# 手动触发的桌面审计。
+# 夜间与手动触发的桌面审计。
 #
 # 这条审计驱动真实的 Electron 窗口，检查原生窗口区域、点击穿透、跟随位移和
 # 额度界面——也就是单元测试碰不到的那一层。它刻意不挂在 push / PR 上：
@@ -7,13 +7,18 @@
 #   - 原生窗口几何与穿透断言依赖合成器和显示环境，在 CI 虚拟机上容易因为环境
 #     而不是因为代码变红。
 #
-# 一个会偶发变红的门禁比没有门禁更糟：它会训练人忽略红色。所以它留在需要时
-# 手动跑的位置。要把它变成每次提交的硬门槛，需要先在 CI 上连续观察若干次，
+# 一个会偶发变红的门禁比没有门禁更糟：它会训练人忽略红色。所以它先放在每晚
+# 的定时任务和手动触发里。GitHub 只在默认分支上调度 schedule；合并到 main 后
+# 才会按 cron 运行。要把它变成每次提交的硬门槛，需要先在 CI 上连续观察若干次，
 # 确认稳定之后再改 `on:`。
 name: Desktop audit
 
 on:
   workflow_dispatch:
+  # Nightly rather than per-commit: a scheduled run never blocks a merge, so a
+  # flaky window-geometry run is visible without training people to ignore red.
+  schedule:
+    - cron: '17 3 * * *'
 
 # 只需要读仓库；审计产物写到 qa-*/ 下的临时目录，不发布任何东西。
 permissions:
@@ -24,9 +29,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
@@ -44,7 +49,7 @@ jobs:
 
       - name: Upload audit output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-audit-output
           path: qa-desktop-audit

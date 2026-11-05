@@ -255,3 +255,111 @@ test('cancel after a terminal overload replaces its queued phrase with neutral s
   assert.equal(service.lastTurn().seq,1);assert.equal(service.lastTurn().completionKind,'cancelled');assert.equal(service.lastTurn().failureKind,null);assert.equal(service.lastTurn().amount,0.3);assert.equal(service.ledger.find(scope,meta).cost,0.3);
   assert.equal(service.ledger.find(scope,meta).outcome,'aborted');
 });
+
+test('a provider currency mismatch keeps root and subagent rows in one scope', async t => {
+  const { make, provider } = fixture(t, { setting: { models: { model: { input: 1, cachedInput: 1, output: 1 } } } });
+  provider.balance = async c => ({ ok: true, accountId: c.accountId, currency: 'CNY', totalUsed: provider.used, totalBalance: 1000 - provider.used });
+  const service = make(), cny = 'a'.repeat(24) + '-CNY', usd = 'a'.repeat(24) + '-USD';
+  const main = round('cny-parent'), child = { id: 'child:cny', sessionId: 'child', turnId: 'cny-sub', rootTurnId: main.turnId, isSubagent: true };
+  service.beginTurn(main); await service.turns.get(main.id).start;
+  provider.used = 2;
+  await service.finishTurn({ ...main, byModel: usage(10) });
+  service.beginTurn(child); await service.finishTurn({ ...child, byModel: usage(10), notify: false });
+  assert.ok(service.ledger.find(cny, main), 'root must land in the provider-currency scope');
+  assert.ok(service.ledger.find(cny, child), 'subagent must land in the same scope as the root');
+  assert.equal(service.ledger.find(usd, child), null);
+  assert.equal(service.ledger.find(cny, main).childTurns, 1);
+});
+
+test('startup repair moves split subagent rows to the root scope and revises the root', async t => {
+  const { make, dir } = fixture(t), cny = 'a'.repeat(24) + '-CNY', usd = 'a'.repeat(24) + '-USD';
+  const ledger = new UsageLedger(dir), now = Date.now();
+  const root = { id: 'main:split', sessionId: 'main', turnId: 'split', rootTurnId: 'split', ts: now,
+    currency: 'CNY', source: 'shared-key-interval', cost: 2, amount: 2, costState: 'observed',
+    ownByModel: usage(100), byModel: usage(100), tokens: 100, childTurns: 0,
+    pricing: { model: { input: 1, cachedInput: 1, output: 1 } } };
+  const child = { id: 'child:split', sessionId: 'child', turnId: 'sub', rootTurnId: 'split', isSubagent: true,
+    ts: now + 1, currency: 'USD', source: 'subagent-token-only', cost: null, costState: 'unknown', byModel: usage(100) };
+  ledger.append(cny, root); ledger.append(usd, child);
+
+  const service = make(); service.prepareRecovery();
+  assert.equal(service.ledger.find(usd, child), null, 'the split row must leave the configured-currency ledger');
+  assert.ok(service.ledger.find(cny, child), 'the split row must join the root scope');
+  assert.equal(service.ledger.find(cny, root).childTurns, 1);
+  assert.equal(service.ledger.find(cny, root).tokens, 200);
+});
+
+test('an invalid API provider still records turn tokens under the identity scope', async t => {
+  const models = { model: { input: 1, cachedInput: 1, output: 1 } };
+  const { make, config } = fixture(t, { setting: { models } });
+  const identity = { accountId: 'b'.repeat(24), key: '', model: '', baseUrl: '', keySource: 'none',
+    setting: { currency: 'USD', monitorSessions: true, models }, degraded: true };
+  config.resolve = () => { throw new Error('bad provider'); };
+  config.identityContext = () => identity;
+  const service = make(), scope = identity.accountId + '-USD', meta = round('degraded');
+  service.beginTurn(meta);
+  await service.finishTurn({ ...meta, outcome: 'completed', byModel: usage(1000000), notify: false });
+  const row = service.ledger.find(scope, meta);
+  assert.ok(row, 'the turn must still be recorded without a resolvable API provider');
+  assert.equal(row.tokens, 1000000);
+  assert.equal(row.costState, 'estimated');
+  assert.equal(service.usageRecords().currency, 'USD');
+});
+
+test('a CNY ledger never re-estimates with prices configured in USD', t => {
+  const { make, dir } = fixture(t), cny = 'a'.repeat(24) + '-CNY', ledger = new UsageLedger(dir), now = Date.now();
+  const pricing = { model: { input: 1000000, cachedInput: 0, output: 0 } };
+  const root = { id: 'main:mismatch', turnId: 'mismatch', rootTurnId: 'mismatch', ts: now, currency: 'CNY',
+    source: 'token-only', cost: null, amount: null, costState: 'unknown', ownByModel: usage(100), byModel: usage(100),
+    tokens: 100, childTurns: 0, pricing, pricingCurrency: 'USD' };
+  const child = { id: 'child:mismatch', turnId: 'sub', rootTurnId: 'mismatch', isSubagent: true, ts: now + 1,
+    currency: 'CNY', source: 'subagent-token-only', cost: null, costState: 'unknown', byModel: usage(100) };
+  ledger.append(cny, root); ledger.append(cny, child);
+  const service = make();
+  service.turnAccounting.reviseRootEstimate(cny, 'mismatch');
+  const updated = service.ledger.find(cny, root);
+  assert.equal(updated.cost, null);
+  assert.equal(updated.amount, null);
+  assert.equal(updated.source, 'token-only');
+  assert.equal(updated.tokens, 200, 'token aggregation still happens');
+});
+
+test('moving a split subagent row clears a cost that belongs to another currency', async t => {
+  const { make, dir } = fixture(t), cny = 'a'.repeat(24) + '-CNY', usd = 'a'.repeat(24) + '-USD';
+  const ledger = new UsageLedger(dir), now = Date.now();
+  const root = { id: 'main:split-cost', turnId: 'split-cost', rootTurnId: 'split-cost', ts: now, currency: 'CNY',
+    source: 'shared-key-interval', cost: 2, amount: 2, costState: 'observed', ownByModel: usage(100), byModel: usage(100), tokens: 100 };
+  const child = { id: 'child:split-cost', turnId: 'sub', rootTurnId: 'split-cost', isSubagent: true, ts: now + 1,
+    currency: 'USD', source: 'subagent-pricing-estimate', cost: 5, amount: 5, costState: 'estimated', byModel: usage(100) };
+  ledger.append(cny, root); ledger.append(usd, child);
+  const service = make();
+  service.prepareRecovery();
+  const moved = service.ledger.find(cny, child);
+  assert.ok(moved, 'the subagent row joins the root scope');
+  assert.equal(moved.currency, 'CNY');
+  assert.equal(moved.cost, null);
+  assert.equal(moved.costState, 'unknown');
+  assert.match(moved.note, /金额未知/);
+  assert.equal(service.ledger.find(usd, child), null);
+});
+
+test('subscription turns stay on the identity ledger when API configuration changes', async t => {
+  const { make, provider, config } = fixture(t);
+  const models = { model: { input: 1, cachedInput: 1, output: 1 } };
+  const identity = { accountId: 'c'.repeat(24), key: '', model: '', baseUrl: '', keySource: 'none',
+    setting: { currency: 'USD', monitorSessions: true, models }, degraded: true };
+  config.identityContext = () => identity;
+  const service = make({ mode: () => 'subscription' });
+  const meta = round('subscription');
+  service.beginTurn(meta);
+  assert.equal(provider.calls, 0, 'subscription mode does not ask the API provider for a balance');
+  await service.finishTurn({ ...meta, byModel: usage(10) });
+  const identityScope = identity.accountId + '-USD';
+  assert.ok(service.ledger.find(identityScope, meta), 'the turn is written to the identity ledger');
+
+  // Repairing the API config must not move or hide the subscription history.
+  config.resolve = () => ({ accountId: 'a'.repeat(24), key: 'FIXTURE', model: 'model', baseUrl: 'https://api.example/v1',
+    setting: { currency: 'USD', monitorSessions: true, models } });
+  const records = service.usageRecords();
+  assert.ok(records.all.events.some(event => event.id === meta.id), 'subscription history remains visible after the API changes');
+});

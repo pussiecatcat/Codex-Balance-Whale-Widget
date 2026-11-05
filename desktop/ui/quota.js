@@ -1,3 +1,6 @@
+import { requestJson } from '/services/request.js';
+import { statusView } from '/features/widget/status-tones.js';
+
 (() => {
   'use strict';
   const labels = { 300: '5 小时', 10080: '每周' };
@@ -156,8 +159,8 @@
     unit.hidden = !state.valid;
     fill.style.width = state.valid ? Math.max(0, Math.min(100, state.left)) + '%' : '0%';
     resetLabel.textContent = syncing ? '正在同步…' : state.expired ? '上次 ' + snapshotAt(state.observedAt) :
-      state.item ? '重置' : '状态';
-    reset.textContent = state.item ? countdownShort(state.item.resetsAt) : syncStatus || '首次同步中…';
+      state.item ? snapshotAt(state.observedAt) + ' 更新' : '状态';
+    reset.textContent = state.item ? '重置 ' + countdown(state.item.resetsAt) : syncStatus || '首次同步中…';
     element.title = state.item ? '更新于 ' + snapshotAt(state.observedAt) + '，重置倒计时 ' + countdown(state.item.resetsAt) : syncStatus;
     const spokenValue = state.valid ? percentNumber(state.left) + '%' : '未观测';
     element.setAttribute('aria-label', labels[state.minutes] + '剩余' + spokenValue + '，' + resetLabel.textContent + '，' + reset.textContent);
@@ -202,9 +205,7 @@
     current.promise = (async () => {
       const timeout = setTimeout(() => current.abort.abort(), 22000);
       try {
-        const response = await fetch('/api/quota' + (force ? '?refresh=1' : ''), { cache: 'no-store', signal: current.abort.signal });
-        if (!response.ok) throw Error('unavailable');
-        const data = await response.json();
+        const data = await requestJson('/api/quota' + (force ? '?refresh=1' : ''), { signal: current.abort.signal });
         if (ownRevision !== revision || stopped) return subscription;
         if (!data.subscription || data.ok === false) throw Error('unavailable');
         const before = JSON.stringify(subscription?.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
@@ -212,8 +213,8 @@
         const after = JSON.stringify(subscription.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
         const failed = ['stale', 'error'].includes(subscription.status);
         failures = failed ? Math.min(5, failures + 1) : 0;
-        syncStatus = failed ? '同步失败，稍后重试' : subscription.status === 'unauthenticated' ? '请登录 Codex' :
-          !subscription.available ? subscription.reason || '暂无额度窗口' : before === after ? '已同步，额度未变化' : '额度已更新';
+        const view = statusView(subscription.status, { failed, changed: before !== after, reason: subscription.reason || '暂无额度窗口' });
+        syncStatus = failed ? '同步失败，稍后重试' : view.label;
       } catch {
         if (ownRevision !== revision || stopped) return subscription;
         failures = Math.min(5, failures + 1);
@@ -229,7 +230,7 @@
     // Pricing has its own cadence and cannot block quota rendering.
     if (!pricingAt || Date.now() - pricingAt >= 60000) {
       pricingAt = Date.now();
-      fetch('/api/pricing', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
+      requestJson('/api/pricing').then(data => {
         if (data && ownRevision === revision && !stopped) { pricing = data; paint(); }
       }).catch(() => {});
     }
@@ -266,5 +267,15 @@
     stopped = true; revision++; pending?.abort.abort(); clearInterval(ticker);
     for (const timer of settledTimers) clearTimeout(timer); settledTimers = [];
   }, { once: true });
-  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, text: module => moduleText(module, subscription, pricing) };
+  function sourceLine() {
+    if (!subscription) return '额度加载中…';
+    const at = snapshotAt(subscription.observedAt);
+    if (subscription.status === 'unauthenticated') return '请登录 Codex';
+    if (subscription.status === 'unavailable' || subscription.available === false) return 'Codex 暂未返回额度';
+    if (subscription.stale) return '上次数据' + (at ? ' · ' + at : '') + ' · 正在重试';
+    if (subscription.source === 'local-session') return '本机会话记录 · 非实时';
+    if (subscription.source === 'codex-app-server') return 'Codex 官方' + (at ? ' · ' + at + ' 更新' : '');
+    return 'Codex 额度' + (at ? ' · ' + at + ' 更新' : '');
+  }
+  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, text: module => moduleText(module, subscription, pricing) };
 })();

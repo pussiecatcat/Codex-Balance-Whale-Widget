@@ -1,4 +1,13 @@
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
+import '/money.js';
+import '/quota.js';
+import '/account-view.js';
+import '/insights.js';
+import '/workshop.js';
+import '/media-guard.js';
+import '/audio-engine.js';
+import '/client.js';
+import '/api-models.js';
 import { requestJson } from '/services/request.js';
 import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
@@ -6,11 +15,24 @@ import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
+import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-control.js';
+import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
+import { createAssetHelpers } from '/features/widget/asset-helpers.js';
+import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
+import { createAudioGroupList } from '/features/widget/audio-group-list.js';
+import { createAudioSlotPanel } from '/features/widget/audio-slot-panel.js';
+import { createAudioGroupEditor } from '/features/widget/audio-group-editor.js';
+import { createAudioCropEditor } from '/features/widget/audio-crop-editor.js';
+import { createModuleEditorView } from '/features/widget/module-editor-view.js';
+import { createBubblePreviewView } from '/features/widget/bubble-preview-view.js';
+import { createGifRoleDialog } from '/features/widget/gif-role-dialog.js';
+import { createMenuControls } from '/features/widget/menu-controls.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createFxControls } from '/features/widget/fx-controls.js';
 import { createUsageOverviewView } from '/features/widget/usage-overview-view.js';
 import { createUsageModelsView } from '/features/widget/usage-models-view.js';
+import { createUsagePanel } from '/features/widget/usage-panel.js';
 import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.js';
 import { createBubblePalette } from '/features/widget/bubble-palette.js';
 import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
@@ -24,6 +46,9 @@ import { createBubbleInteraction } from '/features/widget/bubble-interaction.js'
 import { createAssetClient } from '/features/widget/asset-client.js';
 import { createResourceManager } from '/features/widget/resource-manager.js';
 import { createBubbleEditorView, bubbleDropShadow } from '/features/widget/bubble-editor-view.js';
+import { createBubbleEditorController } from '/features/widget/bubble-editor-controller.js';
+import { createReminderEditor } from '/features/widget/reminder-editor.js';
+import { createItemEditor } from '/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
 import { createCustomSelectController } from '/features/widget/custom-select.js';
@@ -82,7 +107,8 @@ import {
     var GIF_URL = '/dsh-whale/rua.gif';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
-    var assetWarnings = Object.create(null);
+    var confirmDialog = createConfirmDialog({ document: document });
+    var showConfirm = confirmDialog.show;
 
     // The combined settings endpoint owns both settings files and guards them
     // with a revision, so a partial update has to read the pair, merge, and send
@@ -91,51 +117,35 @@ import {
     // dropping the edit.
     function updateSoundSettings(mutate, onSaved, attempt) {
       attempt = attempt || 0;
-      return fetch(SETTINGS_URL, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (current) {
+      return requestJson(SETTINGS_URL).then(function (current) {
         if (!current || current.ok !== true) throw new Error(current && current.error || '无法读取设置');
         var next = mutate({ size: current.size, usage: current.usage });
-        return fetch(SETTINGS_URL, {
+        return requestJson(SETTINGS_URL, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: {
             schemaVersion: current.schemaVersion,
             revision: current.revision,
             size: next.size,
             usage: next.usage
-          })
-        }).then(function (r) { return r.json().then(function (body) { return { status: r.status, body: body }; }); });
-      }).then(function (result) {
-        if (result.status === 409 && attempt < 1) return updateSoundSettings(mutate, onSaved, attempt + 1);
-        requireSaved(result.body);
-        if (onSaved) onSaved(result.body);
-        return result.body;
-      }).catch(assetFailure);
+          }
+        });
+      }).then(function (body) {
+        requireSaved(body);
+        if (onSaved) onSaved(body);
+        return body;
+      }).catch(function (error) {
+        if (error && error.status === 409 && attempt < 1) return updateSoundSettings(mutate, onSaved, attempt + 1);
+        assetFailure(error);
+      });
     }
 
     // ==== [素材与媒体工具] ====
-    function assetNotice(message) {
-      if (window.whaleToast) window.whaleToast(String(message || '素材操作未完成，请重试'));
-    }
-    function assetWarning(data) {
-      if (data && data.warning && !assetWarnings[data.warning]) {
-        assetWarnings[data.warning] = true;
-        assetNotice(data.warning);
-      }
-    }
-    function requireSaved(data) {
-      if (!data || data.ok !== true) throw new Error(data && data.error || '保存未完成，请重试');
-      assetWarning(data);
-      return data;
-    }
-    function assetFailure(error) { assetNotice(error && error.message || '保存未完成，请重试'); }
-    function mediaDataUrl(blob) {
-      return new Promise(function (resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function () { resolve(String(reader.result || '')); };
-        reader.onerror = function () { reject(new Error('文件读取失败，请重新选择')); };
-        reader.readAsDataURL(blob);
-      });
-    }
+    var assetHelpers = createAssetHelpers({ window: window, FileReader: FileReader });
+    var assetNotice = assetHelpers.notice;
+    var assetWarning = assetHelpers.warning;
+    var requireSaved = assetHelpers.requireSaved;
+    var assetFailure = assetHelpers.failure;
+    var mediaDataUrl = assetHelpers.mediaDataUrl;
     var root = document.createElement('div');
     root.className = 'dshwv-root';
     var positioner = document.createElement('div');
@@ -177,76 +187,16 @@ import {
       r.className = 'dshwv-menu-row';
       return r;
     }
-    var scaleInput = document.createElement('input');
-    scaleInput.type = 'range';
-    scaleInput.min = String(MIN_SCALE);
-    scaleInput.max = String(MAX_SCALE);
-    scaleInput.step = '0.1';
-    scaleInput.className = 'dshwv-range';
-    scaleInput.value = '1.5';
-    var scaleNumber = document.createElement('input');
-    scaleNumber.type = 'number';
-    scaleNumber.min = '1';
-    scaleNumber.max = '20';
-    scaleNumber.step = '1';
-    scaleNumber.className = 'dshwv-number';
-    scaleNumber.value = '10';
-    scaleInput.addEventListener('pointerdown', function () {
-      positioner.style.transition = 'none';
+    var menuControls = createMenuControls({
+      document: document, positioner: positioner, minScale: MIN_SCALE, maxScale: MAX_SCALE,
+      setScale: setScale, refreshFlip: refreshFlip,
+      toggleAudioGroupPanel: function () { return toggleAudioGroupPanel(); },
+      openAudioGroupEditor: function (group) { return openAudioGroupEditor(group); },
+      toggleUsagePanel: function () { return toggleUsagePanel(); }
     });
-    scaleInput.addEventListener('input', function () {
-      setScale(scaleInput.value);
-    });
-    scaleInput.addEventListener('change', function () {
-      positioner.style.transition = '';
-      try {
-        refreshFlip();
-      } catch (err) {}
-    });
-    scaleNumber.addEventListener('focus', function () {
-      positioner.style.transition = 'none';
-    });
-    scaleNumber.addEventListener('blur', function () {
-      positioner.style.transition = '';
-    });
-    scaleNumber.addEventListener('input', function () {
-      var v = Math.round(Number(scaleNumber.value));
-      var s = MIN_SCALE + Math.max(0, Math.min(20, v) - 1) * (MAX_SCALE - MIN_SCALE) / 19;
-      setScale(s);
-    });
-    scaleNumber.addEventListener('change', function () {
-      var v = Math.round(Number(scaleNumber.value));
-      var s = MIN_SCALE + Math.max(0, Math.min(20, v) - 1) * (MAX_SCALE - MIN_SCALE) / 19;
-      setScale(s);
-      positioner.style.transition = '';
-      try {
-        refreshFlip();
-      } catch (err) {}
-    });
-    var audioGroupBtn = document.createElement('button');
-    audioGroupBtn.type = 'button';
-    audioGroupBtn.className = 'dshwv-audiobtn';
-    audioGroupBtn.title = '选择音效组';
-    var audioGroupBtnLabel = document.createElement('span');
-    audioGroupBtnLabel.className = 'dshwv-btnlabel';
-    audioGroupBtnLabel.textContent = '小黄鸭';
-    audioGroupBtn.appendChild(audioGroupBtnLabel);
-    var audioGroupPanel = document.createElement('div');
-    audioGroupPanel.className = 'dshwv-audiolist';
-    var audioImportBtn = document.createElement('button');
-    audioImportBtn.type = 'button';
-    audioImportBtn.className = 'dshwv-audioimport';
-    audioImportBtn.textContent = '导入';
-    audioImportBtn.title = '新建/编辑音效组';
-    audioGroupBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      toggleAudioGroupPanel();
-    });
-    audioImportBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openAudioGroupEditor(null);
-    });
-    document.body.appendChild(audioGroupPanel);
+    var scaleInput = menuControls.scaleInput, scaleNumber = menuControls.scaleNumber;
+    var audioGroupBtn = menuControls.audioGroupBtn, audioGroupBtnLabel = menuControls.audioGroupBtnLabel, audioGroupPanel = menuControls.audioGroupPanel;
+    var audioImportBtn = menuControls.audioImportBtn, usageRecBtn = menuControls.usageRecBtn;
     var nameMarquee = createNameMarquee({ document: document });
     var makeNameCell = nameMarquee.makeCell;
     var bindNameMarquee = nameMarquee.bind;
@@ -275,17 +225,13 @@ import {
     taskEndToggle.checked = false;
     taskEndToggle.title = '每轮对话回复完成时播放提示音';
     taskEndToggle.addEventListener('change', function () {
-      usageSet = usageSet || ({});
-      usageSet.taskEnd = usageSet.taskEnd || ({
-        on: false,
-        sel: ''
-      });
-      usageSet.taskEnd.on = taskEndToggle.checked;
+      var settings = usagePanelApi.getUsageSet() || ({});
+      settings.taskEnd = settings.taskEnd || ({ on: false, sel: '' });
+      settings.taskEnd.on = taskEndToggle.checked;
+      usagePanelApi.setUsageSet(settings);
       taskEndSel.disabled = !taskEndToggle.checked;
       if (taskEndDrop) taskEndDrop.refresh();
-      saveUsageSettings({
-        taskEnd: usageSet.taskEnd
-      });
+      usagePanelApi.save({ taskEnd: settings.taskEnd });
     });
     var taskEndSel = document.createElement('select');
     var taskEndDrop = null;
@@ -293,23 +239,19 @@ import {
     taskEndSel.disabled = true;
     taskEndSel.title = '选择任务结束音:音效组(点按整组)/单个音频(与按下/松开同库)';
     taskEndSel.addEventListener('change', function () {
-      usageSet = usageSet || ({});
-      usageSet.taskEnd = usageSet.taskEnd || ({
-        on: false,
-        sel: ''
-      });
-      usageSet.taskEnd.sel = taskEndSel.value;
-      saveUsageSettings({
-        taskEnd: usageSet.taskEnd
-      });
+      var settings = usagePanelApi.getUsageSet() || ({});
+      settings.taskEnd = settings.taskEnd || ({ on: false, sel: '' });
+      settings.taskEnd.sel = taskEndSel.value;
+      usagePanelApi.setUsageSet(settings);
+      usagePanelApi.save({ taskEnd: settings.taskEnd });
     });
 
     // ==== [任务结束音效] ====
     var taskEndSound = createTaskEndSound({
       document: document, window: window, Audio: Audio, taskEndSelect: taskEndSel,
       getTaskEndDrop: function () { return taskEndDrop; },
-      getUsageSettings: function () { return usageSet; },
-      setUsageSettings: function (settings) { usageSet = settings; },
+      getUsageSettings: function () { return usagePanelApi.getUsageSet(); },
+      setUsageSettings: function (settings) { usagePanelApi.setUsageSet(settings); },
       getAudioGroups: function () { return audioGroups; },
       getAudioFragments: function () { return audioFragments; },
       audioGroupName: audioGroupName,
@@ -446,9 +388,10 @@ import {
     turnCostEditBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       usageAlertBudgetEditor('turnCost', function (o) {
-        usageSet = usageSet || ({}); usageSet.turnCost = { lines: o.lines };
+        var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
+        usagePanelApi.setUsageSet(settings);
         setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
-        saveUsageSettings({ turnCost: usageSet.turnCost });
+        usagePanelApi.save({ turnCost: settings.turnCost });
       });
     });
     row7.appendChild(turnCostEditBtn);
@@ -618,35 +561,39 @@ import {
     rowRes.appendChild(menuLabel('资源管理'));
     rowRes.appendChild(resOpenBtn);
     menuBox.appendChild(rowRes);
+    var rowLogs = menuRow();
+    var logsOpenBtn = document.createElement('button');
+    logsOpenBtn.type = 'button';
+    logsOpenBtn.className = 'dshwv-roleimport';
+    logsOpenBtn.textContent = '打开';
+    logsOpenBtn.title = '打开运行日志目录（runtime.log）；反馈问题时请附上最近一段';
+    logsOpenBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (window.whaleDesktop && window.whaleDesktop.command) {
+        Promise.resolve(window.whaleDesktop.command('diagnostics')).catch(function () {});
+      }
+    });
+    rowLogs.appendChild(menuLabel('运行日志'));
+    rowLogs.appendChild(logsOpenBtn);
+    menuBox.appendChild(rowLogs);
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
-    var usageSet = null;
 
     // ==== [用量面板与设置] ====
-    function loadUsageSettings(cb) {
-      try {
-        fetch(SETTINGS_URL, {
-          cache: 'no-store'
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          if (d && d.ok && d.usage) usageSet = d.usage;
-          if (cb) cb();
-        }).catch(function () {
-          if (cb) cb();
-        });
-      } catch (err) {
-        if (cb) cb();
-      }
-    }
-    function saveUsageSettings(patch) {
-      try {
-        updateSoundSettings(function (current) {
-          return { size: current.size, usage: Object.assign({}, current.usage, patch || {}) };
-        }, function (saved) {
-          if (saved && saved.usage) usageSet = saved.usage;
-        });
-      } catch (err) { assetFailure(err); }
-    }
+    var usagePanelApi = createUsagePanel({
+      document: document, requestJson: requestJson, settingsUrl: SETTINGS_URL, recordsUrl: USAGE_REC_URL,
+      assetWarning: assetWarning, assetFailure: assetFailure, WhaleMoney: WhaleMoney,
+      updateSoundSettings: updateSoundSettings,
+      getPanel: function () { return usagePanel; }, getMain: function () { return usageMainEl; },
+      fill: function (d) { fillUsagePanel(d); }, getState: function () { return state; },
+      refreshBalance: function (manual) { refresh(manual); },
+      getTodayKey: function () { return usageTodayKeyStr(); },
+      getRecordsView: function () { return usageRecordsView; }
+    });
+    var loadUsageSettings = usagePanelApi.load;
+    var usageReconcileEditor = usagePanelApi.reconcile;
+    var refreshUsageMain = usagePanelApi.refresh;
+    var openUsageRecordsWindow = usagePanelApi.openRecords;
+    var closeUsageRecordsWindow = usagePanelApi.close;
     var apiSettingsBtn = document.createElement('button');
     apiSettingsBtn.type = 'button';
     apiSettingsBtn.className = 'dshwv-roleimport dshwv-api-open';
@@ -787,7 +734,7 @@ import {
           var want = remindSel.value;
           if (want === 'custom') return;
           setTurnCostOn(want !== 'off');
-          saveUsageSettings({ taskEnd: { on: want === 'both' } });
+          usagePanelApi.save({ taskEnd: { on: want === 'both' } });
         });
         remindRow.appendChild(remindSel);
 
@@ -871,11 +818,14 @@ import {
       showWait: function (detail) { return showWaitBubble(detail || {}); },
       hideWait: function (id) { hideWaitBubble(false, id); }
     };
+    function dismissLedgerWarning() {
+      return requestJson('/api/usage-warning', { method: 'POST' }).catch(function () { return null; });
+    }
     var usageOverviewView = createUsageOverviewView({
       document: document, WhaleMoney: WhaleMoney,
       getCurrency: function () { return state.currency || 'USD'; },
       getMain: function () { return usageMainEl; }, getPanel: function () { return usagePanel; },
-      openRecords: openUsageRecordsWindow
+      openRecords: openUsageRecordsWindow, dismissLedgerWarning: dismissLedgerWarning
     });
     var whaleCurrencySymbol = usageOverviewView.currencySymbol;
     var usageMoney = usageOverviewView.money;
@@ -884,7 +834,7 @@ import {
     var uSectionTitle = usageOverviewView.sectionTitle;
     var fillUsagePanel = usageOverviewView.fill;
     function renderUsagePanel() {
-      if (usageMainEl && usageNavigation.isOpen() && usageSet !== null) {
+      if (usageMainEl && usageNavigation.isOpen() && usagePanelApi.getUsageSet() !== null) {
         renderUsageModels(false);
         refreshUsageMain();
         return;
@@ -909,384 +859,13 @@ import {
     });
     var renderUsageModels = usageModelsView.render;
     var buildUsageModelArea = usageModelsView.build;
-    function usageAlertBudgetEditor(key, onSave, customConfig, onCancel) {
-      try {
-        var isCost = key === 'turnCost';
-        var isAlert = key === 'alert';
-        var isWait = key === 'question' || key === 'approval';
-        var cfg = customConfig || (isWait ? ((usageSet || {}).events || {})[key] : (usageSet || ({}))[isCost ? 'turnCost' : isAlert ? 'alert' : 'budget']) || ({});
-        var numDef = isAlert ? 50 : 20;
-        var numInit = isAlert ? cfg.below != null ? cfg.below : numDef : cfg.amount != null ? cfg.amount : numDef;
-        var nativeCurrency = cfg.currency || state.currency || 'USD';
-        var nativeDraft = Number(numInit);
-        var step = {
-          kind: 'custom',
-          modules: JSON.parse(JSON.stringify(isCost ? (customConfig && Array.isArray(customConfig.lines) ? customConfig.lines : usageTurnCostLines()) : isWait ? usageWaitLinesOf(cfg, key) : usageRemindLinesOf(cfg, isAlert)))
-        };
-        var bkEditItems = bubbleEditItems;
-        var bkEditorSnap = bubbleEditorSnap;
-        var bkItemSnap = bubbleItemSnap;
-        var bkEditIdx = bubbleEditItemIdx;
-        var bkSide = bubbleEditSide;
-        var bkPal = bubblePalEl;
-        var bkPv = bubblePvEl;
-        var bkPrev = bubblePvPrevEl;
-        var bkRenderPv = renderBubblePv;
-        var bkQeditEnsure = qeditEnsure;
-        var bkModMaskZ = moduleMask ? moduleMask.style.zIndex : '';
-        bubbleEditItems = [step];
-        bubbleEditItemIdx = 0;
-        bubbleEditSide = -1;
-        bubbleItemSnap = JSON.parse(JSON.stringify(step));
-        bubbleEditorSnap = null;
-        var mask = document.createElement('div');
-        mask.className = 'dshwv-bubmask';
-        mask.style.zIndex = '26000';
-        var card = document.createElement('div');
-        card.className = 'dshwv-bubcard';
-        card.style.maxHeight = '88vh';
-        card.style.overflow = 'hidden auto';
-        var title = document.createElement('div');
-        title.className = 'dshwv-bubtitle';
-        title.textContent = '编辑 ' + (isCost ? '每轮消耗' : isWait ? (key === 'approval' ? '授权' : '提问') : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
-        card.appendChild(title);
-        var secCond = document.createElement('div');
-        secCond.className = 'dshwv-bubsec dshwv-bubsec-first';
-        secCond.textContent = isCost ? '显示条件与关闭时间' : isWait ? '' : isAlert ? '触发条件(余额低于该值时提醒)' : '触发条件(今日已观测达到该值时提醒)';
-        card.appendChild(secCond);
-        var chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.className = 'dshwv-check';
-        chk.checked = isCost ? turnCostOn : !!cfg.on;
-        var numInp = document.createElement('input');
-        numInp.type = 'number';
-        numInp.min = '0';
-        numInp.step = '0.01';
-        numInp.className = 'dshwv-number';
-        numInp.style.width = '80px';
-        numInp.dataset.moneyInput = key;
-        WhaleMoney.bind(numInp, function () { return WhaleMoney.formatNumber(nativeDraft, nativeCurrency); }, function (value) { numInp.value = value; });
-        var condBox = document.createElement('div');
-        condBox.style.padding = '2px 0';
-        condBox.style.display = 'flex';
-        condBox.style.flexWrap = 'wrap';
-        condBox.style.alignItems = 'center';
-        condBox.style.gap = '6px 14px';
-        condBox.style.textAlign = 'left';
-        condBox.style.fontSize = '12px';
-        condBox.style.color = '#203170';
-        function segCond() {
-          var s = document.createElement('span');
-          s.style.display = 'inline-flex';
-          s.style.alignItems = 'center';
-          s.style.gap = '5px';
-          s.style.whiteSpace = 'nowrap';
-          return s;
-        }
-        var gOn = segCond();
-        gOn.appendChild(chk);
-        gOn.appendChild(qLabel(isCost ? '启用每轮提示' : '启用提醒'));
-        condBox.appendChild(gOn);
-        var gNum = segCond();
-        if (!isCost) {
-          gNum.appendChild(qLabel(isAlert ? '余额 ≤ ' : '今日已观测 ≥ '));
-          gNum.appendChild(numInp);
-          var currencyUnit = qLabel('');
-          WhaleMoney.bind(currencyUnit, function () { return ' ' + WhaleMoney.unit() + '时提醒'; });
-          gNum.appendChild(currencyUnit);
-          condBox.appendChild(gNum);
-        }
-        var condBrk = document.createElement('span');
-        condBrk.style.flex = '1 0 100%';
-        condBrk.style.height = '0';
-        condBrk.style.margin = '0';
-        condBox.appendChild(condBrk);
-        var acChk = document.createElement('input');
-        acChk.type = 'checkbox';
-        acChk.className = 'dshwv-check';
-        acChk.checked = isCost ? turnCostCloseMs > 0 : cfg.autoClose !== false;
-        var defSec = Number(cfg.ttlSec);
-        if (isCost) defSec = Math.max(0, Math.round(turnCostCloseMs / 1000));
-        else if (!isFinite(defSec) || defSec <= 0) defSec = 6;
-        var secInp = document.createElement('input');
-        secInp.type = 'number';
-        secInp.min = '0';
-        secInp.step = '1';
-        secInp.className = 'dshwv-number';
-        secInp.style.width = '56px';
-        secInp.value = String(defSec);
-        var gAc = segCond();
-        gAc.appendChild(acChk);
-        gAc.appendChild(qLabel('自动关闭'));
-        condBox.appendChild(gAc);
-        var gSec = segCond();
-        gSec.appendChild(secInp);
-        var lSec = qLabel('秒(0=不自动关闭)');
-        lSec.style.opacity = '.75';
-        lSec.style.fontSize = '11px';
-        gSec.appendChild(lSec);
-        condBox.appendChild(gSec);
-        card.appendChild(condBox);
-        if (isWait || customConfig && customConfig.layoutOnly) { condBox.style.display = 'none'; secCond.style.display = 'none'; }
-        var secPal = document.createElement('div');
-        secPal.className = 'dshwv-bubsec dshwv-bubsec-first';
-        secPal.textContent = '可选模块(点击或拖入下方内容框)';
-        card.appendChild(secPal);
-        bubblePalEl = document.createElement('div');
-        bubblePalEl.className = 'dshwv-bubpal';
-        card.appendChild(bubblePalEl);
-        var secPv = document.createElement('div');
-        secPv.className = 'dshwv-bubsec';
-        secPv.textContent = isCost ? '提示内容(支持 {turn_title} {turn_primary} {turn_detail} {cost} 和 token 占位符)' : isWait ? '提示内容(支持 {session} 表示当前对话；模块可点击或拖入下方内容框)' : '提醒内容(同一行模块并排 ≤6;拖模块到行边缘=并排、上/下=拆行、拖 ⠿ 整行排序;{below} / {amount} 触发时替换)';
-        card.appendChild(secPv);
-        bubblePvEl = document.createElement('div');
-        bubblePvEl.className = 'dshwv-bubpvbox';
-        card.appendChild(bubblePvEl);
-        bubblePvPrevEl = document.createElement('div');
-        bubblePvPrevEl.className = 'dshwv-bubprev';
-        card.appendChild(bubblePvPrevEl);
-        bubblePvEl.addEventListener('dragover', function (e) {
-          try {
-            if (e.target && e.target.closest && e.target.closest('.dshwv-pvrow')) return;
-            e.preventDefault();
-          } catch (err) {}
-        });
-        bubblePvEl.addEventListener('drop', function (e) {
-          try {
-            if (e.target && e.target.closest && e.target.closest('.dshwv-pvrow')) return;
-            e.preventDefault();
-            if (bubbleModDrag) {
-              var mdd = bubbleModDrag;
-              bubbleModDrag = null;
-              bubblePvDropBlockEnd(mdd.ri, mdd.mi);
-              return;
-            }
-            var key = bubbleDragKey;
-            if (!key) return;
-            bubbleDragKey = null;
-            if (key === 'image') {
-              bubblePickImageToAdd();
-              return;
-            }
-            if (key === 'wizard') {
-              bubbleModuleAdd({
-                type: 'text',
-                text: '新内容',
-                size: 6,
-                bold: true
-              });
-              return;
-            }
-            var m = bubblePaletteModule(key);
-            if (m) bubbleModuleAdd(m);
-          } catch (err) {}
-        });
-        var btns = document.createElement('div');
-        btns.className = 'dshwv-bubbtns';
-        var editorCompleted = false;
-        function cleanup(outcome) {
-          try {
-            WhaleMoney.clearBindings(mask);
-            document.body.removeChild(mask);
-            bubbleEditItems = bkEditItems;
-            bubbleEditorSnap = bkEditorSnap;
-            bubbleItemSnap = bkItemSnap;
-            bubbleEditItemIdx = bkEditIdx;
-            bubbleEditSide = bkSide;
-            bubblePalEl = bkPal;
-            bubblePvEl = bkPv;
-            bubblePvPrevEl = bkPrev;
-            renderBubblePv = bkRenderPv;
-            qeditEnsure = bkQeditEnsure;
-            if (moduleMask) moduleMask.style.zIndex = bkModMaskZ;
-            var zsEl = document.getElementById('dshw-remind-overlay-z');
-            if (zsEl) {
-              try {
-                document.head.removeChild(zsEl);
-              } catch (err) {}
-            }
-            window.__dshwRemindMask = null;
-          } catch (err) {}
-          if (!editorCompleted) {
-            editorCompleted = true;
-            if (outcome !== 'saved' && onCancel) onCancel();
-          }
-        }
-        var noBtn = document.createElement('button');
-        noBtn.type = 'button';
-        noBtn.className = 'dshwv-bubbtn dshwv-bubbtn-no';
-        noBtn.textContent = '取消';
-        noBtn.addEventListener('click', cleanup);
-        btns.appendChild(noBtn);
-        var resBtn = document.createElement('button');
-        resBtn.type = 'button';
-        resBtn.className = 'dshwv-bubbtn dshwv-bubbtn-no';
-        resBtn.textContent = '恢复默认';
-        resBtn.title = '恢复为默认提醒内容(触发条件保持不变)';
-        resBtn.addEventListener('click', function () {
-          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines() : isWait ? usageWaitDefaultLines(key) : usageRemindDefaultLines(isAlert)));
-          renderBubblePv();
-        });
-        btns.appendChild(resBtn);
-        var okBtn = document.createElement('button');
-        okBtn.type = 'button';
-        okBtn.className = 'dshwv-bubbtn dshwv-bubbtn-ok';
-        okBtn.textContent = '保存';
-        okBtn.addEventListener('click', function () {
-          if (!isCost && !isWait && !numInp.reportValidity()) return;
-          try {
-            bubbleRowsCanon(step.modules);
-          } catch (err) {}
-          var o = {
-            on: chk.checked,
-            lines: JSON.parse(JSON.stringify(step.modules)),
-            autoClose: isCost ? Number(secInp.value) > 0 : acChk.checked,
-            ttlSec: isCost && !acChk.checked ? 0 : Math.max(0, Number(secInp.value) || 0)
-          };
-          if (!isCost && !isWait) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
-          cleanup('saved');
-          if (onSave) onSave(o);
-        });
-        btns.appendChild(okBtn);
-        card.appendChild(btns);
-        try {
-          if (moduleMask) moduleMask.style.zIndex = '27000';
-        } catch (err) {}
-        var remindZStyle = document.createElement('style');
-        remindZStyle.id = 'dshw-remind-overlay-z';
-        remindZStyle.textContent = '.dshwv-confirmmask,.dshwv-cropmask,.dshwv-audiomask,.dshwv-snapmask,.dshwv-usage-mask{z-index:28500!important}';
-        document.head.appendChild(remindZStyle);
-        var qeditEnsureSuper = bkQeditEnsure;
-        qeditEnsure = function () {
-          var el = qeditEnsureSuper();
-          try {
-            if (el) el.style.zIndex = '28000';
-          } catch (err) {}
-          return el;
-        };
-        try {
-          if (qeditEl) qeditEl.style.zIndex = '28000';
-        } catch (err) {}
-        var renderPvSuper = bkRenderPv;
-        renderBubblePv = function () {
-          try {
-            renderPvSuper();
-          } catch (err) {}
-          try {
-            var it = bubbleEditTarget();
-            var below = isAlert ? nativeDraft : null;
-            var amount = isAlert || isCost || isWait ? null : nativeDraft;
-            var previewNotice = WhaleTurnNotice.snapshot({ ok: true, amount: 0.08, costState: 'estimated', tokens: 12840, sessionLabel: '当前对话', byModel: { preview: { input_tokens: 10240, output_tokens: 2600, cached_input_tokens: 6000, reasoning_output_tokens: 800 } } }, state.currency);
-            if (customConfig && customConfig.previewNotice) previewNotice = customConfig.previewNotice;
-            if (it && Array.isArray(it.modules) && bubblePvPrevEl) bubblePreviewInto(bubblePvPrevEl, usageAlertModsResolved(it.modules, below, amount, isCost || customConfig ? previewNotice : null));
-          } catch (err) {}
-        };
-        function editNativeAmount() {
-          try {
-            var inputValue = Number(numInp.value);
-            if (!isFinite(inputValue) || inputValue < 0 || numInp.value === '') throw new Error('请输入有效金额');
-            nativeDraft = WhaleMoney.fromDisplay(inputValue, nativeCurrency);
-            numInp.setCustomValidity(''); renderBubblePv();
-          } catch (err) { numInp.setCustomValidity(err.message); }
-        }
-        if (!isCost && !isWait) numInp.addEventListener('input', editNativeAmount);
-        chk.addEventListener('change', renderBubblePv);
-        mask.appendChild(card);
-        mask.addEventListener('click', function (e) {
-          if (e.target === mask) cleanup();
-        });
-        window.__dshwRemindMask = mask;
-        document.body.appendChild(mask);
-        renderBubblePal();
-        renderBubblePv();
-      } catch (err) {}
-    }
-    function usageReconcileEditor() {
-      fetch('/api/reconcile', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (data) {
-        if (!data || data.ok === false) throw new Error(data && data.error || '账本读取失败');
-        var mask = document.createElement('div'); mask.className = 'dshwv-bubmask'; mask.style.zIndex = '28000';
-        var card = document.createElement('div'); card.className = 'dshwv-bubcard'; mask.appendChild(card);
-        var title = document.createElement('div'); title.className = 'dshwv-bubtitle'; title.textContent = '校正今日 API 消耗'; card.appendChild(title);
-        var tip = document.createElement('p'); tip.className = 'dshwv-usage-hint'; tip.textContent = '期初 + 充值 − 其他支出 − 期末 = 今日消耗。保存时会检查账本版本，避免覆盖另一处修改。'; card.appendChild(tip);
-        var fields = {}, current = typeof state.balance === 'number' ? state.balance : 0, today = Number(data.today && data.today.total) || 0;
-        [['opening','期初余额',current + today],['credits','今日充值',0],['otherDebits','其他支出',0],['last','期末余额',current]].forEach(function (spec) {
-          var row = document.createElement('label'); row.className = 'whale-sound-row'; row.textContent = spec[1];
-          var input = document.createElement('input'); input.type = 'number'; input.min = '0'; input.step = '0.00000001'; input.className = 'dshwv-number'; input.value = String(Math.max(0, spec[2]));
-          row.appendChild(input); card.appendChild(row); fields[spec[0]] = input;
-        });
-        var status = document.createElement('p'); status.className = 'whale-sound-error'; status.hidden = true; card.appendChild(status);
-        var actions = document.createElement('div'); actions.className = 'dshwv-bubbtns'; card.appendChild(actions);
-        function button(label, cls, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'dshwv-bubbtn ' + cls; b.textContent = label; b.addEventListener('click', fn); actions.appendChild(b); return b; }
-        button('取消', 'dshwv-bubbtn-no', function () { mask.remove(); });
-        var save = button('保存校正', 'dshwv-bubbtn-ok', function () {
-          var payload = { revision: Number(data.revision || 0), date: usageTodayKeyStr() };
-          for (var key in fields) { payload[key] = Number(fields[key].value); if (!isFinite(payload[key]) || payload[key] < 0) { fields[key].focus(); return; } }
-          save.disabled = true; status.hidden = true;
-          fetch('/api/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (result) {
-            if (!result.ok || result.body.ok === false) throw new Error(result.body.error || '余额校正失败');
-            mask.remove(); refreshUsageMain(); refresh(true);
-          }).catch(function (error) { status.textContent = error.message || '余额校正失败'; status.hidden = false; save.disabled = false; });
-        });
-        mask.addEventListener('click', function (event) { if (event.target === mask) mask.remove(); }); document.body.appendChild(mask);
-      }).catch(function (error) { assetFailure(error); });
-    }
-    function refreshUsageMain() {
-      if (!usageMainEl) return;
-      usageMainEl.innerHTML = '';
-      var body = document.createElement('div');
-      body.textContent = '加载中…';
-      usageMainEl.appendChild(body);
-      fetch(USAGE_REC_URL, {
-        cache: 'no-store'
-      }).then(function (r) {
-        return r.json();
-      }).then(function (d) {
-        if (d && d.ok && d.settings) usageSet = d.settings;
-        WhaleMoney.refreshBindings(usagePanel);
-        fillUsagePanel(d);
-        if (d && d.ok && d.today && isFinite(Number(d.today.total))) {
-          var recTotal = Number(d.today.total);
-          if (state.todayUsage === null || recTotal >= state.todayUsage) {
-            state.todayUsage = recTotal;
-
-          }
-        }
-      }).catch(function () {
-        usageMainEl.textContent = '记录加载失败';
-      });
-    }
+    var usageAlertBudgetEditor = null;
     window.addEventListener('whale-api-model-changed', function () {
       if (usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true);
     });
     window.addEventListener('whale-open-balance-reconcile', function () {
       usageReconcileEditor();
     });
-    var usageMoreMask = document.createElement('div');
-    usageMoreMask.className = 'dshwv-usage-mask';
-    usageMoreMask.style.display = 'none';
-    var usageMoreCard = document.createElement('div');
-    usageMoreCard.className = 'dshwv-usage-card';
-    usageMoreMask.appendChild(usageMoreCard);
-    usageMoreMask.addEventListener('click', function (e) {
-      if (e.target === usageMoreMask) closeUsageRecordsWindow();
-    });
-    document.body.appendChild(usageMoreMask);
-    function openUsageRecordsWindow() {
-      usageMoreCard.innerHTML = '<div style="padding:10px;color:#203170">加载中…</div>';
-      usageMoreMask.style.display = 'flex';
-      fetch(USAGE_REC_URL, {
-        cache: 'no-store'
-      }).then(function (r) {
-        return r.json();
-      }).then(function (d) {
-        usageRecordsView.fill(d);
-      }).catch(function () {
-        usageMoreCard.innerHTML = '<div style="padding:10px;color:#203170">加载失败</div>';
-      });
-    }
-    function closeUsageRecordsWindow() {
-      usageMoreMask.style.display = 'none';
-    }
     // ==== [资源管理器（角色 / 气泡图 / 音频）] ====
     var resourceManager = createResourceManager({
       document: document, client: assetClient, confirm: showConfirm,
@@ -1314,7 +893,7 @@ import {
       document: document, window: window, WhaleMoney: WhaleMoney,
       whaleMoneyTemplates: whaleMoneyTemplates, fmt: fmt,
       bubbleTokenValue: function (value) { return bubbleTokenValue(value); },
-      whaleCurrencySymbol: whaleCurrencySymbol, getUsageSet: function () { return usageSet; },
+      whaleCurrencySymbol: whaleCurrencySymbol, getUsageSet: function () { return usagePanelApi.getUsageSet(); },
       getLastTurnNotice: function () { return lastTurnNotice; },
       getCurrency: function () { return state.currency || 'USD'; },
       getBubbleNoticeQueue: function () { return bubbleNoticeQueue; },
@@ -1338,11 +917,12 @@ import {
     var usageRatioRows = usageCharts.ratioRows;
     var usageDrawBarChart = usageCharts.drawBarChart;
     var usageRecordsView = createUsageRecordsView({
-      document: document, card: usageMoreCard, close: closeUsageRecordsWindow,
+      document: document, card: usagePanelApi.card, close: closeUsageRecordsWindow,
       bindUsageMoney: bindUsageMoney, usageMoney: usageMoney, usageMoneyText: usageMoneyText,
       usageAggModels: usageAggModels, usageRatioRows: usageRatioRows,
       usageDrawBarChart: usageDrawBarChart, usageTodayKeyStr: usageTodayKeyStr,
-      WhaleMoney: WhaleMoney, getCurrency: function () { return state.currency || 'USD'; }
+      WhaleMoney: WhaleMoney, dismissLedgerWarning: dismissLedgerWarning,
+      getCurrency: function () { return state.currency || 'USD'; }
     });
     document.body.appendChild(rolePanel);
     var snapEditor = createSnapEditor({
@@ -1357,153 +937,96 @@ import {
     });
     var openSnapModal = snapEditor.open;
     var bubbleMask = null;
-    var bubbleEditItems = [];
+    var bubbleEditorState = {
+      items: [], lib: [], tapAdvance: false, editorSnap: null, itemSnap: null,
+      itemIdx: -1, itemSide: -1, palEl: null, pvEl: null, pvPrevEl: null,
+    };
+    // Reminder and item editors share the bubble editor's live state and its
+    // late-bound overlay/render elements. The accessors keep those bindings
+    // writable in the entry while the dialogs are open.
+    var bubbleEditorCtx = {
+      get renderPv() { return renderBubblePv; }, set renderPv(value) { renderBubblePv = value; },
+      get qeditEnsure() { return qeditEnsure; }, set qeditEnsure(value) { qeditEnsure = value; },
+      get dragKey() { return bubbleDragKey; }, set dragKey(value) { bubbleDragKey = value; },
+      get modDrag() { return bubbleModDrag; }, set modDrag(value) { bubbleModDrag = value; },
+      get moduleMask() { return moduleMask; },
+      get qeditEl() { return qeditEl; },
+      get turnCostOn() { return turnCostOn; },
+      get turnCostCloseMs() { return turnCostCloseMs; },
+      get renderPal() { return renderBubblePal; },
+      get itemMask() { return bubbleItemMask; },
+      get itemTitleEl() { return bubbleItemTitleEl; },
+      get itemSideEl() { return bubbleItemSideEl; }
+    };
+    usageAlertBudgetEditor = createReminderEditor({
+      document: document, window: window, WhaleMoney: WhaleMoney, WhaleTurnNotice: WhaleTurnNotice,
+      state: { get currency() { return state.currency; } }, usagePanelApi: usagePanelApi, bubbleEditorState: bubbleEditorState,
+      ctx: bubbleEditorCtx,
+      qLabel: qLabel, bubblePaletteModule: bubblePaletteModule, bubbleModuleAdd: bubbleModuleAdd,
+      bubblePickImageToAdd: bubblePickImageToAdd, bubblePvDropBlockEnd: bubblePvDropBlockEnd,
+      bubbleRowsCanon: bubbleRowsCanon, bubblePreviewInto: function (element, modules) { return bubblePreviewInto(element, modules); }, bubbleEditTarget: bubbleEditTarget,
+      usageTurnCostLines: usageTurnCostLines, usageWaitLinesOf: usageWaitLinesOf, usageRemindLinesOf: usageRemindLinesOf,
+      usageTurnCostDefaultLines: usageTurnCostDefaultLines, usageWaitDefaultLines: usageWaitDefaultLines,
+      usageRemindDefaultLines: usageRemindDefaultLines, usageAlertModsResolved: usageAlertModsResolved
+    });
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
+    var bubbleAdvanceControl = null;
     function bubbleDefaultQueue() {
       return buildBubbleDefaultQueue(window.WhaleAccountView?.mode === 'subscription');
     }
+    var itemEditor = createItemEditor({
+      document: document, state: bubbleEditorState, target: bubbleEditTarget, stepLabel: bubbleEditStepLabel,
+      isChoice: bubbleIsChoice, choiceOptions: bubbleChoiceOptions, choiceWeight: bubbleChoiceWeight,
+      ensureModules: bubbleEditEnsureModules, rowsCanon: bubbleRowsCanon, zClean: whaleZClean,
+      ctx: bubbleEditorCtx
+    });
+    var openBubbleItem = itemEditor.openBubbleItem;
+    var closeBubbleItem = itemEditor.closeBubbleItem;
     // ==== [气泡编辑器] ====
     var bubbleEditorView = createBubbleEditorView({
       document: document,
-      getItems: function () { return bubbleEditItems; },
+      getItems: function () { return bubbleEditorState.items; },
       getFirstChip: function () { return bubbleFirstChipEl; },
       getMoreList: function () { return bubbleMoreListEl; },
       openItem: openBubbleItem, confirm: showConfirm
     });
-    function renderBubbleFirst() { bubbleEditorView.renderFirst(); }
-    function renderBubbleMore() { bubbleEditorView.renderMore(); }
-    function bubbleDropToEnd() { bubbleEditorView.dropToEnd(); }
-    function renderBubbleEditor() {
-      if (!bubbleEditItems.length) bubbleEditItems = [{ kind: 'normal' }];
-      renderBubbleFirst();
-      renderBubbleMore();
-    }
-    function bubbleAddMore() { bubbleEditorView.add(); }
-    var bubbleEditorSnap = null;
-    function bubbleEditorDirty() {
-      try {
-        if (bubbleEditorSnap === null) return true;
-        return bubbleEditorSnap !== JSON.stringify([bubbleEditItems, bubbleLib]);
-      } catch (err) {
-        return true;
-      }
-    }
-    function openBubbleEditor() {
-      try {
-        if (!bubbleCfgLoaded) {
-          loadBubbleCfg().then(function (ok) {
-            if (ok) openBubbleEditor(); else assetFailure(new Error('自定义泡泡配置读取失败'));
-          });
-          return;
-        }
-        closeRolePanel();
-        closeAudioGroupPanel();
-        var draft = loadBubbleEditorDraft(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
-        bubbleLib = draft.library;
-        bubbleEditItems = draft.items;
-        bubbleEditorSnap = JSON.stringify([bubbleEditItems, bubbleLib]);
-        renderBubbleEditor();
-        bubbleMask.style.display = 'flex';
-      } catch (err) {}
-    }
-    function closeBubbleEditor() {
-      bubbleMask.style.display = 'none';
-      bubbleEditorSnap = null;
-    }
-    function bubbleEditorReset() {
-      showConfirm(window.WhaleAccountView?.mode === 'subscription' ? '恢复为默认 Codex 额度气泡?' : '恢复为默认序列(首次=余额内容,再次=随机语句)?', function () {
-        bubbleEditItems = bubbleDefaultQueue();
-        renderBubbleEditor();
-      });
-    }
-    function bubbleEditorSave() {
-      try {
-        var doSave = function () {
-          var subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
-          saveBubbleCfg(saveBubbleEditorDraft(bubbleEditItems, bubbleLib, bubbleCfg, subscriptionMode), function (ok) {
-            if (ok !== false) closeBubbleEditor();
-          });
-        };
-        if (bubbleEditorDirty()) showConfirm('保存当前点击序列?(未逐泡编辑过的行将按默认内容保存,保存后即生效)', doSave); else doSave();
-      } catch (err) {}
-    }
+    var bubbleEditorApi = createBubbleEditorController({
+      state: bubbleEditorState, view: bubbleEditorView,
+      getMask: function () { return bubbleMask; }, getAdvance: function () { return bubbleAdvanceControl; },
+      getMode: function () { return window.WhaleAccountView?.mode; },
+      getConfig: function () { return bubbleCfg; }, isConfigLoaded: function () { return bubbleCfgLoaded; },
+      loadConfig: loadBubbleCfg, saveConfig: saveBubbleCfg,
+      draftOf: loadBubbleEditorDraft, draftSave: saveBubbleEditorDraft,
+      defaultQueue: bubbleDefaultQueue, showConfirm: showConfirm, assetFailure: assetFailure,
+      closeRolePanel: closeRolePanel, closeAudioGroupPanel: closeAudioGroupPanel
+    });
+    var renderBubbleFirst = bubbleEditorApi.renderFirst;
+    var renderBubbleMore = bubbleEditorApi.renderMore;
+    var bubbleDropToEnd = bubbleEditorApi.dropToEnd;
+    var bubbleAddMore = bubbleEditorApi.addMore;
+    var bubbleEditorDirty = bubbleEditorApi.dirty;
+    var bubbleApplyPreset = bubbleEditorApi.applyPreset;
+    var openBubbleEditor = bubbleEditorApi.open;
+    var closeBubbleEditor = bubbleEditorApi.close;
+    var bubbleEditorReset = bubbleEditorApi.reset;
+    var bubbleEditorSave = bubbleEditorApi.save;
     var bubbleItemMask = null;
-    var bubbleEditItemIdx = -1;
-    var bubbleEditSide = -1;
-    var bubbleItemSnap = null;
     var bubbleItemTitleEl = null;
     var bubbleItemSideEl = null;
-    var bubblePalEl = null;
-    var bubblePvEl = null;
     function bubbleEditTarget() {
-      var step = bubbleEditItems[bubbleEditItemIdx];
+      var step = bubbleEditorState.items[bubbleEditorState.itemIdx];
       if (!step) return null;
       if (bubbleIsChoice(step)) {
-        var o = bubbleChoiceOptions(step)[bubbleEditSide === 0 || bubbleEditSide === 1 ? bubbleEditSide : 0];
+        var o = bubbleChoiceOptions(step)[bubbleEditorState.itemSide === 0 || bubbleEditorState.itemSide === 1 ? bubbleEditorState.itemSide : 0];
         return o ? o.item : null;
       }
       return step;
     }
     function bubbleEditStepLabel(step, idx) {
       var base = '第' + (idx + 1) + '次点击';
-      if (bubbleIsChoice(step)) return base + ' · ' + (bubbleEditSide === 1 ? 'B泡' : 'A泡');
+      if (bubbleIsChoice(step)) return base + ' · ' + (bubbleEditorState.itemSide === 1 ? 'B泡' : 'A泡');
       return base;
-    }
-    function openBubbleItem(idx, side) {
-      try {
-        whaleZClean();
-        var step = bubbleEditItems[idx];
-        if (!step) return;
-        bubbleEditItemIdx = idx;
-        if (!bubbleIsChoice(step)) {
-          bubbleEditSide = -1;
-        } else {
-          var want = side === 0 || side === 1 ? side : 0;
-          if (!bubbleChoiceOptions(step)[want]) want = 0;
-          bubbleEditSide = want;
-        }
-        bubbleItemSnap = JSON.parse(JSON.stringify(step));
-        var it = bubbleEditTarget();
-        if (!it) return;
-        bubbleEditEnsureModules(it);
-        bubbleRowsCanon(it.modules);
-        bubbleItemTitleEl.textContent = '编辑 ' + bubbleEditStepLabel(step, idx) + '内容(可拖动下方模块入框)';
-        renderBubbleItemSideSwitch(step);
-        bubbleItemMask.style.display = 'flex';
-        renderBubblePal();
-        renderBubblePv();
-      } catch (err) {}
-    }
-    function renderBubbleItemSideSwitch(step) {
-      if (!bubbleItemSideEl) return;
-      bubbleItemSideEl.innerHTML = '';
-      if (!bubbleIsChoice(step)) {
-        bubbleItemSideEl.style.display = 'none';
-        return;
-      }
-      bubbleItemSideEl.style.display = '';
-      var opts = bubbleChoiceOptions(step);
-      for (var s = 0; s < opts.length && s < 2; s++) {
-        (function (si) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'dshwv-bubchip dshwv-bubchip-btn' + (si === bubbleEditSide ? ' dshwv-bubchip-cur' : '');
-          b.textContent = (si === 0 ? 'A' : 'B') + ' 泡(权重 ' + bubbleChoiceWeight(opts[si]) + ')';
-          b.title = '切换到编辑 ' + (si === 0 ? 'A' : 'B') + ' 泡';
-          b.addEventListener('click', function (e) {
-            e.stopPropagation();
-            openBubbleItem(bubbleEditItemIdx, si);
-          });
-          bubbleItemSideEl.appendChild(b);
-        })(s);
-      }
-    }
-    function closeBubbleItem() {
-      bubbleItemMask.style.display = 'none';
-      bubbleEditItemIdx = -1;
-      bubbleEditSide = -1;
-      if (bubbleItemSideEl) bubbleItemSideEl.innerHTML = '';
     }
     var qeditEl = null;
     function qeditEnsure() {
@@ -1572,24 +1095,25 @@ import {
       // and a value captured now would miss the swap.
       qeditEnsure: function () { return qeditEnsure(); },
       renderBubblePv: function () { return renderBubblePv(); },
-      getPreviewElement: function () { return bubblePvPrevEl; },
+      getPreviewElement: function () { return bubbleEditorState.pvPrevEl; },
       bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); }
     });
     var openQuickTextEditor = bubbleQuickEditors.openText;
     var openQuickModuleEditor = bubbleQuickEditors.openModule;
     var openQuickSentenceEditor = bubbleQuickEditors.openSentence;
     var bubblePalette = createBubblePalette({
-      document: document, getPaletteElement: function () { return bubblePalEl; },
-      getLibrary: function () { return bubbleLib; },
+      document: document, getPaletteElement: function () { return bubbleEditorState.palEl; },
+      getLibrary: function () { return bubbleEditorState.lib; },
       setDragKey: function (key) { bubbleDragKey = key; },
+      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
       bubbleModuleAdd: bubbleModuleAdd, bubbleModuleNew: bubbleModuleNew,
       bubblePickImageToAdd: bubblePickImageToAdd, bubblePaletteModule: bubblePaletteModule,
       bubbleCloneModule: bubbleCloneModule, bubbleDefaultSecondModules: bubbleDefaultSecondModules,
-      showConfirm: showConfirm, bubbleLibDel: bubbleLibDel
+      showConfirm: showConfirm, bubbleLiblibDel: bubbleLiblibDel
     });
     var renderBubblePal = bubblePalette.render;
-    function bubbleLibById(id) {
-      for (var i = 0; i < bubbleLib.length; i++) if (bubbleLib[i].id === id) return bubbleLib[i];
+    function bubbleLiblibById(id) {
+      for (var i = 0; i < bubbleEditorState.lib.length; i++) if (bubbleEditorState.lib[i].id === id) return bubbleEditorState.lib[i];
       return null;
     }
     var bubbleDragKey = null;
@@ -1661,7 +1185,7 @@ import {
           openQuickTextEditor(m);
           return;
         }
-        if (m && (m.type === 'balance' || m.type === 'today' || m.type === 'quota' || m.type === 'turn')) {
+        if (m && (m.type === 'balance' || m.type === 'today' || m.type === 'quota' || m.type === 'turn' || m.type === 'session' || m.type === 'plan' || m.type === 'peak' || m.type === 'nextpeak' || m.type === 'source')) {
           openQuickModuleEditor(m);
           return;
         }
@@ -1817,6 +1341,7 @@ import {
       };
       if (key === 'plan') return { type: 'plan', size: 5, bold: true, tpl: '{plan_name}' };
       if (key === 'session') return { type: 'session', size: 4, tpl: '当前会话 · {session_name}' };
+      if (key === 'source') return { type: 'source', size: 3, tpl: '{source_line}' };
       if (key === 'peak') return { type: 'peak', size: 5, bold: true, tpl: '{peak_phase} · {peak_countdown}' };
       if (key === 'link') return {
         type: 'link',
@@ -1828,193 +1353,33 @@ import {
       if (key === 'randimg') return { type: 'randimg', imgs: [], imgScale: 1 };
       if (key === 'random') return bubbleCloneModule(bubbleDefaultSecondModules()[0]);
       if (typeof key === 'string' && key.indexOf('lib:') === 0) {
-        var lb = bubbleLibById(key.slice(4));
+        var lb = bubbleLiblibById(key.slice(4));
         return lb ? bubbleCloneModule(lb.module) : null;
       }
       return null;
     }
 
     // ==== [气泡预览与样式] ====
-    function renderBubblePv() {
-      bubblePvEl.innerHTML = '';
-      var it = bubbleEditTarget();
-      if (!it) return;
-      var rows = bubbleRowsOf(it.modules || []);
-      for (var r = 0; r < rows.length; r++) {
-        (function (ri, rowMods) {
-          var isImgRow = bubbleIsImgMod(rowMods[0]);
-          var bar = document.createElement('div');
-          bar.className = 'dshwv-pvrow dshwv-pvrowline';
-          bar.title = isImgRow ? '图片独占一行:拖 ⠿ 可整行排序' : '同一行模块并排(≤6):拖 ⠿ 整行排序;拖模块块到某行左/右边缘=并入该行,上/下=另起一行';
-          var grip = document.createElement('span');
-          grip.className = 'dshwv-pvdrag';
-          grip.textContent = '⠿';
-          grip.title = '按住拖动整行排序';
-          grip.draggable = true;
-          grip.addEventListener('dragstart', function (e) {
-            e.stopPropagation();
-            try {
-              e.dataTransfer.setData('text/plain', 'prow:' + ri);
-            } catch (err) {}
-            bubbleRowDragIdx = ri;
-            bubbleModDrag = null;
-            bubblePvZone = '';
-          });
-          grip.addEventListener('dragend', function () {
-            bubbleRowDragIdx = null;
-            bubblePvZone = '';
-          });
-          bar.appendChild(grip);
-          for (var mi = 0; mi < rowMods.length; mi++) {
-            (function (m, mIdx) {
-              var blk = document.createElement('div');
-              blk.className = 'dshwv-pvmod' + (bubbleIsImgMod(m) ? ' dshwv-pvimg' : '');
-              blk.draggable = true;
-              blk.title = isImgRow ? '图片/动图(独占一行,可整行排序)' : '拖动到某行:左/右边缘=并入该行首/尾,上/下=另起一行';
-              blk.addEventListener('dragstart', function (e) {
-                e.stopPropagation();
-                try {
-                  e.dataTransfer.setData('text/plain', 'mod:' + ri + ':' + mIdx);
-                } catch (err) {}
-                bubbleRowDragIdx = null;
-                bubbleModDrag = {
-                  ri: ri,
-                  mi: mIdx
-                };
-                bubblePvZone = '';
-              });
-              blk.addEventListener('dragend', function () {
-                bubbleModDrag = null;
-                bubblePvZone = '';
-              });
-              var lab = document.createElement('span');
-              lab.className = 'dshwv-pvlab';
-              lab.textContent = bubbleModuleListLabel(m);
-              lab.title = '点击编辑该模块(内容/样式)';
-              lab.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubbleModuleEdit(m);
-              });
-              blk.appendChild(lab);
-              var ed = document.createElement('button');
-              ed.type = 'button';
-              ed.className = 'dshwv-bubmini';
-              ed.textContent = '✎';
-              ed.title = '编辑该模块(内容/样式)';
-              ed.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubbleModuleEdit(m);
-              });
-              blk.appendChild(ed);
-              var del = document.createElement('button');
-              del.type = 'button';
-              del.className = 'dshwv-bubmini';
-              del.textContent = '✕';
-              del.title = '删除该模块';
-              del.addEventListener('click', function (e) {
-                e.stopPropagation();
-                bubblePvDelBlock(ri, mIdx);
-              });
-              blk.appendChild(del);
-              bar.appendChild(blk);
-            })(rowMods[mi], mi);
-          }
-          if (!isImgRow) {
-            var add = document.createElement('button');
-            add.type = 'button';
-            add.className = 'dshwv-pvadd';
-            add.textContent = '+';
-            add.title = '把模块加入同一行(默认文本,并排显示;其余类型可把上方色板拖进本行)';
-            add.addEventListener('click', function (e) {
-              e.stopPropagation();
-              bubblePvAddToRow(ri);
-            });
-            bar.appendChild(add);
-          }
-          function highlight(zone) {
-            bubblePvZone = zone;
-            bar.style.boxShadow = '';
-            bar.style.outline = '';
-            if (zone === 'join') bar.style.outline = '2px solid rgba(32,49,112,.55)'; else {
-              var sh = bubbleDropShadow(zone);
-              if (sh) bar.style.boxShadow = sh;
-            }
-          }
-          bar.addEventListener('dragover', function (e) {
-            try {
-              var isMod = !!bubbleModDrag;
-              var isRow = bubbleRowDragIdx !== null && bubbleRowDragIdx !== undefined;
-              var isPal = !isMod && !isRow && !!bubbleDragKey;
-              if (!isMod && !isRow && !isPal) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              var rc = bar.getBoundingClientRect();
-              if (!rc.width) return;
-              if (isPal) {
-                highlight('join');
-                return;
-              }
-              var x = e.clientX - rc.left;
-              if (isMod && x < rc.width * 0.2) {
-                highlight('pairL');
-                return;
-              }
-              if (isMod && x > rc.width * 0.8) {
-                highlight('pairR');
-                return;
-              }
-              highlight(e.clientY - rc.top < rc.height / 2 ? 'before' : 'after');
-            } catch (err) {}
-          });
-          bar.addEventListener('dragleave', function () {
-            bubblePvZone = '';
-            bar.style.boxShadow = '';
-            bar.style.outline = '';
-          });
-          bar.addEventListener('drop', function (e) {
-            try {
-              e.preventDefault();
-              e.stopPropagation();
-              var zone = bubblePvZone;
-              bubblePvZone = '';
-              bar.style.boxShadow = '';
-              bar.style.outline = '';
-              if (bubbleRowDragIdx !== null && bubbleRowDragIdx !== undefined) {
-                var fromRow = bubbleRowDragIdx;
-                bubbleRowDragIdx = null;
-                if (fromRow !== ri) bubblePvMoveRow(fromRow, ri, zone);
-                return;
-              }
-              if (bubbleModDrag) {
-                var md = bubbleModDrag;
-                bubbleModDrag = null;
-                if (zone === 'join') zone = 'after';
-                bubblePvDropBlock(md.ri, md.mi, ri, zone);
-                return;
-              }
-              if (bubbleDragKey) {
-                var key = bubbleDragKey;
-                bubbleDragKey = null;
-                bubblePvPaletteToRow(key, ri);
-                return;
-              }
-            } catch (err) {}
-          });
-          bubblePvEl.appendChild(bar);
-        })(r, rows[r]);
-      }
-      try {
-        var rw = root && (root.offsetWidth || root.getBoundingClientRect().width) || 280;
-        bubblePreviewInto(bubblePvPrevEl, it.modules || [], Math.min(rw, 408));
-      } catch (err) {}
-    }
+    var bubblePreviewView = createBubblePreviewView({
+      document: document, rowsOf: bubbleRowsOf, isImgMod: bubbleIsImgMod,
+      moduleLabel: bubbleModuleListLabel, editModule: bubbleModuleEdit,
+      deleteBlock: bubblePvDelBlock, addToRow: bubblePvAddToRow,
+      moveRow: bubblePvMoveRow, dropBlock: bubblePvDropBlock,
+      paletteToRow: bubblePvPaletteToRow, dropShadow: bubbleDropShadow,
+      previewInto: function (element, modules, width) { return bubblePreviewInto(element, modules, width); },
+      getRowDrag: function () { return bubbleRowDragIdx; }, setRowDrag: function (value) { bubbleRowDragIdx = value; },
+      getModDrag: function () { return bubbleModDrag; }, setModDrag: function (value) { bubbleModDrag = value; },
+      getZone: function () { return bubblePvZone; }, setZone: function (value) { bubblePvZone = value; },
+      getKey: function () { return bubbleDragKey; }, setKey: function (value) { bubbleDragKey = value; }
+    });
+    function renderBubblePv() { return bubblePreviewView.render(bubbleEditorState, bubbleEditTarget, function () { return root; }); }
     var bubbleRowDragIdx = null;
     function bubbleItemDiscard() {
       try {
-        var idx = bubbleEditItemIdx;
-        var snap = bubbleItemSnap;
-        bubbleItemSnap = null;
-        if (idx >= 0 && idx < bubbleEditItems.length && snap) bubbleEditItems[idx] = snap;
+        var idx = bubbleEditorState.itemIdx;
+        var snap = bubbleEditorState.itemSnap;
+        bubbleEditorState.itemSnap = null;
+        if (idx >= 0 && idx < bubbleEditorState.items.length && snap) bubbleEditorState.items[idx] = snap;
       } catch (err) {}
       closeBubbleItem();
       renderBubbleFirst();
@@ -2027,7 +1392,7 @@ import {
           it.kind = 'custom';
           if (!it.modules) it.modules = [];
         }
-        bubbleItemSnap = null;
+        bubbleEditorState.itemSnap = null;
         closeBubbleItem();
         renderBubbleFirst();
         renderBubbleMore();
@@ -2053,9 +1418,24 @@ import {
     bubbleTitle.className = 'dshwv-bubtitle';
     bubbleTitle.textContent = '自定义泡泡';
     bubbleCard.appendChild(bubbleTitle);
+    var bubblePresetRow = document.createElement('div');
+    bubblePresetRow.className = 'dshwv-bubpresets';
+    var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
+      ? [['quota', '额度优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
+      : [['balance', '余额优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']];
+    presetSpecs.forEach(function (spec) {
+      var pbtn = document.createElement('button');
+      pbtn.type = 'button';
+      pbtn.className = 'dshwv-bubpreset';
+      pbtn.textContent = spec[1];
+      pbtn.title = '用预设替换当前泡泡序列（保存前不会写入）';
+      pbtn.addEventListener('click', function (e) { e.stopPropagation(); bubbleApplyPreset(spec[0]); });
+      bubblePresetRow.appendChild(pbtn);
+    });
+    bubbleCard.appendChild(bubblePresetRow);
     var bubbleSecFirst = document.createElement('div');
     bubbleSecFirst.className = 'dshwv-bubsec dshwv-bubsec-first';
-    bubbleSecFirst.textContent = '首次点击桌宠弹出内容';
+    bubbleSecFirst.textContent = '首次点击弹出内容';
     bubbleCard.appendChild(bubbleSecFirst);
     var bubbleFirstRow = document.createElement('div');
     bubbleFirstRow.className = 'dshwv-bubrow';
@@ -2070,7 +1450,7 @@ import {
     bubbleCard.appendChild(bubbleFirstRow);
     var bubbleSecMore = document.createElement('div');
     bubbleSecMore.className = 'dshwv-bubsec';
-    bubbleSecMore.textContent = '点击泡泡后的内容';
+    bubbleSecMore.textContent = '再次点击弹出内容';
     bubbleCard.appendChild(bubbleSecMore);
     bubbleMoreListEl = document.createElement('div');
     bubbleMoreListEl.addEventListener('dragover', function (e) {
@@ -2093,11 +1473,12 @@ import {
     bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
-    var bubbleInteractionHint = document.createElement('div');
-    bubbleInteractionHint.className = 'dshwv-bubsec';
-    bubbleInteractionHint.textContent = '点桌宠只互动；点泡泡切换，最后一泡再点收起';
-    bubbleInteractionHint.title = '第一次点桌宠打开泡泡。泡泡打开后可继续按压桌宠，当前内容不会切换或消失。';
-    bubbleCard.appendChild(bubbleInteractionHint);
+    bubbleAdvanceControl = createBubbleAdvanceControl({
+      document: document,
+      viewport: viewport,
+      onChange: function (value) { bubbleEditorState.tapAdvance = value; }
+    });
+    bubbleCard.appendChild(bubbleAdvanceControl.element);
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -2137,22 +1518,22 @@ import {
     bubbleSecPal.className = 'dshwv-bubsec dshwv-bubsec-first';
     bubbleSecPal.textContent = '可选模块(点击或拖入下方泡泡框)';
     bubbleItemCard.appendChild(bubbleSecPal);
-    bubblePalEl = document.createElement('div');
-    bubblePalEl.className = 'dshwv-bubpal';
-    bubbleItemCard.appendChild(bubblePalEl);
+    bubbleEditorState.palEl = document.createElement('div');
+    bubbleEditorState.palEl.className = 'dshwv-bubpal';
+    bubbleItemCard.appendChild(bubbleEditorState.palEl);
     var bubbleSecPv = document.createElement('div');
     bubbleSecPv.className = 'dshwv-bubsec';
-    bubbleSecPv.textContent = '泡泡内容预览(同一行模块并排显示,≤6 个;拖模块块到行左/右边缘=并入该行、上/下=另起一行;拖 ⠿ 整行排序)';
+    bubbleSecPv.textContent = '泡泡内容预览（示例数据；同一行模块并排显示,≤6 个;拖模块块到行左/右边缘=并入该行、上/下=另起一行;拖 ⠿ 整行排序）';
     bubbleItemCard.appendChild(bubbleSecPv);
-    bubblePvEl = document.createElement('div');
-    bubblePvEl.className = 'dshwv-bubpvbox';
-    bubblePvEl.addEventListener('dragover', function (e) {
+    bubbleEditorState.pvEl = document.createElement('div');
+    bubbleEditorState.pvEl.className = 'dshwv-bubpvbox';
+    bubbleEditorState.pvEl.addEventListener('dragover', function (e) {
       try {
         if (e.target && e.target.closest && e.target.closest('.dshwv-pvrow')) return;
         e.preventDefault();
       } catch (err) {}
     });
-    bubblePvEl.addEventListener('drop', function (e) {
+    bubbleEditorState.pvEl.addEventListener('drop', function (e) {
       try {
         if (e.target && e.target.closest && e.target.closest('.dshwv-pvrow')) return;
         e.preventDefault();
@@ -2188,10 +1569,10 @@ import {
         if (m) bubbleModuleAdd(m);
       } catch (err) {}
     });
-    bubbleItemCard.appendChild(bubblePvEl);
-    var bubblePvPrevEl = document.createElement('div');
-    bubblePvPrevEl.className = 'dshwv-bubprev';
-    bubbleItemCard.appendChild(bubblePvPrevEl);
+    bubbleItemCard.appendChild(bubbleEditorState.pvEl);
+    bubbleEditorState.pvPrevEl = document.createElement('div');
+    bubbleEditorState.pvPrevEl.className = 'dshwv-bubprev';
+    bubbleItemCard.appendChild(bubbleEditorState.pvPrevEl);
     var bubbleItemBtns = document.createElement('div');
     bubbleItemBtns.className = 'dshwv-bubbtns';
     bubbleItemBtns.appendChild(bubbleBtn('取消', 'dshwv-bubbtn-no', function () {
@@ -2210,11 +1591,6 @@ import {
     var moduleEditNew = false;
     var moduleTitleEl = null;
     var moduleBodyEl = null;
-    var moduleColorEl = null;
-    var moduleSizeEl = null;
-    var moduleImgSelect = null;
-    var moduleImgDrop = null;
-    var moduleImgPreviewEl = null;
     var bubbleImgList = [];
     function loadBubbleImgs(cb) {
       try {
@@ -2247,7 +1623,7 @@ import {
     var bubbleFontOpenMenu = null;
     function visibleTopZ() {
       var top = 20500;
-      var cand = [bubbleMask, bubbleItemMask, moduleMask, usageMoreMask, qeditEl, window.__dshwRemindMask];
+      var cand = [bubbleMask, bubbleItemMask, moduleMask, usagePanelApi.mask, qeditEl, window.__dshwRemindMask];
       function eff(el) {
         try {
           if (!el) return 0;
@@ -2481,478 +1857,24 @@ import {
       if (t === 'image') return '图片/动图';
       if (t === 'randimg') return '随机图片';
       if (t === 'random') return '随机语句模块';
+      if (t === 'source') return '来源行';
       return '文本模块';
     }
 
     // ==== [模块编辑器] ====
-    function renderModuleEditor() {
-      var m = moduleEditRef;
-      if (moduleEditNew && m.type === 'text' && m.bold === undefined) m.bold = true;
-      moduleColorEl = null;
-      moduleSizeEl = null;
-      moduleBodyEl.innerHTML = '';
-      moduleTitleEl.textContent = (moduleEditNew ? '新增模块: ' : '编辑模块: ') + moduleTypeName(m.type, m);
-      function moduleTplRow() {
-        var row = document.createElement('div');
-        row.className = 'dshwv-audiorow';
-        var lab = document.createElement('span');
-        lab.textContent = '内容';
-        lab.style.flex = '0 0 auto';
-        row.appendChild(lab);
-        var inp = document.createElement('input');
-        inp.type = 'text';
-        inp.style.flex = '1';
-        inp.style.minWidth = '0';
-        inp.style.boxSizing = 'border-box';
-        inp.style.border = '1px solid rgba(32,49,112,.4)';
-        inp.style.borderRadius = '6px';
-        inp.style.padding = '3px 6px';
-        inp.style.fontSize = '12px';
-        inp.style.color = '#203170';
-        inp.style.background = '#fff';
-        inp.value = m.tpl || '';
-        function hintOf() {
-          if (m.type === 'balance') return '例: {balance_api}';
-          if (m.type === 'today') return '例: 今日已观测 {expense_api}';
-          if (m.type === 'quota') return '例: 剩余 {quota_left_round} · {quota_reset_short}';
-          if (m.type === 'turn') return '例: 上轮使用 {turn_tokens} tokens';
-          return '例: 当前 {status}';
-        }
-        var hp = hintOf();
-        inp.placeholder = hp;
-        inp.title = '输入内容;右侧 ? 查看可用占位符';
-        inp.addEventListener('input', function () {
-          m.tpl = inp.value;
-        });
-        row.appendChild(inp);
-        var qb = document.createElement('button');
-        qb.type = 'button';
-        qb.className = 'dshwv-tplq';
-        qb.textContent = '?';
-        qb.title = '可用占位符用法';
-        qb.addEventListener('click', function (e) {
-          e.stopPropagation();
-          bubbleTplHelpToggle(m, qb);
-        });
-        row.appendChild(qb);
-        moduleBodyEl.appendChild(row);
-      }
-      if (moduleEditNew) {
-        var tr = document.createElement('div');
-        tr.className = 'dshwv-audiorow';
-        var tl = document.createElement('span');
-        tl.textContent = '类型';
-        tr.appendChild(tl);
-        var tsel = document.createElement('select');
-        tsel.className = 'dshwv-sound';
-        var topts = [['text', '文本'], ['random', '随机语句模块'], ['image', '图片/动图'], ['randimg', '随机图片']];
-        for (var ti2 = 0; ti2 < topts.length; ti2++) {
-          var o2 = document.createElement('option');
-          o2.value = topts[ti2][0];
-          o2.textContent = topts[ti2][1];
-          tsel.appendChild(o2);
-        }
-        tsel.value = m.type;
-        tsel.addEventListener('change', function () {
-          m.type = tsel.value;
-          if (m.type === 'random' && !Array.isArray(m.lines)) m.lines = [];
-          if (m.type === 'random' && m.bold === undefined) m.bold = true;
-          if (m.type === 'text' && m.bold === undefined) m.bold = true;
-          if (m.type === 'image' && !m.imgId) m.imgId = '';
-          if (m.type === 'randimg' && !Array.isArray(m.imgs)) m.imgs = [];
-          renderModuleEditor();
-        });
-        tr.appendChild(tsel);
-        dshwCustSel(tsel);
-        moduleBodyEl.appendChild(tr);
-      }
-      if (bubbleLib.length) {
-        var lr2 = document.createElement('div');
-        lr2.className = 'dshwv-bubsec';
-        lr2.textContent = '从模块库载入';
-        moduleBodyEl.appendChild(lr2);
-        for (var li3 = 0; li3 < bubbleLib.length; li3++) {
-          (function (lb) {
-            var lrow = document.createElement('div');
-            lrow.className = 'dshwv-bublibrow';
-            var lbtn = document.createElement('button');
-            lbtn.type = 'button';
-            lbtn.className = 'dshwv-bubnewbtn';
-            lbtn.textContent = lb.name;
-            lbtn.title = '将该模块配置载入当前编辑';
-            lbtn.addEventListener('click', function () {
-              var c = bubbleCloneModule(lb.module);
-              var oldKeys = Object.keys(m);
-              for (var kk = 0; kk < oldKeys.length; kk++) {
-                try {
-                  delete m[oldKeys[kk]];
-                } catch (err) {}
-              }
-              var nk = Object.keys(c);
-              for (var j2 = 0; j2 < nk.length; j2++) m[nk[j2]] = c[nk[j2]];
-              moduleColorEl = null;
-              moduleSizeEl = null;
-              renderModuleEditor();
-            });
-            lrow.appendChild(lbtn);
-            var ldel = document.createElement('button');
-            ldel.type = 'button';
-            ldel.className = 'dshwv-bubmini';
-            ldel.textContent = '✕';
-            ldel.title = '从模块库删除';
-            ldel.addEventListener('click', function () {
-              showConfirm('从模块库删除「' + lb.name + '」?', function () {
-                bubbleLibDel(lb.id);
-                renderModuleEditor();
-                if (bubblePalEl) renderBubblePal();
-              });
-            });
-            lrow.appendChild(ldel);
-            moduleBodyEl.appendChild(lrow);
-          })(bubbleLib[li3]);
-        }
-      }
-      if (m.type === 'text') {
-        var ti = document.createElement('input');
-        ti.type = 'text';
-        ti.className = 'dshwv-cropname';
-        ti.maxLength = 60;
-        ti.value = m.text || '';
-        ti.placeholder = '文本内容';
-        ti.addEventListener('input', function () {
-          m.text = ti.value || ' ';
-        });
-        moduleBodyEl.appendChild(ti);
-      } else if (m.type === 'random') {
-        var hint = document.createElement('div');
-        hint.className = 'dshwv-linehead';
-        var hw = document.createElement('span');
-        hw.className = 'dshwv-lhw';
-        hw.textContent = '权重';
-        hint.appendChild(hw);
-        var hc = document.createElement('span');
-        hc.className = 'dshwv-lhc';
-        hc.textContent = '内容';
-        hint.appendChild(hc);
-        var ho = document.createElement('span');
-        ho.className = 'dshwv-lho';
-        ho.textContent = '操作';
-        hint.appendChild(ho);
-        moduleBodyEl.appendChild(hint);
-        if (!Array.isArray(m.lines)) m.lines = [];
-        var listEl = document.createElement('div');
-        listEl.className = 'dshwv-listbox';
-        listEl.style.maxHeight = '240px';
-        listEl.style.overflowY = 'auto';
-        listEl.style.paddingRight = '2px';
-        moduleBodyEl.appendChild(listEl);
-        function renderLines() {
-          listEl.innerHTML = '';
-          for (var i = 0; i < m.lines.length; i++) {
-            (function (idx) {
-              var l = m.lines[idx];
-              if (!l) return;
-              var wrap = document.createElement('div');
-              wrap.className = 'dshwv-linerow';
-              var lr = document.createElement('div');
-              lr.className = 'dshwv-audiorow';
-              var wt = document.createElement('input');
-              wt.type = 'number';
-              wt.min = '1';
-              wt.max = '99';
-              wt.className = 'dshwv-linew';
-              wt.value = String(l.w || 1);
-              wt.title = '权重';
-              wt.addEventListener('input', function () {
-                l.w = Math.max(1, Math.round(Number(wt.value) || 1));
-              });
-              lr.appendChild(wt);
-              var tx = document.createElement('input');
-              tx.type = 'text';
-              tx.className = 'dshwv-linetx';
-              tx.value = l.t;
-              tx.placeholder = '句子';
-              tx.addEventListener('input', function () {
-                l.t = tx.value || ' ';
-              });
-              lr.appendChild(tx);
-              var ed = document.createElement('button');
-              ed.type = 'button';
-              ed.className = 'dshwv-bubmini';
-              ed.textContent = '✎';
-              ed.title = '该句悬浮样式编辑(句子/字号/字体/颜色/字形)';
-              ed.addEventListener('click', function (e) {
-                e.stopPropagation();
-                openQuickSentenceEditor(l, m, tx, ed);
-              });
-              lr.appendChild(ed);
-              var cp = document.createElement('button');
-              cp.type = 'button';
-              cp.className = 'dshwv-bubmini';
-              cp.textContent = '⧉';
-              cp.title = '复制该行(含样式)';
-              cp.addEventListener('click', function () {
-                m.lines.splice(idx + 1, 0, JSON.parse(JSON.stringify(l)));
-                renderLines();
-              });
-              lr.appendChild(cp);
-              var del = document.createElement('button');
-              del.type = 'button';
-              del.className = 'dshwv-linedel';
-              del.textContent = '✕';
-              del.title = '删除该句';
-              del.addEventListener('click', function () {
-                m.lines.splice(idx, 1);
-                renderLines();
-              });
-              lr.appendChild(del);
-              wrap.appendChild(lr);
-              listEl.appendChild(wrap);
-            })(i);
-          }
-        }
-        renderLines();
-        var addL = document.createElement('button');
-        addL.type = 'button';
-        addL.className = 'dshwv-addline';
-        addL.textContent = '+ 添加语句';
-        addL.addEventListener('click', function () {
-          m.lines.push({
-            t: '新句子',
-            w: 1
-          });
-          renderLines();
-        });
-        moduleBodyEl.appendChild(addL);
-      } else if (m.type === 'randimg') {
-        if (!Array.isArray(m.imgs)) m.imgs = [];
-        var randomImageHint = document.createElement('div'); randomImageHint.className = 'dshwv-bubhint';
-        randomImageHint.textContent = '每次打开泡泡时按权重随机抽取一张图片。图片可先在资源管理中导入。'; moduleBodyEl.appendChild(randomImageHint);
-        var randomImageList = document.createElement('div'); randomImageList.className = 'dshwv-listbox';
-        randomImageList.style.maxHeight = '230px'; randomImageList.style.overflowY = 'auto'; moduleBodyEl.appendChild(randomImageList);
-        function renderRandomImages() {
-          randomImageList.innerHTML = '';
-          for (var ri = 0; ri < m.imgs.length; ri++) (function (index) {
-            var item = m.imgs[index] || (m.imgs[index] = { imgId: '', w: 1 });
-            var row = document.createElement('div'); row.className = 'dshwv-audiorow';
-            var weight = document.createElement('input'); weight.type = 'number'; weight.min = '1'; weight.max = '99';
-            weight.className = 'dshwv-linew'; weight.value = String(item.w || 1); weight.title = '抽取权重';
-            weight.addEventListener('input', function () { item.w = Math.max(1, Math.round(Number(weight.value) || 1)); }); row.appendChild(weight);
-            var select = document.createElement('select'); select.className = 'dshwv-sound'; select.style.minWidth = '0';
-            var empty = document.createElement('option'); empty.value = ''; empty.textContent = '— 选择图片 —'; select.appendChild(empty);
-            for (var bi = 0; bi < bubbleImgList.length; bi++) { var option = document.createElement('option'); option.value = bubbleImgList[bi].id; option.textContent = bubbleImgList[bi].name; select.appendChild(option); }
-            select.value = item.imgId || ''; select.addEventListener('change', function () { item.imgId = select.value; }); row.appendChild(select); dshwCustSel(select);
-            var del = document.createElement('button'); del.type = 'button'; del.className = 'dshwv-linedel'; del.textContent = '✕'; del.title = '移除这张图片';
-            del.addEventListener('click', function () { m.imgs.splice(index, 1); renderRandomImages(); }); row.appendChild(del);
-            randomImageList.appendChild(row);
-          })(ri);
-        }
-        var addRandomImage = document.createElement('button'); addRandomImage.type = 'button'; addRandomImage.className = 'dshwv-addline'; addRandomImage.textContent = '+ 添加图片';
-        addRandomImage.addEventListener('click', function () { m.imgs.push({ imgId: bubbleImgList[0] && bubbleImgList[0].id || '', w: 1 }); renderRandomImages(); }); moduleBodyEl.appendChild(addRandomImage);
-        var randomScaleRow = document.createElement('div'); randomScaleRow.className = 'dshwv-audiorow';
-        var randomScaleLabel = document.createElement('span'); randomScaleLabel.textContent = '显示大小'; randomScaleRow.appendChild(randomScaleLabel);
-        var randomScale = document.createElement('input'); randomScale.type = 'range'; randomScale.min = '10'; randomScale.max = '100'; randomScale.step = '5'; randomScale.className = 'dshwv-cropzoom';
-        randomScale.value = String(Math.round(Math.max(.1, Math.min(1, Number(m.imgScale) || 1)) * 100)); randomScaleRow.appendChild(randomScale);
-        var randomScaleValue = document.createElement('span'); randomScaleValue.className = 'dshwv-volpct'; randomScaleValue.textContent = randomScale.value + '%'; randomScaleRow.appendChild(randomScaleValue);
-        randomScale.addEventListener('input', function () { m.imgScale = Number(randomScale.value) / 100; randomScaleValue.textContent = randomScale.value + '%'; }); moduleBodyEl.appendChild(randomScaleRow);
-        if (!bubbleImgList.length) loadBubbleImgs(renderRandomImages); else renderRandomImages();
-      } else if (m.type === 'image') {
-        moduleImgSelect = document.createElement('select');
-        moduleImgSelect.className = 'dshwv-sound';
-        moduleBodyEl.appendChild(moduleImgSelect);
-        moduleImgDrop = dshwCustSel(moduleImgSelect);
-        moduleImgPreviewEl = document.createElement('img');
-        moduleImgPreviewEl.className = 'dshwv-bubimgprev';
-        moduleImgPreviewEl.alt = '';
-        moduleBodyEl.appendChild(moduleImgPreviewEl);
-        function fillImgSel() {
-          moduleImgSelect.innerHTML = '';
-          var opt0 = document.createElement('option');
-          opt0.value = '';
-          opt0.textContent = '— 选择泡泡图库图片 —';
-          moduleImgSelect.appendChild(opt0);
-          for (var i = 0; i < bubbleImgList.length; i++) {
-            var o = document.createElement('option');
-            o.value = bubbleImgList[i].id;
-            o.textContent = bubbleImgList[i].name;
-            moduleImgSelect.appendChild(o);
-          }
-          if (m.imgId) moduleImgSelect.value = m.imgId;
-          moduleImgSelect.dispatchEvent(new Event('change'));
-          if (moduleImgDrop) moduleImgDrop.refresh();
-        }
-        moduleImgSelect.addEventListener('change', function () {
-          m.imgId = moduleImgSelect.value;
-          if (m.imgId) {
-            moduleImgPreviewEl.src = '/dsh-whale/bubble-img.png?id=' + encodeURIComponent(m.imgId);
-            moduleImgPreviewEl.style.display = 'block';
-          } else moduleImgPreviewEl.style.display = 'none';
-        });
-        var fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/png,image/gif';
-        fileInput.style.display = 'none';
-        var upBtn = document.createElement('button');
-        upBtn.type = 'button';
-        upBtn.className = 'dshwv-snapbtn dshwv-snapbtn-no';
-        upBtn.textContent = '上传图片(png/gif)';
-        upBtn.addEventListener('click', function () {
-          fileInput.click();
-        });
-        fileInput.addEventListener('change', function () {
-          var f = fileInput.files && fileInput.files[0];
-          if (!f) return;
-          bubbleUploadImg(f, function (ok) {
-            if (ok) fillImgSel();
-            fileInput.value = '';
-          });
-        });
-        moduleBodyEl.appendChild(upBtn);
-        moduleBodyEl.appendChild(fileInput);
-        var scRow = document.createElement('div');
-        scRow.className = 'dshwv-audiorow';
-        var scL = document.createElement('span');
-        scL.textContent = '显示大小';
-        scRow.appendChild(scL);
-        var scInit = Number(m.imgScale);
-        if (!isFinite(scInit) || scInit <= 0) scInit = 1;
-        var scInp = document.createElement('input');
-        scInp.type = 'range';
-        scInp.min = '10';
-        scInp.max = '100';
-        scInp.step = '5';
-        scInp.className = 'dshwv-cropzoom';
-        scInp.style.flex = '1';
-        scInp.value = String(Math.round(scInit * 100));
-        scInp.addEventListener('input', function () {
-          m.imgScale = Math.max(0.1, Math.min(1, Number(scInp.value) / 100));
-          scVal.textContent = scInp.value + '%';
-          try {
-            if (moduleImgPreviewEl) moduleImgPreviewEl.style.maxWidth = Math.round(120 * m.imgScale) + 'px';
-          } catch (err) {}
-        });
-        scRow.appendChild(scInp);
-        var scVal = document.createElement('span');
-        scVal.className = 'dshwv-volpct';
-        scVal.textContent = scInp.value + '%';
-        scRow.appendChild(scVal);
-        moduleBodyEl.appendChild(scRow);
-        try {
-          if (moduleImgPreviewEl) moduleImgPreviewEl.style.maxWidth = Math.round(120 * scInit) + 'px';
-        } catch (err) {}
-        if (!bubbleImgList.length) loadBubbleImgs(fillImgSel); else fillImgSel();
-      } else {
-        {
-          var note = document.createElement('div');
-          note.className = 'dshwv-bubhint';
-          note.textContent = '该模块为内置数值,内容自动获取,可调下方颜色/字号';
-          moduleBodyEl.appendChild(note);
-          moduleTplRow();
-        }
-      }
-      if (m.type !== 'image' && m.type !== 'randimg' && m.type !== 'random') {
-        var sec = document.createElement('div');
-        sec.className = 'dshwv-bubsec';
-        sec.textContent = '样式';
-        moduleBodyEl.appendChild(sec);
-        moduleBodyEl.appendChild(bubbleFontEditRow(function () {
-          return m.fontFamily || '';
-        }, function (v) {
-          m.fontFamily = v || '';
-        }));
-        var sizeRow = document.createElement('div');
-        sizeRow.className = 'dshwv-audiorow';
-        var sl = document.createElement('span');
-        sl.textContent = '字号';
-        sizeRow.appendChild(sl);
-        moduleSizeEl = document.createElement('input');
-        moduleSizeEl.type = 'range';
-        moduleSizeEl.min = '1';
-        moduleSizeEl.max = '50';
-        moduleSizeEl.step = '1';
-        moduleSizeEl.className = 'dshwv-cropzoom';
-        moduleSizeEl.value = String(m.size || 6);
-        sizeRow.appendChild(moduleSizeEl);
-        var sizeNum = document.createElement('span');
-        sizeNum.className = 'dshwv-volpct';
-        sizeNum.textContent = String(m.size || 6);
-        moduleSizeEl.addEventListener('input', function () {
-          sizeNum.textContent = moduleSizeEl.value;
-        });
-        sizeRow.appendChild(sizeNum);
-        moduleBodyEl.appendChild(sizeRow);
-        var glyphRow = document.createElement('div');
-        glyphRow.className = 'dshwv-audiorow';
-        function glyphBox(label, key) {
-          var lab = document.createElement('label');
-          lab.style.display = 'inline-flex';
-          lab.style.alignItems = 'center';
-          lab.style.gap = '3px';
-          lab.style.marginRight = '10px';
-          var cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.checked = !!m[key];
-          cb.addEventListener('change', function () {
-            m[key] = cb.checked;
-          });
-          var tx = document.createElement('span');
-          tx.textContent = label;
-          lab.appendChild(cb);
-          lab.appendChild(tx);
-          return lab;
-        }
-        glyphRow.appendChild(glyphBox('加粗', 'bold'));
-        glyphRow.appendChild(glyphBox('斜体', 'italic'));
-        glyphRow.appendChild(glyphBox('下划线', 'ul'));
-        moduleBodyEl.appendChild(glyphRow);
-        {
-          var w3cc = qColorSelectBuild(m.rgb ? m.rgb : 'solid', function (v) {
-            if (v === 'solid') {
-              m.rgb = '';
-              if (!m.color) m.color = '#203170';
-            } else {
-              m.rgb = v;
-              m.color = '';
-            }
-            var mode2 = v === 'solid' ? 'solid' : v;
-            w3cc.sync(mode2, m.color, function (hex) {
-              m.color = hex;
-            });
-          });
-          moduleBodyEl.appendChild(w3cc.row);
-          w3cc.sync(m.rgb ? m.rgb : 'solid', m.color || '#203170', function (hex) {
-            m.color = hex;
-          });
-        }
-        {
-          var bgCur = m.bgRgb ? m.bgRgb : m.bg ? 'solid' : 'none';
-          var bgcc = qColorSelectBuild(bgCur, function (v) {
-            if (v === 'none') {
-              m.bgRgb = '';
-              m.bg = '';
-            } else if (v === 'solid') {
-              m.bgRgb = '';
-              if (!m.bg) m.bg = '#dbe4f5';
-            } else {
-              m.bgRgb = v;
-              m.bg = '';
-            }
-            bgcc.sync(v === 'none' ? 'none' : v, m.bg, function (hex) {
-              m.bg = hex;
-            });
-          }, {
-            label: '底色',
-            defaultHex: '#dbe4f5',
-            defaultText: '默认',
-            allowNone: true
-          });
-          moduleBodyEl.appendChild(bgcc.row);
-          bgcc.sync(bgCur, m.bg || '#dbe4f5', function (hex) {
-            m.bg = hex;
-          });
-        }
-      }
-    }
+    var moduleEditorView = createModuleEditorView({
+      document: document,
+      getLib: function () { return bubbleEditorState.lib; },
+      getPalEl: function () { return bubbleEditorState.palEl; },
+      getImgList: function () { return bubbleImgList; },
+      loadImgs: loadBubbleImgs, uploadImg: bubbleUploadImg,
+      fontEditRow: bubbleFontEditRow, colorSelect: qColorSelectBuild,
+      openSentence: openQuickSentenceEditor, renderPal: function () { return renderBubblePal(); },
+      typeName: moduleTypeName, tplHelp: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); },
+      enhanceSelect: dshwCustSel, cloneModule: bubbleCloneModule,
+      confirm: showConfirm, libDelete: bubbleLiblibDel
+    });
+    function renderModuleEditor() { return moduleEditorView.render(moduleEditRef, moduleEditNew, moduleTitleEl, moduleBodyEl); }
     var moduleNamePromptModule = null;
     function openModuleNamePrompt(m) {
       try {
@@ -2976,10 +1898,10 @@ import {
         closeModuleNamePrompt();
         return;
       }
-      bubbleLibAdd(moduleNameInput.value, m);
+      bubbleLiblibAdd(moduleNameInput.value, m);
       moduleNameInput.value = '';
       closeModuleNamePrompt();
-      if (bubblePalEl) renderBubblePal();
+      if (bubbleEditorState.palEl) renderBubblePal();
     }
     function openModuleEditor(m, onSave, isNew) {
       try {
@@ -2994,8 +1916,8 @@ import {
     function closeModuleEditor(saved) {
       try {
         if (saved && moduleEditRef) {
-          if (moduleColorEl) moduleEditRef.color = moduleColorEl.value === '#203170' && !moduleEditRef.color ? '' : moduleColorEl.value;
-          if (moduleSizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleSizeEl.value) || 6)));
+          if (moduleEditorView.colorEl) moduleEditRef.color = moduleEditorView.colorEl.value === '#203170' && !moduleEditRef.color ? '' : moduleEditorView.colorEl.value;
+          if (moduleEditorView.sizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleEditorView.sizeEl.value) || 6)));
           if (moduleEditRef.type === 'image' && !moduleEditRef.imgId) {
             showConfirm('请先选择或上传一张图片', function () {});
             return;
@@ -3082,296 +2004,18 @@ import {
         if (e.key === 'Enter') saveModuleNamePrompt(); else if (e.key === 'Escape') closeModuleNamePrompt();
       } catch (err) {}
     });
-    var CROP_BOX = 260;
-    var cropMask = document.createElement('div');
-    cropMask.className = 'dshwv-cropmask';
-    cropMask.style.display = 'none';
-    var cropCard = document.createElement('div');
-    cropCard.className = 'dshwv-cropwin';
-    var cropTitle = document.createElement('div');
-    cropTitle.className = 'dshwv-croptitle';
-    cropTitle.textContent = '裁剪角色图片';
-    var cropBox = document.createElement('div');
-    cropBox.className = 'dshwv-cropbox';
-    var cropCanvas = document.createElement('canvas');
-    cropCanvas.width = CROP_BOX;
-    cropCanvas.height = CROP_BOX;
-    cropBox.appendChild(cropCanvas);
-    var cropZoom = document.createElement('input');
-    cropZoom.type = 'range';
-    cropZoom.min = '0.3';
-    cropZoom.max = '3';
-    cropZoom.step = '0.01';
-    cropZoom.value = '1';
-    cropZoom.className = 'dshwv-cropzoom';
-    var cropZoomWrap = document.createElement('div');
-    cropZoomWrap.className = 'dshwv-cropctrl';
-    var cropZoomLabel = document.createElement('span');
-    cropZoomLabel.className = 'dshwv-croplabel';
-    cropZoomLabel.textContent = '缩放';
-    var cropZoomNum = document.createElement('input');
-    cropZoomNum.type = 'number';
-    cropZoomNum.min = '30';
-    cropZoomNum.max = '300';
-    cropZoomNum.step = '1';
-    cropZoomNum.value = '100';
-    cropZoomNum.className = 'dshwv-cropnum';
-    cropZoomWrap.appendChild(cropZoomLabel);
-    cropZoomWrap.appendChild(cropZoom);
-    cropZoomWrap.appendChild(cropZoomNum);
-    var cropNameInput = document.createElement('input');
-    cropNameInput.type = 'text';
-    cropNameInput.className = 'dshwv-cropname';
-    cropNameInput.maxLength = 16;
-    cropNameInput.placeholder = '角色名称';
-    var cropAngleWrap = document.createElement('div');
-    cropAngleWrap.className = 'dshwv-cropctrl';
-    var cropAngleLabel = document.createElement('span');
-    cropAngleLabel.className = 'dshwv-croplabel';
-    cropAngleLabel.textContent = '旋转';
-    var cropFlipHBtn = document.createElement('button');
-    cropFlipHBtn.type = 'button';
-    cropFlipHBtn.className = 'dshwv-cropflip';
-    cropFlipHBtn.textContent = '⇋';
-    cropFlipHBtn.title = '水平翻转';
-    var cropFlipVBtn = document.createElement('button');
-    cropFlipVBtn.type = 'button';
-    cropFlipVBtn.className = 'dshwv-cropflip';
-    cropFlipVBtn.textContent = '⇅';
-    cropFlipVBtn.title = '垂直翻转';
-    var cropAngle = document.createElement('input');
-    cropAngle.type = 'range';
-    cropAngle.min = '-360';
-    cropAngle.max = '360';
-    cropAngle.step = '1';
-    cropAngle.value = '0';
-    cropAngle.className = 'dshwv-cropzoom';
-    var cropAngleNum = document.createElement('input');
-    cropAngleNum.type = 'number';
-    cropAngleNum.min = '-360';
-    cropAngleNum.max = '360';
-    cropAngleNum.step = '1';
-    cropAngleNum.value = '0';
-    cropAngleNum.className = 'dshwv-cropnum';
-    cropAngleWrap.appendChild(cropAngleLabel);
-    cropAngleWrap.appendChild(cropFlipHBtn);
-    cropAngleWrap.appendChild(cropFlipVBtn);
-    cropAngleWrap.appendChild(cropAngle);
-    cropAngleWrap.appendChild(cropAngleNum);
-    var cropBtns = document.createElement('div');
-    cropBtns.className = 'dshwv-cropbtns';
-    var cropCancelBtn = document.createElement('button');
-    cropCancelBtn.type = 'button';
-    cropCancelBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    cropCancelBtn.textContent = '取消';
-    var cropResetBtn = document.createElement('button');
-    cropResetBtn.type = 'button';
-    cropResetBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    cropResetBtn.textContent = '重置';
-    cropResetBtn.title = '重置缩放、旋转和位置';
-    var cropOkBtn = document.createElement('button');
-    cropOkBtn.type = 'button';
-    cropOkBtn.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    cropOkBtn.textContent = '确认';
-    cropBtns.appendChild(cropCancelBtn);
-    cropBtns.appendChild(cropResetBtn);
-    cropBtns.appendChild(cropOkBtn);
-    cropCard.appendChild(cropTitle);
-    cropCard.appendChild(cropBox);
-    cropCard.appendChild(cropNameInput);
-    cropCard.appendChild(cropZoomWrap);
-    cropCard.appendChild(cropAngleWrap);
-    cropCard.appendChild(cropBtns);
-    cropMask.appendChild(cropCard);
-    document.body.appendChild(cropMask);
-    cropBox.addEventListener('pointerdown', onCropDown);
-    cropBox.addEventListener('pointermove', onCropMove);
-    cropBox.addEventListener('pointerup', onCropUp);
-    cropBox.addEventListener('pointercancel', onCropUp);
-    cropBox.addEventListener('pointerleave', onCropUp);
-    cropBox.addEventListener('wheel', onCropWheel, {
-      passive: false
+    var roleCrop = createRoleCropEditor({
+      document: document, window: window, requestJson: requestJson, roleUrl: ROLE_URL, Image: Image,
+      roleManager: roleManager, requireSaved: requireSaved, assetNotice: assetNotice,
+      assetFailure: assetFailure, mediaDataUrl: mediaDataUrl, mediaGuard: WhaleMediaGuard,
+      openGifRole: function (dataUrl, fileName, format) { openGifRoleModal(dataUrl, fileName, format); }
     });
-    cropAngle.addEventListener('input', function () {
-      if (cropState) {
-        cropState.rotation = clampAngle(Number(cropAngle.value));
-        cropAngleNum.value = String(cropState.rotation);
-        positionCrop();
-      }
+    function onRoleFileChosen(input) { return roleCrop.openFile(input); }
+    var gifRoleDialog = createGifRoleDialog({
+      document: document, requestJson: requestJson, roleUrl: ROLE_URL,
+      roleManager: roleManager, requireSaved: requireSaved, assetFailure: assetFailure
     });
-    cropAngleNum.addEventListener('input', function () {
-      if (cropState) {
-        var v = Math.round(Number(cropAngleNum.value));
-        if (!isFinite(v)) v = 0;
-        cropState.rotation = clampAngle(v);
-        cropAngle.value = String(cropState.rotation);
-        positionCrop();
-      }
-    });
-    cropAngleNum.addEventListener('change', function () {
-      if (cropState) cropAngleNum.value = String(cropState.rotation);
-    });
-    cropZoom.addEventListener('input', function () {
-      if (cropState) {
-        cropState.zoom = Number(cropZoom.value);
-        cropZoomNum.value = String(Math.round(cropState.zoom * 100));
-        positionCrop();
-      }
-    });
-    cropZoomNum.addEventListener('input', function () {
-      if (cropState) {
-        var pct = Number(cropZoomNum.value);
-        if (!isFinite(pct)) pct = 100;
-        cropState.zoom = Math.min(3, Math.max(0.3, pct / 100));
-        cropZoom.value = String(cropState.zoom);
-        positionCrop();
-      }
-    });
-    cropZoomNum.addEventListener('change', function () {
-      if (cropState) cropZoomNum.value = String(Math.round(cropState.zoom * 100));
-    });
-    cropCancelBtn.addEventListener('click', function () {
-      hideCropModal();
-    });
-    cropResetBtn.addEventListener('click', function () {
-      resetCrop();
-    });
-    cropOkBtn.addEventListener('click', function () {
-      confirmCrop();
-    });
-    cropFlipHBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      flipCrop('H');
-    });
-    cropFlipVBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      flipCrop('V');
-    });
-    var gifMask = document.createElement('div');
-    gifMask.className = 'dshwv-gifmask';
-    gifMask.style.display = 'none';
-    var gifCard = document.createElement('div');
-    gifCard.className = 'dshwv-gifwin';
-    var gifTitle = document.createElement('div');
-    gifTitle.className = 'dshwv-giftitle';
-    gifTitle.textContent = '导入动图角色';
-    var gifPreviewBox = document.createElement('div');
-    gifPreviewBox.className = 'dshwv-gifpreview';
-    var gifPreviewImg = document.createElement('img');
-    gifPreviewImg.className = 'dshwv-gifpreviewimg';
-    gifPreviewImg.alt = '动图预览';
-    gifPreviewImg.draggable = false;
-    gifPreviewBox.appendChild(gifPreviewImg);
-    var gifHint = document.createElement('div');
-    gifHint.className = 'dshwv-gifhint';
-    gifHint.textContent = 'GIF 动图不支持裁剪，将按原始尺寸原样导入';
-    var gifNameInput = document.createElement('input');
-    gifNameInput.type = 'text';
-    gifNameInput.className = 'dshwv-gifname';
-    gifNameInput.maxLength = 16;
-    gifNameInput.placeholder = '角色名称';
-    var gifBtns = document.createElement('div');
-    gifBtns.className = 'dshwv-cropbtns';
-    var gifCancelBtn = document.createElement('button');
-    gifCancelBtn.type = 'button';
-    gifCancelBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    gifCancelBtn.textContent = '取消';
-    var gifOkBtn = document.createElement('button');
-    gifOkBtn.type = 'button';
-    gifOkBtn.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    gifOkBtn.textContent = '确认';
-    gifBtns.appendChild(gifCancelBtn);
-    gifBtns.appendChild(gifOkBtn);
-    gifCard.appendChild(gifTitle);
-    gifCard.appendChild(gifPreviewBox);
-    gifCard.appendChild(gifHint);
-    gifCard.appendChild(gifNameInput);
-    gifCard.appendChild(gifBtns);
-    gifMask.appendChild(gifCard);
-    document.body.appendChild(gifMask);
-    gifCancelBtn.addEventListener('click', hideGifRoleModal);
-    gifOkBtn.addEventListener('click', confirmGifRole);
-    var gifRoleDataUrl = null;
-    var gifRoleAnimType = 'gif';
-    function openGifRoleModal(dataUrl, fileName, animType) {
-      gifRoleDataUrl = dataUrl;
-      gifRoleAnimType = animType === 'apng' ? 'apng' : 'gif';
-      if (gifRoleAnimType === 'apng') {
-        gifTitle.textContent = '导入 APNG 动图角色';
-        gifHint.textContent = 'APNG 动图不支持裁剪，将按原始尺寸原样导入';
-      } else {
-        gifTitle.textContent = '导入 GIF 动图角色';
-        gifHint.textContent = 'GIF 动图不支持裁剪，将按原始尺寸原样导入';
-      }
-      gifNameInput.value = '';
-      gifPreviewImg.src = dataUrl;
-      gifMask.style.display = 'flex';
-    }
-    function hideGifRoleModal() {
-      gifMask.style.display = 'none';
-      gifRoleDataUrl = null;
-      gifRoleAnimType = 'gif';
-      gifPreviewImg.src = '';
-    }
-
-    // ==== [GIF 角色确认] ====
-    function confirmGifRole() {
-      try {
-        var name = (gifNameInput.value || '').trim().slice(0, 16) || '新角色';
-        if (!gifRoleDataUrl) {
-          hideGifRoleModal();
-          return;
-        }
-        fetch(ROLE_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: name,
-            image: gifRoleDataUrl,
-            format: gifRoleAnimType
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.roles)) {
-            roleManager.useImported(d.roles);
-            hideGifRoleModal();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
-    var confirmMask = document.createElement('div');
-    confirmMask.className = 'dshwv-confirmmask';
-    confirmMask.style.display = 'none';
-    var confirmCard = document.createElement('div');
-    confirmCard.className = 'dshwv-confirmwin';
-    var confirmText = document.createElement('div');
-    confirmText.className = 'dshwv-confirmtext';
-    var confirmBtns = document.createElement('div');
-    confirmBtns.className = 'dshwv-confirmbtns';
-    var confirmNoBtn = document.createElement('button');
-    confirmNoBtn.type = 'button';
-    confirmNoBtn.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    confirmNoBtn.textContent = '取消';
-    var confirmYesBtn = document.createElement('button');
-    confirmYesBtn.type = 'button';
-    confirmYesBtn.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    confirmYesBtn.textContent = '删除';
-    confirmBtns.appendChild(confirmNoBtn);
-    confirmBtns.appendChild(confirmYesBtn);
-    confirmCard.appendChild(confirmText);
-    confirmCard.appendChild(confirmBtns);
-    confirmMask.appendChild(confirmCard);
-    document.body.appendChild(confirmMask);
-    confirmNoBtn.addEventListener('click', hideConfirm);
-    confirmYesBtn.addEventListener('click', function () {
-      var cb = confirmCb;
-      hideConfirm();
-      if (cb) cb();
-    });
+    var openGifRoleModal = gifRoleDialog.open;
     var audioEditMask = document.createElement('div');
     audioEditMask.className = 'dshwv-audiomask';
     audioEditMask.style.display = 'none';
@@ -3615,29 +2259,6 @@ import {
     audioCropCard.appendChild(audioCropBtns);
     audioCropMask.appendChild(audioCropCard);
     document.body.appendChild(audioCropMask);
-    audioCropCancel.addEventListener('click', hideAudioCrop);
-    audioCropOk.addEventListener('click', confirmAudioCrop);
-    audioCropPlay.addEventListener('click', previewAudioCrop);
-    audioCropStart.addEventListener('input', onAudioCropStartInput);
-    audioCropEnd.addEventListener('input', onAudioCropEndInput);
-    audioCropStartNum.addEventListener('input', onAudioCropStartNumInput);
-    audioCropStartNum.addEventListener('change', onAudioCropStartNumChange);
-    audioCropEndNum.addEventListener('input', onAudioCropEndNumInput);
-    audioCropEndNum.addEventListener('change', onAudioCropEndNumChange);
-    audioCropZoomRange.addEventListener('input', onAudioCropZoomInput);
-    audioCropZoomNum.addEventListener('input', onAudioCropZoomNumInput);
-    audioCropZoomNum.addEventListener('change', onAudioCropZoomNumChange);
-    audioCropCanvas.addEventListener('wheel', onAudioCropWheel, {
-      passive: false
-    });
-    audioCropCanvas.addEventListener('pointerdown', onAudioCropSelDown);
-    audioCropCanvas.addEventListener('pointermove', onAudioCropSelMove);
-    audioCropCanvas.addEventListener('pointerup', onAudioCropSelUp);
-    audioCropCanvas.addEventListener('pointercancel', onAudioCropSelUp);
-    audioCropDual.addEventListener('pointerdown', onAudioCropDualDown);
-    audioCropDual.addEventListener('pointermove', onAudioCropDualMove);
-    audioCropDual.addEventListener('pointerup', onAudioCropDualUp);
-    audioCropDual.addEventListener('pointercancel', onAudioCropDualUp);
     var textBox = document.createElement('div');
     textBox.className = 'dshwv-text';
     var bubbleFrames = new WhaleRendering.BubbleRenderer(textBox, GIF_URL);
@@ -3758,6 +2379,8 @@ import {
       todayUsage: null,
       status: 'loading',
       message: '',
+      code: '',
+      updatedAt: null,
       flip: false
     };
     var drag = { active: false };
@@ -3988,30 +2611,29 @@ import {
     var bubbleCfg = null;
     var bubbleCfgLoaded = false;
     var bubbleCfgLoad = null;
-    var bubbleLib = [];
     var lastTurnNotice = null;
     function bubbleCloneModule(m) {
       var copy = JSON.parse(JSON.stringify(m || ({})));
       if (m && whaleMoneyTemplates.has(m)) whaleMoneyTemplates.set(copy, whaleMoneyTemplates.get(m));
       return copy;
     }
-    function bubbleLibAdd(name, module) {
+    function bubbleLiblibAdd(name, module) {
       try {
         if (!module) return null;
         var id = 'bmod_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
         var it = {
           id: id,
-          name: String(name || '').trim().slice(0, 20) || '模块' + (bubbleLib.length + 1),
+          name: String(name || '').trim().slice(0, 20) || '模块' + (bubbleEditorState.lib.length + 1),
           module: bubbleCloneModule(module)
         };
-        bubbleLib.push(it);
+        bubbleEditorState.lib.push(it);
         return it;
       } catch (err) {
         return null;
       }
     }
-    function bubbleLibDel(id) {
-      bubbleLib = bubbleLib.filter(function (x) {
+    function bubbleLiblibDel(id) {
+      bubbleEditorState.lib = bubbleEditorState.lib.filter(function (x) {
         return x.id !== id;
       });
     }
@@ -4069,7 +2691,7 @@ import {
       bubbleCfgLoad = assetClient.bubbleConfig().then(function (d) {
         if (!d) return false;
         bubbleCfg = d.config || null;
-        bubbleLib = bubbleCfg && Array.isArray(bubbleCfg.lib) ? JSON.parse(JSON.stringify(bubbleCfg.lib)) : [];
+        bubbleEditorState.lib = bubbleCfg && Array.isArray(bubbleCfg.lib) ? JSON.parse(JSON.stringify(bubbleCfg.lib)) : [];
         bubbleCfgLoaded = true;
         applyBubbleCfgSeq();
         return true;
@@ -4160,6 +2782,7 @@ import {
     }
     var bubbleContent = createBubbleContent({
       window: window, getState: function () { return state; },
+      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
       getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
       whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
       bubbleCloneModule: bubbleCloneModule
@@ -4196,6 +2819,11 @@ import {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
+      },
+      shouldAdvanceOnCharacter: function () {
+        return window.WhaleAccountView?.mode === 'subscription'
+          ? bubbleCfg?.subscriptionTapAdvance === true
+          : bubbleCfg?.tapAdvance === true;
       },
       canAdvance: function () { return bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length; },
       showNext: bubbleShowSeqNext,
@@ -4370,11 +2998,8 @@ import {
           } catch (err) {}
         }, FETCH_TIMEOUT_MS);
       } catch (err) {}
-      fetch(BALANCE_URL + (manual ? '?refresh=1' : ''), {
-        cache: 'no-store',
+      requestJson(BALANCE_URL + (manual ? '?refresh=1' : ''), {
         signal: ctrl ? ctrl.signal : undefined
-      }).then(function (r) {
-        return r.json();
       }).then(function (data) {
         if (data && data.ok) {
           var nb = data.unlimited ? Infinity : Number(data.totalBalance);
@@ -4383,6 +3008,8 @@ import {
           state.currency = nc;
           WhaleMoney.setNativeCurrency(nc);
           state.message = '';
+          state.code = '';
+          state.updatedAt = Number(data.updatedAt) || Date.now();
           state.todayUsage = data.todayUsage !== undefined ? data.todayUsage : null;
           state.unlimited = !!data.unlimited;
           state.providerName = data.providerName || '';
@@ -4396,6 +3023,7 @@ import {
           state.status = 'ok';
         } else {
           state.status = 'error';
+          state.code = data && data.code || 'ERROR';
           state.message = data && data.error ? String(data.error) : '获取失败';
           window.dispatchEvent(new CustomEvent('whale-balance', {
             detail: data || ({
@@ -4405,6 +3033,7 @@ import {
         }
       }).catch(function () {
         state.status = 'error';
+        state.code = 'NETWORK';
         state.message = '获取失败';
       }).finally(function () {
         busy = false;
@@ -4791,229 +3420,6 @@ import {
       } catch (err) {}
     }
     // ==== [角色面板与裁图确认] ====
-    var confirmCb = null;
-    function showConfirm(text, cb, okLabel) {
-      confirmCb = cb || null;
-      confirmText.textContent = text;
-      try {
-        if (!okLabel) okLabel = String(text || '').indexOf('删除') !== -1 ? '删除' : '确定';
-        confirmYesBtn.textContent = okLabel;
-      } catch (err) {}
-      confirmMask.style.display = 'flex';
-    }
-    function hideConfirm() {
-      confirmMask.style.display = 'none';
-      confirmCb = null;
-    }
-    var cropState = null;
-    async function onRoleFileChosen(input) {
-      try {
-        var f = input && input.files && input.files[0];
-        input.value = '';
-        if (!f) return;
-        WhaleMediaGuard.checkFile(f, 'role');
-        var bytes = await f.arrayBuffer();
-        var media = WhaleMediaGuard.inspectImage(bytes, 'role');
-        var dataUrl = await mediaDataUrl(new Blob([bytes], { type: media.mime }));
-        if (media.animated && (media.format === 'gif' || media.format === 'apng')) openGifRoleModal(dataUrl, f.name, media.format);
-        else if (media.animated) throw new Error('动态角色请选择 GIF 或 APNG，避免导入后丢失动画');
-        else openCropModal(dataUrl, f.name);
-      } catch (err) { assetNotice(err.message); }
-    }
-    function openCropModal(dataUrl, fileName) {
-      try {
-        var imgEl = new Image();
-        imgEl.onload = function () {
-          cropState = {
-            img: imgEl,
-            zoom: 1,
-            ox: 0,
-            oy: 0,
-            rotation: 0,
-            flipH: false,
-            flipV: false,
-            baseScale: Math.max(CROP_BOX / imgEl.width, CROP_BOX / imgEl.height)
-          };
-          cropNameInput.value = '';
-          cropZoom.value = '1';
-          cropZoomNum.value = '100';
-          cropAngle.value = '0';
-          cropAngleNum.value = '0';
-          positionCrop();
-          cropMask.style.display = 'flex';
-        };
-        imgEl.onerror = function () { assetNotice('图片解码失败，请选择其他图片'); };
-        imgEl.src = dataUrl;
-      } catch (err) {}
-    }
-    function clampAngle(v) {
-      var n = Number(v);
-      if (!isFinite(n)) return 0;
-      return Math.min(360, Math.max(-360, Math.round(n)));
-    }
-    function cropDisplaySize() {
-      var s = cropState.baseScale * cropState.zoom;
-      var w = cropState.img.width * s;
-      var h = cropState.img.height * s;
-      var rad = cropState.rotation * Math.PI / 180;
-      var c = Math.abs(Math.cos(rad));
-      var sn = Math.abs(Math.sin(rad));
-      return {
-        w: w * c + h * sn,
-        h: w * sn + h * c,
-        s: s
-      };
-    }
-    function positionCrop() {
-      if (!cropState) return;
-      var d = cropDisplaySize();
-      var maxOx = Math.max(0, (d.w - CROP_BOX) / 2);
-      var maxOy = Math.max(0, (d.h - CROP_BOX) / 2);
-      cropState.ox = Math.min(maxOx, Math.max(-maxOx, cropState.ox));
-      cropState.oy = Math.min(maxOy, Math.max(-maxOy, cropState.oy));
-      drawCrop();
-    }
-    function drawCrop() {
-      try {
-        if (!cropState) return;
-        var ctx = cropCanvas.getContext('2d');
-        var s = cropState.baseScale * cropState.zoom;
-        var rad = cropState.rotation * Math.PI / 180;
-        var w = cropState.img.width * s;
-        var h = cropState.img.height * s;
-        ctx.clearRect(0, 0, CROP_BOX, CROP_BOX);
-        ctx.save();
-        ctx.translate(CROP_BOX / 2 + cropState.ox, CROP_BOX / 2 + cropState.oy);
-        ctx.rotate(rad);
-        ctx.scale(cropState.flipH ? -1 : 1, cropState.flipV ? -1 : 1);
-        ctx.drawImage(cropState.img, -w / 2, -h / 2, w, h);
-        ctx.restore();
-      } catch (err) {}
-    }
-    var cropDrag = null;
-    function onCropDown(e) {
-      if (!cropState) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      cropDrag = {
-        x: e.clientX,
-        y: e.clientY,
-        ox: cropState.ox,
-        oy: cropState.oy
-      };
-    }
-    function onCropMove(e) {
-      if (!cropDrag || !cropState) return;
-      cropState.ox = cropDrag.ox + (e.clientX - cropDrag.x);
-      cropState.oy = cropDrag.oy + (e.clientY - cropDrag.y);
-      positionCrop();
-    }
-    function onCropUp() {
-      cropDrag = null;
-    }
-    function onCropWheel(e) {
-      if (!cropState) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      var delta = (e.deltaY > 0 ? -1 : 1) * 0.05;
-      cropState.zoom = Math.min(3, Math.max(0.3, cropState.zoom + delta));
-      cropZoom.value = String(Math.round(cropState.zoom * 100) / 100);
-      cropZoomNum.value = String(Math.round(cropState.zoom * 100));
-      positionCrop();
-    }
-    function resetCrop() {
-      if (!cropState) return;
-      cropState.zoom = 1;
-      cropState.ox = 0;
-      cropState.oy = 0;
-      cropState.rotation = 0;
-      cropState.flipH = false;
-      cropState.flipV = false;
-      cropZoom.value = '1';
-      cropZoomNum.value = '100';
-      cropAngle.value = '0';
-      cropAngleNum.value = '0';
-      cropFlipHBtn.classList.remove('dshwv-cropflip-on');
-      cropFlipVBtn.classList.remove('dshwv-cropflip-on');
-      positionCrop();
-    }
-    var cropFlipTimer = null;
-    function flipCrop(axis) {
-      if (!cropState) return;
-      try {
-        if (cropFlipTimer) {
-          clearTimeout(cropFlipTimer);
-          cropFlipTimer = null;
-        }
-      } catch (err) {}
-      var flipTarget = axis === 'H' ? 'scaleX(-1)' : 'scaleY(-1)';
-      cropCanvas.style.transition = 'transform .3s ease';
-      cropCanvas.style.transform = flipTarget;
-      cropFlipTimer = setTimeout(function () {
-        cropFlipTimer = null;
-        try {
-          if (axis === 'H') {
-            cropState.flipH = !cropState.flipH;
-            cropFlipHBtn.classList.toggle('dshwv-cropflip-on', cropState.flipH);
-          } else {
-            cropState.flipV = !cropState.flipV;
-            cropFlipVBtn.classList.toggle('dshwv-cropflip-on', cropState.flipV);
-          }
-          positionCrop();
-          requestAnimationFrame(function () {
-            cropCanvas.style.transition = '';
-            cropCanvas.style.transform = '';
-          });
-        } catch (err) {}
-      }, 300);
-    }
-    function confirmCrop() {
-      try {
-        if (!cropState) return;
-        var name = (cropNameInput.value || '').trim().slice(0, 16) || '新角色';
-        var s = cropState.baseScale * cropState.zoom;
-        var k = 610 / CROP_BOX;
-        var rad = cropState.rotation * Math.PI / 180;
-        var w = cropState.img.width * s * k;
-        var h = cropState.img.height * s * k;
-        var out = document.createElement('canvas');
-        out.width = 610;
-        out.height = 610;
-        var octx = out.getContext('2d');
-        octx.translate(305 + cropState.ox * k, 305 + cropState.oy * k);
-        octx.rotate(rad);
-        octx.scale(cropState.flipH ? -1 : 1, cropState.flipV ? -1 : 1);
-        octx.drawImage(cropState.img, -w / 2, -h / 2, w, h);
-        var dataUrl = out.toDataURL('image/png');
-        fetch(ROLE_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: name,
-            image: dataUrl
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.roles)) {
-            roleManager.useImported(d.roles);
-            hideCropModal();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
-    function hideCropModal() {
-      cropMask.style.display = 'none';
-      cropState = null;
-      cropDrag = null;
-    }
     var AUDIO_URL = '/dsh-whale/audio.json';
     var audioGroups = [];
     var audioFragments = [];
@@ -5089,935 +3495,82 @@ import {
     }
 
     // ==== [音频组与槽面板] ====
-    function renderAudioGroupPanel() {
-      try {
-        audioGroupPanel.innerHTML = '';
-        audioGroups.forEach(function (g) {
-          var item = document.createElement('div');
-          item.className = 'dshwv-audioitem' + (soundSet === g.id ? ' dshwv-audioitem-cur' : '');
-          var thumb = document.createElement('span');
-          thumb.className = 'dshwv-audiothumb';
-          thumb.setAttribute('aria-hidden', 'true');
-          item.appendChild(thumb);
-          var name = makeNameCell('dshwv-audioname', g.name);
-          item.appendChild(name);
-          if (g.preset) {
-            var tag = document.createElement('span');
-            tag.className = 'dshwv-audiopreset';
-            tag.textContent = '预设';
-            item.appendChild(tag);
-          } else {
-            var pin = document.createElement('button');
-            pin.type = 'button';
-            pin.className = 'dshwv-audiopin' + (g.pinned ? ' on' : '');
-            pin.textContent = '📌';
-            pin.title = g.pinned ? '取消置顶' : '置顶';
-            pin.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioPinGroup(g.id, !g.pinned);
-            });
-            item.appendChild(pin);
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'dshwv-audiodel';
-            del.textContent = '✕';
-            del.title = '删除音效组';
-            del.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioDeleteGroup(g.id);
-            });
-            item.appendChild(del);
-          }
-          item.addEventListener('click', function () {
-            setSoundSet(g.id);
-            closeAudioGroupPanel();
-          });
-          bindNameMarquee(item, name);
-          audioGroupPanel.appendChild(item);
-        });
-      } catch (err) {}
-    }
-    function audioPinGroup(id, pinned) {
-      try {
-        fetch(AUDIO_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'pin-group',
-            id: id,
-            pinned: pinned
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.groups)) {
-            audioGroups = d.groups;
-            renderAudioGroupPanel();
-            refreshTaskEndAfterAudio();
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
-    function audioDeleteGroup(id) {
-      var g = null;
-      for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === id) {
-        g = audioGroups[i];
-        break;
-      }
-      showConfirm('确定删除音效组「' + (g ? g.name : id) + '」吗？', function () {
-        try {
-          fetch(AUDIO_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              action: 'delete-group',
-              id: id
-            })
-          }).then(function (r) {
-            return r.json();
-          }).then(function (d) {
-          requireSaved(d);
-            if (d && d.ok && Array.isArray(d.groups)) {
-              audioGroups = d.groups;
-              renderAudioGroupPanel();
-              refreshTaskEndAfterAudio();
-              if (soundSet === id) setSoundSet('duck');
-            }
-          }).catch(assetFailure);
-        } catch (err) { assetFailure(err); }
-      });
-    }
-    var editingAudioGroupId = null;
-    var audioEditorSession = null;
-    var activeSlotPanel = null;
+    var audioGroupList = createAudioGroupList({
+      document: document, requestJson: requestJson, url: AUDIO_URL,
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
+      getPanel: function () { return audioGroupPanel; }, closePanel: closeAudioGroupPanel,
+      makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
+      requireSaved: requireSaved, assetFailure: assetFailure, showConfirm: showConfirm,
+      refreshTaskEnd: refreshTaskEndAfterAudio
+    });
+    var renderAudioGroupPanel = audioGroupList.render;
     var audioEditPressVal = 'ya1';
     var audioEditReleaseVal = 'ya2';
-    function audioSlotName(id) {
-      for (var i = 0; i < audioFragments.length; i++) if (audioFragments[i].id === id) return audioFragments[i].name;
-      return id;
-    }
-    function audioSlotBtnText(btn, id) {
-      try {
-        var txt = audioSlotName(id);
-        btn.style.opacity = txt ? '' : '.55';
-        btn.textContent = txt || '留空·不发声';
-        btn.title = '留空则该事件不发声;点击可选择音频片段';
-      } catch (err) {}
-      return btn;
-    }
-    function openAudioGroupEditor(group) {
-      editingAudioGroupId = group && group.id ? group.id : null;
-      audioEditTitle.textContent = editingAudioGroupId ? '编辑音效组' : '新建音效组';
-      audioEditName.value = group && group.name ? group.name : '';
-      var isNewGroup = !(group && group.id);
-      audioEditPressVal = group && typeof group.press === 'string' ? group.press : isNewGroup ? '' : 'ya1';
-      audioEditReleaseVal = group && typeof group.release === 'string' ? group.release : isNewGroup ? '' : 'ya2';
-      audioEditPressBtn.textContent = audioSlotName(audioEditPressVal);
-      audioEditReleaseBtn.textContent = audioSlotName(audioEditReleaseVal);
-      audioSlotBtnText(audioEditPressBtn, audioEditPressVal);
-      audioSlotBtnText(audioEditReleaseBtn, audioEditReleaseVal);
-      audioEditPreviewEnsure();
-      audioEditMask.style.display = 'flex';
-    }
-    function toggleAudioSlotPanel(slot) {
-      var btn = slot === 'press' ? audioEditPressBtn : audioEditReleaseBtn;
-      var panel = slot === 'press' ? audioEditPressPanel : audioEditReleasePanel;
-      if (activeSlotPanel === panel) {
-        closeAudioSlotPanels();
-        return;
-      }
-      closeAudioSlotPanels();
-      activeSlotPanel = panel;
-      renderAudioSlotPanel(slot);
-      try {
-        var b = btn.getBoundingClientRect();
-        var vp = viewport();
-        var panelW = Math.max(120, Math.round(b.width));
-        panel.style.width = panelW + 'px';
-        panel.style.left = Math.max(4, Math.min(b.left, vp.w - panelW - 4)) + 'px';
-        panel.style.top = b.bottom + 4 + 'px';
-        panel.style.display = 'block';
-      } catch (err) {}
-    }
-    function closeAudioSlotPanels() {
-      if (audioEditPressPanel) audioEditPressPanel.style.display = 'none';
-      if (audioEditReleasePanel) audioEditReleasePanel.style.display = 'none';
-      activeSlotPanel = null;
-    }
-    function renderAudioSlotPanel(slot) {
-      try {
-        var panel = slot === 'press' ? audioEditPressPanel : audioEditReleasePanel;
-        var current = slot === 'press' ? audioEditPressVal : audioEditReleaseVal;
-        panel.innerHTML = '';
-        var emptyItem = document.createElement('div');
-        emptyItem.className = 'dshwv-audioitem' + (!current ? ' dshwv-audioitem-cur' : '');
-        var emptyIcon = document.createElement('span');
-        emptyIcon.className = 'dshwv-audiothumb dshwv-audiothumb-empty';
-        emptyIcon.setAttribute('aria-hidden', 'true');
-        emptyItem.appendChild(emptyIcon);
-        var emptyName = makeNameCell('dshwv-audioname', '留空（不发声）');
-        emptyItem.appendChild(emptyName);
-        emptyItem.addEventListener('click', function () {
-          if (slot === 'press') {
-            audioEditPressVal = '';
-            audioSlotBtnText(audioEditPressBtn, '');
-          } else {
-            audioEditReleaseVal = '';
-            audioSlotBtnText(audioEditReleaseBtn, '');
-          }
-          audioEditPreviewEnsure(true);
-          closeAudioSlotPanels();
-        });
-        bindNameMarquee(emptyItem, emptyName);
-        panel.appendChild(emptyItem);
-        audioFragments.forEach(function (f) {
-          var item = document.createElement('div');
-          item.className = 'dshwv-audioitem' + (current === f.id ? ' dshwv-audioitem-cur' : '');
-          var thumb = document.createElement('span');
-          thumb.className = 'dshwv-audiothumb';
-          thumb.setAttribute('aria-hidden', 'true');
-          item.appendChild(thumb);
-          var name = makeNameCell('dshwv-audioname', f.name);
-          item.appendChild(name);
-          if (f.preset) {
-            var tag = document.createElement('span');
-            tag.className = 'dshwv-audiopreset';
-            tag.textContent = '预设';
-            item.appendChild(tag);
-          } else {
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'dshwv-audiodel';
-            del.textContent = '✕';
-            del.title = '删除该音频';
-            del.addEventListener('click', function (e) {
-              e.stopPropagation();
-              audioDeleteFragmentInSlot(slot, f.id);
-            });
-            item.appendChild(del);
-          }
-          item.addEventListener('click', function () {
-            if (slot === 'press') {
-              audioEditPressVal = f.id;
-              audioSlotBtnText(audioEditPressBtn, f.id);
-            } else {
-              audioEditReleaseVal = f.id;
-              audioSlotBtnText(audioEditReleaseBtn, f.id);
-            }
-            audioEditPreviewEnsure(true);
-            closeAudioSlotPanels();
-          });
-          bindNameMarquee(item, name);
-          panel.appendChild(item);
-        });
-      } catch (err) {}
-    }
-    function hideAudioEditor(outcome, detail) {
-      stopAudioEditPreview();
-      audioEditMask.style.display = 'none';
-      editingAudioGroupId = null;
-      closeAudioSlotPanels();
-      if (audioEditorSession) {
-        var session = audioEditorSession;
-        audioEditorSession = null;
-        audioEditMask.style.zIndex = session.zIndex;
-        session.resolve(outcome === 'saved' ? Object.assign({ status: 'saved' }, detail || {}) : { status: 'cancelled' });
-      }
-    }
-    function openAudioEditorForFeature(options) {
-      options = options || {};
-      if (audioEditorSession) {
-        var previous = audioEditorSession;
-        audioEditorSession = null;
-        audioEditMask.style.zIndex = previous.zIndex;
-        previous.resolve({ status: 'cancelled' });
-      }
-      var group = null;
-      if (options.groupId) {
-        for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === options.groupId) group = audioGroups[i];
-      }
-      return new Promise(function (resolve) {
-        audioEditorSession = { resolve: resolve, zIndex: audioEditMask.style.zIndex };
-        audioEditMask.style.zIndex = '27000';
-        openAudioGroupEditor(group);
-      });
-    }
-    var audioEditPreviewEl = null;
-    var audioEditPreviewRelease = null;
-    var audioEditPreviewTimer = null;
-    var audioEditPreviewReady = false;
-    var audioEditPreviewPressing = false;
-    var audioEditPreviewPressEnded = false;
-    var audioEditPreviewReleasePlayed = false;
-    function audioEditPreviewEnsure(force) {
-      try {
-        if (!force && audioEditPreviewReady) return true;
-        var pressId = audioEditPressVal || '';
-        var releaseId = audioEditReleaseVal || '';
-        try {
-          stopAudioEditPreview();
-        } catch (err) {}
-        try {
-          if (audioEditPreviewEl) {
-            audioEditPreviewEl.pause();
-            audioEditPreviewEl = null;
-          }
-          if (audioEditPreviewRelease) {
-            audioEditPreviewRelease.pause();
-            audioEditPreviewRelease = null;
-          }
-        } catch (err) {}
-        if (pressId) {
-          audioEditPreviewEl = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(pressId));
-          audioEditPreviewEl.preload = 'auto';
-          audioEditPreviewEl.volume = soundVol;
-        }
-        if (releaseId) {
-          audioEditPreviewRelease = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(releaseId));
-          audioEditPreviewRelease.preload = 'auto';
-          audioEditPreviewRelease.volume = soundVol;
-        }
-        audioEditPreviewReady = true;
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
-    function audioEditPreviewDown() {
-      try {
-        stopAudioEditPreview();
-        if (!audioEditPreviewEnsure()) return;
-        audioEditPreviewPressing = true;
-        audioEditPreviewPressEnded = false;
-        audioEditPreviewReleasePlayed = false;
-        if (!audioEditPreviewEl) {
-          audioEditPreviewPressEnded = true;
-          return;
-        }
-        audioEditPreviewEl.onended = function () {
-          audioEditPreviewPressEnded = true;
-          if (!audioEditPreviewPressing && !audioEditPreviewReleasePlayed) audioEditPreviewUp();
-        };
-        var p = audioEditPreviewEl.play();
-        if (p && typeof p.catch === 'function') p.catch(function () {});
-      } catch (err) {}
-    }
-    function audioEditPreviewUp() {
-      try {
-        if (!audioEditPreviewPressing) return;
-        audioEditPreviewPressing = false;
-        if (!audioEditPreviewEl) {
-          audioEditPreviewPlayRelease();
-          return;
-        }
-        if (audioEditPreviewPressEnded) {
-          audioEditPreviewPlayRelease();
-          return;
-        }
-        var durKnown = false;
-        var remainMs = 0;
-        try {
-          var dur = audioEditPreviewEl ? audioEditPreviewEl.duration : 0;
-          if (isFinite(dur) && dur > 0) {
-            durKnown = true;
-            remainMs = (dur - audioEditPreviewEl.currentTime) * 1000;
-          }
-        } catch (err) {}
-        if (durKnown) {
-          audioEditPreviewTimer = setTimeout(function () {
-            audioEditPreviewTimer = null;
-            audioEditPreviewPlayRelease();
-          }, Math.max(0, remainMs - 100));
-        }
-      } catch (err) {}
-    }
-    function audioEditPreviewPlayRelease() {
-      try {
-        if (audioEditPreviewReleasePlayed || !audioEditPreviewRelease) return;
-        audioEditPreviewReleasePlayed = true;
-        audioEditPreviewRelease.currentTime = 0;
-        var p = audioEditPreviewRelease.play();
-        if (p && typeof p.catch === 'function') p.catch(function () {});
-      } catch (err) {}
-    }
-    function stopAudioEditPreview() {
-      try {
-        if (audioEditPreviewTimer) {
-          clearTimeout(audioEditPreviewTimer);
-          audioEditPreviewTimer = null;
-        }
-        if (audioEditPreviewEl) {
-          audioEditPreviewEl.pause();
-          audioEditPreviewEl.currentTime = 0;
-        }
-        if (audioEditPreviewRelease) {
-          audioEditPreviewRelease.pause();
-          audioEditPreviewRelease.currentTime = 0;
-        }
-        audioEditPreviewPressing = false;
-        audioEditPreviewPressEnded = false;
-        audioEditPreviewReleasePlayed = false;
-      } catch (err) {}
-    }
-    function saveAudioGroup() {
-      try {
-        stopAudioEditPreview();
-        var name = (audioEditName.value || '').trim().slice(0, 20);
-        if (!name) {
-          audioEditName.focus();
-          return;
-        }
-        fetch(AUDIO_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'save-group',
-            id: editingAudioGroupId || '',
-            name: name,
-            press: audioEditPressVal || '',
-            release: audioEditReleaseVal || ''
-          })
-        }).then(function (r) {
-          return r.json();
-        }).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.groups)) {
-            var openedFromFeature = !!audioEditorSession;
-            var selectedGroupId = editingAudioGroupId || '';
-            audioGroups = d.groups;
-            if (Array.isArray(d.fragments)) audioFragments = d.fragments;
-            renderAudioGroupPanel();
-            refreshTaskEndAfterAudio();
-            if (!editingAudioGroupId) {
-              var newest = d.groups.filter(function (x) {
-                return !x.preset;
-              }).sort(function (a, b) {
-                return (b.pinnedAt || 0) - (a.pinnedAt || 0);
-              })[0];
-              if (newest) {
-                selectedGroupId = newest.id;
-                if (!openedFromFeature) setSoundSet(newest.id);
-              }
-            } else if (!openedFromFeature && soundSet === editingAudioGroupId) {
-              try {
-                applySoundSet();
-              } catch (err) { assetFailure(err); }
-            }
-            hideAudioEditor('saved', {
-              selectedGroupId: selectedGroupId,
-              catalog: { groups: audioGroups.slice(), fragments: audioFragments.slice() }
-            });
-          }
-        }).catch(assetFailure);
-      } catch (err) { assetFailure(err); }
-    }
+    var audioSlotPanel = createAudioSlotPanel({
+      document: document, viewport: viewport,
+      getFragments: function () { return audioFragments; },
+      getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
+      getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
+      getPressBtn: function () { return audioEditPressBtn; }, getReleaseBtn: function () { return audioEditReleaseBtn; },
+      getPressPanel: function () { return audioEditPressPanel; }, getReleasePanel: function () { return audioEditReleasePanel; },
+      makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
+      previewEnsure: audioEditPreviewEnsure, deleteFragment: audioDeleteFragmentInSlot
+    });
+    var toggleAudioSlotPanel = audioSlotPanel.toggle;
+    var closeAudioSlotPanels = audioSlotPanel.close;
+    var renderAudioSlotPanel = audioSlotPanel.render;
+    var audioGroupEditorApi = createAudioGroupEditor({
+      Audio: Audio, requestJson: requestJson, url: AUDIO_URL,
+      elements: {
+        mask: audioEditMask, card: audioEditCard, title: audioEditTitle, name: audioEditName,
+        play: audioEditPlay, cancel: audioEditCancel, save: audioEditSave,
+        pressImport: audioEditPressImport, releaseImport: audioEditReleaseImport
+      },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getFragments: function () { return audioFragments; }, setFragments: function (fragments) { audioFragments = fragments; },
+      getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
+      getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
+      getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
+      getVolume: function () { return soundVol; }, renderGroups: renderAudioGroupPanel,
+      refreshTaskEnd: refreshTaskEndAfterAudio, applySoundSet: applySoundSet,
+      slotPanel: audioSlotPanel,
+      startImport: function (slot) {
+        audioCropEditor.setTarget(slot);
+        audioCropFileInput.value = '';
+        audioCropFileInput.click();
+      },
+      requireSaved: requireSaved, assetFailure: assetFailure
+    });
+    function openAudioGroupEditor(group) { return audioGroupEditorApi.open(group); }
+    function hideAudioEditor(outcome, detail) { return audioGroupEditorApi.hide(outcome, detail); }
+    function openAudioEditorForFeature(options) { return audioGroupEditorApi.openForFeature(options); }
+    function saveAudioGroup() { return audioGroupEditorApi.save(); }
+    function audioEditPreviewDown() { return audioGroupEditorApi.previewDown(); }
+    function audioEditPreviewUp() { return audioGroupEditorApi.previewUp(); }
+    function audioEditPreviewEnsure(force) { return audioGroupEditorApi.ensurePreview(force); }
     var audioCropFileInput = document.createElement('input');
     audioCropFileInput.type = 'file';
     audioCropFileInput.accept = 'audio/*';
     audioCropFileInput.style.display = 'none';
     document.body.appendChild(audioCropFileInput);
-    var audioCropTarget = null;
-    var audioCropCtx = null;
-    var audioCropBuffer = null;
-    var audioCropZoom = 1;
-    var audioCropOffset = 0;
-    audioEditPressImport.addEventListener('click', function () {
-      audioCropTarget = 'press';
-      audioCropFileInput.click();
+    var audioCropEditor = createAudioCropEditor({
+      window: window,
+      elements: {
+        mask: audioCropMask, canvas: audioCropCanvas, start: audioCropStart, startNum: audioCropStartNum,
+        end: audioCropEnd, endNum: audioCropEndNum, dual: audioCropDual, dualFill: audioCropDualFill,
+        dualStart: audioCropDualStart, dualEnd: audioCropDualEnd, zoomRange: audioCropZoomRange,
+        zoomNum: audioCropZoomNum, time: audioCropTime, name: audioCropName, ok: audioCropOk,
+        cancel: audioCropCancel, play: audioCropPlay
+      },
+      requestJson: requestJson, uploadFragment: function (name, dataUrl) { return assetClient.uploadAudioFragment(name, dataUrl); },
+      getFragments: function () { return audioFragments; }, setFragments: function (value) { audioFragments = value; },
+      getGroups: function () { return audioGroups; }, setGroups: function (value) { audioGroups = value; },
+      applySlot: function (slot, id) { if (slot === 'press') audioEditPressVal = id; else audioEditReleaseVal = id; audioSlotPanel.refresh(); },
+      renderGroups: renderAudioGroupPanel, refreshSlot: function () { audioSlotPanel.refresh(); },
+      previewEnsure: audioEditPreviewEnsure, refreshTaskEnd: refreshTaskEndAfterAudio,
+      requireSaved: requireSaved, assetFailure: assetFailure, assetNotice: assetNotice
     });
-    audioEditReleaseImport.addEventListener('click', function () {
-      audioCropTarget = 'release';
-      audioCropFileInput.click();
-    });
-    audioCropFileInput.addEventListener('change', async function () {
-      var f = audioCropFileInput.files && audioCropFileInput.files[0];
-      audioCropFileInput.value = '';
-      if (!f) return;
-      try {
-        await WhaleMediaGuard.validateAudioFile(f);
-        openAudioCrop(await f.arrayBuffer(), f.name);
-      } catch (err) { assetNotice(err.message); }
-    });
-    function openAudioCrop(arrayBuf, fileName) {
-      try {
-        audioCropZoom = 1;
-        audioCropOffset = 0;
-        stopAudioCropPreview();
-        if (!audioCropCtx) {
-          try {
-            audioCropCtx = new (window.AudioContext || window.webkitAudioContext)();
-          } catch (err) {
-            audioCropCtx = null;
-          }
-        }
-        if (!audioCropCtx) {
-          assetNotice('当前环境不支持音频解码');
-          return;
-        }
-        audioCropCtx.decodeAudioData(arrayBuf, function (buf) {
-          var policy = WhaleMediaGuard.getPolicy();
-          if (!isFinite(buf.duration) || buf.duration <= 0 || buf.duration > policy.maxAudioSeconds ||
-              buf.numberOfChannels > policy.maxAudioChannels || buf.sampleRate > policy.maxAudioSampleRate) {
-            assetNotice('音频超出时长、声道或采样率限制，请选择较短的音频');
-            return;
-          }
-          audioCropBuffer = buf;
-          audioCropStart.value = '0';
-          audioCropEnd.value = '100';
-          audioCropStartNum.max = buf.duration.toFixed(3);
-          audioCropEndNum.max = buf.duration.toFixed(3);
-          audioCropZoomRange.value = '1';
-          audioCropZoomNum.value = '1';
-          drawAudioCrop();
-          try {
-            audioCropName.value = '';
-          } catch (err) {}
-          updateAudioCropOkState();
-          audioCropMask.style.display = 'flex';
-        }, function () {
-          assetNotice('音频解码失败');
-        });
-      } catch (err) {}
-    }
-    function audioCropRange() {
-      var b = audioCropBuffer;
-      if (!b) return null;
-      var s = Number(audioCropStart.value) / 100;
-      var e = Number(audioCropEnd.value) / 100;
-      if (e < s) {
-        var t = s;
-        s = e;
-        e = t;
-      }
-      return {
-        start: b.duration * s,
-        end: b.duration * e,
-        s: s,
-        e: e
-      };
-    }
-    function onAudioCropWheel(e) {
-      if (!audioCropBuffer) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      var maxOff = Math.max(0, 1 - 1 / audioCropZoom);
-      if (maxOff <= 0) return;
-      var dx = (e.deltaY || 0) + (e.deltaX || 0);
-      if (dx === 0) return;
-      var move = dx / audioCropCanvas.width / audioCropZoom;
-      audioCropOffset = Math.min(maxOff, Math.max(0, audioCropOffset + move));
-      drawAudioCrop();
-    }
-    function drawAudioCrop(skipSync) {
-      try {
-        if (!audioCropBuffer) return;
-        var r = audioCropRange();
-        audioCropTime.textContent = r.start.toFixed(1) + 's – ' + r.end.toFixed(1) + 's' + '（共 ' + audioCropBuffer.duration.toFixed(1) + 's，缩放 x' + audioCropZoom.toFixed(1) + '）';
-        var ctx = audioCropCanvas.getContext('2d');
-        var W = audioCropCanvas.width, H = audioCropCanvas.height;
-        ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = '#f3f5fb';
-        ctx.fillRect(0, 0, W, H);
-        var ch = audioCropBuffer.getChannelData(0);
-        var totalLen = ch.length;
-        var viewStart = audioCropOffset;
-        var viewSpan = 1 / audioCropZoom;
-        ctx.strokeStyle = '#9fb0d9';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (var x = 0; x < W; x++) {
-          var g0 = viewStart + x / W * viewSpan;
-          var g1 = viewStart + (x + 1) / W * viewSpan;
-          var i0 = Math.max(0, Math.floor(g0 * totalLen));
-          var i1 = Math.max(i0 + 1, Math.min(totalLen - 1, Math.ceil(g1 * totalLen)));
-          var mn = 0, mx = 0;
-          for (var i = i0; i < i1; i++) {
-            var v = ch[i];
-            if (v < mn) mn = v;
-            if (v > mx) mx = v;
-          }
-          var yTop = H / 2 - mx * H / 2;
-          var yBot = H / 2 - mn * H / 2;
-          ctx.moveTo(x, yTop);
-          ctx.lineTo(x, yBot);
-        }
-        ctx.stroke();
-        var vx0 = (r.s - viewStart) / viewSpan * W;
-        var vx1 = (r.e - viewStart) / viewSpan * W;
-        var drawX0 = Math.max(0, vx0);
-        var drawX1 = Math.min(W, vx1);
-        if (drawX1 > drawX0) {
-          ctx.fillStyle = 'rgba(32,49,112,.25)';
-          ctx.fillRect(drawX0, 0, drawX1 - drawX0, H);
-          ctx.strokeStyle = '#203170';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(drawX0 + 0.5, 0.5, drawX1 - drawX0, H - 1);
-        }
-        ctx.strokeStyle = 'rgba(32,49,112,.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, H - 1);
-        ctx.lineTo(W, H - 1);
-        ctx.stroke();
-        if (!skipSync) {
-          audioCropStartNum.value = r.start.toFixed(3);
-          audioCropEndNum.value = r.end.toFixed(3);
-          audioCropZoomRange.value = String(audioCropZoom);
-          audioCropZoomNum.value = String(Math.round(audioCropZoom * 100) / 100);
-        }
-        try {
-          var trackW = audioCropDual.clientWidth || 200;
-          var usable = Math.max(1, trackW - 8);
-          audioCropDualStart.style.left = 4 + r.s * usable + 'px';
-          audioCropDualEnd.style.left = 4 + r.e * usable + 'px';
-          audioCropDualFill.style.left = 4 + r.s * usable + 'px';
-          audioCropDualFill.style.width = Math.max(0, (r.e - r.s) * usable) + 'px';
-        } catch (err) {}
-      } catch (err) {}
-    }
-    function onAudioCropStartInput() {
-      syncAudioCropStartNum();
-      drawAudioCrop();
-    }
-    function syncAudioCropStartNum() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      audioCropStartNum.value = (b.duration * Number(audioCropStart.value) / 100).toFixed(3);
-    }
-    function onAudioCropEndInput() {
-      syncAudioCropEndNum();
-      drawAudioCrop();
-    }
-    function syncAudioCropEndNum() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      audioCropEndNum.value = (b.duration * Number(audioCropEnd.value) / 100).toFixed(3);
-    }
-    function onAudioCropStartNumInput() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      var v = Number(audioCropStartNum.value);
-      if (!isFinite(v)) return;
-      v = Math.min(Math.max(0, v), b.duration);
-      var endSec = b.duration * Number(audioCropEnd.value) / 100;
-      if (v > endSec - 0.001) v = Math.max(0, endSec - 0.001);
-      audioCropStart.value = String(v / b.duration * 100);
-      drawAudioCrop(true);
-    }
-    function onAudioCropStartNumChange() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      var v = Number(audioCropStartNum.value);
-      if (!isFinite(v)) v = 0;
-      v = Math.min(Math.max(0, v), b.duration);
-      var endSec = b.duration * Number(audioCropEnd.value) / 100;
-      if (v > endSec - 0.001) v = Math.max(0, endSec - 0.001);
-      audioCropStart.value = String(v / b.duration * 100);
-      drawAudioCrop();
-    }
-    function onAudioCropEndNumInput() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      var v = Number(audioCropEndNum.value);
-      if (!isFinite(v)) return;
-      v = Math.min(Math.max(0, v), b.duration);
-      var startSec = b.duration * Number(audioCropStart.value) / 100;
-      if (v < startSec + 0.001) v = Math.min(b.duration, startSec + 0.001);
-      audioCropEnd.value = String(v / b.duration * 100);
-      drawAudioCrop(true);
-    }
-    function onAudioCropEndNumChange() {
-      var b = audioCropBuffer;
-      if (!b) return;
-      var v = Number(audioCropEndNum.value);
-      if (!isFinite(v)) v = b.duration;
-      v = Math.min(Math.max(0, v), b.duration);
-      var startSec = b.duration * Number(audioCropStart.value) / 100;
-      if (v < startSec + 0.001) v = Math.min(b.duration, startSec + 0.001);
-      audioCropEnd.value = String(v / b.duration * 100);
-      drawAudioCrop();
-    }
-    function applyAudioCropZoom(v, skipSync) {
-      if (!audioCropBuffer) return;
-      var next = Number(v);
-      if (!isFinite(next) || next < 1) next = 1;
-      if (next > 50) next = 50;
-      var r = audioCropRange();
-      var mid = (r.s + r.e) / 2;
-      var viewSpan = 1 / audioCropZoom;
-      var midInView = viewSpan > 0 ? (mid - audioCropOffset) / viewSpan : 0.5;
-      audioCropZoom = next;
-      var newSpan = 1 / audioCropZoom;
-      audioCropOffset = mid - midInView * newSpan;
-      audioCropOffset = Math.min(1 - 1 / audioCropZoom, Math.max(0, audioCropOffset));
-      audioCropZoomRange.value = String(audioCropZoom);
-      audioCropZoomNum.value = String(Math.round(audioCropZoom * 100) / 100);
-      drawAudioCrop(skipSync);
-    }
-    function onAudioCropZoomInput() {
-      applyAudioCropZoom(audioCropZoomRange.value);
-    }
-    function onAudioCropZoomNumInput() {
-      var v = Number(audioCropZoomNum.value);
-      if (!isFinite(v) || v < 1) return;
-      if (v > 50) return;
-      applyAudioCropZoom(v, true);
-    }
-    function onAudioCropZoomNumChange() {
-      applyAudioCropZoom(audioCropZoomNum.value);
-    }
-    var audioCropSelDrag = null;
-    function onAudioCropSelDown(e) {
-      if (!audioCropBuffer) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      var rect = audioCropCanvas.getBoundingClientRect();
-      var W = audioCropCanvas.width;
-      var globalRatio = audioCropOffset + (e.clientX - rect.left) / W * (1 / audioCropZoom);
-      globalRatio = Math.min(1, Math.max(0, globalRatio));
-      audioCropSelDrag = {
-        startRatio: globalRatio,
-        moved: false
-      };
-      audioCropStart.value = String(globalRatio * 100);
-      syncAudioCropStartNum();
-      drawAudioCrop();
-    }
-    function onAudioCropSelMove(e) {
-      if (!audioCropSelDrag || !audioCropBuffer) return;
-      var rect = audioCropCanvas.getBoundingClientRect();
-      var W = audioCropCanvas.width;
-      var globalRatio = audioCropOffset + (e.clientX - rect.left) / W * (1 / audioCropZoom);
-      globalRatio = Math.min(1, Math.max(0, globalRatio));
-      if (Math.abs(globalRatio - audioCropSelDrag.startRatio) > 0.002) audioCropSelDrag.moved = true;
-      if (audioCropSelDrag.moved) {
-        var s = Math.min(audioCropSelDrag.startRatio, globalRatio);
-        var en = Math.max(audioCropSelDrag.startRatio, globalRatio);
-        audioCropStart.value = String(s * 100);
-        audioCropEnd.value = String(en * 100);
-        syncAudioCropStartNum();
-        syncAudioCropEndNum();
-        drawAudioCrop();
-      }
-    }
-    function onAudioCropSelUp() {
-      audioCropSelDrag = null;
-    }
-    var audioCropDualDrag = null;
-    function onAudioCropDualDown(e) {
-      if (!audioCropBuffer) return;
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (err) {}
-      var ratio = audioCropDualRatio(e);
-      var startV = Number(audioCropStart.value) / 100;
-      var endV = Number(audioCropEnd.value) / 100;
-      var dStart = Math.abs(ratio - startV);
-      var dEnd = Math.abs(ratio - endV);
-      audioCropDualDrag = {
-        side: dStart <= dEnd ? 'start' : 'end'
-      };
-      audioCropDualMoveTo(ratio);
-    }
-    function onAudioCropDualMove(e) {
-      if (!audioCropDualDrag || !audioCropBuffer) return;
-      audioCropDualMoveTo(audioCropDualRatio(e));
-    }
-    function audioCropDualRatio(e) {
-      var rect = audioCropDual.getBoundingClientRect();
-      var usable = Math.max(1, rect.width - 8);
-      var ratio = (e.clientX - rect.left - 4) / usable;
-      return Math.min(1, Math.max(0, ratio));
-    }
-    function audioCropDualMoveTo(ratio) {
-      if (!audioCropDualDrag) return;
-      var startV = Number(audioCropStart.value) / 100;
-      var endV = Number(audioCropEnd.value) / 100;
-      if (audioCropDualDrag.side === 'start') {
-        if (ratio >= endV) ratio = Math.max(0, endV - 0.0001);
-        audioCropStart.value = String(ratio * 100);
-        syncAudioCropStartNum();
-      } else {
-        if (ratio <= startV) ratio = Math.min(1, startV + 0.0001);
-        audioCropEnd.value = String(ratio * 100);
-        syncAudioCropEndNum();
-      }
-      drawAudioCrop();
-    }
-    function onAudioCropDualUp() {
-      audioCropDualDrag = null;
-    }
-    function hideAudioCrop() {
-      stopAudioCropPreview();
-      audioCropMask.style.display = 'none';
-      audioCropBuffer = null;
-      audioCropTarget = null;
-      try {
-        audioCropName.value = '';
-      } catch (err) {}
-      updateAudioCropOkState();
-    }
-    var audioCropPreviewNode = null;
-    function stopAudioCropPreview() {
-      try {
-        if (audioCropPreviewNode) {
-          audioCropPreviewNode.stop();
-          audioCropPreviewNode.disconnect();
-          audioCropPreviewNode = null;
-        }
-      } catch (err) {}
-    }
-    function previewAudioCrop() {
-      try {
-        if (!audioCropBuffer || !audioCropCtx) return;
-        stopAudioCropPreview();
-        var r = audioCropRange();
-        var len = Math.floor((r.end - r.start) * audioCropBuffer.sampleRate);
-        if (len < 1) return;
-        var slice = audioCropCtx.createBuffer(audioCropBuffer.numberOfChannels, len, audioCropBuffer.sampleRate);
-        for (var c = 0; c < audioCropBuffer.numberOfChannels; c++) {
-          var src = audioCropBuffer.getChannelData(c);
-          var dst = slice.getChannelData(c);
-          var off = Math.floor(r.start * audioCropBuffer.sampleRate);
-          for (var i = 0; i < len; i++) dst[i] = src[off + i] || 0;
-        }
-        var srcNode = audioCropCtx.createBufferSource();
-        srcNode.buffer = slice;
-        srcNode.connect(audioCropCtx.destination);
-        audioCropPreviewNode = srcNode;
-        srcNode.onended = function () {
-          if (audioCropPreviewNode === srcNode) audioCropPreviewNode = null;
-        };
-        srcNode.start();
-      } catch (err) {}
-    }
-    function encodeWav(buffer) {
-      var numCh = buffer.numberOfChannels;
-      var sampleRate = buffer.sampleRate;
-      var len = buffer.length;
-      var bytesPerSample = 2;
-      var blockAlign = numCh * bytesPerSample;
-      var dataSize = len * blockAlign;
-      var ab = new ArrayBuffer(44 + dataSize);
-      var dv = new DataView(ab);
-      function writeStr(offset, s) {
-        for (var i = 0; i < s.length; i++) dv.setUint8(offset + i, s.charCodeAt(i));
-      }
-      writeStr(0, 'RIFF');
-      dv.setUint32(4, 36 + dataSize, true);
-      writeStr(8, 'WAVE');
-      writeStr(12, 'fmt ');
-      dv.setUint32(16, 16, true);
-      dv.setUint16(20, 1, true);
-      dv.setUint16(22, numCh, true);
-      dv.setUint32(24, sampleRate, true);
-      dv.setUint32(28, sampleRate * blockAlign, true);
-      dv.setUint16(32, blockAlign, true);
-      dv.setUint16(34, 16, true);
-      writeStr(36, 'data');
-      dv.setUint32(40, dataSize, true);
-      var offset = 44;
-      for (var i = 0; i < len; i++) {
-        for (var c = 0; c < numCh; c++) {
-          var v = buffer.getChannelData(c)[i];
-          var s = Math.max(-1, Math.min(1, v));
-          dv.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-          offset += 2;
-        }
-      }
-      return new Blob([ab], {
-        type: 'audio/wav'
-      });
-    }
-    function confirmAudioCrop() {
-      try {
-        if (!audioCropBuffer) return;
-        stopAudioCropPreview();
-        var fragName = String(audioCropName.value || '').trim();
-        if (!fragName) {
-          try {
-            audioCropName.style.borderColor = '#e0433f';
-            audioCropName.style.boxShadow = '0 0 0 2px rgba(224,67,63,.25)';
-            audioCropName.focus();
-            setTimeout(function () {
-              audioCropName.style.borderColor = 'rgba(32,49,112,.4)';
-              audioCropName.style.boxShadow = 'none';
-            }, 1200);
-          } catch (err) {}
-          return;
-        }
-        var r = audioCropRange();
-        var len = Math.floor((r.end - r.start) * audioCropBuffer.sampleRate);
-        if (len < 1) {
-          assetNotice('所选片段为空');
-          return;
-        }
-        if (44 + len * audioCropBuffer.numberOfChannels * 2 > WhaleMediaGuard.getPolicy().audioBytes) {
-          assetNotice('所选音频片段过大，请缩短后再保存');
-          return;
-        }
-        var slice = audioCropCtx.createBuffer(audioCropBuffer.numberOfChannels, len, audioCropBuffer.sampleRate);
-        for (var c = 0; c < audioCropBuffer.numberOfChannels; c++) {
-          var src = audioCropBuffer.getChannelData(c);
-          var dst = slice.getChannelData(c);
-          var off = Math.floor(r.start * audioCropBuffer.sampleRate);
-          for (var i = 0; i < len; i++) dst[i] = src[off + i] || 0;
-        }
-        var blob = encodeWav(slice);
-        WhaleMediaGuard.checkFile(blob, 'wav');
-        var reader = new FileReader();
-        reader.onload = function () {
-          uploadAudioFragment(reader.result, fragName, function (ok) {
-            if (ok) {
-              if (audioCropTarget === 'press') {
-                audioEditPressVal = lastUploadedFragmentId || audioEditPressVal;
-                audioSlotBtnText(audioEditPressBtn, audioEditPressVal);
-              } else if (audioCropTarget === 'release') {
-                audioEditReleaseVal = lastUploadedFragmentId || audioEditReleaseVal;
-                audioSlotBtnText(audioEditReleaseBtn, audioEditReleaseVal);
-              }
-              audioEditPreviewEnsure(true);
-              hideAudioCrop();
-            }
-          });
-        };
-        reader.onerror = function () { assetNotice('音频读取失败，请重试'); };
-        reader.readAsDataURL(blob);
-      } catch (err) { assetNotice(err.message); }
-    }
-    var lastUploadedFragmentId = null;
-    function uploadAudioFragment(dataUrl, name, cb) {
-      try {
-        assetClient.uploadAudioFragment(name, dataUrl).then(function (d) {
-          requireSaved(d);
-          if (d && d.ok && Array.isArray(d.fragments)) {
-            audioFragments = d.fragments;
-            lastUploadedFragmentId = d.id || null;
-            refreshTaskEndAfterAudio();
-            if (cb) cb(true);
-          } else {
-            if (cb) cb(false);
-          }
-        }).catch(function (error) {
-          assetFailure(error);
-          if (cb) cb(false);
-        });
-      } catch (err) {
-        if (cb) cb(false);
-      }
-    }
     function audioDeleteFragmentInSlot(slot, id) {
       if (!id) return;
       var f = null;
@@ -6028,17 +3581,12 @@ import {
       if (!f || f.preset) return;
       showConfirm('确定删除音频「' + f.name + '」吗？', function () {
         try {
-          fetch(AUDIO_URL, {
+          requestJson(AUDIO_URL, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
+            body: {
               action: 'delete-fragment',
               id: id
-            })
-          }).then(function (r) {
-            return r.json();
+            }
           }).then(function (d) {
           requireSaved(d);
             if (d && d.ok && Array.isArray(d.fragments)) {
@@ -6046,15 +3594,15 @@ import {
               if (Array.isArray(d.groups)) audioGroups = d.groups;
               if (slot === 'press' && audioEditPressVal === id) {
                 audioEditPressVal = 'ya1';
-                audioSlotBtnText(audioEditPressBtn, 'ya1');
+                audioSlotPanel.refresh();
               }
               if (slot === 'release' && audioEditReleaseVal === id) {
                 audioEditReleaseVal = 'ya2';
-                audioSlotBtnText(audioEditReleaseBtn, 'ya2');
+                audioSlotPanel.refresh();
               }
               audioEditPreviewEnsure(true);
               renderAudioGroupPanel();
-              if (activeSlotPanel) renderAudioSlotPanel(slot);
+              renderAudioSlotPanel(slot);
               refreshTaskEndAfterAudio();
             }
           }).catch(assetFailure);
@@ -6101,14 +3649,16 @@ import {
       setAudioBtnText(audioGroupName(soundSet)); applySoundSet();
       turnCostToggle.checked = turnCostOn;turnCostCloseInput.disabled = !turnCostOn;
       turnCostCloseInput.value = String(Math.round(turnCostCloseMs / 1000));
-      if (snapshot.usage && typeof snapshot.usage === 'object') usageSet = snapshot.usage;
+      var settings = usagePanelApi.getUsageSet();
+      if (snapshot.usage && typeof snapshot.usage === 'object') settings = snapshot.usage;
       else {
-        usageSet = usageSet || {};
-        usageSet.taskEnd = saved.taskEnd || usageSet.taskEnd || {};
+        settings = settings || {};
+        settings.taskEnd = saved.taskEnd || settings.taskEnd || {};
       }
-      taskEndToggle.checked = usageSet.taskEnd.on === true;
+      usagePanelApi.setUsageSet(settings);
+      taskEndToggle.checked = settings.taskEnd.on === true;
       taskEndSel.disabled = !taskEndToggle.checked;
-      fillTaskEndOptions(usageSet.taskEnd);
+      fillTaskEndOptions(settings.taskEnd);
       if (!turnCostOn) hideCostBubble();
     }
     window.addEventListener('whale-sound-settings-applied', function (event) {
@@ -6117,9 +3667,10 @@ import {
     });
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
-        usageSet = usageSet || ({}); usageSet.turnCost = { lines: o.lines };
+        var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
+        usagePanelApi.setUsageSet(settings);
         setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
-        saveUsageSettings({ turnCost: usageSet.turnCost });
+        usagePanelApi.save({ turnCost: settings.turnCost });
       });
     });
     window.addEventListener('whale-api-model-alert', function (event) {
@@ -6184,14 +3735,15 @@ import {
     loadAudio();
     loadUsageSettings(function () {
       try {
-        if (usageSet && usageSet.taskEnd) {
-          taskEndToggle.checked = !!usageSet.taskEnd.on;
-          taskEndSel.disabled = !usageSet.taskEnd.on;
+        var settings = usagePanelApi.getUsageSet();
+        if (settings && settings.taskEnd) {
+          taskEndToggle.checked = !!settings.taskEnd.on;
+          taskEndSel.disabled = !settings.taskEnd.on;
         }
-        fillTaskEndOptions(usageSet && usageSet.taskEnd);
+        fillTaskEndOptions(settings && settings.taskEnd);
         setTimeout(function () {
           try {
-            if (audioFragments && audioFragments.length) fillTaskEndOptions(usageSet && usageSet.taskEnd);
+            if (audioFragments && audioFragments.length) fillTaskEndOptions(usagePanelApi.getUsageSet() && usagePanelApi.getUsageSet().taskEnd);
           } catch (err) {}
         }, 1500);
       } catch (err) {}
@@ -6211,11 +3763,7 @@ import {
         status: function () { return { switching: bubbleFrames.switching, busy: busy, shown: bubbleSceneController.shown, scene: bubbleSceneController.scene && bubbleSceneController.scene.kind, epoch: bubbleSceneController.epoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
       });
     }
-    fetch(SETTINGS_URL, {
-      cache: 'no-store'
-    }).then(function (r) {
-      return r.json();
-    }).then(function (payload) {
+    requestJson(SETTINGS_URL).then(function (payload) {
       var d = payload && payload.ok ? payload.size : null;
       if (d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {
         state.scale = d.scale;

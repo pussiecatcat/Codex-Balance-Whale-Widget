@@ -62,3 +62,11 @@ test('standalone waits for native detach and follow waits for fresh attachment',
  await f.host({ serial: 5 });
  assert.equal(f.state.modePending, false); assert.ok(f.calls.includes('whale-desktop-mode')); assert.ok(f.calls.includes('visibility'));
 });
+
+test('legacy import records a failure once and shortcut conflicts are reported', () => {
+ const source = fs.readFileSync(new URL('../desktop/main.cjs', import.meta.url), 'utf8');
+ assert.match(source, /catch \(error\) \{[\s\S]{0,400}complete: false/);
+ assert.match(source, /toggleShortcutRegistered = globalShortcut\.register/);
+ assert.match(source, /if \(!toggleShortcutRegistered\) diagnose\('toggle-shortcut-unavailable'\)/);
+ assert.match(source, /toggleShortcutRegistered,/);
+});

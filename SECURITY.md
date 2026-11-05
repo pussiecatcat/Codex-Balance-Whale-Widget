@@ -50,7 +50,20 @@
 
 上游 DSH Web 版在 v0.3.15 修过一类「凭据外带」问题：让宿主动用真实 API 密钥去请求攻击者可控的 URL。本插件对同一类问题有**三层独立防护**，改动这段代码前请先读本节。
 
-**第一层 · 本地 IPC 白名单。** `runtime/bridge.mjs` 的 `ALLOWED` 只放行只读或停止类路由（`/api/status`、两份 `dsh-whale/*.json`、`/api/show`、`/api/stop`）。**写入设置（`/api/config` PUT）与写入 API 模型（`/api/models` PUT/POST/DELETE）不在其中**，因此同机其他进程即使读到 `runtime.json` 里的 IPC token，也改不了端点或凭据。注意 token 面向当前用户会话，**它本身不是安全边界，白名单才是**。
+**第一层 · 本地 IPC 白名单。** `runtime/bridge.mjs` 的 `ALLOWED` 是外部进程唯一能触达的路由表，方法也一并限定。下表是这张表的镜像，改动任一侧都必须同步（`tests/ipc-surface.test.mjs` 会比对此节与代码）：
+
+| 路由 | 方法 | 处理者 | 作用 |
+|---|---|---|---|
+| `/api/status` | GET | 服务进程 | 版本、监听状态与诊断摘要 |
+| `/dsh-whale/balance.json` | GET | 服务进程 | API 余额 |
+| `/dsh-whale/usage-records.json` | GET | 服务进程 | 本机观测用量 |
+| `/api/show` | POST | 服务进程 → 桌面宿主 | 显示挂件 |
+| `/api/stop` | POST | 服务进程 → 桌面宿主 | 停止挂件 |
+| `/api/reset-position` | POST | 桌面宿主 | 位置重置 |
+| `/api/desktop-mode` | POST | 桌面宿主 | 切换独立显示 / 跟随 Codex |
+| `/internal/host` | POST | 桌面宿主 | 接收宿主窗口状态；**也可让应用退出** |
+
+写入设置（`/api/config` PUT）与写入 API 模型（`/api/models` PUT/POST/DELETE）不在白名单里，因此同机其他进程即使读到 `runtime.json` 里的 IPC token，也改不了端点或凭据。注意 token 面向当前用户会话，**它本身不是安全边界，白名单才是**。`/internal/host` 的能力比普通状态接口大，审计时不要把它当成只读路由。
 
 **第二层 · 设置写入校验。** `runtime/config.mjs` 的 `cleanUrl` 拒绝 URL 内嵌凭据、查询串与片段；非本机地址强制 HTTPS；并封堵云元数据与链路本地地址（`metadata.google.internal`、`100.100.100.200`、`169.254.*`、`0.*`、`fe80::/10`），以免被用作 SSRF 跳板。`keyEnv` 只接受环境变量名，`save()` 拒绝任何形如 secret / token / api_key / password 的字段 —— **本插件不落盘密钥**。`balancePath` 必须是当前域名下的绝对路径，不能是绝对 URL。
 

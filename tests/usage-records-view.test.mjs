@@ -47,6 +47,7 @@ function fixture() {
       onChange: () => () => {},
     },
     getCurrency: () => 'USD',
+    dismissLedgerWarning: () => {},
   });
   const body = () => card.children.find(node => node.className === 'dshwv-usage-windowbody');
   return { view, card, created, calls, body };
@@ -97,4 +98,12 @@ test('a day of records builds its detail block lazily, and that block can filter
   assert.ok(search, 'opening the block builds its filter field');
   assert.match(search.placeholder, /搜索:日期/);
   assert.equal(search.style.width, '100%');
+});
+
+test('a recovery warning is shown in the record window', () => {
+  const fx = fixture();
+  fx.view.fill({ ok: true, warning: '账本文件损坏，已从上一份备份恢复。', all: { days: [], events: [] }, today: {} });
+  const notice = fx.card.children.find(node => String(node.className).includes('dshwv-ledger-warning'));
+  assert.ok(notice, 'the warning is rendered above the records');
+  assert.equal(notice.children[0].textContent, '账本文件损坏，已从上一份备份恢复。');
 });

@@ -3,7 +3,7 @@
 import { performance } from 'node:perf_hooks';
 import { spawn } from 'node:child_process';
 import { CODEX_HOME } from '../runtime/paths.mjs';
-import { readCodexRateLimits, createCodexRateLimitsClient } from '../runtime/codex-rate-limits.mjs';
+import { createCodexRateLimitsClient } from '../runtime/codex-rate-limits.mjs';
 const failures = [];
 function spawnDiagnostic(...args) {
   const child = spawn(...args); let buffer = '';
@@ -32,7 +32,6 @@ async function sample(method, read) {
   } catch { samples.push({ method, ok: false, durationMs: Math.round(performance.now() - start) }); }
 }
 try {
-  for (let i = 0; i < 3; i++) await sample('one-shot', () => readCodexRateLimits({ codexHome: CODEX_HOME }));
   await sample('persistent-cold', () => client.read());
   for (let i = 0; i < 3; i++) await sample('persistent-warm', () => client.read());
 } finally { client.close(); }

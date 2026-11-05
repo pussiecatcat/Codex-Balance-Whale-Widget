@@ -1,4 +1,6 @@
 // Materialize frozen bubble rows into the live scene or the editor preview.
+export function bubbleFontFloor(level) { return Number(level) >= 12 ? 12 : 10; }
+
 export function createBubbleRowsView(deps) {
   const { document, window, WhaleMoney, bubbleSnapshot, bubbleModuleFontU,
     bubbleRowsOf, bubbleIsImgMod, whaleMoneyTemplates, getBubbleTarget, getSceneController,
@@ -73,7 +75,9 @@ export function createBubbleRowsView(deps) {
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
         if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
         if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
-        row.style.fontSize = 'calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + ')';
+        // Small modules must stay readable when the widget is scaled down.
+        var minimum = bubbleFontFloor(fSize);
+        row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
         if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
         if (fItalic) row.style.fontStyle = 'italic';

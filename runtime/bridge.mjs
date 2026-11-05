@@ -31,7 +31,7 @@ export function pipeName(dataDir = DATA_HOME) {
 // each accepts. The host callbacks (position reset, desktop mode, host state)
 // are listed here too: they used to be handled by inline branches that ran
 // before this check, so auditing this table understated the real IPC surface.
-const ALLOWED = new Map([
+export const ALLOWED = new Map([
   ['/api/status', 'GET'], ['/dsh-whale/balance.json', 'GET'], ['/dsh-whale/usage-records.json', 'GET'],
   ['/api/show', 'POST'], ['/api/stop', 'POST'],
   ['/api/reset-position', 'POST'], ['/api/desktop-mode', 'POST'], ['/internal/host', 'POST'],

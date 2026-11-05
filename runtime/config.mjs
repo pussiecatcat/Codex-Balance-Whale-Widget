@@ -1,9 +1,11 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { parse } from '../vendor/smol-toml/dist/index.js';
-import { CODEX_HOME, DATA_HOME, readJson, writeJson } from './paths.mjs';
+import { CODEX_HOME, DATA_HOME, readJson } from './paths.mjs';
 import { domainError } from '../lib/errors.mjs';
+import { ProviderStore } from './provider-store.mjs';
 
 export const DEFAULT_CONFIG = {
   provider: 'auto', baseUrl: '', keyEnv: '', profile: '', projectDir: '', currency: 'USD',
@@ -17,18 +19,53 @@ export const DEFAULT_CONFIG = {
 // presence flags and submits a value only when the user explicitly changes it.
 export const PRIVATE_SETTING_FIELDS = Object.freeze(['baseUrl', 'keyEnv', 'profile', 'projectDir', 'dashboardUrl', 'balancePath', 'balanceField', 'usedField', 'models']);
 
+// Only real IP literals get private-range trust. A hostname such as
+// `10.evil.example`, `192.168.evil.example` or `127.0.0.1.nip.io` must never
+// inherit it from a string prefix.
+function addressOf(host) {
+  const version = net.isIP(host);
+  if (version === 4) return { version, octets: host.split('.').map(Number) };
+  if (version !== 6) return null;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(host);
+  if (mapped) return { version: 4, octets: mapped[1].split('.').map(Number) };
+  const hexMapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+  if (hexMapped) {
+    const high = parseInt(hexMapped[1], 16), low = parseInt(hexMapped[2], 16);
+    return { version: 4, octets: [high >> 8, high & 255, low >> 8, low & 255] };
+  }
+  return { version: 6, group: parseInt(host.split(':')[0] || '0', 16) };
+}
+
+function isLocalAddress(host) {
+  if (host === 'localhost') return true;
+  const address = addressOf(host);
+  if (!address) return false;
+  if (address.version === 4) {
+    const [a, b] = address.octets;
+    return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+  }
+  return host === '::1' || (address.group & 0xfe00) === 0xfc00;
+}
+
+function isBlockedAddress(host) {
+  if (host === 'metadata.google.internal' || host === 'metadata.goog') return true;
+  const address = addressOf(host);
+  if (!address) return false;
+  if (address.version === 4) {
+    const [a, b, c, d] = address.octets;
+    return a === 0 || (a === 169 && b === 254) || (a === 100 && b === 100 && c === 100 && d === 200);
+  }
+  return (address.group & 0xffc0) === 0xfe80;
+}
+
 export function cleanUrl(value, { allowEmpty = false } = {}) {
   if (!value && allowEmpty) return '';
   let u;
   try { u = new URL(value); } catch { throw domainError('API 地址无效'); }
   if (u.username || u.password || u.search || u.hash) throw domainError('API 地址不能包含密钥、查询参数或片段');
   const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  const local = ['localhost', '::1'].includes(host) || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host) || /^f[cd][0-9a-f]{2}:/i.test(host);
-  if (host === 'metadata.google.internal' || host === 'metadata.goog' || host === '100.100.100.200' ||
-      /^169\.254\./.test(host) || /^0\./.test(host) || /^fe[89ab][0-9a-f]:/i.test(host) || /^::ffff:(?:a9fe:|6464:64c8|0:)/i.test(host)) {
-    throw domainError('API 地址不能指向云元数据或链路本地服务');
-  }
-  if (u.protocol !== 'https:' && !(local && u.protocol === 'http:')) throw domainError('API 地址须使用 HTTPS（本机服务除外）');
+  if (isBlockedAddress(host)) throw domainError('API 地址不能指向云元数据或链路本地服务');
+  if (u.protocol !== 'https:' && !(isLocalAddress(host) && u.protocol === 'http:')) throw domainError('API 地址须使用 HTTPS（本机服务除外）');
   return u.toString().replace(/\/$/, '');
 }
 
@@ -81,9 +118,10 @@ export function validateConfig(input) {
 }
 
 export class ConfigStore {
-  constructor({ dataDir = DATA_HOME, codexHome = CODEX_HOME, env = process.env } = {}) {
+  constructor({ dataDir = DATA_HOME, codexHome = CODEX_HOME, env = process.env, store } = {}) {
     this.dataDir = dataDir; this.codexHome = codexHome; this.env = env;
-    this.file = path.join(dataDir, 'api-settings.json');
+    this.store = store || new ProviderStore({ dataDir });
+    this.file = this.store.file;
     // resolve() reads four files, parses TOML and hashes the credential. It runs
     // on the session monitor's tick and on every usage request, so its result is
     // memoised until one of those inputs actually changes. Writes through save()
@@ -92,15 +130,17 @@ export class ConfigStore {
     this.settingCache = null;
     this.resolveCache = null;
     this.usedEnvNames = [];
+    this.configBroken = false;
   }
 
   invalidate() { this.settingCache = null; this.resolveCache = null; }
 
   load() {
-    const stamp = fileStamp(this.file);
+    const data = this.store.read(), stamp = this.store.stamp();
     if (this.settingCache && this.settingCache.stamp === stamp) return this.settingCache.value;
-    const value = validateConfig(readJson(this.file, DEFAULT_CONFIG));
+    const value = validateConfig(data.codexApi);
     this.settingCache = { stamp, value };
+    this.configBroken = false;
     return value;
   }
 
@@ -116,7 +156,7 @@ export class ConfigStore {
       else input.models[update.model] = update.prices;
     }
     const c = validateConfig(input);
-    writeJson(this.file, c);
+    this.store.writeCodex(c);
     this.invalidate();
     return c;
   }
@@ -127,7 +167,22 @@ export class ConfigStore {
       if (PRIVATE_SETTING_FIELDS.includes(key)) configured[key] = key === 'models' ? Object.keys(current.models).length > 0 : !!current[key];
       else settings[key] = current[key];
     }
-    return { settings, configured };
+    return { settings, configured, warning: this.store?.recoveryWarning || '' };
+  }
+
+  // Resolve a draft without writing it. The connection test must exercise the
+  // same credential-origin rules as a save, but it must not create a ledger
+  // entry, touch the resolve cache, or leave a half-valid configuration behind.
+  probe(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw domainError('设置必须是 JSON 对象');
+    if (Object.keys(patch).some(k => /secret|token|api.?key|password/i.test(k) && k !== 'keyEnv')) throw domainError('请填写密钥环境变量名；插件设置中不保存密钥');
+    const current = this.load();
+    const input = { ...current, ...patch };
+    delete input.pricingUpdate;
+    const setting = validateConfig(input);
+    const previousNames = this.usedEnvNames;
+    try { return this.resolveUncached(setting); }
+    finally { this.usedEnvNames = previousNames; }
   }
 
   resolve() {
@@ -151,8 +206,7 @@ export class ConfigStore {
     return parts.join('\u0000');
   }
 
-  resolveUncached() {
-    const setting = this.load();
+  resolveUncached(setting = this.load()) {
     const seen = [];
     const envOf = name => { if (name) seen.push(name); return name ? this.env[name] : undefined; };
     const file = path.join(this.codexHome, 'config.toml');
@@ -210,8 +264,38 @@ export class ConfigStore {
     this.usedEnvNames = seen;
     return { setting, id, model: effective.model || '', profileName, providerName, baseUrl, key, keySource, accountId, dashboardUrl };
   }
+  // Identity and settings that do not depend on resolving the API endpoint.
+  // Quota, status and token accounting use this when config.toml is invalid:
+  // a broken provider must not hide the subscription or stop accounting.
+  identityContext() {
+    // A corrupt providers.json must not take down the subscription view or
+    // token accounting. Fall back to defaults instead of letting the same
+    // load() error escape the callers that use this as their recovery path.
+    let setting;
+    try { setting = this.load(); }
+    catch { setting = validateConfig({}); this.configBroken = true; }
+    let auth = {};
+    try { auth = readJson(path.join(this.codexHome, 'auth.json'), {}); } catch {}
+    const account = auth?.tokens?.account_id || auth?.account_id || '';
+    const accountId = crypto.createHash('sha256')
+      .update('identity\u0000' + (account || path.resolve(this.codexHome).toLowerCase()))
+      .digest('hex').slice(0, 24);
+    return { setting, id: 'openai', model: '', profileName: '', providerName: '当前 API',
+      baseUrl: '', key: '', keySource: 'none', accountId, dashboardUrl: '', degraded: true,
+      configBroken: this.configBroken };
+  }
+
   publicInfo() {
-    const c = this.resolve();
-    return { providerName: '当前 API', hasKey: !!c.key, ...this.settingsInfo() };
+    const warning = this.store?.recoveryWarning || '';
+    try {
+      const c = this.resolve();
+      return { providerName: '当前 API', hasKey: !!c.key, ...this.settingsInfo() };
+    } catch (error) {
+      this.configBroken = true;
+      let info = { settings: {}, configured: {} };
+      try { info = this.settingsInfo(); } catch {}
+      return { providerName: '当前 API', hasKey: false, ...info, configBroken: true, configWarning: warning,
+        apiError: { code: error?.code || 'CONFIG', message: String(error?.message || error).slice(0, 300) } };
+    }
   }
 }

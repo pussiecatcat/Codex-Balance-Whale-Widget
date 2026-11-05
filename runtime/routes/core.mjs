@@ -1,9 +1,10 @@
 import { VERSION, writeJson } from '../paths.mjs';
 import { jsonResult } from '../http-shim.mjs';
+import { domainError } from '../../lib/errors.mjs';
 import { MEDIA_POLICY } from '../../lib/media-validation.mjs';
 import { pricingSchedule } from '../pricing-schedule.mjs';
 import { exportWorkshop, importWorkshop } from '../../lib/workshop.mjs';
-import { stripRetiredModules } from '../migration.mjs';
+import { listProfiles } from '../provider-profile.mjs';
 
 // Every endpoint the dispatcher answers itself, as a table rather than a chain
 // of `if (url.pathname === ...)`. The widget host registers its own routes into
@@ -14,18 +15,15 @@ import { stripRetiredModules } from '../migration.mjs';
 // `url => ...` — that shipped once, and /api/quota answered 500 because
 // `url.searchParams` was really a Buffer. One named argument cannot be
 // half-right.
-//
-// `fallthrough: true` records a quirk of the code this replaced: those guards
-// only matched the listed methods, so any other method continued into static
-// resolution and ended as a 404 rather than a 405. Behaviour is preserved here
-// rather than silently tightened, because the tab-leaking difference between the
-// two is observable to callers.
 export function createCoreRoutes(ctx) {
   const { whale, insights, fx, apiModels, soundSettings, watcher, displayMode, displayModeFile, buildVersion, statusInfo, onStop, onShow, dataDir, faultLog } = ctx;
-  const json = body => JSON.parse(body.toString('utf8') || '{}');
+  const json = body => {
+    try { return JSON.parse(body.toString('utf8') || '{}'); }
+    catch { throw domainError('请求内容不是有效的 JSON'); }
+  };
   const routes = new Map();
-  const route = (pathname, handlers, { fallthrough = false, methodNotAllowed = null } = {}) =>
-    routes.set(pathname, { handlers, fallthrough, methodNotAllowed });
+  const route = (pathname, handlers, { methodNotAllowed = null } = {}) =>
+    routes.set(pathname, { handlers, methodNotAllowed });
 
   route('/api/display-mode', {
     GET: () => jsonResult(200, { ok: true, mode: displayMode() }),
@@ -39,19 +37,23 @@ export function createCoreRoutes(ctx) {
 
   route('/api/insights', {
     GET: ({ url }) => insights.get({ force: url.searchParams.get('refresh') === '1' }).then(payload => jsonResult(200, payload)),
-  }, { fallthrough: true });
+  });
 
   route('/api/quota', {
     GET: ({ url }) => insights.getQuota({ force: url.searchParams.get('refresh') === '1' }).then(payload => jsonResult(200, payload)),
-  }, { fallthrough: true });
+  });
 
   route('/dsh-whale/wait.json', {
     GET: () => jsonResult(200, whale.waitStatus()),
-  }, { fallthrough: true });
+  });
 
   route('/api/pricing', {
     GET: () => jsonResult(200, { ok: true, ...pricingSchedule(whale.config.resolve()) }),
-  }, { fallthrough: true });
+  });
+
+  route('/api/usage-warning', {
+    POST: () => jsonResult(200, whale.acknowledgeUsageWarning()),
+  });
 
   route('/api/reconcile', {
     GET: () => jsonResult(200, whale.usageRecords()),
@@ -79,19 +81,22 @@ export function createCoreRoutes(ctx) {
       const result = await apiModels.read(id, { usage: quotaUsage });
       return jsonResult(200, { ...usage, ...result, usageSource: usage.source, todayEstimate: apiModels.estimate(model, usage) });
     },
-  }, { fallthrough: true });
+  });
 
   route('/api/models/probe', {
-    POST: async ({ body }) => jsonResult(200, await apiModels.read(json(body).id, { probe: true })),
-  }, { fallthrough: true });
+    POST: async ({ body }) => {
+    const input = json(body);
+    return jsonResult(200, input.template ? await apiModels.probeDraft(input) : await apiModels.read(input.id, { probe: true }));
+  },
+  });
 
   route('/api/workshop/export', {
     GET: () => jsonResult(200, exportWorkshop(dataDir)),
-  }, { fallthrough: true });
+  });
 
   route('/api/workshop/import', {
     POST: ({ body }) => jsonResult(200, importWorkshop(dataDir, json(body))),
-  }, { fallthrough: true });
+  });
 
   route('/api/status', {
     GET: () => jsonResult(200, {
@@ -101,11 +106,39 @@ export function createCoreRoutes(ctx) {
       dataDir, faults: faultLog.list(),
       ...statusInfo(),
     }),
-  }, { fallthrough: true });
+  });
 
   route('/api/config', {
     GET: () => jsonResult(200, { ok: true, ...whale.config.settingsInfo() }),
     PUT: ({ body }) => { whale.config.save(json(body)); return jsonResult(200, { ok: true, ...whale.config.settingsInfo() }); },
+  });
+
+  // Draft connection test: same validation and credential-origin rules as a
+  // save, but no write, no resolve cache and no ledger observation.
+  route('/api/config/probe', {
+    POST: async ({ body }) => {
+      try {
+        const context = whale.config.probe(json(body));
+        const payload = await whale.provider.balance(context);
+        return jsonResult(200, { ...payload, providerName: context.providerName, dashboardUrl: context.dashboardUrl });
+      } catch (error) {
+        return jsonResult(error?.status && error.status < 500 ? error.status : 502,
+          { ok: false, code: error?.code || 'ERROR', error: String(error?.message || error) });
+      }
+    },
+  });
+
+  // One read model for "the API Codex is using" and every DIY provider. The
+  // settings editor can render both without depending on which JSON file a
+  // profile happens to live in. A broken Codex endpoint must not hide the DIY
+  // list, so fall back to the identity context instead of failing the route.
+  route('/api/profiles', {
+    GET: () => {
+      let context;
+      try { context = whale.config.resolve(); }
+      catch { context = whale.config.identityContext(); }
+      return jsonResult(200, { ok: true, profiles: listProfiles(context, apiModels.list().models) });
+    },
   });
 
   route('/api/fx/usd-cny', {
@@ -139,11 +172,11 @@ export function createCoreRoutes(ctx) {
 
   route('/api/show', {
     POST: () => { onShow(); return jsonResult(200, { ok: true, desktop: 'shown' }); },
-  }, { fallthrough: true });
+  });
 
   route('/api/stop', {
     POST: () => { setTimeout(onStop, 100); return jsonResult(200, { ok: true }); },
-  }, { fallthrough: true });
+  });
 
   return routes;
 }
@@ -155,20 +188,4 @@ function settingsFailure(error) {
     code: typeof error?.code === 'string' ? error.code : 'SETTINGS_OPERATION_FAILED',
     error: error?.message || '音效设置操作失败',
   });
-}
-
-// Routes the widget host serves that carry a method restriction or a body
-// transform. They stay here rather than in the host because they are policy the
-// dispatcher applies to the request before the handler sees it.
-export const WIDGET_ROUTE_POLICY = Object.freeze({
-  writeOnly: /(?:role-pin|role-delete|bubble-img-upload)\.json$/,
-  bubbleSettings: '/dsh-whale/bubble.json',
-});
-
-export function applyWidgetRoutePolicy(pathname, method, body) {
-  if (WIDGET_ROUTE_POLICY.writeOnly.test(pathname) && !['POST', 'PUT'].includes(method)) return { reject: jsonResult(405, { ok: false }) };
-  if (pathname === WIDGET_ROUTE_POLICY.bubbleSettings && ['POST', 'PUT'].includes(method)) {
-    return { body: Buffer.from(JSON.stringify(stripRetiredModules(JSON.parse(body.toString('utf8') || '{}')))) };
-  }
-  return {};
 }

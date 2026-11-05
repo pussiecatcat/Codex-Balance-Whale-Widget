@@ -1,0 +1,12 @@
+{
+  "rateLimitsByLimitId": {
+    "codex": {
+      "planType": "plus",
+      "primary": { "windowDurationMins": 300, "usedPercent": 40, "resetsAt": 1762300000 },
+      "secondary": { "windowDurationMins": 10080, "usedPercent": 60, "resetsAt": 1762300000 }
+    }
+  },
+  "rateLimits": {
+    "primary": { "windowDurationMins": 1440, "usedPercent": 10, "resetsAt": null }
+  }
+}

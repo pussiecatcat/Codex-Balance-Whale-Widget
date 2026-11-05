@@ -1,6 +1,6 @@
 import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleChoiceWeight, bubbleSingleFromItem,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules, bubbleParseDefaultItems } from './default-content.js';
+  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from './default-content.js';
 import { bubbleRowsCanon } from './bubble-layout.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -24,7 +24,10 @@ export function loadBubbleEditorDraft(config, subscriptionMode) {
     items.push({ kind: step?.kind === 'random' ? 'random' : step?.kind === 'custom' ? 'custom' : 'normal',
       modules: step?.modules ? clone(step.modules) : undefined });
   }
-  return { items, library };
+  const tapAdvance = subscriptionMode
+    ? config?.subscriptionTapAdvance === true
+    : config?.tapAdvance === true;
+  return { items, library, tapAdvance };
 }
 
 export function saveBubbleEditorStep(step) {
@@ -42,12 +45,15 @@ export function saveBubbleEditorStep(step) {
   return { kind: 'custom', modules };
 }
 
-export function saveBubbleEditorDraft(items, library, config, subscriptionMode) {
+export function saveBubbleEditorDraft(items, library, config, subscriptionMode, tapAdvance) {
   const savedItems = items.map(saveBubbleEditorStep);
+  const activeTapAdvance = typeof tapAdvance === 'boolean'
+    ? tapAdvance
+    : subscriptionMode ? config?.subscriptionTapAdvance === true : config?.tapAdvance === true;
   return { v: 1, editingMode: subscriptionMode ? 'subscription' : 'api',
-    items: subscriptionMode ? config?.items || bubbleParseDefaultItems() : savedItems,
+    items: subscriptionMode ? config?.items || bubbleDefaultQueue(false) : savedItems,
     subscriptionItems: subscriptionMode ? savedItems : config?.subscriptionItems || [],
-    tapAdvance: config?.tapAdvance === true,
-    subscriptionTapAdvance: config?.subscriptionTapAdvance !== false,
+    tapAdvance: subscriptionMode ? config?.tapAdvance === true : activeTapAdvance,
+    subscriptionTapAdvance: subscriptionMode ? activeTapAdvance : config?.subscriptionTapAdvance === true,
     lib: library };
 }

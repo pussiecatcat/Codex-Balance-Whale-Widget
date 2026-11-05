@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { DATA_HOME } from '../runtime/paths.mjs';
 
@@ -40,7 +41,11 @@ if (process.platform === 'win32') {
 const npm = candidates.find(file => fs.existsSync(file));
 if (!npm) { process.stderr.write('请先安装包含 npm 的 Node.js 24 或更新版本。\n'); process.exit(1); }
 fs.mkdirSync(runtimeDir, { recursive: true });
-let result = spawnSync(process.execPath, [npm, '--prefix', runtimeDir, '--cache', path.join(DATA_HOME, 'npm-cache'), 'install', '--no-audit', '--no-fund', '--ignore-scripts', '--save-exact', 'electron@44.3.0'], { stdio: 'inherit', windowsHide: true });
+// The Electron runtime is pinned by a shipped lockfile, not by an install
+// command. npm ci then refuses any dependency tree that does not match it.
+const lockRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'desktop', 'electron-runtime');
+for (const name of ['package.json', 'package-lock.json']) fs.copyFileSync(path.join(lockRoot, name), path.join(runtimeDir, name));
+let result = spawnSync(process.execPath, [npm, '--prefix', runtimeDir, '--cache', path.join(DATA_HOME, 'npm-cache'), 'ci', '--no-audit', '--no-fund', '--ignore-scripts'], { stdio: 'inherit', windowsHide: true });
 if (result.status !== 0) process.exit(result.status || 1);
 result = spawnSync(process.execPath, [path.join(runtimeDir, 'node_modules', 'electron', 'install.js')], { stdio: 'inherit', windowsHide: true });
 if (result.status !== 0) process.exit(result.status || 1);
