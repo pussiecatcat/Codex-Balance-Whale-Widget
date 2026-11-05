@@ -57,7 +57,7 @@ import {
   bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
+  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
 } from '/features/widget/default-content.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
@@ -972,8 +972,9 @@ import {
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
     var bubbleAdvanceControl = null;
-    function bubbleDefaultQueue() {
-      return buildBubbleDefaultQueue(window.WhaleAccountView?.mode === 'subscription');
+    function bubbleDefaultQueue(subscriptionMode) {
+      if (typeof subscriptionMode !== 'boolean') subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
+      return buildBubbleDefaultQueue(subscriptionMode);
     }
     var itemEditor = createItemEditor({
       document: document, state: bubbleEditorState, target: bubbleEditTarget, stepLabel: bubbleEditStepLabel,
@@ -2742,18 +2743,7 @@ import {
       bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
     }
     function bubblePickChoiceStep(step) {
-      var opts = bubbleChoiceOptions(step);
-      if (!opts.length) return null;
-      var total = 0;
-      for (var i = 0; i < opts.length; i++) total += bubbleChoiceWeight(opts[i]);
-      var r = Math.random() * total;
-      var acc = 0;
-      for (var j = 0; j < opts.length; j++) {
-        acc += bubbleChoiceWeight(opts[j]);
-        if (r < acc) return opts[j] && opts[j].item || null;
-      }
-      var last = opts[opts.length - 1];
-      return last && last.item || null;
+      return bubblePickChoiceItem(step, Math.random);
     }
     function bubbleShowSeqNext() {
       var step = bubbleSeq[bubbleSeqIdx];

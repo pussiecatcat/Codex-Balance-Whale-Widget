@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubblePickChoiceItem, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
 import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
 import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
 import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
@@ -105,4 +105,20 @@ test('the bubble editor saves character advancement only for the active account 
   );
   assert.equal(subscriptionSaved.tapAdvance, true, 'the API preference is untouched');
   assert.equal(subscriptionSaved.subscriptionTapAdvance, true);
+});
+
+test('choice weights are normalized to the documented integer range', () => {
+  const cases = [[{ w: '' }, 1], [{ w: 'nope' }, 1], [{ w: -8 }, 1], [{ w: 0 }, 1], [{ w: 1.6 }, 2], [{ w: 42 }, 42], [{ w: 100 }, 99], [{ w: 9999 }, 99]];
+  for (const [option, expected] of cases) assert.equal(bubbleChoiceWeight(option), expected);
+});
+
+test('a saved 10:1 A/B pair uses those weights at the runtime selection boundary', () => {
+  const step = { kind: 'choice', options: [
+    { w: 10, item: { kind: 'custom', modules: [{ type: 'text', text: 'A' }] } },
+    { w: 1, item: { kind: 'custom', modules: [{ type: 'text', text: 'B' }] } },
+  ] };
+  assert.equal(bubblePickChoiceItem(step, () => 0).modules[0].text, 'A');
+  assert.equal(bubblePickChoiceItem(step, () => (10 / 11) - Number.EPSILON).modules[0].text, 'A');
+  assert.equal(bubblePickChoiceItem(step, () => 10 / 11).modules[0].text, 'B');
+  assert.equal(bubblePickChoiceItem(step, () => .999999).modules[0].text, 'B');
 });

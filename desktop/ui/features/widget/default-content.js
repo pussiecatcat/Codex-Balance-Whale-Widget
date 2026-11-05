@@ -808,7 +808,20 @@ export function bubbleChoiceOptions(step) {
   return step && step.kind === 'choice' && Array.isArray(step.options) ? step.options : [];
 }
 export function bubbleChoiceWeight(o) {
-  return Math.max(1, Math.round(Number(o && o.w) || 1));
+  return Math.min(99, Math.max(1, Math.round(Number(o && o.w) || 1)));
+}
+export function bubblePickChoiceItem(step, random = Math.random) {
+  const options = bubbleChoiceOptions(step);
+  if (!options.length) return null;
+  let total = 0;
+  for (const option of options) total += bubbleChoiceWeight(option);
+  const threshold = random() * total;
+  let accumulated = 0;
+  for (const option of options) {
+    accumulated += bubbleChoiceWeight(option);
+    if (threshold < accumulated) return option?.item || null;
+  }
+  return options[options.length - 1]?.item || null;
 }
 export function bubbleSingleFromItem(itm) {
   return {
