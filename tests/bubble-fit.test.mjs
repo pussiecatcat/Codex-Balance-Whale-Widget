@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bubbleDefaultSubscriptionQueue } from '../desktop/ui/features/widget/default-content.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const widgetSource = fs.readFileSync(path.join(root, 'assets/whale-widget.js'), 'utf8');
@@ -115,16 +116,19 @@ test('the rounded path encloses the rounded content box', () => {
   }
 });
 
-test('the quota cards share one row so they render side by side', () => {
-  // On the refactored main line the default queue lives in default-content.js.
-  const block = defaultContentSource.match(/export function bubbleDefaultSubscriptionQueue\(\)[\s\S]*?modules: \[([\s\S]*?)\]\s*\}\s*\];/);
-  assert.ok(block, 'bubbleDefaultSubscriptionQueue must remain discoverable');
-  const rows = [...block[1].matchAll(/windowDurationMins:\s*(\d+),\s*row:\s*(\d+)/g)].map(m => m[2]);
-  assert.equal(rows.length, 2, 'the default subscription bubble ships exactly two gauges');
-  assert.equal(rows[0], rows[1], 'stacked gauges overflow the bubble, so both must share one row key');
+test('the subscription default shows one large quota per click', () => {
+  const steps = bubbleDefaultSubscriptionQueue();
+  assert.equal(steps.length, 2, '5-hour and weekly windows each get a click');
+  const quotas = step => step.modules.filter(module => module.type === 'quota');
+  assert.deepEqual(quotas(steps[0]).map(module => module.windowDurationMins), [300, 300]);
+  assert.deepEqual(quotas(steps[1]).map(module => module.windowDurationMins), [10080, 10080]);
+  assert.equal(steps.flatMap(step => step.modules).some(module => module.quotaStyle === 'meter'), false,
+    'layout D uses a large number, not the two-column meter cards');
+  assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 3]);
+  assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 3]);
 });
 
-test('the previous stacked default is migrated to the two-column layout', () => {
+test('the previous stacked default is still detected and migrated', () => {
   assert.match(
     defaultContentSource,
     /bubbleLegacySubscriptionDefault[\s\S]*?modules\.length === 3/,

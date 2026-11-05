@@ -23,6 +23,14 @@ export class WhaleService {
       dataDir: this.config.dataDir, noticeDelayMs: options.noticeDelayMs, clock: this.clock });
     this.turnAccounting = new TurnAccounting({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
       notice: this.noticePublisher, dataDir: this.config.dataDir, mode: this.mode, pendingCostMs: options.pendingCostMs, clock: this.clock });
+    // Idempotent upgrade: old subscription turns lived under the API-key scope.
+    // Only token-only root rows are copied, so no API money moves with them.
+    if (this.mode() !== 'api') {
+      try {
+        const identity = this.config.identityContext?.();
+        if (identity) this.ledger.migrateLegacyTokenHistory(this.scope(identity, this.balanceQuery.currencyFor(identity)));
+      } catch { /* a broken legacy ledger must not stop the service */ }
+    }
   }
   get turns() { return this.turnAccounting.turns; }
   get journal() { return this.turnAccounting.journal; }

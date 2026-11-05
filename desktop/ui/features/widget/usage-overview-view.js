@@ -1,4 +1,5 @@
 import { createLedgerWarning } from './ledger-warning.js';
+import { ledgerDayKey } from '../../services/ledger-day.js';
 
 // API usage overview formatting and its compact daily summary view.
 export function createUsageOverviewView(deps) {
@@ -25,8 +26,7 @@ export function createUsageOverviewView(deps) {
       try {
         var d = day.split('-');
         if (d.length !== 3) return day;
-        var now = new Date(nowMs());
-        var cur = String(now.getFullYear()) + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        var cur = ledgerDayKey(nowMs());
         if (day === cur) return '今天';
         return d[1] + '-' + d[2];
       } catch (err) {

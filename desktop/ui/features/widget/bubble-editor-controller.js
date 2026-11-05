@@ -66,7 +66,7 @@ export function createBubbleEditorController({
   }
 
   function applyPreset(name) {
-    const labels = { quota: '额度优先', balance: '余额优先', minimal: '极简', companion: '小龙娘陪伴' };
+    const labels = { quota: '额度优先', 'quota-cards': '潮汐卡片', balance: '余额优先', minimal: '极简', companion: '小龙娘陪伴' };
     showConfirm('用「' + (labels[name] || name) + '」预设替换当前泡泡序列？保存前不会写入，取消可放弃。', () => {
       state.items = bubblePresetItems(name, subscription());
       state.itemIdx = 0;

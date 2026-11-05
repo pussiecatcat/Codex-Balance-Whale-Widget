@@ -52,7 +52,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [Codex 额度 DIY 气泡](CODEX-QUOTA-DIY.md) | 订阅额度气泡的配置用法 |
+| [订阅额度 DIY 气泡](CODEX-QUOTA-DIY.md) | 订阅额度气泡的配置用法 |
 | [macOS 安装、验证与回滚](MACOS.md) | 仅静态验证，待实机验收 |
 
 ## 发布与署名

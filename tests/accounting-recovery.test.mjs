@@ -41,9 +41,11 @@ test('cross-midnight meter interval is retained once, and old daily summaries re
   let memory = ledger.load(scope);
   ledger.load = () => structuredClone(memory);
   ledger.save = (_scope, value) => { memory = structuredClone(value); };
+  ledger.saveMeter = (_scope, value) => { memory = structuredClone(value); };
   let used = 0, now;
   for (let i = 0; i < 40; i++) {
-    const morning = new Date(2026, 6, 1 + i, 9).getTime(); now = morning + 1000;
+    const morning = Date.UTC(2026, 6, 1 + i, 1); // 09:00 in the UTC+8 ledger frame
+    now = morning + 1000;
     ledger.observe(scope, { totalUsed: used }, morning);
     ledger.observe(scope, { totalUsed: ++used }, now);
     ledger.append(scope, { id: 'round-' + i, ts: now, cost: 1 });
@@ -51,7 +53,7 @@ test('cross-midnight meter interval is retained once, and old daily summaries re
   const result = ledger.records(scope, now);
   assert.equal(result.all.days.length, 40); assert.equal(result.all.total, 40); assert.equal(result.all.totalComplete, true);
   assert.equal(result.all.days.at(-1).total, 1);
-  const next = new Date(2026, 6, 41, 0, 0, 1).getTime();
+  const next = Date.UTC(2026, 6, 41, -8, 0, 1); // 00:00:01 in the UTC+8 frame
   ledger.observe(scope, { totalUsed: used + 3 }, next);
   assert.equal(ledger.records(scope, next).today.total, 3);
   assert.equal(ledger.records(scope, next).all.total, 43);
@@ -59,9 +61,9 @@ test('cross-midnight meter interval is retained once, and old daily summaries re
 
 test('summaries already deleted by old versions are unknown, never synthetic zero or overlapping event sums', t => {
   const { dir, scope } = fixture(t), ledger = new UsageLedger(dir);
-  const now = new Date(2026, 8, 16, 10).getTime();
+  const now = Date.UTC(2026, 8, 16, 2); // 10:00 in the UTC+8 frame
   ledger.observe(scope, { totalUsed: 5 }, now);
-  ledger.append(scope, { id: 'legacy', ts: new Date(2026, 0, 1, 10).getTime(), cost: 7 });
+  ledger.append(scope, { id: 'legacy', ts: Date.UTC(2026, 0, 1, 2), cost: 7 });
   const result = ledger.records(scope, now);
   assert.equal(result.all.totalComplete, false); assert.deepEqual(result.all.missingSummaryDays, ['2026-01-01']);
   assert.equal(result.all.days.find(day => day.date === '2026-01-01').total, null);

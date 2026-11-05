@@ -1,4 +1,4 @@
-/* 大肥鱼完整设置窗口。
+/* 小龙娘完整设置窗口。
    这是一个普通的不透明窗口，不是透明挂件，所以这里不复用 ui.css 里
    html.desktop 那套规则：它把 [class*="mask"] 和 dialog::backdrop 强制设为
    透明（ui.css:187-188），会让本窗口创建的每个浮层失去遮罩。 */
@@ -6,7 +6,7 @@
   --ink: #203170;
   --ink-hover: #2f4488;
   --ink-soft: #536ba9;
-  --muted: #6b7794;
+  --muted: #5a6a92;
   --line: #dfe4ef;
   --wash: #f6f8fd;
   --wash-2: #f3f5fb;
@@ -204,3 +204,27 @@ body {
   .set-row-control { padding-top: 0; }
   .set-row-control input[type="range"] { width: 100%; min-width: 140px; }
 }
+
+/* ── 服务商首屏 ───────────────────────────────────────────────────────── */
+.set-providers { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.set-providers-hint { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.7; }
+.set-providers-loading, .set-providers-empty, .set-providers-error {
+  margin: 0; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px;
+  background: var(--wash); color: var(--muted); font-size: 13px;
+}
+.set-providers-error { border-style: solid; border-color: #edc9c3; background: #fdf3f1; color: var(--danger); }
+.set-provider-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+}
+.set-provider-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.set-provider-main strong { color: var(--ink); font-size: 14px; }
+.set-provider-badge {
+  padding: 2px 7px; border-radius: 999px; background: var(--wash-2); color: var(--ink-soft);
+  font-size: 11px;
+}
+.set-provider-meta { color: var(--muted); font-size: 12px; }
+.set-provider-status { color: var(--muted); font-size: 12px; }
+.set-provider-status.is-ok { color: #2f855a; }
+.set-providers .set-button { flex: 0 0 auto; }
+.set-providers > .set-button.primary { align-self: flex-start; }

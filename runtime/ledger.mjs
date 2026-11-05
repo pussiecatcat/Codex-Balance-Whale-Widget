@@ -21,12 +21,25 @@ export class UsageLedger {
     return path.join(this.dataDir, 'ledgers', scope + '.json');
   }
   warningFile(scope) { return this.file(scope).replace(/\.json$/, '.warning.json'); }
+  // The meter sidecar holds only the latest balance reading. A valid poll every
+  // minute used to rewrite the whole event ledger (about 30 MB) just to move a
+  // timestamp; this file is a few hundred bytes and is folded back into the
+  // main ledger whenever one is written.
+  meterFile(scope) { return this.file(scope).replace(/\.json$/, '.meter.json'); }
   load(scope) {
     let recovered = false;
     const value = readJson(this.file(scope), initialLedger(), {
       backup: true,
       onRecover: () => { recovered = true; },
     });
+    const meter = readJson(this.meterFile(scope), null);
+    if (meter && Number.isFinite(meter.at) && (!value.lastObservation || meter.at >= value.lastObservation.at)) {
+      value.date = meter.date || value.date;
+      value.observed = Number(meter.observed) || 0;
+      value.firstObservation = meter.firstObservation ?? value.firstObservation;
+      value.lastObservation = meter.lastObservation || value.lastObservation;
+      value.revision = Math.max(Number(value.revision) || 0, Number(meter.revision) || 0);
+    }
     if (recovered) {
       // Put the recovered snapshot back so later reads are clean again. Do not
       // back it up: the corrupt file must not replace the good backup.
@@ -52,6 +65,18 @@ export class UsageLedger {
   save(scope, ledger, { backup = true } = {}) {
     ledger.revision = Number(ledger.revision || 0) + 1;
     writeJson(this.file(scope), ledger, { flush: true, backup });
+    // The main file now carries the meter fields, so an older sidecar must not
+    // be allowed to win the merge on the next load.
+    try { fs.rmSync(this.meterFile(scope), { force: true }); } catch (error) { ignoreError(error); }
+    this.todayCache.delete(scope);
+  }
+  saveMeter(scope, ledger) {
+    ledger.revision = Number(ledger.revision || 0) + 1;
+    writeJson(this.meterFile(scope), {
+      version: 1, revision: ledger.revision, date: ledger.date, observed: ledger.observed,
+      firstObservation: ledger.firstObservation, lastObservation: ledger.lastObservation,
+      at: Number(ledger.lastObservation?.at) || Date.now(),
+    }, { flush: true });
     this.todayCache.delete(scope);
   }
   clearReadCache(scope) { if (scope) this.todayCache.delete(scope); else this.todayCache.clear(); }
@@ -108,7 +133,12 @@ export class UsageLedger {
     // meter, date rollover or first observation) still reaches disk immediately.
     const changed = delta !== 0n || !last || last.balance !== balance || last.used !== used ||
       (last.meterKey || null) !== meterKey || previousDate !== led.date || previousFirst !== led.firstObservation;
-    if (changed) this.save(scope, led);
+    // A day rollover also writes the finished day into history, so that one
+    // still needs the full ledger. Every other meter change is sidecar-sized.
+    if (changed) {
+      if (previousDate !== led.date) this.save(scope, led);
+      else this.saveMeter(scope, led);
+    }
     return led;
   }
   append(scope, event) {
@@ -129,6 +159,44 @@ export class UsageLedger {
     this.archive(scope, [], summaries);
     for (const day of Object.keys(summaries)) delete led.history[day];
     this.save(scope, led); return true;
+  }
+  // Before the identity ledger existed, subscription turns were written under
+  // whichever API key was configured. Copy the root rows that carry only token
+  // counts into the identity scope so an upgrade does not hide that history.
+  // Rows with an amount are deliberately left alone: their money belongs to the
+  // per-key API ledger and must not be merged into the subscription view.
+  migrateLegacyTokenHistory(targetScope, now = Date.now()) {
+    const target = this.load(targetScope);
+    const seen = new Set(target.events.map(event => event.id).filter(Boolean));
+    const added = [];
+    let names = [];
+    try { names = fs.readdirSync(path.join(this.dataDir, 'ledgers')); } catch { return 0; }
+    for (const name of names) {
+      if (!/^[a-f0-9]{24}-[A-Z]{3}\.json$/.test(name)) continue;
+      const scope = name.slice(0, -5);
+      if (scope === targetScope) continue;
+      let source;
+      try { source = readJson(this.file(scope), null); } catch { continue; }
+      if (!source || !Array.isArray(source.events)) continue;
+      for (const event of source.events) {
+        if (!event || !event.id || event.isSubagent) continue;
+        if (event.source !== 'token-only' || event.cost != null || event.amount != null) continue;
+        if (seen.has(event.id)) continue;
+        seen.add(event.id);
+        added.push({ ...event, day: event.day || dayKey(event.ts), currency: targetScope.slice(-3),
+          cost: null, amount: null, costState: 'unknown', source: 'token-only', migratedFrom: scope });
+      }
+    }
+    if (!added.length) return 0;
+    const reference = Math.max(now, ...target.events.map(event => Number(event.ts) || 0), ...added.map(event => Number(event.ts) || 0));
+    const cutoff = reference - 90 * 86400000;
+    const kept = [...target.events, ...added]
+      .sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0))
+      .filter(event => (Number(event.ts) || 0) >= cutoff)
+      .slice(-20000);
+    target.events = kept;
+    this.save(targetScope, target);
+    return added.length;
   }
   reconcile(scope, input, now = Date.now()) {
     const led = this.rollover(this.load(scope), now);
@@ -226,6 +294,9 @@ export class UsageLedger {
     const day = dayKey(now);
     let stamp = '';
     try { const stat = fs.statSync(this.file(scope)); stamp = stat.mtimeMs + ':' + stat.size; } catch (error) { ignoreError(error); }
+    // Meter updates no longer touch the main file, so its mtime alone would
+    // keep serving the previous observation from cache.
+    try { const stat = fs.statSync(this.meterFile(scope)); stamp += '|' + stat.mtimeMs + ':' + stat.size; } catch (error) { ignoreError(error); }
     const cacheKey = day + '|' + stamp;
     const cached = this.todayCache.get(scope);
     if (cached && cached.key === cacheKey && stamp) return cached.value;
