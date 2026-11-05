@@ -84,7 +84,7 @@ test('settings UI never echoes private values and blank saves never erase them',
   const config = fixture(t), before = config.load(), controls = new Map(), ids = new Map(), window = new Element('window'), puts = [];
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
   for (const name of names) controls.set(name, new Element(name));
-  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'settings-discard', 'discard-settings', 'keep-editing', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (_url, options = {}) => {
@@ -117,7 +117,7 @@ test('guided API setup probes the draft without saving and names a failure', asy
   let probeResponse = { ok: true, totalBalance: 12.5, currency: 'CNY', balanceLabel: 'API 账户余额' };
   const names = [...PRIVATE_SETTING_FIELDS.filter(k => k !== 'models'), 'provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit', 'monitorSessions', 'priceModel', 'priceInput', 'priceCached', 'priceOutput', 'priceWrite', 'removePrice'];
   for (const name of names) controls.set(name, new Element(name));
-  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
+  for (const id of ['settings-form', 'settings-dialog', 'settings-error', 'settings-discard', 'discard-settings', 'keep-editing', 'close-settings', 'cancel-settings', 'toast', 'test-api-connection', 'api-connection-result', 'restart-whale', 'provider-auto-status', 'auto-api-test', 'auto-api-edit', 'current-api-settings']) ids.set(id, new Element(id));
   ids.get('settings-form').elements = { namedItem: name => controls.get(name) };
   const document = { getElementById: id => ids.get(id), createElement: name => new Element(name) };
   const requestJson = async (url, options = {}) => {

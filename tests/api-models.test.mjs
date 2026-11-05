@@ -153,3 +153,21 @@ test('a draft model probe checks the provider without saving the model', async t
   assert.equal(registry.list().models.length,0);
   assert.equal(fs.existsSync(path.join(dir,'providers.json')),false,'a probe must not write the registry');
 });
+
+test('the public model projection drops fields it was never told to expose', t => {
+  const registry=new ApiModelRegistry({dataDir:fixture(t),env:{}});
+  registry.save({id:'shape',template:'deepseek'});
+  const stored=registry.model('shape');
+  stored.internalToken='should-not-leak';stored.key='sk-should-not-leak';
+  const published=registry.publicModel(stored);
+  assert.equal(Object.hasOwn(published,'internalToken'),false);
+  assert.equal(Object.hasOwn(published,'key'),false);
+  assert.doesNotMatch(JSON.stringify(published),/should-not-leak/);
+});
+
+test('a pasted API key is rejected instead of being echoed by the editor', t => {
+  const registry=new ApiModelRegistry({dataDir:fixture(t),env:{}});
+  assert.throws(()=>registry.save({id:'pasted',template:'openai',name:'sk-abcdefghijk'}),/不能填写 API 密钥/);
+  assert.throws(()=>registry.save({id:'pasted',template:'custom',baseUrl:'https://sk-abcdefghijk.example/v1'}),/不能填写 API 密钥/);
+  assert.equal(registry.model('pasted'),null);
+});

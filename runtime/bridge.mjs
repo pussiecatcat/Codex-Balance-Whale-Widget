@@ -39,7 +39,7 @@ export const ALLOWED = new Map([
 
 // Routes served by the desktop host rather than by the dispatcher. A missing
 // callback answers like an unknown route, never a silent success.
-const HOST_ROUTES = new Map([
+export const HOST_ROUTES = new Map([
   ['/api/reset-position', async ({ onResetPosition }) => {
     if (!onResetPosition) return { status: 403, payload: { ok: false } };
     const ok = await onResetPosition();
