@@ -66,7 +66,8 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
     const numeric=value=>Number.isFinite(Number(value))?Number(value):null;
     const money=(value,currency)=>numeric(value)===null?'—':formatMoney(Number(value),currency||'USD');
     const button=(parent,text,cls,handler)=>{const node=el(parent,'button',text,cls);node.type='button';node.onclick=handler;return node;};
-    const closeDialog=dialog=>{if(dialog.open)dialog.close();dialog.remove();};
+    const closeDialog=dialog=>{const target=dialog.__returnFocus;if(dialog.open)dialog.close();dialog.remove();if(target&&target.isConnected)target.focus();};
+    const openDialog=dialog=>{dialog.__returnFocus=document.activeElement;dialog.showModal();};
     const currentModel=id=>registry.models.find(model=>model.id===id)||null;
     const notifyChanged=()=>window.dispatchEvent(new Event('whale-api-model-changed'));
     const finishSave=async id=>{if(id)values.delete(id);loadedAt=0;await load(true);paint();notifyChanged();};
@@ -94,7 +95,7 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
         el(dialog,'p','删除 '+model.name+'？引用它的气泡会显示未配置。');
         const actions=el(dialog,'div','','dialog-actions'),done=value=>{closeDialog(dialog);resolve(value);};
         button(actions,'取消','quiet',()=>done(false));button(actions,'删除','primary',()=>done(true));
-        dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});dialog.showModal();
+        dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});openDialog(dialog);
       });
     }
 
@@ -143,7 +144,7 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
       button(actions,'密钥 / 接口','dshwv-bubbtn api-model-secondary',()=>done(()=>editor(model,{returnTo:model.id})));
       button(actions,'关闭','dshwv-bubbtn dshwv-bubbtn-ok',()=>done());
       dialog.addEventListener('cancel',event=>{event.preventDefault();done();});
-      dialog.showModal();
+      openDialog(dialog);
       let value;try{value=await refreshValue(model.id,true);}catch(error){value={error:error.message};}
       if(finished)return;
       const alerts=model.alerts||{};
@@ -197,7 +198,7 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
         const result=await request('/api/models','PUT',body);await finishSave(model.id);if(announce)window.whaleToast?.(spec.title+'已保存');return result.model;
       }
       const sync=()=>{threshold.disabled=!enabled.checked;};enabled.onchange=sync;sync();
-      dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog(dialog);openModelDetail(currentModel(model.id)||model);});dialog.showModal();
+      dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog(dialog);openModelDetail(currentModel(model.id)||model);});openDialog(dialog);
     }
 
     function toLocalDateTime(value) {
@@ -232,7 +233,7 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
       }
       const sync=()=>{alertAt.disabled=!alertOn.checked;for(const row of manualFields){row.classList.toggle('is-disabled',!manualOn.checked);for(const control of row.querySelectorAll('input,select'))control.disabled=!manualOn.checked;}};
       alertOn.onchange=manualOn.onchange=sync;sync();
-      dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog(dialog);openModelDetail(currentModel(model.id)||model);});dialog.showModal();
+      dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog(dialog);openModelDetail(currentModel(model.id)||model);});openDialog(dialog);
     }
 
     function openBubbleEditor(model,spec) {
@@ -279,7 +280,7 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
         try{const result=await request('/api/models','PUT',buildBody());await finishSave(existing?.id||result.model.id);closeDialog(overlay);await render();if(existing)openModelDetail(currentModel(result.model.id)||result.model);}
         catch(ex){error.textContent=ex.message;error.hidden=false;save.disabled=false;}
       });
-      overlay.addEventListener('cancel',event=>{event.preventDefault();back();});overlay.showModal();fields.name.focus();
+      overlay.addEventListener('cancel',event=>{event.preventDefault();back();});openDialog(overlay);fields.name.focus();
     }
 
     window.addEventListener('whale-api-model-edit',async event=>{try{const data=await load(true),id=event.detail?.id;if(id){const model=data.models.find(item=>item.id===id);if(model)openModelDetail(model);else window.whaleToast?.('模型不存在');}else editor(null);}catch(error){window.whaleToast?.(error.message||'模型设置打开失败');}});

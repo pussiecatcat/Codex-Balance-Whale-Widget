@@ -135,7 +135,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       {tone:'steady',label:'5 小时',fill:'63.6%'},
       {tone:'steady',label:'每周',fill:'79%'}
     ]);
-    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.includes(':')), JSON.stringify(tideMeters));
+    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.length > 0 && !value.reset.includes('…')), JSON.stringify(tideMeters));
     assert.ok(await ev("window.__quotaFetches.includes('/api/quota?refresh=1')"));
     await delay(500);
     fs.writeFileSync(path.join(output, 'quota-tide.png'), (await window.webContents.capturePage()).toPNG());
@@ -238,7 +238,16 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'an open dialog cannot intercept the transparent viewport corner');
     assert.equal(await ev("getComputedStyle(document.querySelector('#settings-dialog'),'::backdrop').backgroundColor"),'rgba(0, 0, 0, 0)');
     fs.writeFileSync(path.join(output,'api-settings.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('#settings-dialog').close();document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
+    await ev("(()=>{const input=document.querySelector('#settings-form input[name=baseUrl]');input.value='https://example.test/v1';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#cancel-settings').click();})()");
+    await wait("!document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'an unsaved edit is not discarded silently');
+    await ev("document.querySelector('#keep-editing').click()");
+    await wait("document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'keep editing returns to the form');
+    await ev("document.querySelector('#cancel-settings').click()");
+    await wait("!document.querySelector('#settings-discard').hidden",'cancel asks a second time');
+    await ev("document.querySelector('#discard-settings').click()");
+    await wait("!document.querySelector('#settings-dialog').open",'discarding closes the dialog');
+    checks.push('API settings asks before discarding an unsaved edit and can return to the form');
+    await ev("document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
     await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
     await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
     await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'history modal loaded');

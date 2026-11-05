@@ -23,6 +23,8 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
     return requestJson(url, { method, body, ...options });
   }
   const form = $('settings-form');
+  const settingsDialog = $('settings-dialog');
+  let dialogOpener = null, settingsDirty = false;
   const element = name => form.elements.namedItem(name);
   for (const key of privateFields) {
     const input = element(key), reset = document.createElement('button');
@@ -37,8 +39,11 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
     input.insertAdjacentElement('afterend', reset);
   }
   async function openSettings() {
+    dialogOpener = document.activeElement;
     try {
       const info = await api('/api/config'), settings = info.settings;
+      settingsDirty = false;
+      $('settings-discard').hidden = true;
       resetFields.clear();
       for (const key of ['provider', 'currency', 'balanceScale', 'billingUsageDivisor', 'quotaPerUnit']) element(key).value = settings[key] ?? '';
       for (const key of privateFields) {
@@ -56,11 +61,29 @@ import { statusForError, statusView } from '/features/widget/status-tones.js';
       connectionResult.textContent = '';
       connectionResult.className = '';
       $('test-api-connection').disabled = false;
-      $('settings-error').hidden = true; $('settings-dialog').showModal();
+      $('settings-error').hidden = true; settingsDialog.showModal();
     } catch (error) { toast(error.message); }
   }
+  function closeSettings() {
+    if (settingsDialog.open) settingsDialog.close();
+    if (dialogOpener && dialogOpener.isConnected) dialogOpener.focus();
+  }
+  function requestCloseSettings() {
+    if (!settingsDirty) { closeSettings(); return; }
+    $('settings-discard').hidden = false;
+    $('keep-editing').focus();
+  }
   window.addEventListener('whale-open-settings', openSettings);
-  for (const id of ['close-settings', 'cancel-settings']) $(id).addEventListener('click', () => $('settings-dialog').close());
+  for (const id of ['close-settings', 'cancel-settings']) $(id).addEventListener('click', requestCloseSettings);
+  settingsDialog.addEventListener('cancel', event => { event.preventDefault(); requestCloseSettings(); });
+  form.addEventListener('input', () => { settingsDirty = true; $('settings-discard').hidden = true; });
+  form.addEventListener('change', () => { settingsDirty = true; $('settings-discard').hidden = true; });
+  $('discard-settings').addEventListener('click', () => { settingsDirty = false; closeSettings(); });
+  $('keep-editing').addEventListener('click', () => {
+    $('settings-discard').hidden = true;
+    const field = form.querySelector('input:not([type=hidden]),select');
+    if (field) field.focus();
+  });
   function collectSettings() {
     const settings = {};
     for (const key of ['provider', 'currency']) settings[key] = element(key).value.trim();
