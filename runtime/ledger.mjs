@@ -322,18 +322,18 @@ export function usageDefaults() {
       turnCost: { vol: 1, volSet: false, bubbleOn: true },
       question: { on: true, soundOn: false, sel: 'preset:duck:press', vol: 1, bubbleOn: true, lines: [
         { type: 'text', text: 'Codex 正在等你回答', size: 6, bold: true },
-        { type: 'text', text: '{session}', size: 3, color: '#63719a' },
+        { type: 'text', text: '{session}', size: 3, color: '#5a6a92' },
       ] },
       approval: { on: true, soundOn: false, sel: 'preset:duck:press', vol: 1, bubbleOn: true, lines: [
         { type: 'text', text: 'Codex 正在等你授权', size: 6, bold: true },
-        { type: 'text', text: '{session}', size: 3, color: '#63719a' },
+        { type: 'text', text: '{session}', size: 3, color: '#5a6a92' },
       ] },
     },
     wait: { charClose: false },
     turnCost: { lines: [
-      { type: 'text', text: '{turn_title}', size: 6, bold: true },
-      { type: 'text', text: '{turn_primary}', size: 16, bold: true, color: '#4059b3' },
-      { type: 'text', text: '{turn_detail}', size: 2, color: '#63719a' },
+      { type: 'text', text: '{turn_title}', size: 8, bold: true },
+      { type: 'text', text: '{turn_primary}', size: 16, bold: true, rgb: 'indigo' },
+      { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' },
     ] },
     alert: { on: true, below: 5, msg: '余额已低于 {currency}{below}', lines: [
       { type: 'text', text: '老大～你的 API 余额', size: 5, bold: true },

@@ -325,7 +325,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   ]) {
     await ev(`WhaleSettingsTest.go(${JSON.stringify(entry.page)})`);
     check(!(await ev('document.body.textContent')).includes('回到挂件细调'), '分类 '+entry.page+' 使用具体动作名称');
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent===${JSON.stringify(entry.id)}); if(!r) throw Error('missing bridge'); r.querySelector('button').click(); })()`);
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent===${JSON.stringify(entry.id)}); if(!r) throw Error('missing bridge'); r.closest('.set-editor-card').querySelector('.set-editor-open').click(); })()`);
     await wait(async () => await widgetEv(`window.__editorReceived.at(-1)===${JSON.stringify(entry.editor)} && [...document.querySelectorAll(${JSON.stringify(entry.selector)})].some(e=>e.checkVisibility({visibilityProperty:true}))`), '实际打开 '+entry.editor);
     check(true, entry.id+' 点击后确实打开 '+entry.editor+' 编辑器');
     const shot = await window.webContents.capturePage();

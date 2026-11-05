@@ -60,7 +60,7 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   await wait("getComputedStyle(document.querySelector('.dshwv-usage-sub')).display!=='none'",'Xiaolongnu ledger opens');
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sub')).backgroundColor"),'rgba(0, 0, 0, 0)');
   assert.equal(await ev("!!document.querySelector('.dshwv-book-tools')"),false);
-  assert.match(await ev("getComputedStyle(document.querySelector('.dshwv-usagebody')).fontFamily"),/^Consolas/);
+  assert.match(await ev("getComputedStyle(document.querySelector('.dshwv-usagebody')).fontFamily"),/Microsoft YaHei/);
   assert.match(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sec>span:first-child')).fontFamily"),/Microsoft YaHei/);
   assert.equal(await ev("document.querySelector('.dshwv-usage-days').children.length"),7);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-days')).overflowY"),'visible');
@@ -72,7 +72,7 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-days .dshwv-usage-money')).width"),'68px');
   assert.equal(await ev("document.querySelector('.dshwv-menu').style.height"),`${originalMenuHeight}px`);
   assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-sub')).overflowY"),'auto');
-  assert.match(await ev("getComputedStyle([...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回'))).fontFamily"),/^Consolas/);
+  assert.match(await ev("getComputedStyle([...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回'))).fontFamily"),/Microsoft YaHei/);
   await screenshot('feature-xiaolongnu-ledger');
   await ev("[...document.querySelectorAll('.dshwv-menu button')].find(button=>button.textContent.includes('返回')).click()");
   checks.push('Xiaolongnu ledger matches DSH height and typography while all seven daily rows stay expanded and money columns remain readable');

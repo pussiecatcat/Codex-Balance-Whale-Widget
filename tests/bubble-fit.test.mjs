@@ -124,8 +124,8 @@ test('the subscription default shows one large quota per click', () => {
   assert.deepEqual(quotas(steps[1]).map(module => module.windowDurationMins), [10080, 10080]);
   assert.equal(steps.flatMap(step => step.modules).some(module => module.quotaStyle === 'meter'), false,
     'layout D uses a large number, not the two-column meter cards');
-  assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 3]);
-  assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 3]);
+  assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 4]);
+  assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 4]);
 });
 
 test('the previous stacked default is still detected and migrated', () => {

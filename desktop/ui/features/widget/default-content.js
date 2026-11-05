@@ -17,13 +17,13 @@ export function bubbleDefaultFirstModules() {
   }, {
     type: "balance",
     size: 20,
-    rgb: "macaron",
+    rgb: "indigo",
     color: "#203170",
     tpl: "{balance_api}"
   }, {
     type: "today",
     size: 4,
-    color: "var(--text-muted)",
+    color: "#536ba9",
     tpl: "今日已观测 {expense_api}"
   }, {
     type: "source",
@@ -34,7 +34,7 @@ export function bubbleDefaultFirstModules() {
 export function bubbleDefaultQuotaCards() {
   // The previous two-column tide cards. Kept as a preset, not the default.
   return [{ kind: 'custom', modules: [
-    { type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
+    { type: 'plan', quotaStyle: 'header', size: 4, bold: true, tpl: '{plan_name}' },
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 1 }
   ] }];
@@ -44,9 +44,10 @@ function bubbleSingleQuotaStep(minutes, label) {
   // Layout D: one large number per click, with the other window available on
   // the next click. No cards, no meter, no plan header.
   return { kind: 'custom', modules: [
-    { type: 'text', text: label + '剩余', size: 4, bold: true, color: '#53669a' },
-    { type: 'quota', windowDurationMins: minutes, size: 20, tpl: '{quota_left_round}' },
-    { type: 'quota', windowDurationMins: minutes, size: 3, tpl: '{quota_reset_short}后重置' },
+    // 层次与 API 余额气泡一致：标题 8、靛蓝大数字 20、说明 4、来源 2。
+    { type: 'text', text: label + '剩余', size: 8, bold: true },
+    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: minutes, size: 4, tpl: '{quota_reset_short}后重置' },
     { type: 'source', size: 2, tpl: '{source_line}' }
   ] };
 }
@@ -461,7 +462,7 @@ var BUBBLE_DEFAULT_ITEMS = [{
   }, {
     "type": "today",
     "size": 4,
-    "color": "var(--text-muted)",
+    "color": "#536ba9",
     "tpl": "今日已观测 {expense_api}"
   }]
 }, {
@@ -736,7 +737,7 @@ export function bubblePresetItems(name, isSubscription = false) {
       kind: 'custom',
       modules: isSubscription
         ? [{ type: 'quota', quotaStyle: 'meter', windowDurationMins: 300 }]
-        : [{ type: 'balance', size: 20, rgb: 'macaron', color: '#203170', tpl: '{balance_api}' }]
+        : [{ type: 'balance', size: 20, rgb: 'indigo', color: '#203170', tpl: '{balance_api}' }]
     }];
   }
   if (name === 'companion') return bubbleDefaultCompanionQueue(isSubscription);

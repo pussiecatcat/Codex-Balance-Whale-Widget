@@ -1,8 +1,9 @@
-// 六个分类的字段行渲染。
+// 设置窗口的分区与字段行渲染。
 //
-// 每个字段按设置目录（settings-catalog.js）里的 type 渲染成对应控件，
-// 并统一在左侧挂上 `!` 说明按钮。需要画布的复杂编辑器不在这里重写：
-// 它们显示参数摘要加一个「打开对应编辑器」按钮，由设置窗口唤起鲸鱼自己的弹层。
+// 每个字段按设置目录（settings-catalog.js）里的 type 渲染成对应控件。同一分类
+// 的字段按 SECTIONS 分进一张卡片，控件统一落在右侧固定宽度的列里。需要画布的
+// 复杂编辑器不在这里重写：同一个编辑器下的字段合成一张卡片，只放一个打开按钮，
+// 由设置窗口唤起鲸鱼自己的弹层。
 (() => {
   'use strict';
 
@@ -13,6 +14,32 @@
     if (text != null) node.textContent = text;
     return node;
   };
+
+  // 字段在页内的分组。没列出的字段落进页尾的无标题卡片，所以目录新增字段不会
+  // 从界面上消失。fold 的小节默认收起，只有其中有未保存修改时才展开。
+  const SECTIONS = {
+    appearance: [
+      { title: '显示', ids: ['size.scale', 'ui.accountView', 'ui.displayCurrency'] },
+    ],
+    sound: [
+      { title: '点击反馈', ids: ['size.sound', 'size.vol', 'size.soundSet', 'ui.feel'] },
+      { title: '任务完成', ids: ['usage.taskEndOn', 'size.turnCostOn', 'size.turnCostCloseMs', 'usage.taskEndSel', 'usage.taskEndVol'] },
+    ],
+    bubble: [
+      { title: '显示', ids: ['size.bubbleOn', 'ui.bubbleShape'] },
+    ],
+    position: [
+      { title: '桌面避让', ids: ['size.scrollGapOn', 'size.scrollGapPx'] },
+      { title: '菜单', ids: ['size.menuBtnHide'] },
+    ],
+    api: [
+      { title: '预警与预算', ids: ['usage.alertOn', 'usage.alertBelow', 'usage.budgetOn', 'usage.budgetAmount', 'usage.alertAutoClose', 'usage.alertTtlSec'] },
+      { title: '接口', ids: ['api.provider', 'api.baseUrl', 'api.keyEnv', 'api.dashboardUrl', 'api.refreshSeconds', 'api.monitorSessions'] },
+      { title: '自定义接口字段（通常不用改）', fold: true, ids: ['api.profile', 'api.projectDir', 'api.currency', 'api.balancePath', 'api.balanceField', 'api.usedField', 'api.balanceScale', 'api.billingUsageDivisor', 'api.quotaPerUnit'] },
+    ],
+  };
+  const EDITOR_TYPES = ['role', 'position', 'snap', 'group', 'message', 'action'];
+  const opensEditor = field => !!field.bridged || EDITOR_TYPES.includes(field.type);
 
   function pathValue(object, path) {
     return path.split('.').reduce((value, key) => value?.[key], object);
@@ -58,14 +85,10 @@
     let syncOutput = () => {};
     const set = next => { context.change(field, next); syncOutput(); };
 
-    if (field.type === 'locked') {
-      row.append(el('span', 'set-locked', '固定值，不可修改'));
-      return row;
-    }
-
     if (field.type === 'boolean') {
       const input = el('input');
       input.type = 'checkbox';
+      input.className = 'set-check';
       input.checked = current !== false;
       input.setAttribute('aria-label', field.label);
       input.addEventListener('change', () => set(input.checked));
@@ -78,6 +101,7 @@
       input.type = 'range';
       input.min = field.min; input.max = field.max; input.step = field.step;
       input.value = current ?? field.min;
+      input.setAttribute('aria-label', field.label);
       const output = el('span', 'set-output');
       const render = () => { output.textContent = formatRange(field, Number(input.value)); };
       // set() 会回调它，所以必须在 return 之前完成声明。
@@ -98,7 +122,7 @@
       if (field.max !== undefined) input.max = field.max;
       input.step = field.step ?? 'any';
       input.value = current ?? '';
-      const unit = el('span', 'set-output', field.unit || '');
+      input.setAttribute('aria-label', field.label);
       input.addEventListener('change', () => {
         const raw = input.value.trim();
         if (raw === '') { set(field.defaultValue); return; }
@@ -106,7 +130,8 @@
         if (!Number.isFinite(value)) { input.reportValidity(); return; }
         set(value);
       });
-      row.append(input, unit);
+      row.append(input);
+      if (field.unit) row.append(el('span', 'set-output', field.unit));
       return row;
     }
 
@@ -135,6 +160,7 @@
       const input = el('input');
       input.type = field.type === 'url' ? 'url' : 'text';
       input.autocomplete = 'off';
+      input.setAttribute('aria-label', field.label);
       input.spellcheck = false;
       // 私密字段从不回显真实值：已配置时只提示，留空表示保留。
       const configured = context.configured?.[field.key] === true;
@@ -148,19 +174,6 @@
         set(raw);
       });
       row.append(input);
-      return row;
-    }
-
-    // 复杂编辑器：显示摘要，交给挂件里的弹层细调。
-    if (field.bridged || ['role', 'position', 'snap', 'group', 'message', 'action'].includes(field.type)) {
-      const box = el('div', 'set-row-bridge');
-      box.append(el('span', 'set-summary', context.summaryFor(field)));
-      const button = el('button', 'set-button', editorFor(field).label);
-      button.type = 'button';
-      button.title = '将在挂件中打开，修改后在编辑器内保存';
-      button.addEventListener('click', () => context.bridge(field));
-      box.append(button);
-      row.append(box);
       return row;
     }
 
@@ -179,28 +192,76 @@
 
   function renderRow(field, context) {
     const row = el('div', 'set-row');
-    if (field.bridged) row.classList.add('is-bridged');
+    row.dataset.fieldId = field.id;
     if (context.isDirty(field)) row.classList.add('is-dirty');
 
     const main = el('div', 'set-row-main');
     const label = el('div', 'set-row-label');
-    label.append(document.createTextNode(field.label));
-    label.append(el('span', 'set-id', field.id));
+    label.append(el('span', 'set-row-name', field.label));
+    // 说明按钮跟着字段名，不占控件列，否则每行右侧都是一排相同的圆圈。
+    window.WhaleSettingsHelp.attach(label, field);
+    // 内部 ID 不给用户看，只留给测试和排障定位这一行。
+    const id = el('span', 'set-id', field.id);
+    id.hidden = true;
+    label.append(id);
     main.append(label, el('div', 'set-row-purpose', field.purpose));
     row.append(main);
-
-    const controlHost = el('div', 'set-row-control');
-    const built = makeControl(field, context);
-    for (const child of Array.from(built.childNodes)) {
-      if (child.nodeName === 'DIV' && child.className === 'set-row-control') {
-        for (const inner of Array.from(child.childNodes)) controlHost.append(inner);
-      } else {
-        controlHost.append(child);
-      }
-    }
-    window.WhaleSettingsHelp.attach(controlHost, field);
-    row.append(controlHost);
+    if (!opensEditor(field)) row.append(makeControl(field, context));
     return row;
+  }
+
+  function renderDirectSection(section, fields, context) {
+    const card = el('div', 'set-card');
+    for (const field of fields) card.append(renderRow(field, context));
+    if (section.fold) {
+      const fold = el('details', 'set-section set-fold');
+      fold.open = fields.some(field => context.isDirty(field));
+      fold.append(el('summary', 'set-section-title', section.title), card);
+      return fold;
+    }
+    const box = el('section', 'set-section');
+    if (section.title) box.append(el('h3', 'set-section-title', section.title));
+    box.append(card);
+    return box;
+  }
+
+  // 同一个编辑器下的字段合成一张卡片，只放一个按钮。原先每行一个
+  // 「打开气泡编辑器」，一屏全是相同的按钮。
+  function renderEditorSection(fields, context) {
+    const groups = new Map();
+    for (const field of fields) {
+      const target = editorFor(field);
+      if (!groups.has(target.editor)) groups.set(target.editor, { label: target.label, fields: [] });
+      groups.get(target.editor).fields.push(field);
+    }
+    const box = el('section', 'set-section');
+    box.append(el('h3', 'set-section-title', '在编辑器中调整'));
+    box.append(el('p', 'set-section-hint', '这些内容需要边看边改，会在小龙娘旁边打开编辑器，并在编辑器内保存。'));
+    for (const group of groups.values()) {
+      const card = el('div', 'set-card set-editor-card');
+      const single = group.fields.length === 1;
+      const open = el('button', 'set-button set-editor-open', single ? group.label : '打开');
+      open.type = 'button';
+      open.setAttribute('aria-label', group.label);
+      open.addEventListener('click', () => context.bridge(group.fields[0]));
+      if (!single) {
+        const head = el('div', 'set-editor-head');
+        head.append(el('strong', 'set-editor-name', group.label.replace(/^打开/, '')), open);
+        card.append(head);
+      }
+      for (const field of group.fields) {
+        const row = renderRow(field, context);
+        row.classList.add('is-bridged');
+        const summary = context.summaryFor(field);
+        const side = el('div', 'set-row-side');
+        if (summary) side.append(el('span', 'set-summary', summary));
+        if (single) side.append(open);
+        if (side.childNodes.length) row.append(side);
+        card.append(row);
+      }
+      box.append(card);
+    }
+    return box;
   }
 
   function renderPage(pageId, context) {
@@ -222,15 +283,20 @@
       container.append(providers);
     }
 
-    // 直接可编辑的字段先渲染，需要打开对应编辑器的放在「进阶」小节后面。
-    const direct = catalog.forPage(pageId).filter(field => !(field.bridged || ['role', 'position', 'snap', 'group', 'message', 'action'].includes(field.type)));
-    const advanced = catalog.forPage(pageId).filter(field => direct.indexOf(field) < 0);
-
-    for (const field of direct) container.append(renderRow(field, context));
-    if (advanced.length) {
-      container.append(el('h3', 'set-group-title', '进阶设置'));
-      for (const field of advanced) container.append(renderRow(field, context));
+    // locked 字段是不可修改的历史遗留值，留在目录里供文档与校验使用，不占界面。
+    const fields = catalog.forPage(pageId).filter(field => field.type !== 'locked');
+    const direct = fields.filter(field => !opensEditor(field));
+    const placed = new Set();
+    for (const section of SECTIONS[pageId] || []) {
+      const members = section.ids.map(id => direct.find(field => field.id === id)).filter(Boolean);
+      if (!members.length) continue;
+      members.forEach(field => placed.add(field));
+      container.append(renderDirectSection(section, members, context));
     }
+    const rest = direct.filter(field => !placed.has(field));
+    if (rest.length) container.append(renderDirectSection({}, rest, context));
+    const editors = fields.filter(opensEditor);
+    if (editors.length) container.append(renderEditorSection(editors, context));
     return container;
   }
 
