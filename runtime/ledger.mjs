@@ -130,6 +130,44 @@ export class UsageLedger {
     for (const day of Object.keys(summaries)) delete led.history[day];
     this.save(scope, led); return true;
   }
+  // Before the identity ledger existed, subscription turns were written under
+  // whichever API key was configured. Copy the root rows that carry only token
+  // counts into the identity scope so an upgrade does not hide that history.
+  // Rows with an amount are deliberately left alone: their money belongs to the
+  // per-key API ledger and must not be merged into the subscription view.
+  migrateLegacyTokenHistory(targetScope, now = Date.now()) {
+    const target = this.load(targetScope);
+    const seen = new Set(target.events.map(event => event.id).filter(Boolean));
+    const added = [];
+    let names = [];
+    try { names = fs.readdirSync(path.join(this.dataDir, 'ledgers')); } catch { return 0; }
+    for (const name of names) {
+      if (!/^[a-f0-9]{24}-[A-Z]{3}\.json$/.test(name)) continue;
+      const scope = name.slice(0, -5);
+      if (scope === targetScope) continue;
+      let source;
+      try { source = readJson(this.file(scope), null); } catch { continue; }
+      if (!source || !Array.isArray(source.events)) continue;
+      for (const event of source.events) {
+        if (!event || !event.id || event.isSubagent) continue;
+        if (event.source !== 'token-only' || event.cost != null || event.amount != null) continue;
+        if (seen.has(event.id)) continue;
+        seen.add(event.id);
+        added.push({ ...event, day: event.day || dayKey(event.ts), currency: targetScope.slice(-3),
+          cost: null, amount: null, costState: 'unknown', source: 'token-only', migratedFrom: scope });
+      }
+    }
+    if (!added.length) return 0;
+    const reference = Math.max(now, ...target.events.map(event => Number(event.ts) || 0), ...added.map(event => Number(event.ts) || 0));
+    const cutoff = reference - 90 * 86400000;
+    const kept = [...target.events, ...added]
+      .sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0))
+      .filter(event => (Number(event.ts) || 0) >= cutoff)
+      .slice(-20000);
+    target.events = kept;
+    this.save(targetScope, target);
+    return added.length;
+  }
   reconcile(scope, input, now = Date.now()) {
     const led = this.rollover(this.load(scope), now);
     const revision = Number(input?.revision);

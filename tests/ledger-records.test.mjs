@@ -45,3 +45,23 @@ test('today() ignores estimates from other days and keeps the observed total', t
   assert.equal(today.models[0].cost, 2);
   assert.equal(today.total, 0);
 });
+
+test('legacy token-only root rows move to the identity ledger once and money stays put', t => {
+  const ledger = new UsageLedger(fixture(t));
+  const legacy = 'c'.repeat(24) + '-CNY', identity = 'd'.repeat(24) + '-CNY';
+  const now = Date.parse('2026-11-04T02:00:00Z');
+  ledger.append(legacy, { id: 'root', ts: now - 1000, tokens: 120, source: 'token-only', cost: null, costState: 'unknown' });
+  ledger.append(legacy, { id: 'priced', ts: now - 900, tokens: 80, source: 'configured-pricing-estimate', cost: 1.5, costState: 'estimated' });
+  ledger.append(legacy, { id: 'child', ts: now - 800, tokens: 10, isSubagent: true, source: 'subagent-token-only', cost: null });
+  const before = fs.readFileSync(ledger.file(legacy), 'utf8');
+  assert.equal(ledger.migrateLegacyTokenHistory(identity, now), 1);
+  const migrated = ledger.find(identity, { id: 'root' });
+  assert.equal(migrated.tokens, 120);
+  assert.equal(migrated.cost, null);
+  assert.equal(migrated.currency, 'CNY');
+  assert.equal(migrated.migratedFrom, legacy);
+  assert.equal(ledger.find(identity, { id: 'priced' }), null);
+  assert.equal(ledger.find(identity, { id: 'child' }), null);
+  assert.equal(ledger.migrateLegacyTokenHistory(identity, now), 0, 'a second launch must not duplicate rows');
+  assert.equal(fs.readFileSync(ledger.file(legacy), 'utf8'), before, 'the old ledger is only read');
+});
