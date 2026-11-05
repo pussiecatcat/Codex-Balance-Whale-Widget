@@ -256,7 +256,12 @@ import { statusForCode, statusForError, statusView } from '/features/widget/stat
         if(type!=='select')input.type=type;if(type==='number'){input.min='0';input.step='any';}
         fields[name]=input;input.dataset.field=name;input.value=value;return input;
       };
-      const template=field(basic,'template','服务商模板','select');for(const item of registry.templates)template.append(new Option(item.name,item.id));template.value=existing?.template||'openai';
+      const searchLabel=el(basic,'label','搜索服务商模板');
+      const templateSearch=el(searchLabel,'input');templateSearch.type='search';templateSearch.placeholder='名称或 ID，例如 deepseek';templateSearch.autocomplete='off';
+      const template=field(basic,'template','服务商模板','select');
+      const fillTemplates=()=>{const q=templateSearch.value.trim().toLowerCase(),chosen=template.value;const items=registry.templates.filter(item=>!q||item.name.toLowerCase().includes(q)||item.id.toLowerCase().includes(q)||(item.matchIds||[]).some(id=>String(id).toLowerCase().includes(q)));const current=registry.templates.find(item=>item.id===chosen);if(current&&!items.includes(current))items.unshift(current);template.replaceChildren(...items.map(item=>new Option(item.name,item.id)));template.value=chosen;};
+      fillTemplates();templateSearch.addEventListener('input',fillTemplates);
+      template.value=existing?.template||'openai';fillTemplates();
       const selected=()=>registry.templates.find(item=>item.id===template.value);
       field(basic,'name','显示名称','text',existing?.name||selected()?.name||'');field(basic,'keyEnv','密钥环境变量名','text',existing?.keyEnv??selected()?.keyEnv??'');field(basic,'currency','币种','text',existing?.currency||selected()?.currency||'USD');
       const section=title=>{const node=el(overlay,'details');el(node,'summary',title);return node;};
