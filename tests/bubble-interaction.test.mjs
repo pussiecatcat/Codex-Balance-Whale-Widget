@@ -32,20 +32,21 @@ test('a character click with no bubble open starts at the first bubble and refre
   assert.deepEqual(fx.calls, { ...idle, refreshQuota: 1, startRound: 1 });
 });
 
+// The current code refreshes subscription quota on every queue click, open or not.
 test('with character advancement off, clicking the pet returns an open queue to its first bubble', () => {
   const fx = fixture({ shown: true, canAdvance: true, advanceOnCharacter: false });
   fx.interaction.whaleClick();
-  assert.deepEqual(fx.calls, { ...idle, startRound: 1 });
+  assert.deepEqual(fx.calls, { ...idle, refreshQuota: 1, startRound: 1 });
 });
 
 test('with character advancement on, clicking the pet advances and then closes the final bubble', () => {
   const middle = fixture({ shown: true, canAdvance: true, advanceOnCharacter: true });
   middle.interaction.whaleClick();
-  assert.deepEqual(middle.calls, { ...idle, showNext: 1 });
+  assert.deepEqual(middle.calls, { ...idle, refreshQuota: 1, showNext: 1 });
 
   const final = fixture({ shown: true, canAdvance: false, advanceOnCharacter: true });
   final.interaction.whaleClick();
-  assert.deepEqual(final.calls, { ...idle, closeBubble: 1 });
+  assert.deepEqual(final.calls, { ...idle, refreshQuota: 1, closeBubble: 1 });
 });
 
 test('wait, cost and alert scenes keep their existing character-click rules', () => {
