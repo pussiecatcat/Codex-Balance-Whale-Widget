@@ -14,6 +14,7 @@
 
   // 二级设置窗口的六个固定分类。顺序即左侧导航顺序。
   const PAGES = [
+    { id: 'providers', label: '服务商', hint: 'Codex 当前 API 与 DIY 服务商；点「编辑」在挂件里修改', custom: true },
     { id: 'appearance', label: '外观与显示', hint: '角色、大小、桌面显示方式与数据显示来源' },
     { id: 'sound', label: '声音与提醒', hint: '什么时候出声、显示什么提醒' },
     { id: 'bubble', label: '气泡内容', hint: '气泡开关、形状、点击序列与模块' },
@@ -206,9 +207,9 @@
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '这是显示来源的切换，不改变你的账号登录状态，也不改变 API 配置。',
-        adjust: '二选一。选 Codex 额度看 5 小时与周额度；选 API 余额看你配置的接口余额。',
+        adjust: '二选一。选 Codex 订阅看 5 小时与周额度；选 API 余额看你配置的接口余额。',
         apply: '立即生效。',
-        recommend: '用订阅账号就选 Codex 额度；用 API key 计费就选 API 余额。',
+        recommend: '用订阅账号就选 Codex 订阅；用 API key 计费就选 API 余额。',
       },
     },
     {

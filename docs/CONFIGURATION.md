@@ -1,4 +1,4 @@
-# 大肥鱼配置定位索引与 Agent 修改约定
+# 小龙娘配置定位索引与 Agent 修改约定
 
 状态：**方案阶段的源码定位索引，尚不是已经验收的完整配置操作手册。** 日期：2026-10-03。
 
@@ -449,7 +449,7 @@
 
 - **用途**：可以复用的气泡内容片段。
 - **类型**：
-- **默认值**：空（来源 `assets/whale-widget.js:5517`）
+- **默认值**：空（来源 `assets/whale-widget.js:2280`）
 - **存储**：`.dshw-bubble.json` 的 `lib`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -534,7 +534,7 @@
 
 - **用途**：记录鲸鱼停靠在桌面的哪个位置。
 - **类型**：position
-- **默认值**：右下角（来源 `assets/whale-widget.js:4454`）
+- **默认值**：右下角（来源 `assets/whale-widget.js:2371`）
 - **存储**：`ui-state.json` 的 `dshw-pos`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -1206,6 +1206,9 @@
 - 适合怎么选：知道这个数是手填的，不要当成官方余额。
 
 <!-- END GENERATED: settings-catalog -->
+
+设置窗口的第一个分类「服务商」是只读汇总页：列出 Codex 当前 API 与 DIY 服务商的名称、类型、币种和配置状态，点「编辑」会点亮挂件并打开它的 API 弹层。该页没有独立字段，服务商的增删改仍以挂件的「API 余额设置」为准。
+
 
 下面各节是对这个目录的补充分析：存储总表、各存储的写入语义、并发风险和历史遗留字段。
 

@@ -111,7 +111,7 @@ test('the level-1 tier exposes the everyday controls the UX plan requires', () =
 test('the level-2 pages cover all six categories', () => {
   const catalog = loadCatalog();
   for (const page of catalog.pages) {
-    assert.ok(catalog.forPage(page.id).length > 0, `分类 ${page.id} 没有任何字段`);
+    assert.ok(page.custom || catalog.forPage(page.id).length > 0, `分类 ${page.id} 没有任何字段`);
   }
 });
 

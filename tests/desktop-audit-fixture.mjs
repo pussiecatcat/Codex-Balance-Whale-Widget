@@ -166,6 +166,25 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await delay(350);
     fs.writeFileSync(path.join(output, 'quota-layout-d-week.png'), (await window.webContents.capturePage()).toPNG());
     checks.push('layout D renders a large five-hour number and a separate weekly screen with reset and source lines');
+    // 150% / 200% 视图缩放：系统缩放会改变 CSS 像素与窗口的比例，相当于
+    // 一次更窄的布局。继续用方案 D 的同一场景，确认文字仍整体落在气泡内。
+    for (const factor of [1.5, 2]) {
+      window.webContents.setZoomFactor(factor); await delay(450);
+      await ev('window.__whaleRenderTest.place(140,140,false)'); await delay(250);
+      await ev(`window.__whaleRenderTest.scene([
+        {type:'text',text:'5 小时剩余',size:4,bold:true,color:'#53669a'},
+        {type:'quota',windowDurationMins:300,size:20,tpl:'{quota_left_round}'},
+        {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short}后重置'},
+        {type:'source',size:2,tpl:'{source_line}'}
+      ],0)`);
+      await wait("document.body.innerText.includes('5 小时剩余') && document.body.innerText.includes('%')", `layout D renders at ${factor * 100}% zoom`);
+      await delay(350);
+      const contained = await ev(`(()=>{const shape=document.querySelector('.dshwv-pop.dshwv-pop-open .dshwv-bshape');const frame=document.querySelector('.dshwv-frame[aria-hidden="false"]');if(!shape||!frame)return false;const inverse=shape.getScreenCTM().inverse();const inside=(x,y)=>shape.isPointInFill(new DOMPoint(x,y).matrixTransform(inverse));const ranges=[...frame.querySelectorAll('.dshwv-trow')].flatMap(el=>{const range=document.createRange();range.selectNodeContents(el);return [...range.getClientRects()].filter(r=>r.width&&r.height)});const smallest=Math.min(...[...frame.querySelectorAll('*')].filter(n=>n.children.length===0&&n.textContent.trim()&&n.getClientRects().length).map(n=>parseFloat(getComputedStyle(n).fontSize)));return ranges.length>0&&ranges.every(r=>[[r.left+.5,r.top+.5],[r.right-.5,r.top+.5],[r.left+.5,r.bottom-.5],[r.right-.5,r.bottom-.5]].every(([x,y])=>inside(x,y)))&&smallest>=10})()`);
+      assert.equal(contained, true, 'every bubble row stays inside the shape and at least 10 px at ' + factor * 100 + '%');
+      fs.writeFileSync(path.join(output, 'quota-layout-d-zoom-' + factor * 100 + '.png'), (await window.webContents.capturePage()).toPNG());
+    }
+    window.webContents.setZoomFactor(1); await delay(350);
+    checks.push('layout D stays inside the bubble with at least 10 px text at 150% and 200% view zoom');
     if (process.env.WHALE_QUOTA_AUDIT === '1') {
       await ev(`(async()=>{window.__originalQuotaFetch=window.fetch;window.fetch=window.__quotaMockFetch;
         __whaleRenderTest.close();await new Promise(r=>setTimeout(r,350));window.__quotaFetches=[];
