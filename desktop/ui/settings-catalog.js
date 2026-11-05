@@ -1,4 +1,4 @@
-// 大肥鱼设置目录 —— 界面控件、`!` 说明与 docs/CONFIGURATION.md 的唯一事实源。
+// 小龙娘设置目录 —— 界面控件、`!` 说明与 docs/CONFIGURATION.md 的唯一事实源。
 //
 // 加载方式：本文件同时是普通浏览器脚本与 CommonJS 模块。
 // 浏览器：<script src="/settings-catalog.js">  → globalThis.WhaleSettingsCatalog
@@ -199,7 +199,7 @@
       id: 'ui.accountView', page: 'appearance', tier: 1, domain: 'displayMode',
       label: '查看数据', purpose: '决定鲸鱼点开后显示订阅额度还是 API 余额。',
       type: 'select',
-      options: [{ value: 'subscription', label: 'Codex 额度' }, { value: 'api', label: 'API 余额' }],
+      options: [{ value: 'subscription', label: 'Codex 订阅' }, { value: 'api', label: 'API 余额' }],
       defaultValue: 'subscription', defaultSource: 'runtime/composition.mjs:50',
       store: 'display-mode.json', key: 'mode', emptyValue: '非法值按 subscription 处理',
       read: 'GET /api/display-mode', write: 'POST /api/display-mode',

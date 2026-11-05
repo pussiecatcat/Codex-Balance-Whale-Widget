@@ -129,7 +129,7 @@
 #### `ui.accountView` — 查看数据
 
 - **用途**：决定鲸鱼点开后显示订阅额度还是 API 余额。
-- **类型**：select，选项 Codex 额度 / API 余额
+- **类型**：select，选项 Codex 订阅 / API 余额
 - **默认值**：subscription（来源 `runtime/composition.mjs:50`）
 - **存储**：`display-mode.json` 的 `mode`
 - **读取**：`GET /api/display-mode`
@@ -140,9 +140,9 @@
 **`.help`**
 
 - 有什么用：这是显示来源的切换，不改变你的账号登录状态，也不改变 API 配置。
-- 怎么调：二选一。选 Codex 额度看 5 小时与周额度；选 API 余额看你配置的接口余额。
+- 怎么调：二选一。选 Codex 订阅看 5 小时与周额度；选 API 余额看你配置的接口余额。
 - 什么时候生效：立即生效。
-- 适合怎么选：用订阅账号就选 Codex 额度；用 API key 计费就选 API 余额。
+- 适合怎么选：用订阅账号就选 Codex 订阅；用 API key 计费就选 API 余额。
 
 #### `ui.role` — 角色
 

@@ -258,7 +258,7 @@ function openSettingsWindow(page) {
   const y = Math.max(work.y, Math.round(work.y + (work.height - height) / 3));
   settingsWindow = new BrowserWindow({
     x, y, width, height, minWidth: 560, minHeight: 420,
-    title: '大肥鱼设置', show: false, resizable: true, minimizable: true, maximizable: true, fullscreenable: false,
+    title: '小龙娘设置', show: false, resizable: true, minimizable: true, maximizable: true, fullscreenable: false,
     backgroundColor: '#f6f8fd',
     autoHideMenuBar: true,
     webPreferences: {
@@ -394,7 +394,7 @@ else {
     const testOptions = await harness.load(dataDir);
     dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
-    // 大肥鱼设置的唯一写入者。size/usage 经 SoundSettingsService 的同一事务落盘
+    // 小龙娘设置的唯一写入者。size/usage 经 SoundSettingsService 的同一事务落盘
     // （journal + 失败恢复），ui 走 UiStateStore 的按键合并，displayMode 走现有路由；
     // 这里只做域适配，不建立第二套写入者。
     settingsStore = new SettingsStore({
@@ -611,7 +611,7 @@ function updateTray() {
     { label: '显示 / 隐藏小龙娘', click: toggle }, { label: '恢复显示小龙娘', click: show },
     { label: desktopMode === 'standalone' ? '跟随 Codex' : '固定在桌面', click: () => setMode(desktopMode === 'standalone' ? 'follow-codex' : 'standalone') },
     { label: '刷新余额', click: () => sendCommand('balance') }, { label: '查看用量记录', click: () => sendCommand('usage') },
-    { label: '大肥鱼设置…', click: () => openSettingsWindow() }, { label: '查看运行状态', click: showStatusDialog },
+    { label: '小龙娘设置…', click: () => openSettingsWindow() }, { label: '查看运行状态', click: showStatusDialog },
     { type: 'separator' }, { label: desktopMode === 'standalone' ? '退出（手动启动后恢复）' : '本次退出（下次打开 Codex 恢复）', click: pauseAndQuit }
   ]));
 }
