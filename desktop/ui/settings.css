@@ -1,4 +1,4 @@
-/* 大肥鱼完整设置窗口。
+/* 小龙娘完整设置窗口。
    这是一个普通的不透明窗口，不是透明挂件，所以这里不复用 ui.css 里
    html.desktop 那套规则：它把 [class*="mask"] 和 dialog::backdrop 强制设为
    透明（ui.css:187-188），会让本窗口创建的每个浮层失去遮罩。 */
@@ -6,7 +6,7 @@
   --ink: #203170;
   --ink-hover: #2f4488;
   --ink-soft: #536ba9;
-  --muted: #6b7794;
+  --muted: #5a6a92;
   --line: #dfe4ef;
   --wash: #f6f8fd;
   --wash-2: #f3f5fb;
