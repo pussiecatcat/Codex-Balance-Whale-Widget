@@ -4,7 +4,7 @@
 
 # Codex 小龙娘
 
-**住在 Codex 窗边的小小同伴，替你守着额度，也替你记着每一笔账。**
+**窗边的小龙娘：守护订阅额度与 API 余额，帮你记下coding一点一滴。支持气泡、音效与角色自定义。**
 
 [![最新版本](https://img.shields.io/github/v/release/pussiecatcat/Codex-Balance-Whale-Widget?label=%E7%89%88%E6%9C%AC&color=203170)](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget/releases/latest)
 [![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-536ba9)](LICENSE)
