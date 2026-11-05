@@ -49,10 +49,12 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-pop .dshwv-bshape{transition-delay:.1s}
 .dshwv-pop .dshwv-b1{transition-delay:.2s}
 .dshwv-pop .dshwv-b2{transition-delay:.3s}
-.dshwv-text{position:absolute;left:var(--dshw-vx,44.25%);top:var(--dshw-vy,36%);width:66%;height:64%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--text-muted);line-height:1.15;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--motion-fast) ease}
+.dshwv-text{position:absolute;left:var(--dshw-vx,44.25%);top:var(--dshw-vy,36%);width:66%;height:64%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#536ba9;line-height:1.15;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--motion-fast) ease}
 .dshwv-pop.dshwv-pop-open .dshwv-text{opacity:1;transition:opacity var(--motion-fast) ease .36s}
 .dshwv-root.dshwv-left .dshwv-text{transform:translate(-50%,-50%) scaleX(-1)}
 .dshwv-text .dshwv-trow{flex:0 0 auto;margin:calc(var(--dshw-u) * 2) 0}
+.dshwv-trow.dshwv-trow-hero{color:#203170;font-weight:800;letter-spacing:-.01em;line-height:1.08;margin:calc(var(--dshw-u) * 4) 0;font-variant-numeric:tabular-nums}
+.dshwv-trow.dshwv-trow-source{color:#5a6a92;margin-top:calc(var(--dshw-u) * 12);letter-spacing:.01em}
 .dshwv-text .dshwv-mimg{flex:0 0 auto}
 .dshwv-text .dshwv-label,.dshwv-text .dshwv-amount,.dshwv-text .dshwv-hint{flex:0 0 auto;margin-left:auto;margin-right:auto}
 .dshwv-label{font-size:calc(var(--dshw-u) * 66);font-weight:600;letter-spacing:.06em}
@@ -75,6 +77,8 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-sound{flex:1;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170;font-size:12px;padding:3px 0;cursor:pointer}
 .dshwv-sound:hover{background:rgba(32,49,112,.16)}
 .dshwv-check{width:16px;height:16px;accent-color:#203170;cursor:pointer;flex:0 0 auto}
+.dshwv-menuview>.dshwv-menu-row>span:first-child{flex:0 0 auto;min-width:60px}
+.dshwv-menuview>.dshwv-menu-row>.dshwv-check{margin:0}
 .dshwv-menu-sep{height:1px;background:rgba(32,49,112,.25);margin:6px 0}
 .dshwv-volpct{width:44px;text-align:right;color:#203170;font-size:12px}
 .dshwv-rolebtn-wrap{position:relative;flex:1;min-width:0}

@@ -224,12 +224,11 @@ import { requestJson } from '/services/request.js';
 
   function summaryFor(field) {
     const value = currentValue(field);
-    if (field.type === 'role') return '当前角色：' + (value || '默认角色');
-    if (field.type === 'snap') return '当前：' + (value?.mode || 'ratio') + '（比例）';
-    if (field.type === 'position') return '拖动鲸鱼即可改变位置';
-    if (field.type === 'action') return '导入 / 导出素材包';
-    if (field.pattern || field.type === 'group') return '共 ' + (field.subFields || []).length + ' 个子字段，在挂件里编辑';
-    return '在挂件里编辑';
+    if (field.type === 'role') return value ? '当前：' + value : '当前：默认角色';
+    if (field.type === 'snap') return { ratio: '当前：按比例', px: '当前：按像素', off: '当前：关闭' }[value?.mode || 'ratio'] || '';
+    if (field.type === 'position') return '拖动鲸鱼即可移动';
+    if (field.pattern || field.type === 'group') return (field.subFields || []).length ? '共 ' + field.subFields.length + ' 项' : '';
+    return '';
   }
 
   async function bridgeTo(field) {
@@ -247,11 +246,11 @@ import { requestJson } from '/services/request.js';
   };
 
   function markRows() {
-    const rows = dom.content.querySelectorAll('.set-row');
-    catalog.forPage(state.page).forEach((field, index) => {
-      const row = rows[index];
-      if (row) row.classList.toggle('is-dirty', isDirty(field));
-    });
+    // 按字段 ID 找行：界面顺序按分区排，和目录顺序不是一回事。
+    for (const row of dom.content.querySelectorAll('.set-row')) {
+      const field = catalog.byId.get(row.dataset.fieldId);
+      if (field) row.classList.toggle('is-dirty', isDirty(field));
+    }
     updateChrome();
   }
 

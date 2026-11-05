@@ -3,7 +3,7 @@
 // 沿用挂件里参考汇率那一行已经验证过的交互（assets/whale-widget.js 的
 // .dshwv-fx-info-button / .dshwv-fx-info）：中性色圆形按钮、可聚焦、带
 // aria-expanded，Esc / 点击外部 / 窗口尺寸变化时关闭，关闭后焦点回到原按钮。
-// 这里把它抽成组件，六个分类里每个字段都能挂。
+// 这里把它抽成组件，每个字段都能挂。按钮平时收起，鼠标移到这一行或键盘聚焦时才显示。
 (() => {
   'use strict';
 
@@ -33,7 +33,8 @@
     card.style.top = '0px';
     const size = card.getBoundingClientRect();
     const margin = 8;
-    let left = box.right - size.width;
+    // 按钮跟在字段名后面，所以浮层从按钮左缘向右展开，放不下再往回收。
+    let left = box.left;
     let top = box.bottom + 6;
     if (left < margin) left = margin;
     if (left + size.width > window.innerWidth - margin) left = Math.max(margin, window.innerWidth - size.width - margin);
@@ -84,7 +85,7 @@
       list.className = 'set-help-list';
       for (const sub of field.subFields) {
         const item = document.createElement('li');
-        item.textContent = sub.label + '（' + sub.key + '）';
+        item.textContent = sub.label;
         list.append(item);
       }
       card.append(list);
@@ -94,7 +95,7 @@
 
   /**
    * 给一个控件挂上说明按钮。
-   * @param {HTMLElement} anchor 控件容器，`!` 追加在它最后
+   * @param {HTMLElement} anchor 字段名所在的容器，`!` 追加在它最后
    * @param {object} field 设置目录里的字段
    */
   function attach(anchor, field) {
@@ -117,7 +118,6 @@
       button.setAttribute('aria-expanded', 'true');
       card.focus();
     });
-    // 方案要求「右侧控件与 !」，所以说明按钮排在控件之后。
     anchor.append(button);
     return button;
   }
