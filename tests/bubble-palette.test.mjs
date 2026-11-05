@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createBubblePalette } from '../desktop/ui/features/widget/bubble-palette.js';
 
-function fixture(mode = '') {
+function fixture(mode = '', library = []) {
   const element = (tag = 'div') => ({
     tagName: tag, className: '', textContent: '', title: '', draggable: false,
     children: [], listeners: {},
@@ -16,7 +16,7 @@ function fixture(mode = '') {
   const palette = createBubblePalette({
     document: { createElement: element },
     getPaletteElement: () => root,
-    getLibrary: () => [],
+    getLibrary: () => library,
     getMode: () => mode,
     setDragKey: () => {},
     bubbleModuleAdd: module => state.added.push(module),
@@ -118,4 +118,15 @@ test('the palette hides modules that belong to the other mode', () => {
   assert.equal(chipFor(api.root, 'Codex 套餐'), undefined);
   assert.ok(chipFor(api.root, '来源行'));
   assert.ok(chipFor(api.root, '余额数值'));
+});
+
+test('the module library separates entries the current mode would hide', () => {
+  const { root } = fixture('api', [
+    { id: 'lib_q', name: '订阅组合', module: { type: 'quota' } },
+    { id: 'lib_b', name: '余额组合', module: { type: 'balance' } },
+  ]);
+  const groups = root.children.filter(child => child.className === 'dshwv-palgroup').map(child => child.textContent);
+  assert.deepEqual(groups, ['模块库', '另一模式（加入后隐藏）']);
+  const chips = root.children.filter(child => child.className === 'dshwv-libchip');
+  assert.deepEqual(chips.map(chip => chip.children[0].textContent), ['▦ 余额组合', '▦ 订阅组合']);
 });
