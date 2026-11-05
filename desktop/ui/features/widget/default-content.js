@@ -31,15 +31,28 @@ export function bubbleDefaultFirstModules() {
     tpl: "{source_line}"
   }];
 }
-export function bubbleDefaultSubscriptionQueue() {
-  // Both gauges share one row key so bubbleRowsOf groups them side by side.
-  // Stacked cards are taller than the bubble path is wide at that depth, so
-  // the lower card used to render outside the white body.
+export function bubbleDefaultQuotaCards() {
+  // The previous two-column tide cards. Kept as a preset, not the default.
   return [{ kind: 'custom', modules: [
     { type: 'plan', quotaStyle: 'header', size: 4, bold: true, color: '#53669a', tpl: '{plan_name}' },
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
     { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 1 }
   ] }];
+}
+
+function bubbleSingleQuotaStep(minutes, label) {
+  // Layout D: one large number per click, with the other window available on
+  // the next click. No cards, no meter, no plan header.
+  return { kind: 'custom', modules: [
+    { type: 'text', text: label + '剩余', size: 4, bold: true, color: '#53669a' },
+    { type: 'quota', windowDurationMins: minutes, size: 20, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: minutes, size: 3, tpl: '{quota_reset_short}后重置' },
+    { type: 'source', size: 2, tpl: '{source_line}' }
+  ] };
+}
+
+export function bubbleDefaultSubscriptionQueue() {
+  return [bubbleSingleQuotaStep(300, '5 小时'), bubbleSingleQuotaStep(10080, '每周')];
 }
 export function bubbleLegacySubscriptionDefault(items) {
   try {
@@ -727,6 +740,7 @@ export function bubblePresetItems(name, isSubscription = false) {
     }];
   }
   if (name === 'companion') return bubbleDefaultCompanionQueue(isSubscription);
+  if (name === 'quota-cards') return isSubscription ? bubbleDefaultQuotaCards() : bubbleDefaultQueue(false);
   if (name === 'quota') return isSubscription ? bubbleDefaultSubscriptionQueue() : bubbleDefaultQueue(false);
   if (isSubscription) return bubbleDefaultSubscriptionQueue();
   return bubbleDefaultQueue(false);

@@ -1421,7 +1421,7 @@ import {
     var bubblePresetRow = document.createElement('div');
     bubblePresetRow.className = 'dshwv-bubpresets';
     var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
-      ? [['quota', '额度优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
+      ? [['quota', '额度优先'], ['quota-cards', '潮汐卡片'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
       : [['balance', '余额优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']];
     presetSpecs.forEach(function (spec) {
       var pbtn = document.createElement('button');

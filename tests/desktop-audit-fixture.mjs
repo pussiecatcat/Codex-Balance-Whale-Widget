@@ -147,6 +147,25 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev(`(async()=>{const original=window.fetch;window.fetch=window.__quotaMockFetch;await WhaleQuota.refresh(true);window.fetch=original;})()`);
     assert.ok(await ev("[...document.querySelectorAll('.dshwv-quota-meter-reset-label')].every(e=>e.textContent.includes('更新'))"));
     checks.push('temporary quota failure keeps both visible percentages with an explicit last-data label; recovery restores the live timestamp');
+    await ev(`window.__whaleRenderTest.scene([
+      {type:'text',text:'5 小时剩余',size:4,bold:true,color:'#53669a'},
+      {type:'quota',windowDurationMins:300,size:20,tpl:'{quota_left_round}'},
+      {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short}后重置'},
+      {type:'source',size:2,tpl:'{source_line}'}
+    ],0)`);
+    await wait("document.body.innerText.includes('5 小时剩余') && document.body.innerText.includes('64%')", 'layout D five-hour screen renders');
+    await delay(350);
+    fs.writeFileSync(path.join(output, 'quota-layout-d-5h.png'), (await window.webContents.capturePage()).toPNG());
+    await ev(`window.__whaleRenderTest.scene([
+      {type:'text',text:'每周剩余',size:4,bold:true,color:'#53669a'},
+      {type:'quota',windowDurationMins:10080,size:20,tpl:'{quota_left_round}'},
+      {type:'quota',windowDurationMins:10080,size:3,tpl:'{quota_reset_short}后重置'},
+      {type:'source',size:2,tpl:'{source_line}'}
+    ],0)`);
+    await wait("document.body.innerText.includes('每周剩余') && document.body.innerText.includes('79%')", 'layout D weekly screen renders');
+    await delay(350);
+    fs.writeFileSync(path.join(output, 'quota-layout-d-week.png'), (await window.webContents.capturePage()).toPNG());
+    checks.push('layout D renders a large five-hour number and a separate weekly screen with reset and source lines');
     if (process.env.WHALE_QUOTA_AUDIT === '1') {
       await ev(`(async()=>{window.__originalQuotaFetch=window.fetch;window.fetch=window.__quotaMockFetch;
         __whaleRenderTest.close();await new Promise(r=>setTimeout(r,350));window.__quotaFetches=[];
