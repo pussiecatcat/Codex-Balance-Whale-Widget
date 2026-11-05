@@ -33,6 +33,10 @@ export async function renderBubbleVisual({ window, app, dataDir, dispatcher, err
   const rows = [];
   const wait = async (c, l) => { const d = Date.now() + 8000; for (;;) { const v = await ev(c); if (v) return v; if (Date.now() > d) throw new Error('timeout ' + l + '; renderer errors: ' + JSON.stringify(errors.slice(-6))); await new Promise(r => setTimeout(r, 60)); } };
   await wait('!!window.__whaleRenderTest', 'hook');
+  // 额度卡只属于订阅模式；隔离数据目录首次启动时先显式切过去，否则卡片
+  // 会被按模式过滤掉，截图只剩一个空气泡。
+  await ev("window.WhaleAccountView && WhaleAccountView.setMode('subscription')");
+  await new Promise(r => setTimeout(r, 350));
   try {
     const scenarios = [...CASES, ...[0, 100, null].map((quota, i) => ({ ...CASES[0], name: ['5-额度耗尽', '6-完整额度', '7-未登录'][i], quota }))];
     for (const shape of ['ellipse', 'round']) {

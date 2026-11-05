@@ -61,6 +61,9 @@
   }
 
   function fitFrameToBubble(frame) {
+    // A resize observer can fire after its frame was detached; there is nothing
+    // to fit then, and touching closest() on null would break the batch.
+    if (!frame) return 1;
     const pop = frame.closest('.dshwv-pop');
     const path = pop && pop.querySelector('.dshwv-bshape');
     if (!frame.isConnected || !path || typeof path.isPointInFill !== 'function') return 1;

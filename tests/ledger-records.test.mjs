@@ -65,3 +65,23 @@ test('legacy token-only root rows move to the identity ledger once and money sta
   assert.equal(ledger.migrateLegacyTokenHistory(identity, now), 0, 'a second launch must not duplicate rows');
   assert.equal(fs.readFileSync(ledger.file(legacy), 'utf8'), before, 'the old ledger is only read');
 });
+
+test('a balance poll writes a small sidecar instead of the whole event ledger', t => {
+  const ledger = new UsageLedger(fixture(t));
+  const scope = 'e'.repeat(24) + '-USD';
+  const now = Date.parse('2026-11-04T02:00:00Z');
+  ledger.append(scope, { id: 'kept', ts: now - 60000, model: 'gpt', cost: 1, source: 'configured-pricing-estimate' });
+  // The first observation of a new day also writes the day boundary, so let it
+  // finish before measuring what a steady poll touches.
+  ledger.observe(scope, { totalUsed: 8 }, now);
+  const mainBefore = fs.readFileSync(ledger.file(scope), 'utf8');
+  ledger.observe(scope, { totalUsed: 10 }, now + 30000);
+  assert.equal(fs.readFileSync(ledger.file(scope), 'utf8'), mainBefore, 'the event ledger is untouched by a meter update');
+  assert.ok(fs.statSync(ledger.meterFile(scope)).size < 1024, 'the sidecar stays small');
+  assert.equal(ledger.today(scope, now + 30000).total, 2, 'today() sees the sidecar delta');
+  ledger.observe(scope, { totalUsed: 12 }, now + 60000);
+  assert.equal(ledger.today(scope, now + 60000).total, 4, 'a newer meter value invalidates the today cache');
+  ledger.append(scope, { id: 'later', ts: now + 120000, model: 'gpt', cost: 2, source: 'configured-pricing-estimate' });
+  assert.equal(fs.existsSync(ledger.meterFile(scope)), false, 'a full save folds the sidecar into the main ledger');
+  assert.equal(ledger.load(scope).lastObservation.used, 12);
+});
