@@ -150,7 +150,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev(`window.__whaleRenderTest.scene([
       {type:'text',text:'5 小时剩余',size:4,bold:true,color:'#53669a'},
       {type:'quota',windowDurationMins:300,size:20,tpl:'{quota_left_round}'},
-      {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short} 后重置'},
+      {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short}后重置'},
       {type:'source',size:2,tpl:'{source_line}'}
     ],0)`);
     await wait("document.body.innerText.includes('5 小时剩余') && document.body.innerText.includes('64%')", 'layout D five-hour screen renders');
@@ -159,7 +159,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev(`window.__whaleRenderTest.scene([
       {type:'text',text:'每周剩余',size:4,bold:true,color:'#53669a'},
       {type:'quota',windowDurationMins:10080,size:20,tpl:'{quota_left_round}'},
-      {type:'quota',windowDurationMins:10080,size:3,tpl:'{quota_reset_short} 后重置'},
+      {type:'quota',windowDurationMins:10080,size:3,tpl:'{quota_reset_short}后重置'},
       {type:'source',size:2,tpl:'{source_line}'}
     ],0)`);
     await wait("document.body.innerText.includes('每周剩余') && document.body.innerText.includes('79%')", 'layout D weekly screen renders');

@@ -42,7 +42,7 @@ function bubbleSingleQuotaStep(minutes, label) {
   return { kind: 'custom', modules: [
     { type: 'text', text: label + '剩余', size: 4, bold: true, color: '#53669a' },
     { type: 'quota', windowDurationMins: minutes, size: 20, tpl: '{quota_left_round}' },
-    { type: 'quota', windowDurationMins: minutes, size: 3, tpl: '{quota_reset_short} 后重置' },
+    { type: 'quota', windowDurationMins: minutes, size: 3, tpl: '{quota_reset_short}后重置' },
     { type: 'source', size: 2, tpl: '{source_line}' }
   ] };
 }
