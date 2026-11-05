@@ -1,4 +1,4 @@
-# 大肥鱼配置定位索引与 Agent 修改约定
+# 小龙娘配置定位索引与 Agent 修改约定
 
 状态：**方案阶段的源码定位索引，尚不是已经验收的完整配置操作手册。** 日期：2026-10-03。
 
@@ -129,7 +129,7 @@
 #### `ui.accountView` — 查看数据
 
 - **用途**：决定鲸鱼点开后显示订阅额度还是 API 余额。
-- **类型**：select，选项 Codex 额度 / API 余额
+- **类型**：select，选项 Codex 订阅 / API 余额
 - **默认值**：subscription（来源 `runtime/composition.mjs:50`）
 - **存储**：`display-mode.json` 的 `mode`
 - **读取**：`GET /api/display-mode`
@@ -140,9 +140,9 @@
 **`.help`**
 
 - 有什么用：这是显示来源的切换，不改变你的账号登录状态，也不改变 API 配置。
-- 怎么调：二选一。选 Codex 额度看 5 小时与周额度；选 API 余额看你配置的接口余额。
+- 怎么调：二选一。选 Codex 订阅看 5 小时与周额度；选 API 余额看你配置的接口余额。
 - 什么时候生效：立即生效。
-- 适合怎么选：用订阅账号就选 Codex 额度；用 API key 计费就选 API 余额。
+- 适合怎么选：用订阅账号就选 Codex 订阅；用 API key 计费就选 API 余额。
 
 #### `ui.role` — 角色
 
@@ -449,7 +449,7 @@
 
 - **用途**：可以复用的气泡内容片段。
 - **类型**：
-- **默认值**：空（来源 `assets/whale-widget.js:5517`）
+- **默认值**：空（来源 `assets/whale-widget.js:2280`）
 - **存储**：`.dshw-bubble.json` 的 `lib`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -534,7 +534,7 @@
 
 - **用途**：记录鲸鱼停靠在桌面的哪个位置。
 - **类型**：position
-- **默认值**：右下角（来源 `assets/whale-widget.js:4454`）
+- **默认值**：右下角（来源 `assets/whale-widget.js:2371`）
 - **存储**：`ui-state.json` 的 `dshw-pos`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -1206,6 +1206,9 @@
 - 适合怎么选：知道这个数是手填的，不要当成官方余额。
 
 <!-- END GENERATED: settings-catalog -->
+
+设置窗口的第一个分类「服务商」是只读汇总页：列出 Codex 当前 API 与 DIY 服务商的名称、类型、币种和配置状态，点「编辑」会点亮挂件并打开它的 API 弹层。该页没有独立字段，服务商的增删改仍以挂件的「API 余额设置」为准。
+
 
 下面各节是对这个目录的补充分析：存储总表、各存储的写入语义、并发风险和历史遗留字段。
 

@@ -20,8 +20,8 @@
       </section>
       <details id="current-api-settings">
         <summary>Codex 当前 API 设置（自动跟随）</summary>
-        <label>余额读取方式<select name="provider"><option value="auto">自动识别当前 API（推荐）</option><option value="billing">兼容账单接口</option><option value="newapi">兼容密钥额度接口</option><option value="custom-json">自定义 JSON 余额接口</option><option value="deepseek">原生余额接口</option></select><small>不确定就选“自动识别”。服务商模板在上方列表。</small></label>
         <div class="field-grid"><label>API 地址<input name="baseUrl" type="url" placeholder="留空，跟随 Codex 当前配置"><small>更换域名须同时指定该服务的密钥环境变量。</small></label><label>密钥环境变量名<input name="keyEnv" placeholder="留空，使用 Codex 的现有密钥" autocomplete="off"><small>只填变量名，例如 MY_API_KEY；不要填密钥。</small></label></div>
+        <label>余额读取方式<select name="provider"><option value="auto">自动识别当前 API（推荐）</option><option value="billing">兼容账单接口</option><option value="newapi">兼容密钥额度接口</option><option value="custom-json">自定义 JSON 余额接口</option><option value="deepseek">原生余额接口</option></select><small>不确定就选“自动识别”。服务商模板在上方列表。</small></label>
         <div class="connection-test"><button type="button" id="test-api-connection" class="quiet">测试连接</button><span id="api-connection-result" role="status" aria-live="polite"></span></div>
         <p class="help">刚用 setx 或系统设置添加的环境变量，需要重启挂件后才会被读取。<button type="button" id="restart-whale" class="quiet">重新启动小龙娘</button></p>
         <details><summary>其他 API 与自定义接口</summary><div class="field-grid"><label>Codex 配置方案（profile）<input name="profile" placeholder="默认方案"></label><label>项目目录（可选）<input name="projectDir" placeholder="读取该目录内的 .codex/config.toml"></label><label>自定义金额币种<input name="currency" maxlength="3" placeholder="USD"><small>兼容账单接口固定为 USD。</small></label><label>账单页面地址<input name="dashboardUrl" type="url" placeholder="留空，使用当前服务商"></label><label>余额路径<input name="balancePath" placeholder="/api/account/balance"></label><label>余额字段<input name="balanceField" placeholder="data.balance"></label><label>累计消耗字段（可选）<input name="usedField" placeholder="data.used"></label><label>金额换算系数<input name="balanceScale" type="number" min="0.000000001" step="any"></label><label>账单用量除数<input name="billingUsageDivisor" type="number" min="0.000001" step="any"><small>账单用量以美分返回时使用 100；请按接口文档调整。</small></label><label>每货币单位的 quota<input name="quotaPerUnit" type="number" min="0.000001" step="any"><small>仅用于返回原始 quota 的接口。</small></label></div></details>
@@ -29,6 +29,7 @@
       </details>
       <label class="check"><input name="monitorSessions" type="checkbox"> 记录本机 token 用量与任务状态</label><p class="help">不发送聊天内容。使用会员账号？在菜单顶部切换到“Codex 订阅”，查看 5 小时与周额度。</p>
       </div>
+      <div id="settings-discard" class="notice" role="alert" hidden>有未保存的修改。<button type="button" id="discard-settings" class="quiet">放弃修改</button><button type="button" id="keep-editing" class="quiet">继续编辑</button></div>
       <div class="dialog-actions"><button type="button" id="cancel-settings" class="quiet">取消</button><button type="submit" class="primary">保存设置</button></div>
     </form>
   </dialog>

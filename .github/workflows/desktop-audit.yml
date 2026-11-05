@@ -47,10 +47,17 @@ jobs:
       - name: Desktop audit
         run: node tests/desktop-audit-smoke.mjs qa-desktop-audit
 
+      # 气泡可读性的目视回归：渲染几种真实内容并截图，同时打印每次 fit 的
+      # 实际缩放比。它和上面的审计共用同一份 Electron 运行时。
+      - name: Bubble visual regression
+        run: node tests/bubble-visual.mjs qa-bubble-visual
+
       - name: Upload audit output
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-audit-output
-          path: qa-desktop-audit
+          path: |
+            qa-desktop-audit
+            qa-bubble-visual
           if-no-files-found: ignore
