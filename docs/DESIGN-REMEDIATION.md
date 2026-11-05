@@ -1,6 +1,6 @@
 # Codex 小龙娘 界面与产品整改方案
 
-日期：2026-11-05　基线：`feat/bubble-editor-port`（PR #33，提交 `2534160`，已包含 PR #32）　配套样稿：[`images/design-remediation-mockups.png`](images/design-remediation-mockups.png)
+日期：2026-11-05　基线：`feat/bubble-editor-port`（PR #33，提交 `2534160`，已包含 PR #32）　配套样稿：[`DESIGN-REMEDIATION-mockups.png`](DESIGN-REMEDIATION-mockups.png)
 
 ## 0. 结论与执行方式
 
@@ -318,7 +318,7 @@
 ## 4. 给执行智能体的提示词
 
 ```text
-请实现 Codex 小龙娘整改方案中的 WP__（见 docs/DESIGN-REMEDIATION.md 和样稿 docs/images/design-remediation-mockups.png）。
+请实现 Codex 小龙娘整改方案中的 WP__（见 docs/DESIGN-REMEDIATION.md 和样稿 docs/DESIGN-REMEDIATION-mockups.png）。
 
 基线：feat/bubble-editor-port（如已合并则用 main）。
 先读 CLAUDE.md、docs/DASHBOARD-B.md、docs/OUTSIDE-CLICK-DECISION.md。
