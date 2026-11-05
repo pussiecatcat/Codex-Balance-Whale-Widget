@@ -12,7 +12,8 @@ test('default bubble drafts are independent and subscription quota windows remai
   first[0].kind = 'mutated';
   assert.notEqual(bubbleDefaultQueue(false)[0].kind, 'mutated');
   const subscription = bubbleDefaultSubscriptionQueue();
-  assert.deepEqual(subscription[0].modules.filter(module => module.type === 'quota').map(module => module.windowDurationMins), [300, 10080]);
+  assert.deepEqual(subscription[0].modules.filter(module => module.type === 'quota').map(module => module.windowDurationMins), [300, 300]);
+  assert.deepEqual(subscription[1].modules.filter(module => module.type === 'quota').map(module => module.windowDurationMins), [10080, 10080]);
   const draft = bubbleStepToBubble({ kind: 'custom', modules: [{ type: 'text', text: 'original' }] });
   draft.modules[0].text = 'changed';
   assert.equal(bubbleStepToBubble({ kind: 'custom', modules: [{ type: 'text', text: 'original' }] }).modules[0].text, 'original');

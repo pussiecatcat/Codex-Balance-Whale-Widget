@@ -1,5 +1,6 @@
 // The usage history modal owns its expandable charts and daily event view.
 import { createLedgerWarning } from './ledger-warning.js';
+import { ledgerDayKey } from '../../services/ledger-day.js';
 
 export function createUsageRecordsView(deps) {
   const { document, card: usageMoreCard, close: closeUsageRecordsWindow, dismissLedgerWarning,
@@ -214,8 +215,7 @@ export function createUsageRecordsView(deps) {
           var day = ev.day || '';
           if (!day) {
             try {
-              var dd2 = new Date(ev.ts);
-              day = dd2.getFullYear() + '-' + String(dd2.getMonth() + 1).padStart(2, '0') + '-' + String(dd2.getDate()).padStart(2, '0');
+              day = ledgerDayKey(ev.ts);
             } catch (err) {}
           }
           if (!day) return;

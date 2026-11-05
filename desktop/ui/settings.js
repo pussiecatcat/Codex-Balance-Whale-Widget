@@ -1,4 +1,4 @@
-// 大肥鱼完整设置窗口的控制器。
+// 小龙娘完整设置窗口的控制器。
 //
 // 状态分三层，任何一层都不越权：
 //   baseline  打开这一页时磁盘上的值，用来发现「你编辑期间被别人改了」
@@ -288,7 +288,99 @@ import { requestJson } from '/services/request.js';
     renderNav(true);
     dom.content.replaceChildren();
     dom.content.append(pages.renderPage(state.page, context));
+    if (state.page === 'providers') void hydrateProviders();
     updateChrome();
+  }
+
+  // ── 服务商首屏 ──────────────────────────────────────────────────────────
+  // 列表只读；真正的增删改仍在挂件的 API 弹层里，避免把两套编辑器做成两份
+  // 可能分叉的实现。点「编辑」时由主进程点亮鲸鱼并打开它自己的弹层。
+  let providerRevision = 0;
+  async function hydrateProviders() {
+    const box = document.getElementById('set-providers');
+    if (!box) return;
+    const revision = ++providerRevision;
+    const line = (parent, className, text) => {
+      const node = document.createElement('p');
+      node.className = className;
+      if (text != null) node.textContent = text;
+      parent.append(node);
+      return node;
+    };
+    const edit = (card, label) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'set-button';
+      button.textContent = label || '编辑';
+      button.addEventListener('click', () => bridgeTo({ domain: 'api', type: 'bridge', id: 'providers.edit' }));
+      card.append(button);
+    };
+    try {
+      const [models, config] = await Promise.all([requestJson('/api/models'), requestJson('/api/config')]);
+      if (revision !== providerRevision || state.page !== 'providers' || !box.isConnected) return;
+      box.replaceChildren();
+      line(box, 'set-providers-hint', '小龙娘从这里读取余额和额度。当前 API 自动跟随 Codex；DIY 服务商单独添加。');
+      const auto = document.createElement('div');
+      auto.className = 'set-provider-card';
+      const main = document.createElement('div');
+      main.className = 'set-provider-main';
+      const title = document.createElement('strong');
+      title.textContent = 'Codex 当前 API';
+      const badge = document.createElement('span');
+      badge.className = 'set-provider-badge';
+      badge.textContent = '自动';
+      const status = document.createElement('span');
+      status.className = 'set-provider-status';
+      const configured = config?.configured || {};
+      const ready = !!(configured.baseUrl || configured.keyEnv || configured.profile || configured.projectDir);
+      status.textContent = config?.warning ? '已配置（已从备份恢复）' : ready ? '已配置' : '未配置';
+      status.classList.toggle('is-ok', ready);
+      main.append(title, badge, status);
+      auto.append(main);
+      edit(auto);
+      box.append(auto);
+      const list = models?.models || [];
+      if (!list.length) {
+        line(box, 'set-providers-empty', '尚未添加 DIY 服务商。Codex 当前 API 仍会自动跟随；需要单独查看余额时再添加。');
+      } else {
+        for (const model of list) {
+          const card = document.createElement('div');
+          card.className = 'set-provider-card';
+          const row = document.createElement('div');
+          row.className = 'set-provider-main';
+          const name = document.createElement('strong');
+          name.textContent = model.name;
+          const meta = document.createElement('span');
+          meta.className = 'set-provider-meta';
+          meta.textContent = (model.kind === 'quota' ? '订阅额度' : model.kind === 'codex' ? '本地统计' : model.noBalanceApi ? '无余额接口' : '余额接口') + ' · ' + model.currency;
+          const key = document.createElement('span');
+          key.className = 'set-provider-status';
+          key.textContent = model.configured?.key ? '已配置' : model.keyEnv ? '缺少密钥' : '未配置';
+          key.classList.toggle('is-ok', !!model.configured?.key);
+          row.append(name, meta, key);
+          card.append(row);
+          edit(card);
+          box.append(card);
+        }
+      }
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'set-button primary';
+      add.textContent = '在挂件中添加服务商';
+      add.addEventListener('click', () => bridgeTo({ domain: 'api', type: 'bridge', id: 'providers.add' }));
+      box.append(add);
+      line(box, 'set-providers-hint', '密钥只读取环境变量，配置文件不保存密钥内容。测试连接与新增在挂件的「API 余额设置」里完成。');
+    } catch (error) {
+      if (revision !== providerRevision) return;
+      box.replaceChildren();
+      line(box, 'set-providers-error', '服务商列表暂时无法读取：' + (error?.message || '未知错误'));
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'set-button';
+      retry.textContent = '重试';
+      retry.addEventListener('click', () => { void hydrateProviders(); });
+      box.append(retry);
+    }
   }
 
   async function refresh() {
