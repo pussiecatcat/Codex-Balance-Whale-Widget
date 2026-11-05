@@ -25,6 +25,10 @@ export function bubbleDefaultFirstModules() {
     size: 4,
     color: "var(--text-muted)",
     tpl: "今日已观测 {expense_api}"
+  }, {
+    type: "source",
+    size: 2,
+    tpl: "{source_line}"
   }];
 }
 export function bubbleDefaultSubscriptionQueue() {
