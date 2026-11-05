@@ -21,6 +21,7 @@ test('the minimal preset keeps only the primary number and mode-specific presets
   assert.deepEqual(modulesOf(bubblePresetItems('minimal', false)), ['balance']);
   assert.deepEqual(modulesOf(bubblePresetItems('minimal', true)), ['quota']);
   const quota = bubblePresetItems('quota', true);
-  assert.deepEqual(modulesOf(quota), ['plan', 'quota', 'quota']);
+  assert.deepEqual(modulesOf(quota), ['text', 'quota', 'quota', 'source', 'text', 'quota', 'quota', 'source']);
+  assert.deepEqual(modulesOf(bubblePresetItems('quota-cards', true)), ['plan', 'quota', 'quota']);
   assert.deepEqual(modulesOf([bubblePresetItems('quota', false).at(1)]), ['text', 'turn', 'session', 'source']);
 });

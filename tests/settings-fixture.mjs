@@ -57,9 +57,16 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   // ── 内容：六个分类，字段行，说明按钮 ─────────────────────────────────
   await waitFor('!!document.querySelectorAll("#set-nav button").length', '左侧分类');
   const navCount = await ev('document.querySelectorAll("#set-nav button").length');
+  check(navCount === 7, '左侧有 7 个分类（实际 ' + navCount + '）');
+  check(await ev('document.querySelector("#set-nav button").textContent.startsWith("服务商")'), '服务商是首个分类');
+  await waitFor('!!document.querySelector("#set-providers .set-provider-card")', '服务商列表');
+  check(await ev('document.querySelector("#set-providers").innerText.includes("Codex 当前 API")'), '首屏列出 Codex 当前 API');
+  check(await ev('!!document.querySelector("#set-providers .set-button")'), '首屏有编辑入口');
+  await shoot('00-providers');
+  await ev('[...document.querySelectorAll("#set-nav button")].find(b => b.textContent.startsWith("外观与显示")).click()');
+  await waitFor('!!document.querySelectorAll(".set-row").length', '外观分类字段');
   const loadedSize = (await dispatcher.soundSettings.load()).size;
   check(await ev('WhaleSettingsTest.state.baseline.size.scale') === loadedSize.scale, '窗口初次加载读取真实 scale，而非使用默认值');
-  check(navCount === 6, '左侧有 6 个分类（实际 ' + navCount + '）');
   const rowCount = await ev('document.querySelectorAll(".set-row").length');
   check(rowCount > 0, '当前分类渲染出 ' + rowCount + ' 行设置');
   const helpCount = await ev('document.querySelectorAll(".set-help-button").length');
@@ -262,7 +269,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     await waitWidget('!!document.querySelector(".dshwv-menuview")', '挂件菜单');
 
     const menu = await menuEv('(() => { const m=document.querySelector(".dshwv-menuview"); return [...m.children].filter(n=>!n.hidden && getComputedStyle(n).display!=="none").map(n=>(n.textContent||"").trim().slice(0,14)); })()');
-    for (const label of ['查看数据', '角色', '大小', '桌面显示', '点击音效', '完成提醒', '气泡']) {
+    for (const label of ['数据显示', '角色', '大小', '桌面显示', '点击音效', '完成提醒', '气泡']) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
     for (const label of ['高级设置', '移回右下角']) {

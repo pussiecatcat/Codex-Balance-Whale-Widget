@@ -213,6 +213,15 @@
     notice.hidden = true;
     container.append(notice);
 
+    // 服务商列表由 settings.js 异步填充：这里只提供稳定的挂载点，避免把
+    // 网络请求塞进这个纯渲染模块。编辑仍在挂件自己的 API 弹层里完成。
+    if (pageId === 'providers') {
+      const providers = el('div', 'set-providers');
+      providers.id = 'set-providers';
+      providers.append(el('p', 'set-providers-loading', '正在读取服务商…'));
+      container.append(providers);
+    }
+
     // 直接可编辑的字段先渲染，需要打开对应编辑器的放在「进阶」小节后面。
     const direct = catalog.forPage(pageId).filter(field => !(field.bridged || ['role', 'position', 'snap', 'group', 'message', 'action'].includes(field.type)));
     const advanced = catalog.forPage(pageId).filter(field => direct.indexOf(field) < 0);

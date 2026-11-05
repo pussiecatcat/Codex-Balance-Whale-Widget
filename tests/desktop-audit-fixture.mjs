@@ -135,7 +135,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       {tone:'steady',label:'5 小时',fill:'63.6%'},
       {tone:'steady',label:'每周',fill:'79%'}
     ]);
-    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.includes(':')), JSON.stringify(tideMeters));
+    assert.ok(tideMeters.every(value => value.aria.includes('剩余') && value.updated.includes('更新') && value.reset.length > 0 && !value.reset.includes('…')), JSON.stringify(tideMeters));
     assert.ok(await ev("window.__quotaFetches.includes('/api/quota?refresh=1')"));
     await delay(500);
     fs.writeFileSync(path.join(output, 'quota-tide.png'), (await window.webContents.capturePage()).toPNG());
@@ -147,6 +147,44 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev(`(async()=>{const original=window.fetch;window.fetch=window.__quotaMockFetch;await WhaleQuota.refresh(true);window.fetch=original;})()`);
     assert.ok(await ev("[...document.querySelectorAll('.dshwv-quota-meter-reset-label')].every(e=>e.textContent.includes('更新'))"));
     checks.push('temporary quota failure keeps both visible percentages with an explicit last-data label; recovery restores the live timestamp');
+    await ev(`window.__whaleRenderTest.scene([
+      {type:'text',text:'5 小时剩余',size:4,bold:true,color:'#53669a'},
+      {type:'quota',windowDurationMins:300,size:20,tpl:'{quota_left_round}'},
+      {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short}后重置'},
+      {type:'source',size:2,tpl:'{source_line}'}
+    ],0)`);
+    await wait("document.body.innerText.includes('5 小时剩余') && document.body.innerText.includes('64%')", 'layout D five-hour screen renders');
+    await delay(350);
+    fs.writeFileSync(path.join(output, 'quota-layout-d-5h.png'), (await window.webContents.capturePage()).toPNG());
+    await ev(`window.__whaleRenderTest.scene([
+      {type:'text',text:'每周剩余',size:4,bold:true,color:'#53669a'},
+      {type:'quota',windowDurationMins:10080,size:20,tpl:'{quota_left_round}'},
+      {type:'quota',windowDurationMins:10080,size:3,tpl:'{quota_reset_short}后重置'},
+      {type:'source',size:2,tpl:'{source_line}'}
+    ],0)`);
+    await wait("document.body.innerText.includes('每周剩余') && document.body.innerText.includes('79%')", 'layout D weekly screen renders');
+    await delay(350);
+    fs.writeFileSync(path.join(output, 'quota-layout-d-week.png'), (await window.webContents.capturePage()).toPNG());
+    checks.push('layout D renders a large five-hour number and a separate weekly screen with reset and source lines');
+    // 150% / 200% 视图缩放：系统缩放会改变 CSS 像素与窗口的比例，相当于
+    // 一次更窄的布局。继续用方案 D 的同一场景，确认文字仍整体落在气泡内。
+    for (const factor of [1.5, 2]) {
+      window.webContents.setZoomFactor(factor); await delay(450);
+      await ev('window.__whaleRenderTest.place(140,140,false)'); await delay(250);
+      await ev(`window.__whaleRenderTest.scene([
+        {type:'text',text:'5 小时剩余',size:4,bold:true,color:'#53669a'},
+        {type:'quota',windowDurationMins:300,size:20,tpl:'{quota_left_round}'},
+        {type:'quota',windowDurationMins:300,size:3,tpl:'{quota_reset_short}后重置'},
+        {type:'source',size:2,tpl:'{source_line}'}
+      ],0)`);
+      await wait("document.body.innerText.includes('5 小时剩余') && document.body.innerText.includes('%')", `layout D renders at ${factor * 100}% zoom`);
+      await delay(350);
+      const contained = await ev(`(()=>{const shape=document.querySelector('.dshwv-pop.dshwv-pop-open .dshwv-bshape');const frame=document.querySelector('.dshwv-frame[aria-hidden="false"]');if(!shape||!frame)return false;const inverse=shape.getScreenCTM().inverse();const inside=(x,y)=>shape.isPointInFill(new DOMPoint(x,y).matrixTransform(inverse));const ranges=[...frame.querySelectorAll('.dshwv-trow')].flatMap(el=>{const range=document.createRange();range.selectNodeContents(el);return [...range.getClientRects()].filter(r=>r.width&&r.height)});const smallest=Math.min(...[...frame.querySelectorAll('*')].filter(n=>n.children.length===0&&n.textContent.trim()&&n.getClientRects().length).map(n=>parseFloat(getComputedStyle(n).fontSize)));return ranges.length>0&&ranges.every(r=>[[r.left+.5,r.top+.5],[r.right-.5,r.top+.5],[r.left+.5,r.bottom-.5],[r.right-.5,r.bottom-.5]].every(([x,y])=>inside(x,y)))&&smallest>=10})()`);
+      assert.equal(contained, true, 'every bubble row stays inside the shape and at least 10 px at ' + factor * 100 + '%');
+      fs.writeFileSync(path.join(output, 'quota-layout-d-zoom-' + factor * 100 + '.png'), (await window.webContents.capturePage()).toPNG());
+    }
+    window.webContents.setZoomFactor(1); await delay(350);
+    checks.push('layout D stays inside the bubble with at least 10 px text at 150% and 200% view zoom');
     if (process.env.WHALE_QUOTA_AUDIT === '1') {
       await ev(`(async()=>{window.__originalQuotaFetch=window.fetch;window.fetch=window.__quotaMockFetch;
         __whaleRenderTest.close();await new Promise(r=>setTimeout(r,350));window.__quotaFetches=[];
@@ -238,7 +276,16 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'an open dialog cannot intercept the transparent viewport corner');
     assert.equal(await ev("getComputedStyle(document.querySelector('#settings-dialog'),'::backdrop').backgroundColor"),'rgba(0, 0, 0, 0)');
     fs.writeFileSync(path.join(output,'api-settings.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('#settings-dialog').close();document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
+    await ev("(()=>{const input=document.querySelector('#settings-form input[name=baseUrl]');input.value='https://example.test/v1';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#cancel-settings').click();})()");
+    await wait("!document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'an unsaved edit is not discarded silently');
+    await ev("document.querySelector('#keep-editing').click()");
+    await wait("document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'keep editing returns to the form');
+    await ev("document.querySelector('#cancel-settings').click()");
+    await wait("!document.querySelector('#settings-discard').hidden",'cancel asks a second time');
+    await ev("document.querySelector('#discard-settings').click()");
+    await wait("!document.querySelector('#settings-dialog').open",'discarding closes the dialog');
+    checks.push('API settings asks before discarding an unsaved edit and can return to the form');
+    await ev("document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
     await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
     await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
     await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'history modal loaded');

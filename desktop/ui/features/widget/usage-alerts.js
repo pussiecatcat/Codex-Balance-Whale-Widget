@@ -1,4 +1,5 @@
 // Usage alert templates, interpolation, and presentation own their transient state.
+import { ledgerDayKey } from '../../services/ledger-day.js';
 export function createUsageAlerts(deps) {
   const { document, window, WhaleMoney, whaleMoneyTemplates, fmt, bubbleTokenValue,
     whaleCurrencySymbol, getUsageSet, getLastTurnNotice, getCurrency,
@@ -8,11 +9,7 @@ export function createUsageAlerts(deps) {
 
     // ==== [用量图表、提醒与记录窗口] ====
     function usageTodayKeyStr() {
-      var d = new Date(now());
-      var p = function (n) {
-        return String(n).padStart(2, '0');
-      };
-      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+      return ledgerDayKey(now());
     }
     function usageRemindDefaultLines(isAlert) {
       return [{

@@ -100,8 +100,32 @@ export function createBubblePalette(deps) {
           bubblePalEl.appendChild(chip);
         })(defs[i]);
       }
-      for (var li = 0; li < bubbleLib.length; li++) {
+      // Saved library modules are grouped by the mode that can render them.
+      // Cross-mode entries stay visible so a user can find them, but are marked
+      // as hidden; the renderer already hides them in the other mode.
+      var moduleMode = function (module) {
+        var type = module && module.type;
+        if (type === 'quota') return module.apiModelId ? 'api' : 'subscription';
+        if (type === 'plan' || type === 'peak' || type === 'nextpeak') return 'subscription';
+        if (type === 'balance' || type === 'today') return 'api';
+        return '';
+      };
+      var orderedLib = bubbleLib.slice().sort(function (a, b) {
+        var otherA = moduleMode(a.module) && mode && moduleMode(a.module) !== mode ? 1 : 0;
+        var otherB = moduleMode(b.module) && mode && moduleMode(b.module) !== mode ? 1 : 0;
+        return otherA - otherB;
+      });
+      var lastGroup = null;
+      for (var li = 0; li < orderedLib.length; li++) {
         (function (lb) {
+          var group = moduleMode(lb.module) && mode && moduleMode(lb.module) !== mode ? 'other' : 'current';
+          if (group !== lastGroup) {
+            var heading = document.createElement('div');
+            heading.className = 'dshwv-palgroup';
+            heading.textContent = group === 'other' ? '另一模式（加入后隐藏）' : '模块库';
+            bubblePalEl.appendChild(heading);
+            lastGroup = group;
+          }
           var chip = document.createElement('div');
           chip.className = 'dshwv-libchip';
           chip.title = '从模块库加入: ' + lb.name;
@@ -134,7 +158,7 @@ export function createBubblePalette(deps) {
           });
           chip.appendChild(del);
           bubblePalEl.appendChild(chip);
-        })(bubbleLib[li]);
+        })(orderedLib[li]);
       }
       var newChip = document.createElement('div');
       newChip.className = 'dshwv-paladd';

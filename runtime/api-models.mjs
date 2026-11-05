@@ -67,8 +67,18 @@ export class ApiModelRegistry {
   list() { return {ok:true,templates:Object.entries(API_TEMPLATES).map(publicTemplate),models:this.load().models.map(model=>this.publicModel(model))}; }
   publicModel(model) {
     const t=API_TEMPLATES[model.template]||{};
-    return {...model,prices:normalizePrices(model.prices||{}),kind:model.manualQuota?'quota':t.kind||'balance',noBalanceApi:!!t.noBalanceApi,
+    // Explicit projection: a field added to the stored model later must be
+    // listed here before it can reach the renderer.
+    const publicModel={id:model.id,template:model.template,name:model.name,currency:model.currency,
+      keyEnv:model.keyEnv||'',baseUrl:model.baseUrl||'',balanceUrl:model.balanceUrl||'',
+      balanceField:model.balanceField||'',usedField:model.usedField||'',scale:model.scale,
+      matchIds:[...(model.matchIds||[])],alerts:{...(model.alerts||{})},
+      messages:{...(model.messages||{})},bubbleSettings:structuredClone(model.bubbleSettings||{}),
+      prices:normalizePrices(model.prices||{}),
+      kind:model.manualQuota?'quota':t.kind||'balance',noBalanceApi:!!t.noBalanceApi,
       configured:{key:!!this.key(model,t),endpoint:!!(model.balanceUrl||t.balance?.url||model.baseUrl||t.probeUrl)}};
+    if(model.manualQuota)publicModel.manualQuota={...model.manualQuota};
+    return publicModel;
   }
   normalize(input) {
     if(!input||typeof input!=='object'||Array.isArray(input))throw domainError('API 模型格式无效');
@@ -84,6 +94,9 @@ export class ApiModelRegistry {
     if(model.keyEnv&&!/^[A-Za-z_][A-Za-z0-9_]*$/.test(model.keyEnv))throw domainError('密钥环境变量名无效');
     if(!Number.isFinite(model.scale)||model.scale<=0||model.scale>1e12)throw domainError('金额倍率无效');
     for(const key of ['baseUrl','balanceUrl'])if(model[key])cleanUrl(model[key]);
+    // These fields are shown back in the editor; a pasted key must never end up
+    // there. The actual key is read from the environment variable only.
+    for(const key of ['name','keyEnv','baseUrl','balanceUrl'])if(/\bsk-[A-Za-z0-9_-]{8,}\b/.test(String(model[key]||'')))throw domainError('这里不能填写 API 密钥，请改用环境变量');
     for(const key of ['balanceField','usedField'])if(model[key]&&!/^[A-Za-z0-9_.\[\]]+$/.test(model[key]))throw domainError('JSON 字段路径无效');
     model.alerts={...(current.alerts||{})};
     for(const key of ['balanceBelow','dailyTokens','dailyBudget','quotaRemainingBelow'])if(Object.hasOwn(input,key)) {
