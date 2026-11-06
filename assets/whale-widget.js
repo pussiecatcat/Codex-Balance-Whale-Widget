@@ -3225,13 +3225,14 @@ import {
     // Only the character squishes. The bubble shares the same parent, so a transform
     // on the parent would deform and shake the text above it.
     function pressDown() {
-      if (window.WhaleGesture) window.WhaleGesture.apply(img, true, window.WhaleFeedback && window.WhaleFeedback.feel);
-      else { img.style.transitionDuration = '75ms'; img.style.transform = SQUISH; }
+      // The bubble rides along with the character; a press never changes its content.
+      if (window.WhaleGesture) window.WhaleGesture.apply(body, true, window.WhaleFeedback && window.WhaleFeedback.feel);
+      else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
       playPress();
     }
     function pressUp() {
-      if (window.WhaleGesture) window.WhaleGesture.apply(img, false, window.WhaleFeedback && window.WhaleFeedback.feel);
-      else { img.style.transitionDuration = '140ms'; img.style.transform = 'scaleY(1) scaleX(1)'; }
+      if (window.WhaleGesture) window.WhaleGesture.apply(body, false, window.WhaleFeedback && window.WhaleFeedback.feel);
+      else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
       playRelease();
     }    var menuOpen = false;
     var menuPositionFrame = 0;
