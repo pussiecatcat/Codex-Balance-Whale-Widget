@@ -24,7 +24,8 @@
     "verify": "npm run lint && npm run test:unit && npm run check:package && npm run check:architecture && npm run check:calendar && npm run bench:ledger && python scripts/build-release.py",
     "install:mac": "node scripts/install-macos.mjs",
     "uninstall:mac": "node scripts/uninstall-macos.mjs",
-    "probe:mac": "node scripts/probe-macos.mjs"
+    "probe:mac": "node scripts/probe-macos.mjs",
+    "test:ui": "node --test tests/menu-layout.test.mjs tests/audio-crop-editor.test.mjs tests/sound-settings-ui.test.mjs tests/sound-settings-view.test.mjs tests/bubble-editor-view.test.mjs"
   },
   "devDependencies": {
     "eslint": "10.14.0",

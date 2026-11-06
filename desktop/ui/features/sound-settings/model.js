@@ -2,7 +2,7 @@ import { normalizeVolume, soundOptions } from '../../services/sound-reference.js
 
 export const clone = value => JSON.parse(JSON.stringify(value));
 
-export function waitDefaultLines(kind) {
+function waitDefaultLines(kind) {
   return [
     { type: 'text', text: kind === 'approval' ? 'Codex 正在等你授权' : 'Codex 正在等你回答', size: 6, bold: true },
     { type: 'text', text: '{session}', size: 3, color: '#5a6a92' },
@@ -13,7 +13,7 @@ function available(value, options) {
   return options.some(option => option.value === value);
 }
 
-export function normalizeCatalog(catalog = {}) {
+function normalizeCatalog(catalog = {}) {
   return {
     groups: Array.isArray(catalog.groups) ? clone(catalog.groups) : [],
     fragments: Array.isArray(catalog.fragments) ? clone(catalog.fragments) : [],

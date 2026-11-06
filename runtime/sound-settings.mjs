@@ -1,3 +1,10 @@
+// /api/sound-settings is the combined transaction boundary for audio preferences.
+// .dshw-size.json owns sound/vol/soundSet and turnCostOn/turnCostCloseMs;
+// usage-settings.json owns taskEnd, event prompts/volumes and wait behavior.
+// ui-state.json's dshw-v3-feedback owns feel and procedural event presets; the
+// renderer merges that snapshot through services/sound.reload, without copying
+// those fields into either transaction file. Legacy size/usage endpoints remain
+// compatibility writers for their respective documents.
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -104,11 +111,11 @@ export class SoundSettingsService {
     }
     if (!validResourceId(command.size.soundSet)) throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '按压音效组无效', 400);
     // 只校验这次真的改过的 usage。否则一个遗留的坏引用会让所有「大小」改动都保存失败。
-    if (!snapshots) return;
-    let currentUsage;
-    try { currentUsage = this.whale.resolveUsageSettings(snapshots.usage.document || {}); }
-    catch { return; }
-    if (JSON.stringify(command.usage) === JSON.stringify(currentUsage)) return;
+    // 没有快照、或现有 usage 解析失败时不能据此放行：照常校验这次提交的引用。
+    let currentUsage = null;
+    try { currentUsage = snapshots ? this.whale.resolveUsageSettings(snapshots.usage.document || {}) : null; }
+    catch { currentUsage = null; }
+    if (currentUsage && JSON.stringify(command.usage) === JSON.stringify(currentUsage)) return;
     const references = [
       ['任务结束提示音', command.usage.taskEnd?.sel],
       ['提问提示音', command.usage.events?.question?.sel],

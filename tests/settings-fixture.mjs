@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 // 设置窗口的交互与渲染检查，在 Electron 主进程内运行。
 //
 // 由 tests/settings-window-smoke.mjs 启动，使用隔离的临时数据目录。
@@ -121,8 +122,9 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     WhaleSettingsTest.state.page = 'appearance';
     return true;
   })()`);
-  const scaleInput = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); const input=row?.querySelector("input[type=range]"); if(!input) return null; input.value="1.9"; input.dispatchEvent(new Event("change",{bubbles:true})); return input.value; })()');
-  check(scaleInput === '1.9', '大小滑块可以修改（1.9）');
+  const scaleInput = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); const input=row?.querySelector("input[type=range]"); if(!input) return null; input.value="14"; input.dispatchEvent(new Event("change",{bubbles:true})); return input.value; })()');
+  // 设置窗口与菜单同为 1–20 档：14 档 = 1.9 倍。
+  check(scaleInput === '14', '大小滑块可以修改（14 档 = 1.9 倍）');
   check(await ev('document.getElementById("set-dirty").hidden === false'), '出现「有未保存的修改」提示');
   check(await ev('document.getElementById("set-save").disabled === false'), '保存按钮可用');
   await shoot('03-dirty');
@@ -138,8 +140,8 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   }
   check(Math.abs(reread.scale - 1.9) < 0.001, '通过 size.json 接口回读一致');
   await shoot('04-saved');
-  for (const value of [2.1, 1.9]) {
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input'); i.value='${value}'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
+  for (const [step, value] of [[16, 2.1], [14, 1.9]]) {
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input'); i.value='${step}'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
     await waitFor('!WhaleSettingsTest.state.saving && document.getElementById("set-dirty").hidden', '连续保存');
     check(Math.abs((await dispatcher.soundSettings.load()).size.scale-value)<0.001, '带保存基线再次保存大小 '+value+' 成功');
     await wait(async () => await window.webContents.executeJavaScript(`window.__whaleRenderTest.status().scale === ${value}`), '挂件即时应用大小');
@@ -149,13 +151,13 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   // ── 拖动预览（B1）：input 只改挂件显示，不写盘 ──────────────────────
   {
     const savedScale = (await dispatcher.soundSettings.load()).size.scale;
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='15'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await wait(async () => await window.webContents.executeJavaScript('window.__whaleRenderTest.status().scale === 2'), '挂件预览大小');
-    check(true, '拖动滑块时挂件立即预览 2.0');
+    check(true, '拖动滑块时挂件立即预览 15 档（2.0 倍）');
     const onDisk = JSON.parse(fs.readFileSync(path.join(dataDir, '.dshw-size.json'), 'utf8')).scale;
     check(Math.abs(onDisk - savedScale) < 0.001, '拖动预览没有写盘（磁盘仍是 ' + onDisk + '）');
     // 松手才提交草稿；提交后「撤销修改」才可用。
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='2'; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='15'; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
     await waitFor('document.getElementById("set-revert").disabled === false', '撤销按钮可用');
     await ev('document.getElementById("set-revert").click()');
     await wait(async () => await window.webContents.executeJavaScript(`window.__whaleRenderTest.status().scale === ${savedScale}`), '撤销后挂件恢复');
@@ -164,7 +166,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
 
   // ── 草稿判断（A2）：改回原样不算未保存 ──────────────────────────────
   {
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); const original=i.value; i.value='1.2'; i.dispatchEvent(new Event('change',{bubbles:true})); i.value=original; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); const original=i.value; i.value='7'; i.dispatchEvent(new Event('change',{bubbles:true})); i.value=original; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
     check(await ev('WhaleSettingsTest.anyPageDirty() === false'), '把值改回原样后不再算未保存修改');
     check(await ev('document.getElementById("set-dirty").hidden === true'), '改回原样后顶部未保存提示消失');
   }
@@ -201,7 +203,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   // ── 撤销：回到磁盘上的值 ────────────────────────────────────────────
   await ev('document.getElementById("set-revert").click()');
   const reverted = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); return row?.querySelector("input[type=range]").value; })()');
-  check(reverted === '1.9', '撤销后回到已保存的值，而不是默认值');
+  check(reverted === '14', '撤销后回到已保存的值（14 档），而不是默认值');
   check(await ev('document.getElementById("set-dirty").hidden === true'), '撤销后没有未保存标记');
 
   // ── 私有字段不泄露 ──────────────────────────────────────────────────
@@ -320,34 +322,21 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     await waitWidget('!!document.querySelector(".dshwv-menuview")', '挂件菜单');
 
     const menu = await menuEv('(() => { const m=document.querySelector(".dshwv-menuview"); return [...m.children].filter(n=>!n.hidden && getComputedStyle(n).display!=="none").map(n=>(n.textContent||"").trim().slice(0,14)); })()');
-    for (const label of ['数据来源', '角色', '大小', '显示方式', '音效与提示', '气泡']) {
+    for (const label of [LABELS.role, LABELS.scale, LABELS.dataSource, LABELS.displayMode, LABELS.soundSettings, LABELS.bubble]) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
     const footer = await menuEv('document.querySelector(".dshwv-menu-footer")?.innerText || ""');
-    for (const label of ['高级设置']) {
+    for (const label of [LABELS.advanced]) {
       check(footer.includes(label), '一级菜单底部有「' + label + '」');
     }
-    const movedDown = await menuEv(`(() => {
-      const m = document.querySelector('.dshwv-menuview');
-      const hidden = [...m.children].filter(n => n.hidden).map(n => (n.textContent||'').trim());
-      // 主线菜单没有「进入独立桌面」独立行（显示方式在一级「显示方式」里），
-      // 「素材包导入/导出」按钮合在「查看数据」行内，所以这两项不在下沉清单里。
-      return ['音效','音量','每轮消耗提示','任务结束音效','避让滚动条','吸附与翻转','隐藏菜单按钮','资源管理','显示币种','参考汇率','气泡形状']
-        .filter(want => !hidden.some(h => h.indexOf(want) === 0));
-    })()`);
-    check(movedDown.length === 0, '以下行已从一级下沉（其余即全部隐藏）：' + (movedDown.join('、') || '无遗漏'));
+    const mounted = await menuEv('Array.from(document.querySelector(".dshwv-menuview").children, row => row.dataset.menuId)');
+    check(mounted.join(',') === 'role,size,dataSource,displayMode,sound,bubble', '一级菜单只挂载声明的六个控件行');
     check(await menuEv('!!document.getElementById("dshw-desktop-display")'), '显示方式有跟随/常驻切换');
-    check(await menuEv('!!document.getElementById("dshw-click-sound")'), '点击音效是独立开关');
-    check(await menuEv('!!document.getElementById("dshw-complete-reminder")'), '完成提醒是三选一');
-    const options = await menuEv('[...document.getElementById("dshw-complete-reminder").options].map(o=>o.value)');
-    check(options.includes('off') && options.includes('bubble') && options.includes('both'), '完成提醒含关闭/仅气泡/气泡和声音');
-    const apiBtnHidden = await menuEv(`(() => {
-      const btn = [...document.querySelectorAll('.dshwv-menuview button')].find(b => b.textContent === 'API 设置');
-      return !btn || btn.hidden || getComputedStyle(btn).display === 'none';
-    })()`);
-    check(apiBtnHidden, '旧的整屏「API 设置」按钮已由「高级设置」取代');
-    const remindValue = await menuEv('document.getElementById("dshw-complete-reminder").value');
-    check(['off', 'bubble', 'both', 'custom'].includes(remindValue), '完成提醒显示当前组合（' + remindValue + '）');
+    check(await menuEv('!!document.querySelector("[data-action=open-sound-settings]")'), '音效与提示有独立入口');
+    check(await menuEv('!document.getElementById("dshw-click-sound") && !document.getElementById("dshw-complete-reminder")'), '详细音效开关与完成提醒由设置窗口管理');
+    const mode = await menuEv('WhaleAccountView.mode');
+    const ledger = await menuEv('document.querySelector("[data-menu-id=ledger]")?.textContent || ""');
+    check(mode === 'api' ? ledger.includes(LABELS.ledgerMenu) : !ledger, '记账入口仅在 API 模式挂载');
     // 挂件菜单靠真实光标悬停才展开，而测试里光标路由是被桩掉的，
     // 所以一级菜单的可见性用上面的 DOM 断言证明，不产出截图。
   }
@@ -371,6 +360,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   for (const entry of [
     { page:'appearance', id:'ui.role', editor:'role', selector:'.dshwv-rolelist' },
     { page:'bubble', id:'bubble.sequences', editor:'bubble', selector:'.dshwv-bubmask' },
+    { page:'media', id:'media.roles', editor:'resources', selector:'.dshwv-resmask' },
     { page:'media', id:'media.workshop', editor:'workshop', selector:'dialog[open]' },
     { page:'media', id:'media.audio', editor:'sound', selector:'[data-feature="sound-settings-dialog"]' },
     { page:'api', id:'api.models', editor:'api', selector:'dialog[open]' },

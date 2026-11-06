@@ -2,7 +2,7 @@
 // alert has nothing to update on screen, so it should not hit the network in
 // the background. Alert models keep polling while the widget is hidden, but a
 // failing provider backs off instead of being retried every minute.
-export const ALERT_KEYS = Object.freeze(['balanceBelow', 'dailyTokens', 'dailyBudget', 'quotaRemainingBelow']);
+const ALERT_KEYS = Object.freeze(['balanceBelow', 'dailyTokens', 'dailyBudget', 'quotaRemainingBelow']);
 
 export function hasModelAlert(model) {
   const alerts = model?.alerts || {};

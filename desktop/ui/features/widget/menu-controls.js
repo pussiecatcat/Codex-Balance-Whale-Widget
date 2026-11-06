@@ -11,14 +11,13 @@ export function createMenuControls({
   scaleInput.step = '0.1';
   scaleInput.className = 'dshwv-range';
   scaleInput.value = '1';
-  // 和完整设置窗口一致：数字框直接是倍数，不再是 1–20 档。
   const scaleNumber = document.createElement('input');
   scaleNumber.type = 'number';
-  scaleNumber.min = String(minScale);
-  scaleNumber.max = String(maxScale);
-  scaleNumber.step = '0.1';
+  scaleNumber.min = '1';
+  scaleNumber.max = '20';
+  scaleNumber.step = '1';
   scaleNumber.className = 'dshwv-number';
-  scaleNumber.value = '1';
+  scaleNumber.value = '5'; // 1–20 档；5 档 = 1.0 倍，与设置窗口同一套档位
   scaleInput.addEventListener('pointerdown', () => { positioner.style.transition = 'none'; });
   scaleInput.addEventListener('input', () => { setScale(scaleInput.value); });
   scaleInput.addEventListener('change', () => {
@@ -27,9 +26,13 @@ export function createMenuControls({
   });
   scaleNumber.addEventListener('focus', () => { positioner.style.transition = 'none'; });
   scaleNumber.addEventListener('blur', () => { positioner.style.transition = ''; });
-  scaleNumber.addEventListener('input', () => { setScale(scaleNumber.value); });
+  const numberScale = () => {
+    const value = Math.round(Number(scaleNumber.value));
+    return minScale + Math.max(0, Math.min(20, value) - 1) * (maxScale - minScale) / 19;
+  };
+  scaleNumber.addEventListener('input', () => { setScale(numberScale()); });
   scaleNumber.addEventListener('change', () => {
-    setScale(scaleNumber.value);
+    setScale(numberScale());
     positioner.style.transition = '';
     try { refreshFlip(); } catch {}
   });

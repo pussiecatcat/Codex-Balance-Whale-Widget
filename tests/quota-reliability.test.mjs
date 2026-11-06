@@ -1,3 +1,4 @@
+import * as quotaFormat from '../desktop/ui/services/quota-format.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -214,7 +215,7 @@ function frontend() {
   let now = Date.now(), response = { ok: true, subscription: { available: true, status: 'ready', source: 'codex-app-server', observedAt: now,
     windows: [{ windowDurationMins: 300, usedPercent: 20, resetsAt: now + 3600000 }] } }, failing = false;
   const listeners = {}, intervals = new Map(), timeouts = new Map(), requests = []; let timerId = 0;
-  const box = { AbortController, Date: class extends Date { static now() { return now; } }, document: {},
+  const box = { ...quotaFormat, labels: quotaFormat.QUOTA_LABELS, AbortController, Date: class extends Date { static now() { return now; } }, document: {},
     window: { addEventListener: (name, fn) => { listeners[name] = fn; } },
     setInterval: (fn, ms) => { intervals.set(++timerId, { fn, ms }); return timerId; }, clearInterval: id => intervals.delete(id),
     setTimeout: (fn, ms) => { timeouts.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timeouts.delete(id),

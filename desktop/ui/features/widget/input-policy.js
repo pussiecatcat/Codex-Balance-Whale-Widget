@@ -5,7 +5,7 @@ export function pointerPressAccepted(root, event, hit, point) {
   return !!hit(point);
 }
 
-export const INPUT_SURFACES = '.whale-account-card,dialog[open],.dshwv-menu-open,.dshwv-menu-btn-visible:not(.dshwv-menu-btn-hidden),.dshwv-rolelist,.dshwv-audiolist,.dshwv-qedit,.dshwv-usagepanel,.dshwv-custmenu,.dshwv-custbtn,.dshwv-tplhelp,.dshwv-fx-info,#toast:not([hidden])';
+const INPUT_SURFACES = '.whale-account-card,dialog[open],.dshwv-menu-open,.dshwv-menu-btn-visible:not(.dshwv-menu-btn-hidden),.dshwv-rolelist,.dshwv-audiolist,.dshwv-qedit,.dshwv-usagepanel,.dshwv-custmenu,.dshwv-custbtn,.dshwv-tplhelp,.dshwv-fx-info,#toast:not([hidden])';
 
 export function createInputHitTester({ document, pet, root, rendering, getComputedStyle, viewport }) {
   function visible(element) {

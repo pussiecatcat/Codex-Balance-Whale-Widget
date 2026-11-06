@@ -1,4 +1,5 @@
 import { normalizeVolume, soundOptions, soundReferenceUrl } from '../../services/sound-reference.js';
+import { LABELS } from '../../services/labels.js';
 
 function element(documentRef, parent, tag, text = '', className = '') {
   const node = documentRef.createElement(tag);
@@ -11,7 +12,7 @@ function element(documentRef, parent, tag, text = '', className = '') {
 export function createSoundMenuEntry({ documentRef = document, onOpen }) {
   const root = element(documentRef, null, 'div', '', 'dshwv-menu-row whale-sound-entry');
   root.dataset.feature = 'sound-settings';
-  element(documentRef, root, 'span', '音效与提示');
+  element(documentRef, root, 'span', LABELS.soundSettings);
   const button = element(documentRef, root, 'button', '音效/提示泡泡设置', 'dshwv-roleimport');
   button.type = 'button';
   button.dataset.action = 'open-sound-settings';
@@ -141,7 +142,7 @@ export function createSoundSettingsView(options) {
     draft.vol = value; if (!draft.events.turnCost.volSet) syncTurnVolume();
   });
   play(pressVolumeRow, '试听按压音效', () => onPreview(
-    soundReferenceUrl({ kind: 'group', id: draft.soundSet }), draft.vol,
+    soundReferenceUrl({ kind: 'group', id: draft.soundSet }, { catalog }), draft.vol,
   ));
 
   const turn = entry('turnCost', '每轮消耗提示', draft.turnCostOn, value => { draft.turnCostOn = value; });
@@ -159,7 +160,7 @@ export function createSoundSettingsView(options) {
   const taskRow = row(turn.body, '任务结束音', 'whale-sound-task-row');
   controls.taskOn = check(taskRow, draft.taskEnd.on, value => { draft.taskEnd.on = value; });
   controls.taskSelect = select(taskRow, soundOptions(catalog), draft.taskEnd.sel, value => { draft.taskEnd.sel = value; });
-  play(taskRow, '试听任务结束音', () => onPreview(soundReferenceUrl(draft.taskEnd.sel), effectiveTurnVolume()));
+  play(taskRow, '试听任务结束音', () => onPreview(soundReferenceUrl(draft.taskEnd.sel, { catalog }), effectiveTurnVolume()));
   const taskVolumeRow = row(turn.body, '提示音量', 'whale-sound-volume-row');
   controls.taskVolume = volume(taskVolumeRow, effectiveTurnVolume(), value => {
     draft.events.turnCost.vol = value; draft.events.turnCost.volSet = true;
@@ -175,7 +176,7 @@ export function createSoundSettingsView(options) {
     const soundRow = row(block.body, soundTitle, 'whale-sound-task-row');
     controls[kind + 'SoundOn'] = check(soundRow, config.soundOn, value => { config.soundOn = value; });
     controls[kind + 'Select'] = select(soundRow, soundOptions(catalog), config.sel, value => { config.sel = value; });
-    play(soundRow, '试听' + soundTitle, () => onPreview(soundReferenceUrl(config.sel), config.vol));
+    play(soundRow, '试听' + soundTitle, () => onPreview(soundReferenceUrl(config.sel, { catalog }), config.vol));
     const volumeRow = row(block.body, '提示音量', 'whale-sound-volume-row');
     controls[kind + 'Volume'] = volume(volumeRow, config.vol, value => { config.vol = value; });
   };

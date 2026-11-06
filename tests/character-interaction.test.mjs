@@ -29,7 +29,7 @@ function element(tag = 'div') {
 
 const pointer = (x, y, extra = {}) => ({ clientX: x, clientY: y, pointerId: 7, button: 0, pointerType: 'mouse', target: {}, ...extra });
 
-function fixture() {
+function fixture({ menuOpen = false } = {}) {
   const root = element();
   const positioner = element();
   const image = element();
@@ -39,9 +39,12 @@ function fixture() {
   const dragStatus = { active: false };
   const calls = { prepared: [], hits: [], pressed: 0, released: 0, clicks: 0, refreshed: [], settled: 0, saved: 0, menuClosed: 0, expressed: 0, cursors: [] };
   let hitResult = true;
+  const windowStub = element('window');
+  windowStub.requestAnimationFrame = callback => callback();
+  calls.menuPositioned = 0;
 
   const interaction = createCharacterInteraction({
-    document: documentStub, window: { addEventListener() {} }, localStorage: { getItem: () => null, setItem() {} },
+    document: documentStub, window: windowStub, localStorage: { getItem: () => null, setItem() {} },
     rendering: {
       hitCache: {
         prepare: url => calls.prepared.push(url),
@@ -60,11 +63,11 @@ function fixture() {
     refreshFlip: () => {}, pressDown: () => { calls.pressed++; }, pressUp: () => { calls.released++; },
     whaleClick: () => { calls.clicks++; }, refresh: value => calls.refreshed.push(value),
     closeMenu: () => { calls.menuClosed++; }, toggleMenu: () => {}, closeRolePanel: () => {}, closeAudioGroupPanel: () => {},
-    hideBubble: () => {}, applyBubbleConfig: () => {}, positionMenu: () => {},
-    isMenuOpen: () => false, isMenuButtonHidden: () => false, isScrollGapEnabled: () => false,
+    hideBubble: () => {}, applyBubbleConfig: () => {}, positionMenu: () => { calls.menuPositioned++; },
+    isMenuOpen: () => menuOpen, isMenuButtonHidden: () => false, isScrollGapEnabled: () => false,
   });
   return {
-    interaction, root, documentStub, state, dragStatus, calls,
+    interaction, root, documentStub, windowStub, state, dragStatus, calls,
     setHit: value => { hitResult = value; },
     // pointerdown is captured on the document, not on the whale element.
     down: (x, y, extra) => documentStub.fire('pointerdown', pointer(x, y, extra)),
@@ -182,4 +185,13 @@ test('a cancelled gesture settles without clicking', () => {
   assert.equal(fx.calls.clicks, 0);
   assert.equal(fx.calls.settled, 1);
   assert.equal(fx.dragStatus.active, false);
+});
+
+test('viewport resizing repositions an open menu even if its own size does not change', () => {
+  const open = fixture({ menuOpen: true });
+  open.windowStub.fire('resize');
+  assert.equal(open.calls.menuPositioned, 1);
+  const closed = fixture();
+  closed.windowStub.fire('resize');
+  assert.equal(closed.calls.menuPositioned, 0);
 });

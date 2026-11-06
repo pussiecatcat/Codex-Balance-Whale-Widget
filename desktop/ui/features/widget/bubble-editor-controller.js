@@ -1,4 +1,6 @@
+import { openOver } from '../../services/layers.js';
 import { bubblePresetItems } from './default-content.js';
+import { trackBubbleDraft } from './bubble-editor-model.js';
 
 // Owns the bubble editor's open/save lifecycle and the queue rendering calls.
 // The edit buffer itself stays in the entry as `bubbleEditorState` because the
@@ -11,6 +13,11 @@ export function createBubbleEditorController({
 }) {
   // 编辑会话固定打开时的账号模式，中途切换模式也不会写到另一套配置里。
   let editingSubscription = false;
+  let resetItems = null;
+  let editedSinceOpen = false;
+  function track(items) {
+    return trackBubbleDraft(items, () => { editedSinceOpen = true; resetItems = null; });
+  }
 
   function renderFirst() { view.renderFirst(); }
   function renderMore() { view.renderMore(); }
@@ -37,10 +44,13 @@ export function createBubbleEditorController({
       editingSubscription = getMode() === 'subscription';
       const draft = draftOf(getConfig(), editingSubscription);
       state.lib = draft.library;
-      state.items = draft.items;
+      state.items = track(draft.items);
+      resetItems = null;
+      editedSinceOpen = false;
       state.tapAdvance = draft.tapAdvance;
       state.editorSnap = JSON.stringify([state.items, state.lib, state.tapAdvance]);
       render();
+      openOver(null, getMask());
       getMask().style.display = 'flex';
     } catch {}
   }
@@ -60,7 +70,9 @@ export function createBubbleEditorController({
 
   function reset() {
     showConfirm(editingSubscription ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=上轮用量)?', () => {
-      state.items = defaultQueue(editingSubscription);
+      state.items = track(defaultQueue(editingSubscription));
+      resetItems = JSON.stringify(state.items);
+      editedSinceOpen = false;
       state.tapAdvance = false;
       render();
     });
@@ -69,7 +81,9 @@ export function createBubbleEditorController({
   function applyPreset(name) {
     const labels = { quota: '额度优先', 'quota-cards': '潮汐卡片', balance: '余额优先', minimal: '极简', companion: '小龙娘陪伴' };
     showConfirm('用「' + (labels[name] || name) + '」预设替换当前泡泡序列？保存前不会写入，取消可放弃。', () => {
-      state.items = bubblePresetItems(name, editingSubscription);
+      state.items = track(bubblePresetItems(name, editingSubscription));
+      editedSinceOpen = true;
+      resetItems = null;
       state.itemIdx = 0;
       state.itemSide = 0;
       render();
@@ -79,7 +93,8 @@ export function createBubbleEditorController({
   function save() {
     try {
       const doSave = () => {
-        saveConfig(draftSave(state.items, state.lib, getConfig(), editingSubscription, state.tapAdvance), ok => {
+        const edited = resetItems === JSON.stringify(state.items) ? false : editedSinceOpen || dirty() ? true : undefined;
+        saveConfig(draftSave(state.items, state.lib, getConfig(), editingSubscription, undefined, edited), ok => {
           if (ok !== false) close();
         });
       };

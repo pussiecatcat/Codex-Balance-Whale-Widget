@@ -22,7 +22,15 @@ const contrast = (foreground, background) => {
   const [a, b] = [luminance(foreground), luminance(background)].sort((x, y) => y - x);
   return (a + 0.05) / (b + 0.05);
 };
-const token = (css, name) => css.match(new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})'))?.[1];
+// Resolve semantic tokens through the shared palette just as CSS var() does.
+const token = (css, name, seen = new Set()) => {
+  assert.equal(seen.has(name), false, 'cyclic color token: ' + name);
+  seen.add(name);
+  const pattern = new RegExp('--' + name + ':\\s*([^;}\\r\\n]+)');
+  const value = (css.match(pattern) || dialog.match(pattern))?.[1]?.trim();
+  const reference = value?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  return reference ? token(css, reference, seen) : value;
+};
 
 test('both stylesheets are light-only blue-white and carry no automatic dark theme', () => {
   for (const [name, css] of [['whale-widget.css', widget], ['ui.css', dialog]]) {

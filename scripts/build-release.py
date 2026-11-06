@@ -5,6 +5,8 @@ import hashlib
 import json
 import re
 import struct
+import subprocess
+from datetime import datetime, timezone
 import zipfile
 from urllib.parse import unquote
 
@@ -138,6 +140,27 @@ assert manifest['name'] == 'api-balance-whale' and package['name'] == manifest['
 assert package['version'] == manifest['version'].split('+')[0], 'package.json must match the manifest base version'
 assert manifest['author']['name'] == 'pussiecatcat'
 assert manifest['homepage'] == 'https://github.com/pussiecatcat/Codex-Balance-Whale-Widget'
+
+# Source manifests describe formal releases. Candidate packages get an identity
+# without editing tracked files; the installer verifies the complete version by
+# exact equality, and always stages source before registering the plugin.
+source_version = manifest['version']
+if not args.release_tag:
+    try:
+        revision = subprocess.run(['git', '-c', 'safe.directory=' + str(ROOT), 'describe', '--always', '--dirty'],
+                                  cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision = 'source'
+    revision = re.sub(r'[^A-Za-z0-9.-]', '-', revision)
+    # A dirty tree or exported source archive can change without changing HEAD.
+    # Include the payload digest so those edits cannot reuse an audio/plugin cache.
+    content_digest = hashlib.sha256()
+    for name, data in files.items():
+        content_digest.update(name.encode('utf-8') + b'\0' + data)
+    identity = content_digest.hexdigest()[:12]
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d')
+    manifest['version'] = source_version.split('+', 1)[0] + '+codex.' + stamp + '-' + revision + '.' + identity
+    files['.codex-plugin/plugin.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
 for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']
@@ -177,7 +200,7 @@ artifacts = [archive('api-balance-whale-v' + base_version + '.zip', {p: d for p,
 (output / 'SHA256SUMS').write_text(''.join(f"{item['sha256']}  {item['name']}\n" for item in artifacts), encoding='utf-8')
 report = {'displayVersion': 'v' + base_version, 'internalVersion': manifest['version'], 'status': 'release-build' if args.release_tag else 'local-test-candidate-awaiting-user-acceptance',
           'lineEndings': 'LF for source and Mac launchers; CRLF for Windows .cmd and .ps1',
-          'releaseTag': args.release_tag, 'offlineInstaller': False, 'macOS': 'static-checks-no-hardware-acceptance', 'subscriptionLiveAccount': 'verified-plus-five-hour-and-weekly-windows',
+          'sourceVersion': source_version, 'releaseTag': args.release_tag, 'offlineInstaller': False, 'macOS': 'static-checks-no-hardware-acceptance', 'subscriptionLiveAccount': 'verified-plus-five-hour-and-weekly-windows',
           'macOSPR': 'https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128',
           'privacyScan': 'passed-public-files-only', 'archiveIntegrity': 'passed', 'localLinksChecked': links,
           'excluded': ['user data and credentials', 'private installation receipts', 'logs and test output', 'chat screenshots and recordings', 'legacy docs/images', 'git history and runtime caches'],

@@ -9,6 +9,7 @@ export const EDITOR_ROUTES = Object.freeze([
   'snap',
   'bubble',
   'reminder',
+  'resources',
   'workshop',
   'api',
   'api-model',

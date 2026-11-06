@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // The usage panel's request and record-window state. The menu shell, charts and
 // alert editors stay in the entry because they share the bubble editor's live
 // state; this module owns the ledger request lifecycle so the entry stops
@@ -60,7 +61,7 @@ export function createUsagePanel({
   function reconcile() {
     requestJson('/api/reconcile').then(data => {
       if (!data || data.ok === false) throw new Error((data && data.error) || '账本读取失败');
-      const editorMask = document.createElement('div'); editorMask.className = 'dshwv-bubmask'; editorMask.style.zIndex = '28000';
+      const editorMask = document.createElement('div'); editorMask.className = 'dshwv-bubmask'; openOver(null, editorMask);
       const editor = document.createElement('div'); editor.className = 'dshwv-bubcard'; editorMask.appendChild(editor);
       const title = document.createElement('div'); title.className = 'dshwv-bubtitle'; title.textContent = '校正今日 API 消耗'; editor.appendChild(title);
       const tip = document.createElement('p'); tip.className = 'dshwv-usage-hint'; tip.textContent = '期初 + 充值 − 其他支出 − 期末 = 今日消耗。保存时会检查账本版本，避免覆盖另一处修改。'; editor.appendChild(tip);
@@ -101,4 +102,24 @@ export function createUsagePanel({
   function close() { mask.style.display = 'none'; }
 
   return { load, save, refresh, reconcile, openRecords, close, getUsageSet, setUsageSet, card, mask };
+}
+
+// Shell construction belongs beside the usage model, independent of menu layout.
+export function createUsageShell({ document, button }) {
+  const panel = document.createElement('div');
+  panel.className = 'dshwv-usage-sub'; panel.style.display = 'none';
+  const area = document.createElement('div'); area.className = 'dshwv-usage-area';
+  area.style.cssText = 'flex:1 1 auto;min-height:0;overflow:hidden;position:relative';
+  area.appendChild(panel);
+  const navigationRow = document.createElement('div'); navigationRow.className = 'dshwv-menu-row';
+  navigationRow.style.flex = '0 0 auto'; button.style.width = '100%'; navigationRow.appendChild(button);
+  function build(buildModels) {
+    panel.innerHTML = '';
+    const title = document.createElement('div'); title.className = 'dshwv-usage-subtitle';
+    title.textContent = '- = 小龙娘记账 = -'; panel.appendChild(title);
+    buildModels();
+    const main = document.createElement('div'); main.className = 'dshwv-usagebody'; panel.appendChild(main);
+    return main;
+  }
+  return { panel, area, navigationRow, build };
 }

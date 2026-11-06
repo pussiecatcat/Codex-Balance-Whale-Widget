@@ -1,10 +1,11 @@
+import { UI_DEFAULTS } from './services/ui-defaults.js';
 import { requestJson } from '/services/request.js';
 
 (function (host) {
   'use strict';
   const DECIMALS = new Intl.NumberFormat('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const supported = value => value === 'USD' || value === 'CNY';
-  const normalized = value => String(value || 'USD').toUpperCase();
+  const normalized = value => String(value || UI_DEFAULTS.displayCurrency).toUpperCase();
   const time = value => typeof value === 'string' ? Date.parse(value) : NaN;
   const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(time(value + 'T00:00:00.000Z')) && new Date(value + 'T00:00:00.000Z').toISOString().slice(0, 10) === value;
@@ -12,7 +13,7 @@ import { requestJson } from '/services/request.js';
   function createMoneyState({ loadQuote, readPreference = () => null, savePreference = () => {}, now = Date.now } = {}) {
     let saved;
     try { saved = readPreference(); } catch {}
-    let preferredCurrency = supported(saved) ? saved : null, nativeCurrency = 'USD', displayCurrency = 'USD';
+    let preferredCurrency = supported(saved) ? saved : null, nativeCurrency = UI_DEFAULTS.displayCurrency, displayCurrency = UI_DEFAULTS.displayCurrency;
     let quote = null, latestQuote = null, quoteJob = null, forceUpgrade = null, selection = 0, requestSerial = 0, error = '';
     let checkedAt = null, cooldownUntil = 0, retryUntil = 0;
     const listeners = new Set(), bindings = new Map();

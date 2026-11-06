@@ -71,3 +71,9 @@ Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），�
 - **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。`.github/workflows/verify.yml` 会在 push/PR 上跑这道检查，所以忘了登记会在 CI 上直接红，不必等到打包。
 - `vendor/`（smol-toml，运行时依赖，进发布包）与 `archive/`（0.2.x 归档，不进发布包）是第三方或历史产物，一般不动。历史发布包只放 Release 页，已不再提交进仓库（`.gitignore` 含 `/packages/`）。
 - 提交前跑 `npm run verify`（lint + 单测 + 包依赖 + 架构边界 + 发布包）；`.github/workflows/verify.yml` 会在每次 push/PR 上跑同一套，所以忘了本地跑也会在 CI 上红。`main` 已放开 PR 强制（仍禁强推与删除分支）。
+
+## 模块拆分验收
+
+每次只迁移一个职责区段。拆分前后逐项核对旧位置的 `rg -n "addEventListener" <文件>`：每个监听必须迁入新模块，或明确记录由哪个设置模型/入口取代。PR 描述列出核对结果。裁剪导入、菜单挂载、保存/取消、编辑器打开/关闭必须由真实事件行为测试覆盖，不能只匹配源码字符串。新增模块必须接受所需的 document/window 或回调，不能扩大全局和跨功能依赖预算。
+
+`npm test` 包含无外部 DOM 依赖的渲染进程行为测试，CI 显式运行 `npm run test:ui`，以菜单缺行或文件选择监听丢失作为回归门禁。

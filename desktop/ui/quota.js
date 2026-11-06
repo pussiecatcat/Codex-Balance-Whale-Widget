@@ -1,88 +1,9 @@
+import { QUOTA_LABELS as labels, countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, fill, quotaState, quotaText } from '/services/quota-format.js';
 import { requestJson } from '/services/request.js';
 import { statusView } from '/features/widget/status-tones.js';
 
 (() => {
   'use strict';
-  const labels = { 300: '5 小时', 10080: '每周' };
-  const validPercent = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
-  const timeValue = value => typeof value === 'number' && value < 1e12 ? value * 1000 : value;
-  function countdown(reset, now = Date.now()) {
-    const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '未观测';
-    if (time <= now) return '等待额度更新';
-    let seconds = Math.ceil((time - now) / 1000);
-    const days = Math.floor(seconds / 86400); seconds %= 86400;
-    const hours = Math.floor(seconds / 3600); seconds %= 3600;
-    const minutes = Math.floor(seconds / 60); seconds %= 60;
-    return (days ? days + '天 ' : '') + [hours, minutes, seconds].map(n => String(n).padStart(2, '0')).join(':');
-  }
-  function countdownShort(reset, now = Date.now()) {
-    const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '等待同步';
-    if (time <= now) return '等待刷新';
-    let seconds = Math.ceil((time - now) / 1000);
-    const days = Math.floor(seconds / 86400); seconds %= 86400;
-    const hours = Math.floor(seconds / 3600); seconds %= 3600;
-    const minutes = Math.floor(seconds / 60);
-    const pad = value => String(value).padStart(2, '0');
-    if (days) return `${pad(days)}d ${pad(hours)}h`;
-    if (hours) return `${pad(hours)}h ${pad(minutes)}m`;
-    return `${pad(Math.max(1, minutes))}m`;
-  }
-  function resetAt(reset) {
-    const time = timeValue(reset);
-    if (!Number.isFinite(time)) return '等待同步';
-    const value = new Date(time);
-    if (!Number.isFinite(value.getTime())) return '等待同步';
-    return value.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-  }
-  function snapshotAt(value) {
-    const time = timeValue(value);
-    if (!Number.isFinite(time)) return '未同步';
-    const date = new Date(time);
-    if (!Number.isFinite(date.getTime())) return '未同步';
-    return [date.getHours(), date.getMinutes(), date.getSeconds()].map(part => String(part).padStart(2, '0')).join(':');
-  }
-  function percentNumber(value) {
-    if (!validPercent(value)) return '—';
-    return Math.abs(value - Math.round(value)) < 1e-9 ? String(Math.round(value)) : value.toFixed(1);
-  }
-  function quotaBar(left, width = 8) {
-    if (!validPercent(left)) return '────────';
-    const filled = Math.max(0, Math.min(width, Math.round(left / 100 * width)));
-    return '━'.repeat(filled) + '─'.repeat(width - filled);
-  }
-  function fill(template, map) {
-    return String(template).replace(/\{([a-z0-9_]+)\}/gi, (all, key) => Object.hasOwn(map, key) ? map[key] : all);
-  }
-  function quotaState(module, subscription, now = Date.now()) {
-    const minutes = module?.windowDurationMins === 10080 ? 10080 : 300;
-    const item = subscription?.windows?.find(value => value.windowDurationMins === minutes);
-    const resetExpired = item && Number.isFinite(item.resetsAt) && timeValue(item.resetsAt) <= now;
-    const expired = item && (subscription?.stale || item.stale || resetExpired ||
-      subscription?.source === 'local-session' && now - item.observedAt > 15 * 60000 ||
-      subscription?.source === 'codex-app-server' && now - subscription.observedAt > 2 * 60000);
-    // An old observation remains useful, but must never masquerade as a live value.
-    const valid = item && validPercent(item.usedPercent);
-    const left = valid ? Math.max(0, 100 - item.usedPercent) : null;
-    const observedAt = item?.observedAt || subscription?.observedAt || null;
-    const map = {
-      quota_label: labels[minutes], quota_left: valid ? left.toFixed(1) + '%' : '未观测',
-      quota_left_round: valid ? Math.round(left) + '%' : '未观测', quota_used: valid ? item.usedPercent.toFixed(1) + '%' : '未观测',
-      quota_used_round: valid ? Math.round(item.usedPercent) + '%' : '未观测',
-      quota_reset: item ? countdown(item.resetsAt, now) : '未观测', quota_reset_short: item ? countdownShort(item.resetsAt, now) : '等待同步',
-      quota_reset_at: item ? resetAt(item.resetsAt) : '等待同步', quota_bar: quotaBar(left),
-      quota_updated_at: snapshotAt(observedAt),
-      quota_source: subscription?.source === 'codex-app-server' ? 'Codex 实时查询' : subscription?.source === 'local-session' ? '本机会话记录' : '正在读取额度',
-    };
-    const tone = !valid || expired ? 'unknown' : left <= 15 ? 'critical' : left <= 35 ? 'caution' : 'steady';
-    return { minutes, item, observedAt, expired, valid, left, map, tone };
-  }
-  function quotaText(module, subscription, now = Date.now()) {
-    const state = quotaState(module, subscription, now);
-    const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
-    return result + (state.expired && !module?.quietStale ? '（上次数据，待同步）' : '');
-  }
   function planName(type) {
     const key = String(type || '').toLowerCase();
     if (!key) return 'Codex 订阅';

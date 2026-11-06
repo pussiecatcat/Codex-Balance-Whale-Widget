@@ -1,6 +1,8 @@
+import { sound as defaultSound } from '../../services/sound.js';
+
 export function createTaskEndSound(deps) {
   const {
-    document, window, Audio, taskEndSelect, getTaskEndDrop,
+    document, taskEndSelect, getTaskEndDrop, sound = defaultSound,
     getUsageSettings, setUsageSettings, getAudioGroups, getAudioFragments,
     audioGroupName, getSoundState,
   } = deps;
@@ -13,6 +15,7 @@ export function createTaskEndSound(deps) {
   }
 
   function fillOptions(preference) {
+    if (!taskEndSelect) return;
     let settings = getUsageSettings();
     const preferred = settings?.taskEnd?.sel || preference?.sel || '';
     const current = taskEndSelect.value || preferred || '';
@@ -74,75 +77,19 @@ export function createTaskEndSound(deps) {
   }
 
   function refreshAfterAudio() {
-    try { fillOptions(getUsageSettings()?.taskEnd || null); } catch (error) {}
+    sound.reload({ catalog: { groups: getAudioGroups(), fragments: getAudioFragments() } });
+    fillOptions(getUsageSettings()?.taskEnd || null);
   }
 
   function play() {
-    try {
-      const settings = getUsageSettings();
-      const sound = getSoundState();
-      if (!settings?.taskEnd?.on || sound.on === false) return;
-      const selected = settings.taskEnd.sel || taskEndSelect.value || '';
-      const volume = settings.taskEnd.volSet === true && Number.isFinite(Number(settings.taskEnd.vol))
-        ? Math.max(0, Math.min(1, Number(settings.taskEnd.vol))) : sound.volume;
-      let url = '';
-      if (selected.startsWith('grp:')) {
-        const groupId = selected.slice(4);
-        if (window.WhaleFeedback) window.WhaleFeedback.play('success', '/dsh-whale/sound/press.mp3?set=' + encodeURIComponent(groupId), volume);
-        else playGroup(groupId, volume);
-        return;
-      }
-      if (selected.startsWith('frag:')) url = '/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(selected.slice(5));
-      else if (selected.startsWith('preset:')) {
-        const parts = selected.split(':');
-        url = '/dsh-whale/sound/' + (parts[2] === 'release' ? 'release' : 'press') + '.mp3?set=' + parts[1];
-      }
-      if (!url) return;
-      if (window.WhaleFeedback) {
-        window.WhaleFeedbackSources ||= {};
-        window.WhaleFeedbackSources.success = url;
-        window.WhaleFeedback.play('success', url, volume);
-        return;
-      }
-      const audio = new Audio(url);
-      audio.volume = volume;
-      audio.play().catch(() => {});
-    } catch (error) {}
-  }
-
-  function playGroup(groupId, volume) {
-    try {
-      if (!groupId) return;
-      const group = getAudioGroups().find(item => item?.id === groupId) || null;
-      const pressEmpty = group?.press === '';
-      const releaseEmpty = group?.release === '';
-      if (pressEmpty && releaseEmpty) return;
-      const level = Number.isFinite(Number(volume)) ? Number(volume) : getSoundState().volume;
-      const make = kind => {
-        const audio = new Audio('/dsh-whale/sound/' + kind + '.mp3?set=' + encodeURIComponent(groupId));
-        audio.volume = level;
-        return audio;
-      };
-      if (pressEmpty) {
-        if (!releaseEmpty) make('release').play().catch(() => {});
-        return;
-      }
-      const press = make('press');
-      if (releaseEmpty) {
-        press.play().catch(() => {});
-        return;
-      }
-      const release = make('release');
-      let played = false;
-      press.onended = () => {
-        if (played) return;
-        played = true;
-        release.currentTime = 0;
-        release.play().catch(() => {});
-      };
-      press.currentTime = 0;
-      press.play().catch(() => {});
-    } catch (error) {}
+    const settings = getUsageSettings();
+    const state = getSoundState();
+    if (!settings?.taskEnd?.on || state.on === false) return;
+    const selected = settings.taskEnd.sel || taskEndSelect?.value || '';
+    const volume = settings.taskEnd.volSet === true && Number.isFinite(Number(settings.taskEnd.vol))
+      ? Math.max(0, Math.min(1, Number(settings.taskEnd.vol))) : state.volume;
+    sound.reload({ catalog: { groups: getAudioGroups(), fragments: getAudioFragments() } });
+    return sound.play('success', { ref: selected, volume });
   }
 
   return Object.freeze({ fillOptions, refreshAfterAudio, play });

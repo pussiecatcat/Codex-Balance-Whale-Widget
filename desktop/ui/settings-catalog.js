@@ -1,17 +1,19 @@
+import { LABELS } from './services/labels.js';
+
 // 小龙娘设置目录 —— 界面控件、`!` 说明与 docs/CONFIGURATION.md 的唯一事实源。
 //
-// 加载方式：本文件同时是普通浏览器脚本与 CommonJS 模块。
-// 浏览器：<script src="/settings-catalog.js">  → globalThis.WhaleSettingsCatalog
+// 加载方式：本文件是浏览器模块；构建检查也会注入共享依赖后校验目录。
+// 浏览器：<script type="module" src="/settings-catalog.js">  → globalThis.WhaleSettingsCatalog
 // Node：   require(...) 或 vm.runInNewContext   → module.exports
 //
 // 约定（由 tests/settings-catalog.test.mjs 强制）：
 //   1. 每个字段的 help 四要素齐全：use / adjust / apply / recommend。
 //   2. 禁止通用兜底文案。help.adjust 会被检查长度与禁用词。
-//   3. defaultSource 写成「文件#导出常量」或「文件#运行时符号」，指向默认值
-//      的真实来源；能导入的常量由测试逐字段比对 defaultValue。行号会随重构
-//      漂移，常量名不会。
+//   3. defaultSource 写成 file#export.path（可带一次 `()` 调用），指向默认值的真实
+//      导出；测试解析导出确实存在，并对值控件逐字段比对 defaultValue。
 //   4. 动态条目用 pattern:true + subFields，不能用一个笼统条目代替整个编辑器。
-//   5. 带单位的字段用 scale 描述「界面值 × scale = 存储值」，例如毫秒存、秒显示。
+//   5. 带单位的字段用 scale / offset 描述「界面值 × scale + offset = 存储值」，
+//      例如毫秒存、秒显示（scale 1000），或大小按 1–20 档显示、按倍数存储。
 (() => {
   'use strict';
 
@@ -20,9 +22,9 @@
     { id: 'providers', label: '服务商', hint: 'Codex 当前 API 与 DIY 服务商；点「编辑」在挂件里修改', custom: true },
     { id: 'appearance', label: '外观与显示', hint: '角色、大小、显示方式与数据来源' },
     { id: 'sound', label: '声音与提醒', hint: '什么时候出声、显示什么提醒' },
-    { id: 'bubble', label: '气泡内容', hint: '气泡开关、形状、点击序列与模块' },
+    { id: 'bubble', label: LABELS.bubbleContent, hint: '气泡开关、形状、点击序列与模块' },
     { id: 'position', label: '位置与交互', hint: '贴边、翻转、避让与菜单按钮' },
-    { id: 'media', label: '素材管理', hint: '角色图片、气泡图片与音效素材' },
+    { id: 'media', label: LABELS.media, hint: '角色图片、气泡图片与音效素材' },
     { id: 'api', label: 'API 与用量', hint: '接口状态、币种、预警、预算与每轮费用' },
   ];
 
@@ -31,17 +33,18 @@
     // ── 基础设置域：.dshw-size.json ────────────────────────────────────────────
     {
       id: 'size.scale', page: 'appearance', tier: 1, domain: 'size',
-      label: '大小', purpose: '调整鲸鱼在桌面上的整体大小。',
-      type: 'range', unit: '倍', min: 0.6, max: 2.5, step: 0.1,
-      defaultValue: 1, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale',
-      store: '.dshw-size.json', key: 'scale', emptyValue: '最小 0.6',
+      label: LABELS.scale, purpose: '调整鲸鱼在桌面上的整体大小。',
+      // 界面是 1–20 档，存储是 0.6–2.5 倍：倍数 = 档位 × 0.1 + 0.5。
+      type: 'range', unit: '档', storedUnit: '倍', min: 1, max: 20, step: 1, scale: 0.1, offset: 0.5,
+      defaultValue: 5, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale',
+      store: '.dshw-size.json', key: 'scale', emptyValue: '缺省按 5 档（1.0 倍）处理',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '缩放角色图片本身，不改变气泡、菜单和文字的清晰度策略。',
-        adjust: '0.6 到 2.5，步长 0.1，菜单和设置窗口都直接显示倍数。',
+        adjust: '1 到 20 档，每档 0.1 倍：1 档 = 0.6 倍，5 档 = 1.0 倍，20 档 = 2.5 倍。菜单和设置窗口用同一套档位，配置里保存倍数。',
         apply: '拖动时挂件立即预览；点「保存更改」后写入配置。',
-        recommend: '笔记本和外接屏混用时，1080p 屏建议 1.2–1.4，4K 屏建议 1.6–1.8。',
+        recommend: '笔记本和外接屏混用时，1080p 屏建议 7–9 档（1.2–1.4 倍），4K 屏建议 11–13 档（1.6–1.8 倍）。',
       },
     },
     {
@@ -201,7 +204,7 @@
     // ── UI 状态域：ui-state.json（dshw-* 字符串键）──────────────────────────
     {
       id: 'ui.accountView', page: 'appearance', tier: 1, domain: 'displayMode',
-      label: '数据来源', purpose: '决定鲸鱼点开后显示订阅额度还是 API 余额。',
+      label: LABELS.dataSource, purpose: '决定鲸鱼点开后显示订阅额度还是 API 余额。',
       type: 'select',
       options: [{ value: 'subscription', label: 'Codex 订阅' }, { value: 'api', label: 'API 余额' }],
       defaultValue: 'subscription', defaultSource: 'runtime/composition.mjs#DISPLAY_MODE_DEFAULT',
@@ -217,10 +220,10 @@
     },
     {
       id: 'ui.role', page: 'appearance', tier: 1, domain: 'ui',
-      label: '角色', purpose: '选择鲸鱼当前使用的形象。',
+      label: LABELS.role, purpose: '选择鲸鱼当前使用的形象。',
       type: 'role',
       editor: { name: 'role', label: '打开角色选择' },
-      defaultValue: 'default', defaultSource: 'desktop/ui/features/widget/widget-defaults.js#DEFAULT_ROLE_ID',
+      defaultValue: 'default', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId',
       store: 'ui-state.json', key: 'dshw-role', emptyValue: '留空按角色库默认处理',
       read: 'GET /dsh-whale/roles.json', write: 'POST /dsh-whale/role-pin.json + ui-state.json',
       dependsOn: [], hotReload: 'immediate',
@@ -233,10 +236,10 @@
     },
     {
       id: 'ui.displayCurrency', page: 'appearance', tier: 2, domain: 'ui',
-      label: '显示币种', purpose: '决定界面上的金额用美元还是人民币显示。',
+      label: LABELS.currency, purpose: '决定界面上的金额用美元还是人民币显示。',
       type: 'select',
       options: [{ value: 'USD', label: '美元 USD' }, { value: 'CNY', label: '人民币 CNY' }],
-      defaultValue: 'USD', defaultSource: 'desktop/ui/money.js#createMoneyState.displayCurrency',
+      defaultValue: 'USD', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.displayCurrency',
       store: 'ui-state.json', key: 'dshw-display-currency', emptyValue: '非法值按 USD 处理',
       read: '本地偏好 + GET /api/fx/usd-cny', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -249,10 +252,10 @@
     },
     {
       id: 'ui.bubbleShape', page: 'bubble', tier: 2, domain: 'ui',
-      label: '气泡形状', purpose: '切换鲸鱼说话时气泡的外形。',
+      label: LABELS.bubbleShape, purpose: '切换鲸鱼说话时气泡的外形。',
       type: 'select',
       options: [{ value: 'ellipse', label: '椭圆' }, { value: 'round', label: '圆角方形' }],
-      defaultValue: 'ellipse', defaultSource: 'desktop/ui/features/widget/widget-defaults.js#DEFAULT_BUBBLE_SHAPE',
+      defaultValue: 'ellipse', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.bubbleShape',
       store: 'ui-state.json', key: 'dshw-bubble-shape', emptyValue: '留空按 ellipse 处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -272,7 +275,7 @@
         { value: 'crisp', label: '清脆' },
         { value: 'soft', label: '柔和' },
       ],
-      defaultValue: 'balanced', defaultSource: 'desktop/ui/preferences-v3.js#WhaleFeedback.defaults().feel',
+      defaultValue: 'balanced', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.feel',
       store: 'ui-state.json', key: 'dshw-v3-feedback.feel', emptyValue: '留空按 balanced 处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -295,7 +298,7 @@
         { key: 'failed', label: '拥挤失败提示', hasOriginal: false },
       ],
       defaultValue: '按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8',
-      defaultSource: 'desktop/ui/preferences-v3.js#WhaleFeedback.defaults().events',
+      defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.events',
       editor: { name: 'feedback-events', label: '打开音色与手感编辑器' },
       store: 'ui-state.json', key: 'dshw-v3-feedback.events.<event>', emptyValue: '缺事件按默认补',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
@@ -312,7 +315,7 @@
       id: 'ui.pos', page: 'position', tier: 2, domain: 'ui',
       label: '挂件位置', purpose: '记录鲸鱼停靠在桌面的哪个位置。',
       type: 'position',
-      defaultValue: '右下角', defaultSource: 'desktop/main.cjs#resetPosition',
+      defaultValue: '右下角', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.position',
       store: 'ui-state.json', key: 'dshw-pos', emptyValue: '留空按右下角处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: ['ui.snap'], hotReload: 'immediate',
@@ -328,7 +331,7 @@
       label: '自动贴边与翻转', purpose: '控制鲸鱼靠近屏幕边缘时的吸附范围和朝向翻转。',
       type: 'snap',
       defaultValue: { mode: 'ratio', ratio: { L: 10, T: 0, R: 10, B: 15, F: 50 }, px: { L: 80, T: 0, R: 80, B: 80, F: -1 } },
-      defaultSource: 'desktop/ui/features/widget/widget-defaults.js#SNAP_DEFAULTS',
+      defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap',
       editor: { name: 'snap', label: '打开位置编辑器' },
       store: 'ui-state.json', key: 'dshw-snap', emptyValue: '留空按默认比例处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
@@ -347,7 +350,7 @@
       id: 'usage.taskEndOn', page: 'sound', tier: 1, domain: 'usage',
       label: '完成提醒', purpose: '任务结束后用气泡、声音或两者一起提醒。',
       type: 'combo', comboOf: ['size.turnCostOn', 'usage.taskEnd.on'],
-      defaultValue: 'bubble', defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd',
+      defaultValue: 'bubble', defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.on',
       store: 'usage-settings.json + .dshw-size.json', key: 'taskEnd.on / turnCostOn', emptyValue: '缺省气泡开、声音关',
       read: 'GET /api/sound-settings',
       write: 'POST /api/sound-settings',
@@ -384,7 +387,7 @@
       id: 'usage.taskEndVol', page: 'sound', tier: 2, domain: 'usage',
       label: '完成提示音量', purpose: '单独调节任务完成音的响度。',
       type: 'range', unit: '百分比', min: 0, max: 1, step: 0.01,
-      defaultValue: null, defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.volSet',
+      defaultValue: null, defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.vol',
       store: 'usage-settings.json', key: 'taskEnd.vol / taskEnd.volSet', emptyValue: 'volSet 为 false 时跟随点击音量',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['usage.taskEndOn', 'size.vol'], hotReload: 'immediate',
@@ -399,7 +402,7 @@
       id: 'usage.alertOn', page: 'api', tier: 2, domain: 'usage',
       label: '余额预警', purpose: 'API 余额低于阈值时提醒。',
       type: 'boolean',
-      defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert',
+      defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.on',
       store: 'usage-settings.json', key: 'alert.on', emptyValue: '缺省按 true 处理',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['ui.accountView', 'size.bubbleOn'], hotReload: 'after-save',
@@ -414,7 +417,7 @@
       id: 'usage.alertBelow', page: 'api', tier: 2, domain: 'usage',
       label: '余额预警阈值', purpose: '余额低于多少时触发预警。',
       type: 'number', unit: '与 API 同币种', min: 0, step: 0.01,
-      defaultValue: 5, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert',
+      defaultValue: 5, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.below',
       store: 'usage-settings.json', key: 'alert.below', emptyValue: '0 表示不预警',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['usage.alertOn'], hotReload: 'after-save',
@@ -429,7 +432,7 @@
       id: 'usage.budgetOn', page: 'api', tier: 2, domain: 'usage',
       label: '每日预算提醒', purpose: '当天观测到的用量超过预算时提醒。',
       type: 'boolean',
-      defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget',
+      defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget.on',
       store: 'usage-settings.json', key: 'budget.on', emptyValue: '缺省按 true 处理',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['ui.accountView', 'size.bubbleOn'], hotReload: 'after-save',
@@ -444,7 +447,7 @@
       id: 'usage.budgetAmount', page: 'api', tier: 2, domain: 'usage',
       label: '每日预算阈值', purpose: '当天用量超过多少时提醒。',
       type: 'number', unit: '与 API 同币种', min: 0, step: 0.01,
-      defaultValue: 10, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget',
+      defaultValue: 10, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget.amount',
       store: 'usage-settings.json', key: 'budget.amount', emptyValue: '0 表示不提醒',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['usage.budgetOn'], hotReload: 'after-save',
@@ -477,7 +480,7 @@
       id: 'usage.alertAutoClose', page: 'api', tier: 2, domain: 'usage',
       label: '预警自动关闭', purpose: '控制余额预警和预算提醒是否自动消失。',
       type: 'boolean',
-      defaultValue: false, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert',
+      defaultValue: false, defaultSource: 'runtime/ledger.mjs#usageDefaults',
       store: 'usage-settings.json', key: 'alert.autoClose / budget.autoClose', emptyValue: '缺省按 false 处理',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
@@ -492,7 +495,7 @@
       id: 'usage.alertTtlSec', page: 'api', tier: 2, domain: 'usage',
       label: '预警停留秒数', purpose: '预警气泡自动关闭前的停留时间。',
       type: 'number', unit: '秒', min: 0, max: 3600, step: 1,
-      defaultValue: 6, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert',
+      defaultValue: 6, defaultSource: 'runtime/ledger.mjs#usageDefaults',
       store: 'usage-settings.json', key: 'alert.ttlSec / budget.ttlSec', emptyValue: '0 表示不自动关闭',
       read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
       dependsOn: ['usage.alertAutoClose'], hotReload: 'after-save',
@@ -642,7 +645,7 @@
       },
     },
 
-    // ── API 主配置域：api-settings.json ─────────────────────────────────────
+    // ── API 主配置域：providers.json → codexApi ─────────────────────────────────────
     {
       id: 'api.provider', page: 'api', tier: 2, domain: 'api',
       label: '余额接口', purpose: '选择用哪种方式读取 API 余额。',
@@ -655,7 +658,7 @@
         { value: 'deepseek', label: '原生余额接口' },
       ],
       defaultValue: 'auto', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.provider',
-      store: 'api-settings.json', key: 'provider', emptyValue: '留空按 auto 处理',
+      store: 'providers.json → codexApi', key: 'provider', emptyValue: '留空按 auto 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['ui.accountView'], hotReload: 'after-save',
       help: {
@@ -670,7 +673,7 @@
       label: 'API 地址', purpose: '指定余额接口的根地址。',
       type: 'url',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.baseUrl',
-      store: 'api-settings.json', key: 'baseUrl', emptyValue: '留空表示跟随 Codex',
+      store: 'providers.json → codexApi', key: 'baseUrl', emptyValue: '留空表示跟随 Codex',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: [], hotReload: 'after-save',
       help: {
@@ -685,7 +688,7 @@
       label: '密钥环境变量名', purpose: '告诉挂件从哪个已有环境变量读取密钥。',
       type: 'text',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.keyEnv',
-      store: 'api-settings.json', key: 'keyEnv', emptyValue: '留空表示使用默认',
+      store: 'providers.json → codexApi', key: 'keyEnv', emptyValue: '留空表示使用默认',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.baseUrl'], hotReload: 'after-save',
       help: {
@@ -700,7 +703,7 @@
       label: 'Codex 配置方案', purpose: '指定读取哪一个 Codex profile。',
       type: 'text',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.profile',
-      store: 'api-settings.json', key: 'profile', emptyValue: '留空使用默认方案',
+      store: 'providers.json → codexApi', key: 'profile', emptyValue: '留空使用默认方案',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: [], hotReload: 'restart',
       help: {
@@ -715,7 +718,7 @@
       label: '项目目录', purpose: '从指定目录里的 .codex/config.toml 读取配置。',
       type: 'text',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.projectDir',
-      store: 'api-settings.json', key: 'projectDir', emptyValue: '留空使用当前目录',
+      store: 'providers.json → codexApi', key: 'projectDir', emptyValue: '留空使用当前目录',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.profile'], hotReload: 'restart',
       help: {
@@ -730,7 +733,7 @@
       label: '自定义金额币种', purpose: '指定接口返回金额的币种代码。',
       type: 'text', unit: '三位大写字母', maxlength: 3,
       defaultValue: 'USD', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.currency',
-      store: 'api-settings.json', key: 'currency', emptyValue: '留空按 USD 处理',
+      store: 'providers.json → codexApi', key: 'currency', emptyValue: '留空按 USD 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -745,7 +748,7 @@
       label: '余额路径', purpose: '自定义接口里余额数据的请求路径。',
       type: 'text',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.balancePath',
-      store: 'api-settings.json', key: 'balancePath', emptyValue: '留空使用服务商默认',
+      store: 'providers.json → codexApi', key: 'balancePath', emptyValue: '留空使用服务商默认',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -760,7 +763,7 @@
       label: '余额字段', purpose: '指定余额在返回 JSON 里的位置。',
       type: 'text',
       defaultValue: 'data.balance', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.balanceField',
-      store: 'api-settings.json', key: 'balanceField', emptyValue: '留空按 data.balance 处理',
+      store: 'providers.json → codexApi', key: 'balanceField', emptyValue: '留空按 data.balance 处理',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.balancePath'], hotReload: 'after-save',
       help: {
@@ -775,7 +778,7 @@
       label: '累计消耗字段', purpose: '指定累计已用金额在返回 JSON 里的位置。',
       type: 'text',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.usedField',
-      store: 'api-settings.json', key: 'usedField', emptyValue: '留空表示该接口不提供累计消耗',
+      store: 'providers.json → codexApi', key: 'usedField', emptyValue: '留空表示该接口不提供累计消耗',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.balanceField'], hotReload: 'after-save',
       help: {
@@ -790,7 +793,7 @@
       label: '金额换算系数', purpose: '把接口返回的原始数字换算成真实金额。',
       type: 'number', min: 0.000000001, step: 'any',
       defaultValue: 1, defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.balanceScale',
-      store: 'api-settings.json', key: 'balanceScale', emptyValue: '留空按 1 处理',
+      store: 'providers.json → codexApi', key: 'balanceScale', emptyValue: '留空按 1 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['api.balanceField'], hotReload: 'after-save',
       help: {
@@ -806,7 +809,7 @@
       label: '账单用量除数', purpose: '把账单接口的用量数值还原成真实量。',
       type: 'number', min: 0.000001, step: 'any',
       defaultValue: 100, defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.billingUsageDivisor',
-      store: 'api-settings.json', key: 'billingUsageDivisor', emptyValue: '留空按 100 处理',
+      store: 'providers.json → codexApi', key: 'billingUsageDivisor', emptyValue: '留空按 100 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -821,7 +824,7 @@
       label: '每货币单位的 quota', purpose: '把原始 quota 换算成金额。',
       type: 'number', min: 0.000001, step: 'any',
       defaultValue: 500000, defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.quotaPerUnit',
-      store: 'api-settings.json', key: 'quotaPerUnit', emptyValue: '留空按 500000 处理',
+      store: 'providers.json → codexApi', key: 'quotaPerUnit', emptyValue: '留空按 500000 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -836,7 +839,7 @@
       label: '账单页面地址', purpose: '点提醒气泡里的链接时打开的页面。',
       type: 'url',
       defaultValue: '', defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.dashboardUrl',
-      store: 'api-settings.json', key: 'dashboardUrl', emptyValue: '留空使用服务商默认',
+      store: 'providers.json → codexApi', key: 'dashboardUrl', emptyValue: '留空使用服务商默认',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -851,7 +854,7 @@
       label: '记录本机 token 与任务状态', purpose: '让挂件知道你每轮任务用了多少。',
       type: 'boolean',
       defaultValue: true, defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.monitorSessions',
-      store: 'api-settings.json', key: 'monitorSessions', emptyValue: '缺省按 true 处理',
+      store: 'providers.json → codexApi', key: 'monitorSessions', emptyValue: '缺省按 true 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: [], hotReload: 'restart',
       help: {
@@ -866,7 +869,7 @@
       label: '余额刷新间隔', purpose: '多久重新读一次 API 余额。',
       type: 'number', unit: '秒', min: 15, max: 3600, step: 1,
       defaultValue: 60, defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.refreshSeconds',
-      store: 'api-settings.json', key: 'refreshSeconds', emptyValue: '留空按 60 处理',
+      store: 'providers.json → codexApi', key: 'refreshSeconds', emptyValue: '留空按 60 处理',
       read: 'GET /api/config', write: 'PUT /api/config',
       dependsOn: ['ui.accountView'], hotReload: 'after-save',
       help: {
@@ -889,7 +892,7 @@
       ],
       defaultValue: {},
       defaultSource: 'runtime/config.mjs#DEFAULT_CONFIG.models',
-      store: 'api-settings.json', key: 'models.<model>', emptyValue: '留空保留全部现有价格',
+      store: 'providers.json → codexApi', key: 'models.<model>', emptyValue: '留空保留全部现有价格',
       read: 'GET /api/config（只返回已配置标记）', write: 'PUT /api/config（pricingUpdate）',
       dependsOn: ['api.provider', 'api.currency'], hotReload: 'after-save',
       help: {
@@ -931,7 +934,7 @@
       ],
       defaultValue: null,
       defaultSource: 'runtime/api-models.mjs#API_TEMPLATES',
-      store: 'api-models.json', key: 'models[<id>].<field>', emptyValue: '多数字段留空保留原值；价格和阈值留空会清除',
+      store: 'providers.json → diyModels', key: 'models[<id>].<field>', emptyValue: '多数字段留空保留原值；价格和阈值留空会清除',
       read: 'GET /api/models', write: 'PUT /api/models',
       dependsOn: ['api.provider'], hotReload: 'after-save',
       help: {
@@ -954,7 +957,7 @@
         { key: 'period', label: '周期' },
       ],
       defaultValue: null, defaultSource: 'runtime/api-models.mjs#ApiModelRegistry',
-      store: 'api-models.json', key: 'manualQuota', emptyValue: '清空该组即删除手动额度',
+      store: 'providers.json → diyModels', key: 'manualQuota', emptyValue: '清空该组即删除手动额度',
       read: 'GET /api/models', write: 'PUT /api/models',
       dependsOn: ['api.customModels'], hotReload: 'after-save',
       help: {
@@ -975,10 +978,8 @@
       subFields: [
         { key: 'items', label: 'API 模式序列' },
         { key: 'subscriptionItems', label: '订阅模式序列' },
-        { key: 'tapAdvance', label: 'API 模式点击切换' },
-        { key: 'subscriptionTapAdvance', label: '订阅模式点击切换' },
       ],
-      defaultValue: null, defaultSource: 'assets/whale-widget.js#bubbleDefaultQueue',
+      defaultValue: null, defaultSource: 'desktop/ui/features/widget/default-content.js#bubbleDefaultQueue',
       editor: { name: 'bubble', label: '打开气泡编辑器' },
       store: '.dshw-bubble.json', key: 'items / subscriptionItems', emptyValue: '空数组表示清空该模式序列',
       read: 'GET /dsh-whale/bubble.json', write: 'POST /dsh-whale/bubble.json',
@@ -1001,7 +1002,7 @@
         { key: 'weight', label: '随机权重' },
         { key: 'modelId', label: '绑定模型' },
       ],
-      defaultValue: null, defaultSource: 'assets/whale-widget.js#bubbleLiblibAdd',
+      defaultValue: null, defaultSource: 'desktop/ui/features/widget/bubble-editor-model.js#loadBubbleEditorDraft',
       editor: { name: 'bubble', label: '打开气泡编辑器' },
       store: '.dshw-bubble.json', key: 'lib', emptyValue: '空数组表示清空模块库',
       read: 'GET /dsh-whale/bubble.json', write: 'POST /dsh-whale/bubble.json',
@@ -1023,8 +1024,8 @@
         { key: 'pinned', label: '置顶' },
         { key: 'order', label: '排序' },
       ],
-      defaultValue: null, defaultSource: 'lib/widget-host.mjs#createWidgetHost',
-      editor: { name: 'role', label: '打开角色选择' },
+      defaultValue: null, defaultSource: 'lib/widget-host.mjs#ROLE_DEFAULT_ID',
+      editor: { name: 'resources', label: '打开素材管理' },
       store: 'whale-roles/roles.json', key: 'roles[<id>]', emptyValue: '删除素材需要用户明确确认',
       read: 'GET /dsh-whale/roles.json', write: 'POST /dsh-whale/role-pin.json / role-delete.json',
       dependsOn: ['ui.role'], hotReload: 'after-save',
@@ -1064,8 +1065,8 @@
         { key: 'name', label: '名称' },
         { key: 'pinned', label: '置顶' },
       ],
-      defaultValue: null, defaultSource: 'lib/widget-host.mjs#createWidgetHost',
-      editor: { name: 'bubble', label: '打开气泡图片编辑器' },
+      defaultValue: null, defaultSource: 'lib/widget-host.mjs#DEFAULT_BUBBLE_IMGS',
+      editor: { name: 'resources', label: '打开素材管理' },
       store: 'whale-bubble-imgs/bubble-imgs.json', key: 'bubbleImgs[<id>]', emptyValue: '删除素材需要用户明确确认',
       read: 'GET /dsh-whale/bubble-imgs.json', write: 'POST /dsh-whale/bubble-img-upload.json',
       dependsOn: ['bubble.lib'], hotReload: 'after-save',
@@ -1081,7 +1082,7 @@
       label: '素材包导入导出', purpose: '把角色、图片、音频打包带走或迁移。',
       type: 'action',
       defaultValue: null, defaultSource: 'lib/workshop.mjs#WORKSHOP_MAX_BYTES',
-      editor: { name: 'workshop', label: '打开素材管理' },
+      editor: { name: 'workshop', label: '打开素材包导入导出' },
       store: '（即时操作，不落配置）', key: '—', emptyValue: '—',
       read: 'GET /api/workshop/export', write: 'POST /api/workshop/import',
       dependsOn: [], hotReload: 'after-save',
@@ -1134,11 +1135,17 @@
         if (!PAGES.some(page => page.id === field.page)) problems.push({ id: field.id, problem: `未知分类 ${field.page}` });
         if (!field.label) problems.push({ id: field.id, problem: '缺少 label' });
         if (!field.purpose) problems.push({ id: field.id, problem: '缺少 purpose' });
-        if (!field.defaultSource || !/^[^:]+#\S+$/.test(field.defaultSource)) {
-          problems.push({ id: field.id, problem: `defaultSource 必须写成 file#symbol，实际 ${field.defaultSource}` });
+        if (!field.defaultSource || !/^[^#]+#[A-Za-z_$][\w$]*(?:\(\))?(?:\.[A-Za-z_$][\w$]*)*$/.test(field.defaultSource)) {
+          problems.push({ id: field.id, problem: `defaultSource 必须写成 file#export.path，实际 ${field.defaultSource}` });
         }
         if (field.scale !== undefined && !(typeof field.scale === 'number' && Number.isFinite(field.scale) && field.scale > 0)) {
           problems.push({ id: field.id, problem: 'scale 必须是正数' });
+        }
+        if (field.offset !== undefined && !(typeof field.offset === 'number' && Number.isFinite(field.offset))) {
+          problems.push({ id: field.id, problem: 'offset 必须是有限数' });
+        }
+        if (field.offset !== undefined && field.scale === undefined) {
+          problems.push({ id: field.id, problem: 'offset 必须与 scale 一起声明' });
         }
         const help = field.help;
         if (!help) { problems.push({ id: field.id, problem: '缺少 help' }); continue; }

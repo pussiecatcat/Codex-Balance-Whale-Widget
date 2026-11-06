@@ -1,3 +1,4 @@
+import * as quotaFormat from '../desktop/ui/services/quota-format.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -10,9 +11,44 @@ import { quotaFromAppServer, createCodexRateLimitsClient, findCodexExecutable, c
 import { createInsightsService } from '../runtime/insights.mjs';
 
 const source = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
-const context = { module: { exports: {} }, requestJson: async () => ({}), statusView: () => ({ label: '' }) };
+const context = { ...quotaFormat, labels: quotaFormat.QUOTA_LABELS, module: { exports: {} }, requestJson: async () => ({}), statusView: () => ({ label: '' }) };
 vm.runInNewContext(source, context);
 const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
+
+test('quota countdown formats every display boundary from one table', () => {
+  const now = 1_790_000_000_000;
+  const rows = [
+    [null, '未观测', '等待同步'],
+    [0, '等待额度更新', '等待刷新'],
+    [-1000, '等待额度更新', '等待刷新'],
+    [1, '00:00:01', '01m'],
+    [59_000, '00:00:59', '01m'],
+    [60_000, '00:01:00', '01m'],
+    [3_599_000, '00:59:59', '59m'],
+    [3_600_000, '01:00:00', '01h 00m'],
+    [86_399_000, '23:59:59', '23h 59m'],
+    [86_400_000, '1天 00:00:00', '01d 00h'],
+  ];
+  for (const [offset, precise, compact] of rows) {
+    const reset = offset === null ? undefined : now + offset;
+    assert.equal(countdown(reset, now), precise, `precise offset ${offset}`);
+    assert.equal(countdownShort(reset, now), compact, `compact offset ${offset}`);
+    if (offset !== null) {
+      assert.equal(countdown(reset / 1000, now), precise, `seconds offset ${offset}`);
+      assert.equal(countdownShort(reset / 1000, now), compact, `seconds offset ${offset}`);
+    }
+  }
+});
+
+test('each declared quota token formats a value and supplies editor help', async () => {
+  const { createBubbleContent } = await import('../desktop/ui/features/widget/bubble-content.js');
+  const builder = createBubbleContent({ window: {} });
+  const help = builder.tplHelpItems({ type: 'quota' });
+  assert.deepEqual(help, quotaFormat.TOKENS.map(token => ({ k: `{${token.key}}`, d: token.label })));
+  const state = quotaState({}, { windows: [] }, 0);
+  assert.deepEqual(Object.keys(state.map), quotaFormat.TOKENS.map(token => token.key));
+  assert.ok(Object.values(state.map).every(value => typeof value === 'string'));
+});
 
 test('plan and all original peak styles resolve legacy and new placeholders', () => {
   const now=Date.parse('2026-10-02T10:00:00Z'),pricing={visible:true,phase:'peak',nextChangeAt:now+3600000};

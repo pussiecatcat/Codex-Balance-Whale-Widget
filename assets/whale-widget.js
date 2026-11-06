@@ -1,3 +1,9 @@
+import { createConfigSync } from '/features/widget/config-sync.js';
+import { UI_DEFAULTS } from '/services/ui-defaults.js';
+import { sound } from '/services/sound.js';
+import { openOver } from '/services/layers.js';
+import { bindAudioImport } from '/features/widget/audio-import.js';
+import { bubbleItemsForMode } from '/features/widget/bubble-defaults.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import '/money.js';
 import '/quota.js';
@@ -22,21 +28,21 @@ import { createAudioGroupList } from '/features/widget/audio-group-list.js';
 import { createAudioSlotPanel } from '/features/widget/audio-slot-panel.js';
 import { createAudioGroupEditor } from '/features/widget/audio-group-editor.js';
 import { createAudioCropEditor } from '/features/widget/audio-crop-editor.js';
-import { createModuleEditorView } from '/features/widget/module-editor-view.js';
+import { createModuleEditorView, createModuleEditorDialog } from '/features/widget/module-editor-view.js';
 import { createBubblePreviewView } from '/features/widget/bubble-preview-view.js';
 import { createGifRoleDialog } from '/features/widget/gif-role-dialog.js';
 import { createMenuControls } from '/features/widget/menu-controls.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
-import { createFxControls } from '/features/widget/fx-controls.js';
+import { createMenuLayout } from '/features/widget/menu-layout.js';
+import { LABELS } from '/services/labels.js';
 import { createUsageOverviewView } from '/features/widget/usage-overview-view.js';
 import { createUsageModelsView } from '/features/widget/usage-models-view.js';
-import { createUsagePanel } from '/features/widget/usage-panel.js';
+import { createUsagePanel, createUsageShell } from '/features/widget/usage-panel.js';
 import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.js';
 import { createBubblePalette } from '/features/widget/bubble-palette.js';
 import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
 import { createSnapEditor } from '/features/widget/snap-editor.js';
-import { DEFAULT_SCALE, DEFAULT_BUBBLE_SHAPE, SNAP_VERSION, SNAP_DEFAULTS } from '/features/widget/widget-defaults.js';
 import { isEditorRoute } from '/features/widget/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
@@ -55,7 +61,6 @@ import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, art
 import { createCustomSelectController } from '/features/widget/custom-select.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
 import {
-  bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
@@ -70,16 +75,9 @@ import {
 //
 //      grep -n "==== \[" assets/whale-widget.js
 //
-//  1 素材与媒体工具            11 快速编辑器与调色板
-//  2 菜单行与下拉选择          12 气泡预览与样式
-//  3 任务结束音效              13 模块编辑器
-//  4 汇率显示                  14 GIF 角色确认
-//  5 用量面板与设置            15 音频裁剪与气泡测量
-//  6 资源管理器                16 气泡渲染与行模板
-//  7 用量图表与记录窗口        17 刷新与配置保存
-//  8 快照预览                  18 角色面板与裁图确认
-//  9 气泡默认内容              19 音频组与槽面板
-// 10 气泡编辑器                20 拖拽与锚点定位
+//  素材与菜单装配、用量面板、资源管理、气泡编辑器、快速编辑器、
+//  气泡预览与样式、模块编辑器装配、音频裁剪与测量、气泡渲染、
+//  配置同步接线、角色与音频编辑器装配。实现由对应 feature/service 拥有。
 //
 //  对外契约：与其他 desktop/ui/*.js 插件通过 window.* 通信
 //  （WhaleFeedback / WhaleAccountView / WhaleGesture / WhaleQuota /
@@ -111,33 +109,8 @@ import {
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
 
-    // The combined settings endpoint owns both settings files and guards them
-    // with a revision, so a partial update has to read the pair, merge, and send
-    // both back. A 409 means something else wrote in between; the local change is
-    // the one the user just made, so re-read once and re-apply it rather than
-    // dropping the edit.
     function updateSoundSettings(mutate, onSaved, attempt) {
-      attempt = attempt || 0;
-      return requestJson(SETTINGS_URL).then(function (current) {
-        if (!current || current.ok !== true) throw new Error(current && current.error || '无法读取设置');
-        var next = mutate({ size: current.size, usage: current.usage });
-        return requestJson(SETTINGS_URL, {
-          method: 'PUT',
-          body: {
-            schemaVersion: current.schemaVersion,
-            revision: current.revision,
-            size: next.size,
-            usage: next.usage
-          }
-        });
-      }).then(function (body) {
-        requireSaved(body);
-        if (onSaved) onSaved(body);
-        return body;
-      }).catch(function (error) {
-        if (error && error.status === 409 && attempt < 1) return updateSoundSettings(mutate, onSaved, attempt + 1);
-        assetFailure(error);
-      });
+      return configSync.updateSoundSettings(mutate, onSaved, attempt);
     }
 
     // ==== [素材与媒体工具] ====
@@ -156,7 +129,7 @@ import {
     img.className = 'dshwv-img';
     var initRoleUrl = IMG_URL;
     try {
-      var initRoleId = localStorage.getItem('dshw-role') || '';
+      var initRoleId = localStorage.getItem('dshw-role') || UI_DEFAULTS.roleId;
       if (initRoleId && initRoleId !== 'default') initRoleUrl = '/dsh-whale/role-image.png?id=' + encodeURIComponent(initRoleId);
     } catch (err) {}
     img.src = initRoleUrl;
@@ -174,7 +147,7 @@ import {
     var menuBox = document.createElement('div');
     menuBox.className = 'dshwv-menu';
     menuBox.addEventListener('scroll', function () {
-      dshwCustSelClose(); closeRolePanel(); closeAudioGroupPanel(); closeFxInfo();
+      dshwCustSelClose(); closeRolePanel(); closeAudioGroupPanel();
     });
 
     // ==== [菜单行与下拉选择] ====
@@ -197,7 +170,7 @@ import {
     });
     var scaleInput = menuControls.scaleInput, scaleNumber = menuControls.scaleNumber;
     var audioGroupBtn = menuControls.audioGroupBtn, audioGroupBtnLabel = menuControls.audioGroupBtnLabel, audioGroupPanel = menuControls.audioGroupPanel;
-    var audioImportBtn = menuControls.audioImportBtn, usageRecBtn = menuControls.usageRecBtn;
+    var usageRecBtn = menuControls.usageRecBtn;
     var nameMarquee = createNameMarquee({ document: document });
     var makeNameCell = nameMarquee.makeCell;
     var bindNameMarquee = nameMarquee.bind;
@@ -210,47 +183,9 @@ import {
     window.WhaleSelect.close = customSelect.close;
     window.WhaleSelect.sync = customSelect.sync;
     window.WhaleSelect.refresh = customSelect.refresh;
-    var usageRecBtn = document.createElement('button');
-    usageRecBtn.type = 'button';
-    usageRecBtn.className = 'dshwv-roleimport';
-    usageRecBtn.dataset.action = 'toggle-usage-records';
-    usageRecBtn.textContent = '- = 小龙娘记账 = -';
-    usageRecBtn.title = '打开小龙娘记账';
-    usageRecBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      toggleUsagePanel();
-    });
-    var taskEndToggle = document.createElement('input');
-    taskEndToggle.type = 'checkbox';
-    taskEndToggle.className = 'dshwv-check';
-    taskEndToggle.checked = false;
-    taskEndToggle.title = '每轮对话回复完成时播放提示音';
-    taskEndToggle.addEventListener('change', function () {
-      var settings = usagePanelApi.getUsageSet() || ({});
-      settings.taskEnd = settings.taskEnd || ({ on: false, sel: '' });
-      settings.taskEnd.on = taskEndToggle.checked;
-      usagePanelApi.setUsageSet(settings);
-      taskEndSel.disabled = !taskEndToggle.checked;
-      if (taskEndDrop) taskEndDrop.refresh();
-      usagePanelApi.save({ taskEnd: settings.taskEnd });
-    });
-    var taskEndSel = document.createElement('select');
-    var taskEndDrop = null;
-    taskEndSel.className = 'dshwv-sound';
-    taskEndSel.disabled = true;
-    taskEndSel.title = '选择任务结束音:音效组(点按整组)/单个音频(与按下/松开同库)';
-    taskEndSel.addEventListener('change', function () {
-      var settings = usagePanelApi.getUsageSet() || ({});
-      settings.taskEnd = settings.taskEnd || ({ on: false, sel: '' });
-      settings.taskEnd.sel = taskEndSel.value;
-      usagePanelApi.setUsageSet(settings);
-      usagePanelApi.save({ taskEnd: settings.taskEnd });
-    });
-
     // ==== [任务结束音效] ====
     var taskEndSound = createTaskEndSound({
-      document: document, window: window, Audio: Audio, taskEndSelect: taskEndSel,
-      getTaskEndDrop: function () { return taskEndDrop; },
+      document: document, window: window,
       getUsageSettings: function () { return usagePanelApi.getUsageSet(); },
       setUsageSettings: function (settings) { usagePanelApi.setUsageSet(settings); },
       getAudioGroups: function () { return audioGroups; },
@@ -258,7 +193,6 @@ import {
       audioGroupName: audioGroupName,
       getSoundState: function () { return { on: soundOn, volume: soundVol }; }
     });
-    var fillTaskEndOptions = taskEndSound.fillOptions;
     var refreshTaskEndAfterAudio = taskEndSound.refreshAfterAudio;
     var playTaskEndSound = taskEndSound.play;
     var bubbleToggle = document.createElement('input');
@@ -269,139 +203,23 @@ import {
     bubbleToggle.addEventListener('change', function () {
       setBubbleOn(bubbleToggle.checked);
     });
-    var turnCostToggle = document.createElement('input');
-    turnCostToggle.type = 'checkbox';
-    turnCostToggle.className = 'dshwv-check';
-    turnCostToggle.checked = true;
-    turnCostToggle.title = '每轮对话结束后自动显示本轮消耗金额';
-    turnCostToggle.addEventListener('change', function () {
-      setTurnCostOn(turnCostToggle.checked);
-    });
-    var turnCostCloseInput = document.createElement('input');
-    turnCostCloseInput.type = 'number';
-    turnCostCloseInput.min = '0';
-    turnCostCloseInput.step = '1';
-    turnCostCloseInput.className = 'dshwv-number';
-    turnCostCloseInput.value = '5';
-    turnCostCloseInput.disabled = false;
-    turnCostCloseInput.title = '填 0 表示不自动关闭，需手动点击关闭';
-    turnCostCloseInput.addEventListener('input', function () {
-      setTurnCostClose(turnCostCloseInput.value);
-    });
-    turnCostCloseInput.addEventListener('change', function () {
-      setTurnCostClose(turnCostCloseInput.value);
-    });
-    var scrollGapToggle = document.createElement('input');
-    scrollGapToggle.type = 'checkbox';
-    scrollGapToggle.className = 'dshwv-check';
-    scrollGapToggle.checked = false;
-    scrollGapToggle.title = '开启后挂件右侧按设定像素避开滚动条；关闭则贴边（盖住滚动条）';
-    scrollGapToggle.addEventListener('change', function () {
-      setScrollGapOn(scrollGapToggle.checked);
-    });
-    var scrollGapInput = document.createElement('input');
-    scrollGapInput.type = 'number';
-    scrollGapInput.min = '0';
-    scrollGapInput.step = '1';
-    scrollGapInput.className = 'dshwv-number';
-    scrollGapInput.value = '17';
-    scrollGapInput.disabled = true;
-    scrollGapInput.title = '避让滚动条的像素宽度，填 0 表示贴边';
-    scrollGapInput.addEventListener('input', function () {
-      setScrollGapPx(scrollGapInput.value);
-    });
-    scrollGapInput.addEventListener('change', function () {
-      setScrollGapPx(scrollGapInput.value);
-    });
     var row1 = menuRow();
-    row1.appendChild(menuLabel('大小'));
+    row1.appendChild(menuLabel(LABELS.scale));
     row1.appendChild(scaleInput);
     row1.appendChild(scaleNumber);
-    var shapeRow = menuRow();
-    shapeRow.appendChild(menuLabel('气泡形状'));
-    var shapeSel = document.createElement('select');
-    shapeSel.id = 'dshw-bubble-shape';
-    shapeSel.className = 'dshwv-sound';
-    shapeSel.title = '切换气泡外形：椭圆更圆润，圆角方形能显示更多内容';
-    [['ellipse', '椭圆'], ['round', '圆角方形']].forEach(function (entry) {
-      var option = document.createElement('option');
-      option.value = entry[0]; option.textContent = entry[1]; shapeSel.appendChild(option);
-    });
-    shapeRow.appendChild(shapeSel);
-    dshwCustSel(shapeSel, { bottom: function () { return row2; } });
-    shapeSel.parentNode.style.flex = '0 0 104px';
-    shapeSel.parentNode.style.width = '104px';
-    shapeSel.addEventListener('change', function () {
-      var applied = applyBubbleShape(shapeSel.value);
-      shapeSel.value = applied;
-      try { localStorage.setItem('dshw-bubble-shape', applied); } catch (err) {}
-      // The committed frame was fitted against the previous path.
-      try { window.WhaleRendering && window.WhaleRendering.presentFor(260); } catch (err) {}
-    });
-    var row2 = menuRow();
-    row2.appendChild(menuLabel('音效'));
-    row2.appendChild(audioGroupBtn);
-    row2.appendChild(audioImportBtn);
-    var volInput = document.createElement('input');
-    volInput.type = 'range';
-    volInput.min = '0';
-    volInput.max = '1';
-    volInput.step = '0.05';
-    volInput.className = 'dshwv-range';
-    volInput.value = '0.9';
-    var volPct = document.createElement('span');
-    volPct.className = 'dshwv-volpct';
-    volPct.textContent = '90%';
-    volInput.addEventListener('input', function () {
-      setVol(volInput.value);
-    });
-    var row3 = menuRow();
-    row3.appendChild(menuLabel('音量'));
-    row3.appendChild(volInput);
-    row3.appendChild(volPct);
+    scaleNumber.classList.add('dshwv-scale-value');
     var row6 = menuRow();
-    row6.appendChild(menuLabel('气泡全局开关'));
+    row6.appendChild(menuLabel(LABELS.bubble));
     row6.appendChild(bubbleToggle);
     var bubbleCustomBtn = document.createElement('button');
     bubbleCustomBtn.type = 'button';
     bubbleCustomBtn.className = 'dshwv-roleimport';
     bubbleCustomBtn.style.flex = '1';
     bubbleCustomBtn.textContent = '气泡DIY';
-    bubbleCustomBtn.title = '打开“气泡DIY”设置';
-    bubbleCustomBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openBubbleEditor();
+    bubbleCustomBtn.addEventListener('click', function (event) {
+      event.stopPropagation(); openBubbleEditor();
     });
     row6.appendChild(bubbleCustomBtn);
-    var menuSep1 = document.createElement('div');
-    menuSep1.className = 'dshwv-menu-sep';
-    var row7 = menuRow();
-    row7.appendChild(menuLabel('每轮消耗提示'));
-    row7.appendChild(turnCostToggle);
-    row7.appendChild(menuLabel('自动关闭'));
-    row7.appendChild(turnCostCloseInput);
-    row7.appendChild(menuLabel('秒'));
-    var turnCostEditBtn = document.createElement('button');
-    turnCostEditBtn.type = 'button';
-    turnCostEditBtn.className = 'dshwv-roleimport';
-    turnCostEditBtn.textContent = '自定义';
-    turnCostEditBtn.title = '编辑每轮结束后显示的泡泡内容和样式';
-    turnCostEditBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      usageAlertBudgetEditor('turnCost', function (o) {
-        var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
-        usagePanelApi.setUsageSet(settings);
-        setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
-        usagePanelApi.save({ turnCost: settings.turnCost });
-      });
-    });
-    row7.appendChild(turnCostEditBtn);
-    var row9 = menuRow();
-    row9.appendChild(menuLabel('避让滚动条'));
-    row9.appendChild(scrollGapToggle);
-    row9.appendChild(menuLabel('宽度'));
-    row9.appendChild(scrollGapInput);
-    row9.appendChild(menuLabel('px'));
     var roleBtn = document.createElement('button');
     roleBtn.type = 'button';
     roleBtn.className = 'dshwv-rolebtn';
@@ -418,7 +236,7 @@ import {
     roleImportBtn.textContent = '导入';
     roleImportBtn.title = '导入自定义角色图片';
     var rowRole = menuRow();
-    rowRole.appendChild(menuLabel('角色'));
+    rowRole.appendChild(menuLabel(LABELS.role));
     rowRole.appendChild(roleBtn);
     rowRole.appendChild(roleImportBtn);
     var roleFileInput = document.createElement('input');
@@ -449,136 +267,6 @@ import {
     roleFileInput.addEventListener('change', function () {
       onRoleFileChosen(roleFileInput);
     });
-    menuBox.appendChild(rowRole);
-    menuBox.appendChild(row1);
-    menuBox.appendChild(shapeRow);
-    menuBox.appendChild(row2);
-    menuBox.appendChild(row3);
-    menuBox.appendChild(row6);
-    menuBox.appendChild(row7);
-    var rowTaskEnd = menuRow();
-    rowTaskEnd.appendChild(menuLabel('任务结束音效'));
-    rowTaskEnd.appendChild(taskEndToggle);
-    rowTaskEnd.appendChild(taskEndSel);
-    taskEndDrop = dshwCustSel(taskEndSel, {
-      bottom: function () {
-        return usageNavRow;
-      },
-      scrollNames: true
-    });
-    try {
-      var taskEndWrapEl = taskEndSel.parentNode;
-      if (taskEndWrapEl) {
-        taskEndWrapEl.style.flex = '0 0 120px';
-        taskEndWrapEl.style.width = '120px';
-        taskEndWrapEl.style.maxWidth = '120px';
-      }
-    } catch (err) {}
-    menuBox.appendChild(rowTaskEnd);
-    var currencyRow = menuRow();
-    currencyRow.dataset.accountApi = 'true';
-    currencyRow.appendChild(menuLabel('显示币种'));
-    var currencySel = document.createElement('select');
-    currencySel.id = 'dshw-display-currency';
-    currencySel.className = 'dshwv-sound';
-    [['USD', '美元 USD'], ['CNY', '人民币 CNY']].forEach(function (entry) {
-      var option = document.createElement('option');
-      option.value = entry[0]; option.textContent = entry[1]; currencySel.appendChild(option);
-    });
-    currencyRow.appendChild(currencySel);
-    var currencyDrop = dshwCustSel(currencySel, { bottom: function () { return usageNavRow; } });
-    currencySel.parentNode.style.flex = '0 0 120px';
-    currencySel.parentNode.style.width = '120px';
-    menuBox.appendChild(currencyRow);
-    var currencyNote = document.createElement('div');
-    currencyNote.className = 'dshwv-fx-info';
-    currencyNote.id = 'dshw-currency-note';
-    currencyNote.hidden = true; currencyNote.tabIndex = -1;
-    currencyNote.setAttribute('role', 'region'); currencyNote.setAttribute('aria-label', '参考汇率说明');
-    document.body.appendChild(currencyNote);
-    var fxRefreshRow = menuRow();
-    fxRefreshRow.dataset.accountApi = 'true';
-    fxRefreshRow.appendChild(menuLabel('参考汇率'));
-    var fxRefreshBtn = document.createElement('button');
-    fxRefreshBtn.type = 'button'; fxRefreshBtn.className = 'dshwv-roleimport';
-    fxRefreshBtn.id = 'dshw-fx-refresh'; fxRefreshBtn.textContent = '刷新汇率';
-    fxRefreshBtn.title = '立即检查 Frankfurter 汇率并更新金额文字；15 秒内避免重复请求';
-    fxRefreshRow.appendChild(fxRefreshBtn);
-    var fxInfoBtn = document.createElement('button');
-    fxInfoBtn.type = 'button'; fxInfoBtn.className = 'dshwv-fx-info-button';
-    fxInfoBtn.id = 'dshw-fx-info'; fxInfoBtn.textContent = '!';
-    fxInfoBtn.setAttribute('aria-label', '查看参考汇率说明');
-    fxInfoBtn.setAttribute('aria-controls', currencyNote.id); fxInfoBtn.setAttribute('aria-expanded', 'false');
-    fxRefreshRow.appendChild(fxInfoBtn); menuBox.appendChild(fxRefreshRow);
-
-    // ==== [汇率显示] ====
-    var fxControls = createFxControls({
-      document: document, window: window, WhaleMoney: WhaleMoney, currencyNote: currencyNote,
-      fxInfoBtn: fxInfoBtn, fxRefreshBtn: fxRefreshBtn, currencySel: currencySel,
-      currencyDrop: currencyDrop, dshwCustSelClose: dshwCustSelClose,
-      closeRolePanel: closeRolePanel, closeAudioGroupPanel: closeAudioGroupPanel,
-      assetNotice: assetNotice
-    });
-    var closeFxInfo = fxControls.close;
-    menuBox.appendChild(menuSep1);
-    menuBox.appendChild(row9);
-    var rowSnap = menuRow();
-    var snapRowLabel = document.createElement('span');
-    snapRowLabel.textContent = '吸附与翻转';
-    var snapCustomBtn = document.createElement('button');
-    snapCustomBtn.type = 'button';
-    snapCustomBtn.className = 'dshwv-roleimport';
-    snapCustomBtn.textContent = '自定义';
-    snapCustomBtn.title = '自定义各边吸附区宽度与翻转线位置';
-    snapCustomBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openSnapModal();
-    });
-    rowSnap.appendChild(snapRowLabel);
-    rowSnap.appendChild(snapCustomBtn);
-    menuBox.appendChild(rowSnap);
-    var menuHideToggle = document.createElement('input');
-    menuHideToggle.type = 'checkbox';
-    menuHideToggle.className = 'dshwv-check';
-    menuHideToggle.checked = false;
-    menuHideToggle.title = '启用后隐藏挂件上的菜单按钮;右键小鲸鱼可唤出菜单(位置不变)';
-    menuHideToggle.addEventListener('change', function () {
-      setMenuBtnHide(menuHideToggle.checked);
-    });
-    var rowHide = menuRow();
-    rowHide.appendChild(menuLabel('隐藏菜单按钮'));
-    rowHide.appendChild(menuHideToggle);
-    menuBox.appendChild(rowHide);
-    var rowRes = menuRow();
-    var resOpenBtn = document.createElement('button');
-    resOpenBtn.type = 'button';
-    resOpenBtn.className = 'dshwv-roleimport';
-    resOpenBtn.style.flex = '1';
-    resOpenBtn.textContent = '管理';
-    resOpenBtn.title = '集中管理当前导入插件的图片与音频资源';
-    resOpenBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openResManager();
-    });
-    rowRes.appendChild(menuLabel('资源管理'));
-    rowRes.appendChild(resOpenBtn);
-    menuBox.appendChild(rowRes);
-    var rowLogs = menuRow();
-    var logsOpenBtn = document.createElement('button');
-    logsOpenBtn.type = 'button';
-    logsOpenBtn.className = 'dshwv-sound';
-    logsOpenBtn.style.flex = '1';
-    logsOpenBtn.textContent = '打开';
-    logsOpenBtn.title = '打开运行日志目录（runtime.log）；反馈问题时请附上最近一段';
-    logsOpenBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (window.whaleDesktop && window.whaleDesktop.command) {
-        Promise.resolve(window.whaleDesktop.command('diagnostics')).catch(function () {});
-      }
-    });
-    rowLogs.appendChild(menuLabel('运行日志'));
-    rowLogs.appendChild(logsOpenBtn);
-    menuBox.appendChild(rowLogs);
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
 
     // ==== [用量面板与设置] ====
@@ -597,225 +285,61 @@ import {
     var refreshUsageMain = usagePanelApi.refresh;
     var openUsageRecordsWindow = usagePanelApi.openRecords;
     var closeUsageRecordsWindow = usagePanelApi.close;
-    var apiSettingsBtn = document.createElement('button');
-    apiSettingsBtn.type = 'button';
-    apiSettingsBtn.className = 'dshwv-roleimport dshwv-api-open';
-    apiSettingsBtn.dataset.action = 'open-api-settings';
-    apiSettingsBtn.dataset.accountApi = 'true';
-    apiSettingsBtn.textContent = 'API 设置';
-    apiSettingsBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      window.dispatchEvent(new Event('whale-open-settings'));
-    });
-    menuBox.appendChild(apiSettingsBtn);
     var menuRootView = document.createElement('div');
     menuRootView.className = 'dshwv-menuview';
-    while (menuBox.firstChild) menuRootView.appendChild(menuBox.firstChild);
     menuBox.appendChild(menuRootView);
-
-    // ── 一级快捷菜单收敛 ────────────────────────────────────────────────
-    // 方案要求一级只保留七项日常操作，其余全部搬进独立的完整设置窗口。
-    // 这里不重写上面那些行的构建逻辑（它们各自绑着事件和存储写入），
-    // 而是按行首文字把要下沉的行隐藏掉，再就地补三行控件。
+    var menuNavigation = document.createElement('div');
+    menuNavigation.className = 'dshwv-menu-navigation';
+    var menuFooter = document.createElement('div');
+    menuFooter.className = 'dshwv-menu-footer-slot';
+    var compactMenu = createMenuLayout(menuBox, {
+      view: menuRootView, navigation: menuNavigation, footer: menuFooter
+    }, window.WhaleAccountView.mode);
+    compactMenu.register({ id: 'role', element: rowRole });
+    compactMenu.register({ id: 'size', element: row1 });
+    compactMenu.register({ id: 'bubble', element: row6 });
+    var modeRow = menuRow();
+    modeRow.appendChild(menuLabel(LABELS.displayMode));
+    var modeSel = document.createElement('select');
+    modeSel.id = 'dshw-desktop-display';
+    modeSel.className = 'dshwv-sound';
+    [['follow-codex', '跟随 Codex'], ['standalone', '常驻桌面']].forEach(function (entry) {
+      var option = document.createElement('option');
+      option.value = entry[0]; option.textContent = entry[1]; modeSel.appendChild(option);
+    });
     function syncLevel1Controls() {
-      // 打开菜单时把新控件同步成当前真实值。已有的非标准组合显示「自定义」，
-      // 打开菜单不能把用户已有的提醒组合改写成标准三选一。
-      try {
-        var modeSel = document.getElementById('dshw-desktop-display');
-        if (modeSel && window.whaleDesktop && window.whaleDesktop.command) {
-          Promise.resolve(window.whaleDesktop.command('mode')).then(function (mode) {
-            if (mode) modeSel.value = mode;
-          }).catch(function () {});
-        }
-        var clickToggle = document.getElementById('dshw-click-sound');
-        var remindSel = document.getElementById('dshw-complete-reminder');
-        if (!clickToggle && !remindSel) return;
-        // 主线把 size 与 usage 合在 /api/sound-settings 的一份快照里。
-        requestJson(SETTINGS_URL, { cache: 'no-store' }).then(function (d) {
-          if (clickToggle && d && typeof d.size?.sound === 'boolean') clickToggle.checked = d.size.sound;
-          if (!remindSel) return;
-          var bubbleOn = !d || d.size?.turnCostOn !== false;
-          var soundOn2 = !!(d && d.usage && d.usage.taskEnd && d.usage.taskEnd.on === true);
-          var value = !bubbleOn && !soundOn2 ? 'off' : bubbleOn && !soundOn2 ? 'bubble' : bubbleOn && soundOn2 ? 'both' : 'custom';
-          if (value === 'custom' && !remindSel.querySelector('option[value="custom"]')) {
-            var custom = document.createElement('option');
-            custom.value = 'custom';
-            custom.textContent = '自定义';
-            remindSel.appendChild(custom);
-          }
-          remindSel.value = value;
-        }).catch(function () {});
-      } catch (err) {}
+      if (!window.whaleDesktop?.command) return;
+      Promise.resolve(window.whaleDesktop.command('mode')).then(function (mode) {
+        if (mode) modeSel.value = mode;
+      }).catch(function () { /* A disconnected desktop bridge cannot report its mode. */ });
     }
-    // 一级菜单「点击音效」用的开关。只影响按下与松开，
-    // 任务完成、余额预警的提示音各自独立，不受它影响。
-    function setSoundOn(v) {
-      soundOn = v !== false;
-      try {
-        if (pressAudio) pressAudio.volume = soundOn ? soundVol : 0;
-        if (releaseAudio) releaseAudio.volume = soundOn ? soundVol : 0;
-      } catch (err) {}
-      saveConfig();
-    }
-    (function compactLevel1Menu() {
-      function run() {
-        var root = menuRootView;
-        if (!root || !root.parentNode) return;
-        function rowByLabel(text) {
-          var rows = Array.prototype.slice.call(root.children);
-          for (var i = 0; i < rows.length; i++) {
-            // The merged sound entry starts with 音效 too and must not be taken for the old row.
-            if (rows[i].classList && rows[i].classList.contains('dshwv-menu-row') && !rows[i].classList.contains('whale-sound-entry')) {
-              var first = rows[i].firstElementChild;
-              if (first && first.textContent && first.textContent.trim().indexOf(text) === 0) return rows[i];
-            }
-          }
-          return null;
-        }
-        function rowExact(text) {
-          return Array.prototype.slice.call(root.children).filter(function (row) {
-            return row.classList && row.classList.contains('dshwv-menu-row') && !row.classList.contains('dshwv-level1-sunk') &&
-              row.firstElementChild && row.firstElementChild.textContent.trim() === text;
-          })[0] || null;
-        }
-        // Rows arrive from several scripts at different times, so this runs on every
-        // pass. Anything it does not name stays between these rows and the footer.
-        function arrangeMenu() {
-          var rows = [rowExact('角色'), rowExact('大小'), root.querySelector('.whale-account-switch'),
-            rowExact('显示方式'), rowExact('音效与提示'), rowExact('气泡')];
-          Array.prototype.slice.call(root.children).forEach(function (child) {
-            if (child.classList && child.classList.contains('dshwv-menu-sep')) child.remove();
-          });
-          var ordered = document.createDocumentFragment();
-          rows.forEach(function (row) { if (row) ordered.appendChild(row); });
-          root.insertBefore(ordered, root.firstChild);
-          // The footer sits below the ledger button, outside the view that slides away
-          // when the ledger opens, so it is last in the menu box itself.
-          var box = root.closest('.dshwv-menu');
-          var footer = box && box.querySelector('.dshwv-menu-footer');
-          if (footer) box.appendChild(footer);
-        }
-        function setLabel(row, text) {
-          if (!row || !row.firstElementChild) return;
-          row.firstElementChild.textContent = text;
-        }
-        function sink(row) {
-          if (!row) return;
-          // account-view 会在之后异步刷新并把 [data-account-api] 的 hidden 置回
-          // false，所以除了 hidden 还要加一个强制 display:none 的类，
-          // 否则下沉掉的「显示币种」会自己冒回来。
-          row.hidden = true;
-          row.classList.add('dshwv-level1-sunk');
-        }
-        // 下沉到完整设置窗口的行：一行都不留在日常菜单里。
-        ['音效', '音量', '每轮消耗提示', '任务结束音效', '气泡形状',
-          '避让滚动条', '吸附与翻转', '隐藏菜单按钮', '资源管理', '显示币种', '参考汇率',
-          '峰谷时段', '素材包导入/导出', '进入独立桌面', '改为跟随 Codex'].forEach(function (text) {
-          sink(rowByLabel(text));
-        });
-        setLabel(rowByLabel('气泡全局开关'), '气泡');
-        // 旧的整屏「API 设置」按钮由「高级设置…」取代。
-        if (typeof apiSettingsBtn !== 'undefined' && apiSettingsBtn) sink(apiSettingsBtn);
-
-        if (root.dataset.compacted === '1') { arrangeMenu(); return; }
-        root.dataset.compacted = '1';
-
-        var modeRow = menuRow();
-        modeRow.appendChild(menuLabel('显示方式'));
-        var modeSel = document.createElement('select');
-        modeSel.id = 'dshw-desktop-display';
-        modeSel.className = 'dshwv-sound';
-        [['follow-codex', '跟随 Codex'], ['standalone', '常驻桌面']].forEach(function (entry) {
-          var option = document.createElement('option');
-          option.value = entry[0];
-          option.textContent = entry[1];
-          modeSel.appendChild(option);
-        });
-        modeSel.addEventListener('change', function () {
-          try { window.whaleDesktop.command(modeSel.value === 'standalone' ? 'desktop' : 'follow'); } catch (err) {}
-        });
-        modeRow.appendChild(modeSel);
-
-        var soundRow = menuRow();
-        soundRow.appendChild(menuLabel('点击音效'));
-        var clickToggle = document.createElement('input');
-        clickToggle.type = 'checkbox';
-        clickToggle.id = 'dshw-click-sound';
-        clickToggle.className = 'dshwv-check';
-        clickToggle.title = '控制按下和松开鲸鱼时是否发声，不影响任务完成提示音';
-        clickToggle.addEventListener('change', function () { setSoundOn(clickToggle.checked); });
-        soundRow.appendChild(clickToggle);
-
-        var remindRow = menuRow();
-        remindRow.appendChild(menuLabel('完成提醒'));
-        var remindSel = document.createElement('select');
-        remindSel.id = 'dshw-complete-reminder';
-        remindSel.className = 'dshwv-sound';
-        [['off', '关闭'], ['bubble', '仅气泡'], ['both', '气泡和声音']].forEach(function (entry) {
-          var option = document.createElement('option');
-          option.value = entry[0];
-          option.textContent = entry[1];
-          remindSel.appendChild(option);
-        });
-        remindSel.addEventListener('change', function () {
-          var want = remindSel.value;
-          if (want === 'custom') return;
-          setTurnCostOn(want !== 'off');
-          usagePanelApi.save({ taskEnd: { on: want === 'both' } });
-        });
-        remindRow.appendChild(remindSel);
-
-        var footerRow = menuRow();
-        footerRow.classList.add('dshwv-menu-footer');
-        var advancedBtn = document.createElement('button');
-        advancedBtn.type = 'button';
-        advancedBtn.className = 'dshwv-sound';
-        advancedBtn.textContent = '高级设置';
-        advancedBtn.title = '打开完整设置窗口';
-        advancedBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          try { window.whaleDesktop.openSettings(); } catch (err) { window.dispatchEvent(new Event('whale-open-settings')); }
-        });
-        sink(rowLogs);
-        footerRow.appendChild(advancedBtn);
-
-        var scaleRow = rowExact('大小');
-        if (scaleRow && scaleRow.querySelector('.dshwv-number')) scaleRow.querySelector('.dshwv-number').classList.add('dshwv-scale-value');
-
-        root.appendChild(modeRow);
-        root.appendChild(soundRow);
-        root.appendChild(remindRow);
-        // 这两项由「音效与提示」面板和设置窗口接管；控件仍保留，因为回填配置要写它们。
-        sink(soundRow);
-        sink(remindRow);
-        root.appendChild(footerRow);
-        arrangeMenu();
-        syncLevel1Controls();
-      }
-      // 其余脚本（音效入口、独立桌面、素材包、数据来源）会在各自的
-      // DOMContentLoaded 里往菜单追加行，所以推迟一拍再收敛一次。
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-          setTimeout(run, 0);
-          // account-view 读完 display-mode 后会再刷一次菜单，第二次收敛盖住它。
-          setTimeout(run, 400);
-        }, { once: true });
-      } else { setTimeout(run, 0); setTimeout(run, 400); }
-    })();
-    var usagePanel = document.createElement('div');
-    usagePanel.className = 'dshwv-usage-sub';
-    usagePanel.style.display = 'none';
-    var usageArea = document.createElement('div');
-    usageArea.className = 'dshwv-usage-area';
-    usageArea.style.cssText = 'flex:1 1 auto;min-height:0;overflow:hidden;position:relative';
+    modeSel.addEventListener('change', function () {
+      window.whaleDesktop.command(modeSel.value === 'standalone' ? 'desktop' : 'follow');
+    });
+    modeRow.appendChild(modeSel);
+    compactMenu.register({ id: 'displayMode', element: modeRow });
+    var footerRow = menuRow();
+    footerRow.classList.add('dshwv-menu-footer');
+    var advancedBtn = document.createElement('button');
+    advancedBtn.type = 'button'; advancedBtn.className = 'dshwv-sound';
+    advancedBtn.textContent = LABELS.advanced;
+    advancedBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (window.whaleDesktop?.openSettings) window.whaleDesktop.openSettings();
+      else window.dispatchEvent(new Event('whale-open-settings'));
+    });
+    footerRow.appendChild(advancedBtn);
+    compactMenu.register({ id: 'advanced', element: footerRow });
+    window.addEventListener('whale-account-view', function (event) {
+      closeUsagePanel(); compactMenu.applyMode(event.detail.mode);
+    });
+    syncLevel1Controls();
+    var usageShell = createUsageShell({ document: document, button: usageRecBtn });
+    var usagePanel = usageShell.panel, usageArea = usageShell.area;
     menuBox.appendChild(usageArea);
-    usageArea.appendChild(usagePanel);
-    var usageNavRow = menuRow();
-    usageNavRow.dataset.accountApi = 'true';
-    usageNavRow.style.flex = '0 0 auto';
-    usageRecBtn.style.width = '100%';
-    usageNavRow.appendChild(usageRecBtn);
-    menuBox.appendChild(usageNavRow);
+    compactMenu.register({ id: 'ledger', element: usageShell.navigationRow });
+    menuBox.appendChild(menuNavigation);
+    menuBox.appendChild(menuFooter);
     var usageMainEl = null;
     var usageNavigation = createUsageNavigation({
       window: window, menuBox: menuBox, menuRootView: menuRootView,
@@ -856,15 +380,7 @@ import {
       refreshUsageMain();
     }
     function buildUsageSubShell() {
-      usagePanel.innerHTML = '';
-      var subTitle = document.createElement('div');
-      subTitle.className = 'dshwv-usage-subtitle';
-      subTitle.textContent = '- = 小龙娘记账 = -';
-      usagePanel.appendChild(subTitle);
-      buildUsageModelArea();
-      usageMainEl = document.createElement('div');
-      usageMainEl.className = 'dshwv-usagebody';
-      usagePanel.appendChild(usageMainEl);
+      usageMainEl = usageShell.build(buildUsageModelArea);
     }
     var usageModelsView = createUsageModelsView({
       document: document, window: window, WhaleMoney: WhaleMoney,
@@ -1597,11 +1113,6 @@ import {
     bubbleItemMask.appendChild(bubbleItemCard);
     document.body.appendChild(bubbleItemMask);
     var moduleMask = null;
-    var moduleEditRef = null;
-    var moduleOnSave = null;
-    var moduleEditNew = false;
-    var moduleTitleEl = null;
-    var moduleBodyEl = null;
     var bubbleImgList = [];
     function loadBubbleImgs(cb) {
       try {
@@ -1632,30 +1143,6 @@ import {
       }
     }
     var bubbleFontOpenMenu = null;
-    function visibleTopZ() {
-      var top = 20500;
-      var cand = [bubbleMask, bubbleItemMask, moduleMask, usagePanelApi.mask, qeditEl, window.__dshwRemindMask];
-      function eff(el) {
-        try {
-          if (!el) return 0;
-          if (el.style && el.style.display === 'none') return 0;
-          var s = el.style ? el.style.zIndex || '' : '';
-          if (!s) {
-            var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
-            if (cs) s = cs.zIndex;
-          }
-          var n = parseFloat(s);
-          return isFinite(n) ? n : 0;
-        } catch (err) {
-          return 0;
-        }
-      }
-      for (var i = 0; i < cand.length; i++) {
-        var n = eff(cand[i]);
-        if (n > top) top = n;
-      }
-      return top;
-    }
     function whaleZClean() {
       try {
         var zsEl = document.getElementById('dshw-remind-overlay-z');
@@ -1708,8 +1195,7 @@ import {
         var top = openBelow ? r.bottom + 2 : r.top - measuredH - 2;
         top = Math.max(8, Math.min(top, vp.h - measuredH - 8));
         menuEl.style.top = Math.round(top) + 'px';
-        var vTop = visibleTopZ();
-        menuEl.style.zIndex = String(Math.max(26010, Math.round(vTop) + 10));
+        openOver(null, menuEl);
       } catch (err) {}
     }
     var bubbleSysFontList = [];
@@ -1885,136 +1371,14 @@ import {
       enhanceSelect: dshwCustSel, cloneModule: bubbleCloneModule,
       confirm: showConfirm, libDelete: bubbleLiblibDel
     });
-    function renderModuleEditor() { return moduleEditorView.render(moduleEditRef, moduleEditNew, moduleTitleEl, moduleBodyEl); }
-    var moduleNamePromptModule = null;
-    function openModuleNamePrompt(m) {
-      try {
-        moduleNamePromptModule = m || moduleEditRef || null;
-        moduleNameInput.value = '';
-        moduleNamePromptMask.style.display = 'flex';
-        setTimeout(function () {
-          try {
-            moduleNameInput.focus();
-          } catch (err) {}
-        }, 30);
-      } catch (err) {}
-    }
-    function closeModuleNamePrompt() {
-      moduleNamePromptMask.style.display = 'none';
-      moduleNamePromptModule = null;
-    }
-    function saveModuleNamePrompt() {
-      var m = moduleNamePromptModule || moduleEditRef;
-      if (!m) {
-        closeModuleNamePrompt();
-        return;
-      }
-      bubbleLiblibAdd(moduleNameInput.value, m);
-      moduleNameInput.value = '';
-      closeModuleNamePrompt();
-      if (bubbleEditorState.palEl) renderBubblePal();
-    }
-    function openModuleEditor(m, onSave, isNew) {
-      try {
-        whaleZClean();
-        moduleEditRef = m;
-        moduleOnSave = onSave || null;
-        moduleEditNew = !!isNew;
-        renderModuleEditor();
-        moduleMask.style.display = 'flex';
-      } catch (err) {}
-    }
-    function closeModuleEditor(saved) {
-      try {
-        if (saved && moduleEditRef) {
-          if (moduleEditorView.colorEl) moduleEditRef.color = moduleEditorView.colorEl.value === '#203170' && !moduleEditRef.color ? '' : moduleEditorView.colorEl.value;
-          if (moduleEditorView.sizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleEditorView.sizeEl.value) || 6)));
-          if (moduleEditRef.type === 'image' && !moduleEditRef.imgId) {
-            showConfirm('请先选择或上传一张图片', function () {});
-            return;
-          }
-          if (moduleEditRef.type === 'randimg' && !(moduleEditRef.imgs || []).some(function (item) { return item && item.imgId; })) {
-            showConfirm('请至少选择一张随机图片', function () {});
-            return;
-          }
-          if (moduleOnSave) moduleOnSave(moduleEditRef);
-        }
-        moduleMask.style.display = 'none';
-        moduleEditRef = null;
-        moduleOnSave = null;
-        moduleEditNew = false;
-      } catch (err) {
-        moduleMask.style.display = 'none';
-      }
-    }
-    moduleMask = document.createElement('div');
-    moduleMask.className = 'dshwv-bubmask';
-    moduleMask.style.display = 'none';
-    var moduleCard = document.createElement('div');
-    moduleCard.className = 'dshwv-bubcard';
-    moduleTitleEl = document.createElement('div');
-    moduleTitleEl.className = 'dshwv-bubtitle';
-    moduleCard.appendChild(moduleTitleEl);
-    moduleBodyEl = document.createElement('div');
-    moduleCard.appendChild(moduleBodyEl);
-    var moduleBtns = document.createElement('div');
-    moduleBtns.className = 'dshwv-bubbtns';
-    moduleBtns.appendChild(bubbleBtn('取消', 'dshwv-bubbtn-no', function () {
-      closeModuleEditor(false);
-    }));
-    var saveAsBtn = document.createElement('button');
-    saveAsBtn.type = 'button';
-    saveAsBtn.className = 'dshwv-bubbtn dshwv-bubbtn-no';
-    saveAsBtn.textContent = '另存';
-    saveAsBtn.title = '另存为可选模块:把当前模块存入模块库,可在任意泡泡里复用';
-    saveAsBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      openModuleNamePrompt(moduleEditRef);
+    var moduleDialog = createModuleEditorDialog({
+      document: document, view: moduleEditorView, button: bubbleBtn,
+      cleanLayers: whaleZClean, addToLibrary: bubbleLiblibAdd,
+      getPalEl: function () { return bubbleEditorState.palEl; }, renderPal: renderBubblePal,
+      confirm: showConfirm
     });
-    moduleBtns.appendChild(saveAsBtn);
-    moduleBtns.appendChild(bubbleBtn('保存', 'dshwv-bubbtn-ok', function () {
-      closeModuleEditor(true);
-    }));
-    moduleCard.appendChild(moduleBtns);
-    moduleMask.appendChild(moduleCard);
-    document.body.appendChild(moduleMask);
-    var moduleNamePromptMask = document.createElement('div');
-    moduleNamePromptMask.className = 'dshwv-confirmmask';
-    moduleNamePromptMask.style.display = 'none';
-    var moduleNamePromptCard = document.createElement('div');
-    moduleNamePromptCard.className = 'dshwv-audiowin';
-    var moduleNamePromptTitle = document.createElement('div');
-    moduleNamePromptTitle.className = 'dshwv-audiotitle';
-    moduleNamePromptTitle.textContent = '存为可选模块';
-    moduleNamePromptCard.appendChild(moduleNamePromptTitle);
-    var moduleNameInput = document.createElement('input');
-    moduleNameInput.type = 'text';
-    moduleNameInput.className = 'dshwv-audionameinput';
-    moduleNameInput.maxLength = 20;
-    moduleNameInput.placeholder = '模块名称(留空自动编号)';
-    moduleNamePromptCard.appendChild(moduleNameInput);
-    var moduleNameBtns = document.createElement('div');
-    moduleNameBtns.className = 'dshwv-cropbtns';
-    var moduleNameCancel = document.createElement('button');
-    moduleNameCancel.type = 'button';
-    moduleNameCancel.className = 'dshwv-cropbtn dshwv-cropbtn-no';
-    moduleNameCancel.textContent = '取消';
-    moduleNameCancel.addEventListener('click', closeModuleNamePrompt);
-    var moduleNameOk = document.createElement('button');
-    moduleNameOk.type = 'button';
-    moduleNameOk.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
-    moduleNameOk.textContent = '保存';
-    moduleNameOk.addEventListener('click', saveModuleNamePrompt);
-    moduleNameBtns.appendChild(moduleNameCancel);
-    moduleNameBtns.appendChild(moduleNameOk);
-    moduleNamePromptCard.appendChild(moduleNameBtns);
-    moduleNamePromptMask.appendChild(moduleNamePromptCard);
-    document.body.appendChild(moduleNamePromptMask);
-    moduleNameInput.addEventListener('keydown', function (e) {
-      try {
-        if (e.key === 'Enter') saveModuleNamePrompt(); else if (e.key === 'Escape') closeModuleNamePrompt();
-      } catch (err) {}
-    });
+    moduleMask = moduleDialog.mask;
+    function openModuleEditor(module, onSave, isNew) { return moduleDialog.open(module, onSave, isNew); }
     var roleCrop = createRoleCropEditor({
       document: document, window: window, requestJson: requestJson, roleUrl: ROLE_URL, Image: Image,
       roleManager: roleManager, requireSaved: requireSaved, assetNotice: assetNotice,
@@ -2288,7 +1652,7 @@ import {
       ellipse: 'M 827 248 A 373 232 0 1 0 81 246 A 373 232 0 0 0 301 465 A 57 32 10 0 0 413 484 A 373 232 0 0 0 827 248 Z',
       round: 'M 231 15 L 677 15 A 150 150 0 0 1 827 165 L 827 329 A 150 150 0 0 1 677 479 L 445 479 C 428 479 420 496 404 502 C 390 507 376 500 369 489 C 361 478 352 479 338 479 L 231 479 A 150 150 0 0 1 81 329 L 81 165 A 150 150 0 0 1 231 15 Z'
     };
-    var bubbleShape = DEFAULT_BUBBLE_SHAPE;
+    var bubbleShape = UI_DEFAULTS.bubbleShape;
     var bubbleBox = document.createElement('div');
     bubbleBox.className = 'dshwv-pop';
     bubbleBox.innerHTML = '<svg viewBox="0 0 1026 700" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + '<path class="dshwv-bshape" fill="#FFFFFF" stroke="#203170" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" d="' + BUBBLE_SHAPES.ellipse + '"/>' + '<ellipse class="dshwv-b1" cx="352" cy="561" rx="37.5" ry="26" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '<ellipse class="dshwv-b2" cx="442" cy="646" rx="24.5" ry="18" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '</svg>';
@@ -2350,8 +1714,8 @@ import {
       });
     } catch (err) {}
     function applyBubbleShape(next) {
-      if (!BUBBLE_SHAPES) return DEFAULT_BUBBLE_SHAPE;
-      if (!Object.prototype.hasOwnProperty.call(BUBBLE_SHAPES, next)) next = DEFAULT_BUBBLE_SHAPE;
+      if (!BUBBLE_SHAPES) return UI_DEFAULTS.bubbleShape;
+      if (!Object.prototype.hasOwnProperty.call(BUBBLE_SHAPES, next)) next = UI_DEFAULTS.bubbleShape;
       if (next === bubbleShape) return bubbleShape;
       bubbleShape = next;
       try {
@@ -2374,11 +1738,10 @@ import {
       if (savedShape) applyBubbleShape(savedShape);
     } catch (err) {}
     // The menu select is built earlier in this closure; sync it to the restored shape.
-    try { if (typeof shapeSel !== 'undefined' && shapeSel) shapeSel.value = bubbleShape; } catch (err) {}
     // Menu rows and the settings window call this instead of owning the path map.
     window.WhaleBubbleShape = Object.freeze({ apply: applyBubbleShape, current: function () { return bubbleShape; } });
     var state = {
-      scale: DEFAULT_SCALE,
+      scale: 1, // 与 runtime/size-settings.mjs 的 SIZE_SETTINGS_DEFAULTS.scale 一致；载入后被磁盘值覆盖
       h: 'right',
       hOff: 0,
       v: 'bottom',
@@ -2396,8 +1759,8 @@ import {
     };
     var drag = { active: false };
     var SNAP_KEY = 'dshw-snap';
-    // SNAP_VERSION / SNAP_DEFAULTS come from features/widget/widget-defaults.js
-    // so the settings catalog can reference the same constants.
+    var SNAP_VER = 3;
+    var SNAP_DEFAULTS = UI_DEFAULTS.snap;
     var snapConfig = null;
     function cloneSnap(c) {
       return {
@@ -2479,7 +1842,7 @@ import {
         var raw = localStorage.getItem(SNAP_KEY);
         if (raw) {
           var d = JSON.parse(raw);
-          if (d && d.v === SNAP_VERSION) {
+          if (d && d.v === SNAP_VER) {
             if (d.mode === 'ratio' || d.mode === 'px' || d.mode === 'off') snapConfig.mode = d.mode;
             var keys = ['L', 'T', 'R', 'B', 'F'];
             var i, k;
@@ -2500,12 +1863,11 @@ import {
     function saveSnapConfig() {
       try {
         var out = cloneSnap(snapConfig);
-        out.v = SNAP_VERSION;
+        out.v = SNAP_VER;
         localStorage.setItem(SNAP_KEY, JSON.stringify(out));
       } catch (err) {}
     }
     loadSnapConfig();
-    var busy = false;
 
 
 
@@ -2636,9 +1998,7 @@ import {
     // ==== [气泡渲染与行模板] ====
     function applyBubbleCfgSeq() {
       try {
-        var configured = window.WhaleAccountView?.mode === 'subscription' ? bubbleCfg && bubbleCfg.subscriptionItems : bubbleCfg && bubbleCfg.items;
-        if (window.WhaleAccountView?.mode === 'subscription' && bubbleLegacySubscriptionDefault(configured)) configured = bubbleDefaultSubscriptionQueue();
-        if (!Array.isArray(configured) || !configured.length) { bubbleSeq = bubbleDefaultQueue(); return; }
+        var configured = bubbleItemsForMode(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
         var seq = [];
         for (var i = 0; i < configured.length; i++) {
           var it = configured[i];
@@ -2962,63 +2322,27 @@ import {
       } catch (err) {}
     }
     // ==== [刷新与配置保存] ====
-    function refresh(manual) {
-      if (window.WhaleAccountView?.mode === 'subscription') { window.WhaleAccountView.refresh(); return; }
-      if (busy) return;
-      busy = true;
-      if (manual || state.balance === null) state.status = 'loading';
-      var ctrl = null;
-      var timer = null;
-      try {
-        ctrl = new AbortController();
-        timer = setTimeout(function () {
-          try {
-            ctrl.abort();
-          } catch (err) {}
-        }, FETCH_TIMEOUT_MS);
-      } catch (err) {}
-      requestJson(BALANCE_URL + (manual ? '?refresh=1' : ''), {
-        signal: ctrl ? ctrl.signal : undefined
-      }).then(function (data) {
-        if (data && data.ok) {
-          var nb = data.unlimited ? Infinity : Number(data.totalBalance);
-          var nc = String(data.currency || 'USD');
-          state.balance = nb;
-          state.currency = nc;
-          WhaleMoney.setNativeCurrency(nc);
-          state.message = '';
-          state.code = '';
-          state.updatedAt = Number(data.updatedAt) || Date.now();
-          state.todayUsage = data.todayUsage !== undefined ? data.todayUsage : null;
-          state.unlimited = !!data.unlimited;
-          state.providerName = data.providerName || '';
-          state.balanceScope = data.balanceScope || '';
-          state.stale = !!data.stale;
-          root.title = (data.providerName || '') + ' · ' + (data.balanceLabel || 'API 可用余额') + (data.stale ? '（上次成功数据）' : '');
-          window.dispatchEvent(new CustomEvent('whale-balance', {
-            detail: data
-          }));
-          checkUsageAlerts(nb, state.todayUsage);
-          state.status = 'ok';
-        } else {
-          state.status = 'error';
-          state.code = data && data.code || 'ERROR';
-          state.message = data && data.error ? String(data.error) : '获取失败';
-          window.dispatchEvent(new CustomEvent('whale-balance', {
-            detail: data || ({
-              ok: false
-            })
-          }));
-        }
-      }).catch(function () {
-        state.status = 'error';
-        state.code = 'NETWORK';
-        state.message = '获取失败';
-      }).finally(function () {
-        busy = false;
-        if (timer) clearTimeout(timer);
-      });
-    }
+    var configSync = createConfigSync({
+      requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL,
+      root: root, localStorage: localStorage, timeoutMs: FETCH_TIMEOUT_MS,
+      getState: function () { return state; },
+      getAccountView: function () { return window.WhaleAccountView; },
+      setNativeCurrency: function (currency) { WhaleMoney.setNativeCurrency(currency); },
+      onBalance: function (data) { window.dispatchEvent(new CustomEvent('whale-balance', { detail: data })); },
+      checkAlerts: function (balance, today) { checkUsageAlerts(balance, today); },
+      requireSaved: requireSaved, onError: assetFailure,
+      getSizeSettings: function () { return {
+        scale: state.scale, sound: soundOn, vol: soundVol, soundSet: soundSet,
+        usageMode: usageMode, bubbleOn: bubbleOn, turnCostOn: turnCostOn,
+        turnCostCloseMs: turnCostCloseMs, scrollGapOn: scrollGapOn,
+        scrollGapPx: scrollGapPx, menuBtnHide: menuBtnHide
+      }; },
+      getPosition: function () { return { state: state, viewport: viewport(),
+        width: root.offsetWidth || root.getBoundingClientRect().width || 0,
+        height: root.offsetHeight || root.getBoundingClientRect().height || 0,
+        rightGap: scrollGapOn ? rightGap() : 0 }; }
+    });
+    function refresh(manual) { return configSync.refresh(manual); }
     var soundOn = true;
     var soundVol = 0.9;
     var soundSet = 'duck';
@@ -3030,45 +2354,7 @@ import {
     var scrollGapOn = false;
     var scrollGapPx = 17;
     var menuBtnHide = false;
-    function saveConfig() {
-      try {
-        updateSoundSettings(function (current) {
-          return {
-            size: Object.assign({}, current.size, {
-              scale: state.scale,
-              sound: soundOn,
-              vol: soundVol,
-              soundSet: soundSet,
-              usageMode: usageMode,
-              bubbleOn: bubbleOn,
-              turnCostOn: turnCostOn,
-              turnCostCloseMs: turnCostCloseMs,
-              scrollGapOn: scrollGapOn,
-              scrollGapPx: scrollGapPx,
-              menuBtnHide: menuBtnHide
-            }),
-            usage: current.usage
-          };
-        });
-        var vp = viewport();
-        var w = root.offsetWidth || root.getBoundingClientRect().width || 0;
-        var h = root.offsetHeight || root.getBoundingClientRect().height || 0;
-        var leftDist = state.left;
-        var rightDist = vp.w - state.left - w;
-        var topDist = state.top;
-        var bottomDist = vp.h - state.top - h;
-        var hAnchor = leftDist <= rightDist ? 'left' : 'right';
-        var hDistRaw = Math.round(Math.min(leftDist, rightDist));
-        var hDist = hAnchor === 'right' && scrollGapOn ? Math.max(0, hDistRaw - rightGap()) : hDistRaw;
-        localStorage.setItem('dshw-pos', JSON.stringify({
-          v: 2,
-          hAnchor: hAnchor,
-          hDist: hDist,
-          vAnchor: topDist <= bottomDist ? 'top' : 'bottom',
-          vDist: Math.round(Math.min(topDist, bottomDist))
-        }));
-      } catch (err) {}
-    }
+    function saveConfig() { return configSync.save(); }
     function setBubbleOn(v) {
       bubbleOn = !!v;
       bubbleToggle.checked = bubbleOn;
@@ -3077,8 +2363,6 @@ import {
     }
     function setTurnCostOn(v) {
       turnCostOn = !!v;
-      turnCostToggle.checked = turnCostOn;
-      turnCostCloseInput.disabled = !turnCostOn;
       saveConfig();
       if (!turnCostOn) hideCostBubble();
     }
@@ -3086,23 +2370,7 @@ import {
       if (!turnCostOn) return;
       var n = Math.max(0, Math.round(Number(v) || 0));
       turnCostCloseMs = n * 1000;
-      turnCostCloseInput.value = String(n);
       saveConfig();
-    }
-    function setScrollGapOn(v) {
-      scrollGapOn = !!v;
-      scrollGapToggle.checked = scrollGapOn;
-      scrollGapInput.disabled = !scrollGapOn;
-      saveConfig();
-      settle();
-    }
-    function setScrollGapPx(v) {
-      if (!scrollGapOn) return;
-      var n = Math.max(0, Math.round(Number(v) || 0));
-      scrollGapPx = n;
-      scrollGapInput.value = String(n);
-      saveConfig();
-      settle();
     }
     function applyMenuBtnHideUI() {
       try {
@@ -3110,13 +2378,10 @@ import {
         if (menuBtnHide) resetMenuButtonHover();
       } catch (err) {}
     }
-    function setMenuBtnHide(v) {
-      menuBtnHide = !!v;
-      if (menuHideToggle) menuHideToggle.checked = menuBtnHide;
-      saveConfig();
-      applyMenuBtnHideUI();
+    function scaleToDisplay(s) {
+      return Math.round((s - MIN_SCALE) / ((MAX_SCALE - MIN_SCALE) / 19)) + 1;
     }
-    // 设置窗口拖动滑块时的临时预览：只改显示，不写配置。
+    // persist=false 是设置窗口拖动滑块时的临时预览：只改显示，不写配置。
     function applyScale(next, persist) {
       next = Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(next))) * 10) / 10;
       if (!Number.isFinite(next)) return;
@@ -3128,7 +2393,7 @@ import {
       state.scale = next;
       root.style.setProperty('--dshw-scale', String(next));
       scaleInput.value = String(next);
-      scaleNumber.value = String(next);
+      scaleNumber.value = String(scaleToDisplay(next));
       if (persist) saveConfig();
       var r2 = whaleLayoutRect();
       var vp = viewport();
@@ -3149,23 +2414,13 @@ import {
     function previewScale(v) {
       applyScale(v, false);
     }
-    function applyVol(v, persist) {
+    // 音量预览只交给 sound 服务，不落盘；保存或撤销后 whale-settings-changed /
+    // 下一次预览会用设置窗口的值覆盖它。
+    function previewVol(v) {
       var next = Math.round(Math.min(1, Math.max(0, Number(v))) * 100) / 100;
       if (!Number.isFinite(next)) return;
       soundVol = next;
-      volInput.value = String(next);
-      volPct.textContent = Math.round(next * 100) + '%';
-      try {
-        if (pressAudio) pressAudio.volume = next;
-        if (releaseAudio) releaseAudio.volume = next;
-      } catch (err) {}
-      if (persist) saveConfig();
-    }
-    function setVol(v) {
-      applyVol(v, true);
-    }
-    function previewVol(v) {
-      applyVol(v, false);
+      sound.reload({ size: { sound: soundOn, vol: soundVol, soundSet: soundSet } });
     }
     function setSoundSet(v) {
       soundSet = typeof v === 'string' && v ? v : 'duck';
@@ -3174,57 +2429,21 @@ import {
       saveConfig();
     }
     var SQUISH = 'scaleY(0.88) scaleX(1.05)';
-    var pressAudio = null;
-    var releaseAudio = null;
     var releasePlayed = false;
     function forgetGroupSounds() {
-      // Best effort: without the engine there is no cache to drop.
-      if (window.WhaleAudio && window.WhaleAudio.forget) window.WhaleAudio.forget('/dsh-whale/sound/');
+      sound.reload({ catalog: { groups: audioGroups || [], fragments: audioFragments || [] } });
     }
     function applySoundSet() {
-      try {
-        forgetGroupSounds();
-        if (pressAudio) { pressAudio.pause(); pressAudio.removeAttribute('src'); pressAudio.load(); }
-        if (releaseAudio) { releaseAudio.pause(); releaseAudio.removeAttribute('src'); releaseAudio.load(); }
-        if (window.WhaleAudio) { window.WhaleAudio.stop('gesture'); ['press', 'release'].forEach(function (slot) { if (!audioGroupSlotEmpty(soundSet, slot)) window.WhaleAudio.warm('/dsh-whale/sound/' + slot + '.mp3?set=' + encodeURIComponent(soundSet)).catch(function () {}); }); pressAudio = null; releaseAudio = null; return; }
-        var pEmpty = audioGroupSlotEmpty(soundSet, 'press');
-        var rEmpty = audioGroupSlotEmpty(soundSet, 'release');
-        if (pEmpty) {
-          pressAudio = null;
-        } else {
-          pressAudio = new Audio('/dsh-whale/sound/press.mp3?set=' + soundSet);
-          pressAudio.preload = 'auto';
-          pressAudio.volume = soundVol;
-        }
-        if (rEmpty) {
-          releaseAudio = null;
-        } else {
-          releaseAudio = new Audio('/dsh-whale/sound/release.mp3?set=' + soundSet);
-          releaseAudio.preload = 'auto';
-          releaseAudio.volume = soundVol;
-        }
-      } catch (err) {}
+      sound.reload({
+        size: { sound: soundOn, vol: soundVol, soundSet: soundSet },
+        catalog: { groups: audioGroups || [], fragments: audioFragments || [] }
+      });
+      sound.stop('gesture');
     }
-    function feedback(event) {
-      var url = '/dsh-whale/sound/' + event + '.mp3?set=' + encodeURIComponent(soundSet);
-      if (audioGroupSlotEmpty(soundSet, event)) url = '';
-      window.WhaleFeedbackSources = window.WhaleFeedbackSources || {};
-      window.WhaleFeedbackSources[event] = url;
-      if (window.WhaleFeedback) return window.WhaleFeedback.play(event, url, soundOn ? soundVol : 0);
-      return false;
-    }
-    function playPress() {
-      releasePlayed = false;
-      if (feedback('press')) return;
-      if (!soundOn || !pressAudio) return;
-      try { if (releaseAudio) releaseAudio.pause(); pressAudio.currentTime = 0; pressAudio.play().catch(function () {}); } catch (err) {}
-    }
+    function playPress() { releasePlayed = false; sound.play('press'); }
     function playRelease() {
       if (releasePlayed) return;
-      releasePlayed = true;
-      if (feedback('release')) return;
-      if (!soundOn || !releaseAudio) return;
-      try { if (pressAudio) pressAudio.pause(); releaseAudio.currentTime = 0; releaseAudio.play().catch(function () {}); } catch (err) {}
+      releasePlayed = true; sound.play('release');
     }
     // Only the character squishes. The bubble shares the same parent, so a transform
     // on the parent would deform and shake the text above it.
@@ -3254,11 +2473,10 @@ import {
       if (menuOpen) positionMenu();
       menuBox.classList.toggle('dshwv-menu-open', menuOpen);
       if (menuOpen) showMenuButton();
-      if (!menuOpen) { closeUsagePanel(); closeFxInfo(); }
+      if (!menuOpen) closeUsagePanel();
     }
     function closeMenu() {
       menuOpen = false;
-      closeFxInfo();
       if (menuPositionFrame) cancelAnimationFrame(menuPositionFrame);
       menuPositionFrame = 0;
       menuBox.classList.remove('dshwv-menu-open');
@@ -3281,11 +2499,12 @@ import {
           var saved = snapshot.size;
           state.scale = saved.scale;
           root.style.setProperty('--dshw-scale', String(saved.scale));
-          scaleInput.value = String(saved.scale); scaleNumber.value = String(saved.scale);
+          scaleInput.value = String(saved.scale); scaleNumber.value = String(scaleToDisplay(saved.scale));
           bubbleOn = saved.bubbleOn; bubbleToggle.checked = bubbleOn;
           scrollGapOn = saved.scrollGapOn; scrollGapPx = saved.scrollGapPx;
-          scrollGapToggle.checked = scrollGapOn; scrollGapInput.value = String(scrollGapPx); scrollGapInput.disabled = !scrollGapOn;
-          menuBtnHide = saved.menuBtnHide; if (menuHideToggle) menuHideToggle.checked = menuBtnHide;
+          // Mirror every saved size key the widget writes back; a stale copy would be
+          // saved over the new value by the next drag or menu change.
+          menuBtnHide = saved.menuBtnHide === true;
           applyMenuBtnHideUI(); settle(); syncLevel1Controls();
           window.WhaleRendering.refitBubble();
         }).catch(assetFailure);
@@ -3371,6 +2590,7 @@ import {
         if (window.WhaleFeedback) window.WhaleFeedback.open();
         return;
       }
+      if (editor === 'resources') { openResManager(); return; }
       if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
       if (editor === 'api') { window.dispatchEvent(new Event('whale-open-settings')); return; }
       if (editor === 'sound') {
@@ -3485,15 +2705,6 @@ import {
       for (var i = 0; i < audioGroups.length; i++) if (audioGroups[i].id === id) return audioGroups[i].name;
       return id === 'duck' ? '小黄鸭' : id === 'fx1' ? '音效1' : id;
     }
-    function audioGroupSlotEmpty(id, slot) {
-      try {
-        for (var i = 0; i < audioGroups.length; i++) {
-          var g = audioGroups[i];
-          if (g && g.id === id) return g[slot] === '';
-        }
-      } catch (err) {}
-      return false;
-    }
     function toggleAudioGroupPanel() {
       if (audioGroupPanelOpen) {
         closeAudioGroupPanel();
@@ -3605,17 +2816,13 @@ import {
       previewEnsure: audioEditPreviewEnsure, refreshTaskEnd: refreshTaskEndAfterAudio,
       requireSaved: requireSaved, assetFailure: assetFailure, assetNotice: assetNotice
     });
-    // The chosen file opens the crop dialog. This listener was lost when the crop
-    // editor moved to its own module, which left 导入 opening a picker that did nothing.
-    audioCropFileInput.addEventListener('change', async function () {
-      var f = audioCropFileInput.files && audioCropFileInput.files[0];
-      audioCropFileInput.value = '';
-      if (!f) return;
-      try {
-        await WhaleMediaGuard.validateAudioFile(f);
-        audioCropEditor.open(await f.arrayBuffer(), f.name);
-      } catch (err) { assetNotice(err.message); }
+    var unbindAudioImport = bindAudioImport({
+      input: audioCropFileInput,
+      validate: function (file) { return WhaleMediaGuard.validateAudioFile(file); },
+      open: function (bytes, name) { return audioCropEditor.open(bytes, name); },
+      onError: function (error) { assetNotice(error.message); }
     });
+    window.addEventListener('beforeunload', unbindAudioImport, { once: true });
     function audioDeleteFragmentInSlot(slot, id) {
       if (!id) return;
       var f = null;
@@ -3690,10 +2897,7 @@ import {
       soundSet = saved.soundSet || 'duck';
       turnCostOn = saved.turnCostOn !== false;
       turnCostCloseMs = Math.max(0, Number(saved.turnCostCloseMs) || 0);
-      volInput.value = String(soundVol); volPct.textContent = Math.round(soundVol * 100) + '%';
       setAudioBtnText(audioGroupName(soundSet)); applySoundSet();
-      turnCostToggle.checked = turnCostOn;turnCostCloseInput.disabled = !turnCostOn;
-      turnCostCloseInput.value = String(Math.round(turnCostCloseMs / 1000));
       var settings = usagePanelApi.getUsageSet();
       if (snapshot.usage && typeof snapshot.usage === 'object') settings = snapshot.usage;
       else {
@@ -3701,9 +2905,7 @@ import {
         settings.taskEnd = saved.taskEnd || settings.taskEnd || {};
       }
       usagePanelApi.setUsageSet(settings);
-      taskEndToggle.checked = settings.taskEnd.on === true;
-      taskEndSel.disabled = !taskEndToggle.checked;
-      fillTaskEndOptions(settings.taskEnd);
+      sound.reload({ usage: settings });
       if (!turnCostOn) hideCostBubble();
     }
     window.addEventListener('whale-sound-settings-applied', function (event) {
@@ -3735,25 +2937,9 @@ import {
       var detail = event.detail || {};
       usageAlertBudgetEditor('turnCost', detail.save, detail.config);
     });
-    var mountedSoundSettingsEntry = null;
-    var legacySoundRows = [row2, row3, row7, rowTaskEnd];
     var legacySoundUi = Object.freeze({
       mountMenuEntry: function (node) {
-        if (!node || !row2.parentNode) throw new Error('音效设置菜单尚未准备好');
-        if (mountedSoundSettingsEntry && mountedSoundSettingsEntry !== node) mountedSoundSettingsEntry.remove();
-        row2.parentNode.insertBefore(node, row2);
-        mountedSoundSettingsEntry = node;
-        for (var i = 0; i < legacySoundRows.length; i++) legacySoundRows[i].hidden = true;
-        var disposed = false;
-        return function () {
-          if (disposed) return;
-          disposed = true;
-          if (mountedSoundSettingsEntry === node) {
-            mountedSoundSettingsEntry = null;
-            node.remove();
-            for (var j = 0; j < legacySoundRows.length; j++) legacySoundRows[j].hidden = false;
-          }
-        };
+        return compactMenu.register({ id: 'sound', element: node });
       },
       audioEditor: Object.freeze({ open: openAudioEditorForFeature }),
       promptEditor: Object.freeze({
@@ -3778,21 +2964,7 @@ import {
     setupHitTest(initRoleUrl);
     loadRoles();
     loadAudio();
-    loadUsageSettings(function () {
-      try {
-        var settings = usagePanelApi.getUsageSet();
-        if (settings && settings.taskEnd) {
-          taskEndToggle.checked = !!settings.taskEnd.on;
-          taskEndSel.disabled = !settings.taskEnd.on;
-        }
-        fillTaskEndOptions(settings && settings.taskEnd);
-        setTimeout(function () {
-          try {
-            if (audioFragments && audioFragments.length) fillTaskEndOptions(usagePanelApi.getUsageSet() && usagePanelApi.getUsageSet().taskEnd);
-          } catch (err) {}
-        }, 1500);
-      } catch (err) {}
-    });
+    loadUsageSettings(function () { sound.reload({ usage: usagePanelApi.getUsageSet() || {} }); });
     loadBubbleCfg();
     if (window.whaleDesktop && window.whaleDesktop.testMode) {
       window.__whaleRenderTest = Object.freeze({
@@ -3805,27 +2977,23 @@ import {
         place: function (x, y, flip) { state.left = x; state.top = y; state.flip = !!flip; express(); },
         scale: setScale, role: applyRole,
         scene: function (modules, ttl) { bubbleSceneController.open('custom', function () { bubbleRenderModules(modules); }, ttl || 0); },
-        status: function () { return { switching: bubbleFrames.switching, busy: busy, shown: bubbleSceneController.shown, scene: bubbleSceneController.scene && bubbleSceneController.scene.kind, epoch: bubbleSceneController.epoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
+        status: function () { return { switching: bubbleFrames.switching, busy: configSync.busy, shown: bubbleSceneController.shown, scene: bubbleSceneController.scene && bubbleSceneController.scene.kind, epoch: bubbleSceneController.epoch, balance: state.balance, today: state.todayUsage, status: state.status, front: bubbleFrames.front.root.dataset.buffer, randomPicks: bubbleFrames.front.root.innerText, hitCache: Object.assign({}, WhaleRendering.hitCache.stats), scale: state.scale, flip: state.flip }; }
       });
     }
     requestJson(SETTINGS_URL).then(function (payload) {
       var d = payload && payload.ok ? payload.size : null;
+      if (payload && payload.ok) sound.reload(payload);
       if (d && typeof d.scale === 'number' && d.scale >= MIN_SCALE - 0.1 && d.scale <= MAX_SCALE + 0.1) {
         state.scale = d.scale;
         root.style.setProperty('--dshw-scale', String(d.scale));
         scaleInput.value = String(d.scale);
-        scaleNumber.value = String(d.scale);
+        scaleNumber.value = String(scaleToDisplay(d.scale));
         settle();
       }
       if (d && typeof d.vol === 'number') {
         soundVol = d.vol;
         soundOn = d.sound !== false;
-        volInput.value = String(soundVol);
-        volPct.textContent = Math.round(soundVol * 100) + '%';
-        try {
-          if (pressAudio) pressAudio.volume = soundVol;
-          if (releaseAudio) releaseAudio.volume = soundVol;
-        } catch (err) {}
+        applySoundSet();
       }
       if (d && typeof d.soundSet === 'string' && d.soundSet) {
         soundSet = d.soundSet;
@@ -3841,25 +3009,18 @@ import {
       }
       if (d && typeof d.turnCostOn === 'boolean') {
         turnCostOn = d.turnCostOn;
-        turnCostToggle.checked = turnCostOn;
-        turnCostCloseInput.disabled = !turnCostOn;
       }
       if (d && typeof d.turnCostCloseMs === 'number') {
         turnCostCloseMs = d.turnCostCloseMs > 0 ? d.turnCostCloseMs : 0;
-        turnCostCloseInput.value = String(Math.round(turnCostCloseMs / 1000));
       }
       if (d && typeof d.scrollGapOn === 'boolean') {
         scrollGapOn = d.scrollGapOn;
-        scrollGapToggle.checked = scrollGapOn;
-        scrollGapInput.disabled = !scrollGapOn;
       }
       if (d && typeof d.scrollGapPx === 'number') {
         scrollGapPx = d.scrollGapPx > 0 ? Math.round(d.scrollGapPx) : 0;
-        scrollGapInput.value = String(scrollGapPx);
       }
       if (d && typeof d.menuBtnHide === 'boolean') {
         menuBtnHide = d.menuBtnHide;
-        if (menuHideToggle) menuHideToggle.checked = menuBtnHide;
         applyMenuBtnHideUI();
       }
       try {

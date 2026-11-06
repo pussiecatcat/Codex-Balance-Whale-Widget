@@ -1,3 +1,4 @@
+import './settings-catalog.js';
 // 设置窗口的分区与字段行渲染。
 //
 // 每个字段按设置目录（settings-catalog.js）里的 type 渲染成对应控件。同一分类
@@ -45,12 +46,16 @@
   function pathValue(object, path) {
     return path.split('.').reduce((value, key) => value?.[key], object);
   }
-  // 界面值 = 存储值 / scale（例如毫秒存、秒显示）。
+  // 存储值 = 界面值 × scale + offset（例如毫秒存、秒显示；大小按档位显示、按倍数存）。
+  // 结果收敛到 1e-9，避免 0.7 + 0.5 这类浮点误差变成 1.2000000000000002 写进配置。
+  const tidy = value => Math.round(value * 1e9) / 1e9;
   function fromStorage(field, value) {
-    return field.scale && typeof value === 'number' ? value / field.scale : value;
+    if (!field.scale || typeof value !== 'number') return value;
+    return tidy((value - (field.offset || 0)) / field.scale);
   }
   function toStorage(field, value) {
-    return field.scale && typeof value === 'number' ? value * field.scale : value;
+    if (!field.scale || typeof value !== 'number') return value;
+    return tidy(value * field.scale + (field.offset || 0));
   }
   function readValue(field, values) {
     if (field.id === 'usage.taskEndOn') {
@@ -238,7 +243,9 @@
     const text = Number.isFinite(field.step) && field.step < 1
       ? value.toFixed(2).replace(/\.?0+$/, '')
       : String(value);
-    return field.unit ? text + ' ' + field.unit : text;
+    const shown = field.unit ? text + ' ' + field.unit : text;
+    // 档位这类换算单位顺带给出存储值，例如「14 档 · 1.9 倍」。
+    return field.storedUnit ? shown + ' · ' + toStorage(field, value) + ' ' + field.storedUnit : shown;
   }
 
   function renderRow(field, context) {

@@ -23,20 +23,5 @@ import { requestJson } from '/services/request.js';
     }
     refresh.onclick = load; close.onclick = () => dialog.close(); dialog.onclose = () => { generation++; dialog.remove(); }; document.body.append(dialog); dialog.showModal(); load();
   }
-  function initMenu() {
-    const menu = document.querySelector('.dshwv-menu');
-    if (!menu) return;
-    const container = menu.querySelector('.dshwv-menu-root') || menu.firstElementChild || menu;
-    const row = document.createElement('div'); row.className = 'dshwv-menu-row';
-    const insights = text(row, 'button', '峰谷时段'); insights.className = 'dshwv-sound';
-    insights.onclick = open; container.append(row);
-    const accountModeChanged=async()=>{
-      const member=window.WhaleAccountView?.mode==='subscription';insights.hidden=true;row.hidden=true;
-      if(!member){try{const p=await requestJson('/api/pricing');if(window.WhaleAccountView?.mode!=='subscription'){insights.hidden=!p.visible;row.hidden=!p.visible;}}catch{}}
-    };
-    accountModeChanged(); window.addEventListener('whale-account-view',accountModeChanged);setInterval(accountModeChanged,60000);
-  }
   window.addEventListener('whale-open-insights', open);
-  if (document.readyState === 'complete') initMenu();
-  else document.addEventListener('DOMContentLoaded', initMenu, { once: true });
 })();

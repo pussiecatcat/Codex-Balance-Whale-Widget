@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,10 +13,10 @@ const catalogPath = path.join(root, 'desktop/ui/settings-catalog.js');
 
 // The catalog is a plain browser script that also assigns module.exports, so it
 // is loaded the same way tests/account-view.test.mjs loads its pure helpers.
-const catalogSource = fs.readFileSync(catalogPath, 'utf8');
+const catalogSource = fs.readFileSync(catalogPath, 'utf8').replace(/^import .*$/mg, '');
 function loadCatalog() {
   const module = { exports: {} };
-  vm.runInNewContext(catalogSource, { module, globalThis: {}, console });
+  vm.runInNewContext(catalogSource, { LABELS, module, globalThis: {}, console });
   return module.exports;
 }
 
@@ -72,72 +73,53 @@ test('every help entry is specific, not a generic fallback', () => {
   }
 });
 
-test('defaultSource points at a file and symbol that exist, and matches the runtime default', async () => {
-  const catalog = loadCatalog();
-  for (const field of catalog.fields) {
-    const match = String(field.defaultSource).match(/^([^#]+)#(\S+)$/);
-    assert.ok(match, `${field.id} 的 defaultSource 必须是 file#symbol，实际 ${field.defaultSource}`);
-    const relative = match[1], expression = match[2];
-    const file = path.join(root, relative);
-    assert.ok(fs.existsSync(file), `${field.id} 的 defaultSource 指向不存在的文件 ${relative}`);
-    const resolved = await resolveDefault(file, expression);
-    if (resolved.kind === 'symbol') continue;
-    assert.equal(resolved.kind, 'value', `${field.id} 无法解析 ${field.defaultSource}：${resolved.reason || ''}`);
-    const expected = resolved.value;
-    // null 表示「没有固定默认值 / 跟随其它设置」，由 help 说明，不做数值比对。
-    if (field.defaultValue === null || field.defaultValue === undefined) continue;
+async function resolveDefaultSource(reference) {
+  const match = String(reference).match(/^([^#]+)#([A-Za-z_$][\w$]*)(\(\))?((?:\.[A-Za-z_$][\w$]*)*)$/);
+  assert.ok(match, `defaultSource 必须是 file#export.path：${reference}`);
+  const file = path.resolve(root, match[1]);
+  assert.ok(file.startsWith(root + path.sep) && fs.existsSync(file), `defaultSource 文件不存在：${reference}`);
+  const module = await import(pathToFileURL(file).href);
+  assert.ok(Object.hasOwn(module, match[2]), `defaultSource 导出不存在：${reference}`);
+  let value = module[match[2]];
+  if (match[3]) {
+    assert.equal(typeof value, 'function', reference);
+    value = value();
+  }
+  for (const key of match[4].split('.').filter(Boolean)) {
+    assert.ok(value != null && Object.hasOwn(value, key), `defaultSource 字段不存在：${reference}`);
+    value = value[key];
+  }
+  return value;
+}
+
+test('defaultSource resolves a real exported default or its factory', async () => {
+  for (const field of loadCatalog().fields) await resolveDefaultSource(field.defaultSource);
+  await assert.rejects(resolveDefaultSource('runtime/size-settings.mjs#MISSING_DEFAULT'), /导出不存在/);
+  await assert.rejects(resolveDefaultSource('runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.missing'), /字段不存在/);
+});
+
+test('provider settings describe the merged provider store', () => {
+  for (const field of loadCatalog().fields.filter(field => ['api', 'apiModels'].includes(field.domain))) {
+    assert.match(field.store, /^providers\.json → (codexApi|diyModels)$/);
+  }
+});
+
+// 只对「值控件」逐字段比对：组、编辑器入口、位置等条目的 defaultValue 是给人看的摘要
+// 或 null（由编辑器/模板决定），对不上运行时对象是预期的。
+const VALUE_TYPES = new Set(['number', 'range', 'boolean', 'select', 'text']);
+test('value controls default to exactly what the runtime source exports', async () => {
+  for (const field of loadCatalog().fields) {
+    const expected = await resolveDefaultSource(field.defaultSource);
+    if (!VALUE_TYPES.has(field.type) || field.defaultValue === null || field.defaultValue === undefined) continue;
     if (typeof expected === 'number' && field.scale) {
-      assert.equal(field.defaultValue * field.scale, expected, `${field.id} 的界面默认值 × scale 与运行时常量不一致`);
-      continue;
-    }
-    if (expected && typeof expected === 'object') {
-      if (field.defaultValue && typeof field.defaultValue === 'object') {
-        assert.deepEqual(JSON.parse(JSON.stringify(field.defaultValue)), JSON.parse(JSON.stringify(expected)),
-          `${field.id} 的默认对象与运行时常量不一致`);
-      }
+      const stored = Math.round((field.defaultValue * field.scale + (field.offset || 0)) * 1e9) / 1e9;
+      assert.equal(stored, expected, `${field.id} 的界面默认值换算后与 ${field.defaultSource} 不一致`);
       continue;
     }
     if (typeof field.defaultValue !== typeof expected) continue;
     assert.equal(field.defaultValue, expected, `${field.id} 的 defaultValue 与 ${field.defaultSource} 不一致`);
   }
 });
-
-// 解析 defaultSource：能导入的模块直接取值；IIFE 脚本在 vm 里加载；
-// 无法加载的（browser ESM / Electron 主进程）只核对符号确实出现在文件里。
-async function resolveDefault(file, expression) {
-  const relative = path.relative(root, file).split(path.sep).join('/');
-  if (relative === 'desktop/ui/preferences-v3.js') {
-    const sandbox = { window: {}, localStorage: { getItem: () => null, setItem: () => {} }, console };
-    vm.runInNewContext(fs.readFileSync(file, 'utf8'), sandbox);
-    return { kind: 'value', value: evaluateExpression(sandbox.window, expression) };
-  }
-  if (relative === 'desktop/main.cjs' || relative === 'assets/whale-widget.js' || relative === 'desktop/ui/money.js') {
-    return symbolExists(file, expression);
-  }
-  try {
-    const loaded = await import(pathToFileURL(file).href);
-    return { kind: 'value', value: evaluateExpression(loaded, expression) };
-  } catch (error) {
-    return symbolExists(file, expression, error);
-  }
-}
-
-function evaluateExpression(scope, expression) {
-  const called = /^(\w+)\(\)(.*)$/.exec(expression);
-  const plain = /^(\w+)(.*)$/.exec(expression);
-  const match = called || plain;
-  if (!match) return undefined;
-  let value = called ? scope[match[1]]() : scope[match[1]];
-  for (const key of match[2].split('.').filter(Boolean)) value = value?.[key];
-  return value;
-}
-
-function symbolExists(file, expression, reason) {
-  const symbol = String(expression).split(/[.(]/)[0];
-  const text = fs.readFileSync(file, 'utf8');
-  assert.ok(symbol && text.includes(symbol), `${path.relative(root, file)} 中找不到符号 ${symbol}`);
-  return { kind: 'symbol', reason };
-}
 
 test('dynamic entries enumerate their sub-fields instead of standing in for a whole editor', () => {
   const catalog = loadCatalog();
@@ -233,7 +215,7 @@ test('fields that claim to be editable declare a write path', () => {
 
 test('nested settings preserve sibling fields and editor destinations are explicit', () => {
   const window = { WhaleSettingsCatalog: loadCatalog() };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8'), { window });
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window });
   const pages = window.WhaleSettingsPages;
   const field = window.WhaleSettingsCatalog.byId.get('usage.taskEndSel');
   const values = { usage: { taskEnd: { on: true, sel: 'old', vol: .4 } } };
@@ -242,5 +224,7 @@ test('nested settings preserve sibling fields and editor destinations are explic
   assert.deepEqual(patch.usage.taskEnd, { on: true, sel: 'preset:duck:press', vol: .4 });
   assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('api.models')).name, 'api');
   assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.audio')).name, 'sound');
+  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get(id)).name, 'resources');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.workshop')).name, 'workshop');
   assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('ui.pos')), null, '位置字段只提供复位按钮，不打开编辑器');
 });

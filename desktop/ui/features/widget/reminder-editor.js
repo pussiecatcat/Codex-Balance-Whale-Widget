@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Reminder/budget editor. It borrows the bubble editor"s live state and its
 // temporary render/quick-edit overrides through ctx; those bindings belong to
 // the entry and must stay writable there.
@@ -42,7 +43,7 @@ export function createReminderEditor(deps) {
         bubbleEditorState.editorSnap = null;
         var mask = document.createElement('div');
         mask.className = 'dshwv-bubmask';
-        mask.style.zIndex = '26000';
+        openOver(null, mask);
         var card = document.createElement('div');
         card.className = 'dshwv-bubcard';
         card.style.maxHeight = '88vh';
@@ -251,22 +252,18 @@ export function createReminderEditor(deps) {
         btns.appendChild(okBtn);
         card.appendChild(btns);
         try {
-          if (ctx.moduleMask) ctx.moduleMask.style.zIndex = '27000';
+          if (ctx.moduleMask) openOver(mask, ctx.moduleMask);
         } catch (err) {}
-        var remindZStyle = document.createElement('style');
-        remindZStyle.id = 'dshw-remind-overlay-z';
-        remindZStyle.textContent = '.dshwv-confirmmask,.dshwv-cropmask,.dshwv-audiomask,.dshwv-snapmask,.dshwv-usage-mask{z-index:28500!important}';
-        document.head.appendChild(remindZStyle);
         var qeditEnsureSuper = bkQeditEnsure;
         ctx.qeditEnsure = function () {
           var el = qeditEnsureSuper();
           try {
-            if (el) el.style.zIndex = '28000';
+            if (el) openOver(ctx.moduleMask || mask, el);
           } catch (err) {}
           return el;
         };
         try {
-          if (ctx.qeditEl) ctx.qeditEl.style.zIndex = '28000';
+          if (ctx.qeditEl) openOver(ctx.moduleMask || mask, ctx.qeditEl);
         } catch (err) {}
         var renderPvSuper = bkRenderPv;
         ctx.renderPv = function () {
