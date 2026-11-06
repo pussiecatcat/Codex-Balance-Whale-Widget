@@ -62,6 +62,9 @@ export function createBubbleRowsView(deps) {
         row.className = 'dshwv-trow';
         if (m.type === 'quota' && m.quotaStyle === 'meter' && !m.apiModelId) row.classList.add('dshwv-quota-shell');
         if (m.type === 'plan' && m.quotaStyle === 'header') row.classList.add('dshwv-quota-heading');
+        // 大数字和来源行由样式表定主次；用户在编辑器里设的颜色走行内样式，仍然优先。
+        if (m.type === 'quota' && !m.quotaStyle && !m.apiModelId && Number(fSize) >= 12 && fBold !== false) row.classList.add('dshwv-trow-hero');
+        if (m.type === 'source') row.classList.add('dshwv-trow-source');
         var tx = row;
         if (needBg) {
           row.style.padding = '1px 6px';

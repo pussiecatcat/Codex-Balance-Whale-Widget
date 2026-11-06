@@ -21,15 +21,15 @@ export function createUsageAlerts(deps) {
     }
     function usageTurnCostDefaultLines() {
       return [
-        { type: 'text', text: '{turn_title}', size: 6, bold: true },
-        { type: 'text', text: '{turn_primary}', size: 16, bold: true, color: '#4059b3' },
-        { type: 'text', text: '{turn_detail}', size: 2, color: '#63719a' }
+        { type: 'text', text: '{turn_title}', size: 8, bold: true },
+        { type: 'text', text: '{turn_primary}', size: 16, bold: true, rgb: 'indigo' },
+        { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' }
       ];
     }
     function usageWaitDefaultLines(kind) {
       return [
         { type: 'text', text: kind === 'approval' ? 'Codex 正在等你授权' : 'Codex 正在等你回答', size: 6, bold: true },
-        { type: 'text', text: '{session}', size: 3, color: '#63719a' }
+        { type: 'text', text: '{session}', size: 3, color: '#5a6a92' }
       ];
     }
     function usageWaitLinesOf(cfg, kind) {

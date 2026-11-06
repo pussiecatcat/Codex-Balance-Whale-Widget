@@ -18,6 +18,7 @@
   --motion-fast:.16s;
   --motion-base:.22s;
   --motion-slow:.3s;
+  --motion-spring:cubic-bezier(.34,1.56,.64,1);
 }
 :root{font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}*{box-sizing:border-box}html,body{margin:0;background:transparent!important;overflow:hidden}button,input,select{font:inherit}button{cursor:pointer}.quiet{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:var(--radius-sm);padding:8px 12px}.primary{background:var(--primary);color:white;border:0;border-radius:8px;padding:10px 17px}.notice{padding:10px;background:#fff5e5;color:#856322;border-radius:8px;font-size:12px}#settings-discard{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}#settings-discard .quiet{margin-left:auto}[hidden]{display:none!important}dialog{border:1px solid var(--border);border-radius:var(--radius-lg);padding:0;width:min(690px,94vw);max-height:89vh;color:var(--text);box-shadow:0 22px 100px #0b38492a;z-index:2147483647}dialog::backdrop{background:#182a4d66;backdrop-filter:blur(3px)}dialog form{padding:26px}.dialog-header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}.dialog-header h2{font-size:19px;margin:0 0 8px}.dialog-header p,.help{font-size:11px;line-height:1.9;color:var(--text-hint)}.dialog-header p{margin:0}.icon-button{border:0;background:none;color:var(--text-hint);font-size:26px;line-height:1}label{font-size:12px;display:block;margin:15px 0 0;color:var(--text-muted)}input,select{width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 11px;background:#f8f9fc;color:#34425c;font-size:12px;margin-top:6px;min-width:0}input:focus,select:focus{outline:2px solid #6384d5}label small{display:block;font-size:10px;color:var(--text-hint);line-height:1.65;margin-top:6px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}details{border-top:1px solid #e8edf4;margin-top:22px;padding-top:16px}summary{font-size:12px;color:#495a83;cursor:pointer}.check{display:flex;align-items:center;gap:8px;margin-top:20px;line-height:1.6}.check input{width:15px;margin:0;accent-color:var(--primary)}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:2147483647;max-width:min(600px,90vw);background:#263c82;color:#fff;border-radius:12px;padding:14px 22px;font-size:12px;box-shadow:0 6px 30px #0002;line-height:1.6}html.desktop,html.desktop body{background:transparent!important;overflow:hidden}.desktop .whale-shell{display:none}.desktop .dshwv-root{filter:drop-shadow(0 3px 6px #0002)}@media(max-width:620px){.whale-shell{padding:24px 22px 130px}.intro{margin-top:36px}.cards{grid-template-columns:1fr}.usage-card{padding:22px}.usage-number{margin:14px 0}.tips{padding-right:90px}.field-grid{grid-template-columns:1fr}.brand small{display:none}.big-number{font-size:42px}dialog form{padding:19px}}
 
@@ -54,11 +55,10 @@ html.desktop.dshw-shape-round{--dshw-box-wu:655;--dshw-box-hu:325;--dshw-card-wu
 .desktop .dshwv-text .dshwv-quota-heading{
   position:relative;
   margin:0 0 calc(var(--dshw-u) * 10)!important;
-  color:#53669a!important;
+  color:#536ba9!important;
   font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
-  font-size:calc(var(--dshw-u) * 74)!important;
+  font-size:calc(var(--dshw-u) * 56)!important;
   font-weight:700!important;
-  letter-spacing:.025em;
   line-height:1.15;
 }
 .desktop .dshwv-text .dshwv-quota-shell{
@@ -73,35 +73,29 @@ html.desktop.dshw-shape-round{--dshw-box-wu:655;--dshw-box-hu:325;--dshw-card-wu
   margin:0 calc(var(--dshw-u) * 5)!important;
 }
 .desktop .dshwv-quota-meter{
-  --quota-accent:#526bd0;
-  --quota-ink:#344a92;
-  --quota-wash:#f0f3ff;
-  --quota-line:rgba(76,98,177,.18);
+  --quota-accent:#203170;
+  --quota-ink:#203170;
+  --quota-wash:#f8fafd;
+  --quota-line:rgba(32,49,112,.16);
   box-sizing:border-box;
   display:grid!important;
   grid-template-rows:auto auto auto;
-  gap:calc(var(--dshw-u) * 18);
+  gap:calc(var(--dshw-u) * 12);
   width:100%;
-  min-height:calc(var(--dshw-u) * 236);
-  padding:calc(var(--dshw-u) * 20) calc(var(--dshw-u) * 26)!important;
+  padding:calc(var(--dshw-u) * 18) calc(var(--dshw-u) * 16)!important;
   overflow:visible;
-  border:calc(var(--dshw-u) * 5) solid var(--quota-line);
-  border-radius:calc(var(--dshw-u) * 34)!important;
-  background:linear-gradient(112deg,#fff 0%,var(--quota-wash) 88%)!important;
-  box-shadow:inset 0 calc(var(--dshw-u) * 5) 0 rgba(255,255,255,.82);
+  border:calc(var(--dshw-u) * 3) solid var(--quota-line);
+  border-radius:calc(var(--dshw-u) * 28)!important;
+  background:var(--quota-wash)!important;
   color:var(--quota-ink)!important;
   font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
   font-variant-numeric:tabular-nums;
   line-height:1!important;
+  text-align:left;
   text-shadow:none!important;
   white-space:normal;
 }
-.desktop .dshwv-quota-meter-weekly{
-  --quota-accent:#3a9c8c;
-  --quota-ink:#2e706a;
-  --quota-wash:#edf8f5;
-  --quota-line:rgba(58,156,140,.19);
-}
+.desktop .dshwv-quota-meter-weekly{--quota-accent:#526bd0}
 .desktop .dshwv-quota-meter[data-quota-tone="caution"]{
   --quota-accent:#c18a43;
   --quota-ink:#8b622f;
@@ -120,116 +114,74 @@ html.desktop.dshw-shape-round{--dshw-box-wu:655;--dshw-box-hu:325;--dshw-card-wu
   --quota-wash:#f4f5f8;
   --quota-line:rgba(114,123,145,.18);
 }
-.desktop .dshwv-quota-meter-head,
-.desktop .dshwv-quota-meter-foot{
-  display:flex;
-  align-items:baseline;
-  justify-content:space-between;
-  min-width:0;
-}
-/* The ellipse leaves a narrow card, where the label and the value cannot share
-   a line. The rounded shape has room, so it keeps them side by side. */
-/* 标签与数值上下排列，两种形状一致。原先只有椭圆这样排、圆角并排，那是
-   字号还小的时候；放大后并排放不下，圆角就会把「5 小时」拆成「5 小」「时」。 */
+/* 标签与数值上下排，两种形状一致：并排放不下时圆角会把「5 小时」拆成两行。 */
 .desktop .dshwv-quota-meter-head{
   display:grid;
   grid-template-columns:minmax(0,1fr);
   justify-items:start;
-  gap:calc(var(--dshw-u) * 5);
+  gap:calc(var(--dshw-u) * 6);
+  min-width:0;
 }
-.desktop .dshwv-quota-meter-value{justify-self:start;min-height:calc(var(--dshw-u) * 34)}
 .desktop .dshwv-quota-meter-label{
-  font-size:calc(var(--dshw-u) * 55);
+  font-size:max(10px,calc(var(--dshw-u) * 42));
   font-weight:700;
-  letter-spacing:.02em;
   white-space:nowrap;
 }
 .desktop .dshwv-quota-meter-value{
   display:inline-flex;
   align-items:baseline;
+  justify-self:start;
   white-space:nowrap;
   color:var(--quota-ink);
   line-height:1;
 }
 .desktop .dshwv-quota-meter-number{
-  font-size:calc(var(--dshw-u) * 78);
+  font-size:calc(var(--dshw-u) * 76);
   white-space:nowrap;
-  font-weight:850;
+  font-weight:800;
   letter-spacing:-.02em;
 }
 .desktop .dshwv-quota-meter-unit{
-  margin-left:calc(var(--dshw-u) * 6);
-  font-size:calc(var(--dshw-u) * 36);
-  font-weight:750;
+  margin-left:calc(var(--dshw-u) * 5);
+  font-size:calc(var(--dshw-u) * 34);
+  font-weight:700;
   opacity:.72;
 }
+/* 只读进度条：不画滑块圆点，否则看起来可以拖。 */
 .desktop .dshwv-quota-meter-track{
   position:relative;
   display:block;
   width:100%;
-  height:calc(var(--dshw-u) * 26);
-  overflow:visible;
+  height:calc(var(--dshw-u) * 14);
+  overflow:hidden;
   border-radius:999px;
-  background:color-mix(in srgb,var(--quota-accent) 14%,white);
-  box-shadow:inset 0 calc(var(--dshw-u) * 3) calc(var(--dshw-u) * 5) rgba(46,59,104,.11);
+  background:rgba(32,49,112,.12);
 }
 .desktop .dshwv-quota-meter-fill{
   position:absolute;
   inset:0 auto 0 0;
   min-width:0;
   border-radius:999px;
-  background:linear-gradient(90deg,color-mix(in srgb,var(--quota-accent) 72%,white),var(--quota-accent));
+  background:var(--quota-accent);
   transition:width .45s cubic-bezier(.2,.7,.2,1);
 }
-.desktop .dshwv-quota-meter-fill::after{
-  content:"";
-  position:absolute;
-  right:0;
-  top:50%;
-  width:calc(var(--dshw-u) * 28);
-  height:calc(var(--dshw-u) * 28);
-  border:calc(var(--dshw-u) * 5) solid color-mix(in srgb,var(--quota-accent) 38%,white);
-  border-radius:50%;
-  background:#fff;
-  box-shadow:0 calc(var(--dshw-u) * 3) calc(var(--dshw-u) * 10) rgba(43,60,118,.19);
-  transform:translate(35%,-50%);
-}
-.desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-fill::after{display:none}
-.desktop .dshwv-quota-meter-foot{
-  color:color-mix(in srgb,var(--quota-ink) 82%,#8e98ae);
-  font-size:calc(var(--dshw-u) * 32);
-  line-height:1.05;
-}
-.desktop .dshwv-quota-meter-reset-label{
-  opacity:.75;
-  font-size:calc(var(--dshw-u) * 32);
-}
-.desktop .dshwv-quota-meter-reset{
-  min-width:0;
-  text-align:right;
-}
-/* Narrow cards stack the reset label above the countdown, as the head does. */
-/* 底部同样上下排：「重置」和「等待同步」并排会被挤成「重」「置」两行。 */
 .desktop .dshwv-quota-meter-foot{
   display:grid;
   grid-template-columns:minmax(0,1fr);
   justify-items:start;
   gap:calc(var(--dshw-u) * 3);
+  min-width:0;
+  color:color-mix(in srgb,var(--quota-ink) 82%,#8e98ae);
+  font-size:max(10px,calc(var(--dshw-u) * 28));
+  line-height:1.2;
 }
-.desktop .dshwv-quota-meter-reset{text-align:left;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.2}
-.desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-reset{white-space:normal;overflow-wrap:normal}
-/* A hairline in the gap between the two gauges so they read as separate units. */
-.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell{position:relative}
-.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell + .dshwv-quota-shell::before{
-  content:"";
-  position:absolute;
-  left:calc(var(--dshw-u) * -6);
-  top:14%;
-  bottom:14%;
-  width:calc(var(--dshw-u) * 2);
-  border-radius:999px;
-  background:rgba(76,98,177,.18);
-}
+/* 两张卡都写「14:32 更新」是重复信息：完整时间留在无障碍文本里，
+   只有数据过期时才显示「上次 …」。文字本身仍由 quota.js 写入。 */
+.desktop .dshwv-quota-meter-reset-label{display:none}
+.desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-reset-label{display:block}
+/* 只在空格处换行，不再把倒计时拆成「重」「置」。 */
+.desktop .dshwv-quota-meter-reset{min-width:0;max-width:100%;text-align:left;white-space:normal;word-break:keep-all}
+/* A hairline in the gap between the two gauges would double the card borders. */
 @media (prefers-reduced-motion:reduce){
   .desktop .dshwv-quota-meter-fill{transition:none}
 }
@@ -262,7 +214,10 @@ html.desktop dialog details{margin-top:14px;padding-top:12px}
 html.desktop dialog summary{color:#495a83}
 html.desktop .privacy-help{background:#f4f6fb;padding:10px 12px;border-radius:9px}
 html.desktop .dialog-actions{position:sticky;bottom:-22px;background:#fff;border-top:1px solid #e8edf4;padding-top:12px;margin-top:18px}
-html.desktop .primary{background:#4358aa;border-radius:9px}
+html.desktop .primary{background:#203170;border-radius:6px}
+html.desktop .primary:hover{background:#2f4488}
+html.desktop .quiet{border-color:rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170}
+html.desktop .quiet:hover{background:rgba(32,49,112,.16)}
 html.desktop .dshwv-usage-card{width:min(620px,calc(100vw - 24px));max-height:calc(100vh - 32px);border:1px solid #dce2ef;border-radius:16px;background:#fff;box-shadow:0 5px 14px #202e4b24;color:#34425c;font:13px/1.6 'Segoe UI','Microsoft YaHei',sans-serif;overflow:hidden}
 html.desktop .dshwv-usage-wintitle{padding:18px 22px 14px;font-size:19px;color:#283650;border-bottom:1px solid #edf0f5}
 html.desktop .dshwv-usage-close{top:15px;right:16px;color:#788397;font-size:22px}
@@ -295,14 +250,14 @@ html.desktop .whale-sound-block>summary::after{content:"";flex:0 0 auto;width:0;
 html.desktop .whale-sound-block[open]>summary::after{transform:rotate(180deg)}
 html.desktop .whale-sound-block-head>.dshwv-check{flex:0 0 auto;width:18px;height:18px;margin:0;accent-color:#263c82}
 html.desktop .whale-sound-block-title{flex:0 0 auto;font-size:13px;font-weight:600}
-html.desktop .whale-sound-block-summary{flex:1 1 auto;min-width:0;overflow:hidden;color:#68779e;text-align:right;text-overflow:ellipsis;white-space:nowrap;font:11px/1.2 Consolas,"Microsoft YaHei UI",sans-serif}
+html.desktop .whale-sound-block-summary{flex:1 1 auto;min-width:0;overflow:hidden;color:#68779e;text-align:right;text-overflow:ellipsis;white-space:nowrap;font:11px/1.2 "Microsoft YaHei UI",sans-serif}
 html.desktop .whale-sound-block-body{padding:5px 8px 2px 10px}
 html.desktop .whale-sound-row{display:flex;align-items:center;gap:8px;min-height:34px;margin:1px 0;color:#203170;font-size:12px;white-space:nowrap}
 html.desktop .whale-sound-label{flex:0 0 78px}
 html.desktop .whale-sound-row>.dshwv-check{flex:0 0 auto;width:17px;height:17px;margin:0;accent-color:#263c82}
 html.desktop .whale-sound-row select{flex:1 1 auto;min-width:0;max-width:none;height:30px;padding:3px 7px}
 html.desktop .whale-sound-row .dshwv-range{flex:1 1 auto;min-width:70px;max-width:none;padding:0;border:0;accent-color:#263c82}
-html.desktop .whale-sound-row .dshwv-volpct{flex:0 0 40px;text-align:right;font:12px/1 Consolas,monospace}
+html.desktop .whale-sound-row .dshwv-volpct{flex:0 0 40px;text-align:right;font:12px/1 "Microsoft YaHei UI",sans-serif;font-variant-numeric:tabular-nums}
 html.desktop .whale-sound-row.is-dim .whale-sound-label{opacity:.42}
 html.desktop .whale-sound-group-row select{margin-left:auto}
 html.desktop .whale-sound-inline-button{flex:0 0 auto;padding:5px 8px;white-space:nowrap}

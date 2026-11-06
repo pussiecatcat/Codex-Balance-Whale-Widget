@@ -5,7 +5,7 @@ export const clone = value => JSON.parse(JSON.stringify(value));
 export function waitDefaultLines(kind) {
   return [
     { type: 'text', text: kind === 'approval' ? 'Codex 正在等你授权' : 'Codex 正在等你回答', size: 6, bold: true },
-    { type: 'text', text: '{session}', size: 3, color: '#63719a' },
+    { type: 'text', text: '{session}', size: 3, color: '#5a6a92' },
   ];
 }
 
