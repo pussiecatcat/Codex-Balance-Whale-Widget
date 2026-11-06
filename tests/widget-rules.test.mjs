@@ -76,7 +76,7 @@ test('editor draft isolates saved content and preserves the other account mode',
     subscriptionTapAdvance: false,
   };
   const draft = loadBubbleEditorDraft(config, true);
-  assert.equal(draft.tapAdvance, false);
+  assert.equal('tapAdvance' in draft, false, 'the draft no longer carries the retired flag');
   draft.library[0].name = 'Changed';
   draft.items[0].modules[0].windowDurationMins = 10080;
   assert.equal(config.lib[0].name, 'Original');
@@ -87,11 +87,10 @@ test('editor draft isolates saved content and preserves the other account mode',
   assert.equal(Object.hasOwn(saved, 'subscriptionTapAdvance'), false);
 });
 
-test('the bubble editor reads retired character advancement flags without saving them', () => {
+test('the bubble editor no longer reads or writes retired character advancement flags', () => {
   const config = { items: [{ kind: 'normal' }], subscriptionItems: [], lib: [], tapAdvance: true, subscriptionTapAdvance: false };
-  assert.equal(loadBubbleEditorDraft(config, false).tapAdvance, true);
-  assert.equal(loadBubbleEditorDraft(config, true).tapAdvance, false);
   for (const subscription of [false, true]) {
+    assert.equal('tapAdvance' in loadBubbleEditorDraft(config, subscription), false);
     const saved = saveBubbleEditorDraft(bubbleDefaultQueue(subscription), [], config, subscription);
     assert.equal(Object.hasOwn(saved, 'tapAdvance'), false);
     assert.equal(Object.hasOwn(saved, 'subscriptionTapAdvance'), false);

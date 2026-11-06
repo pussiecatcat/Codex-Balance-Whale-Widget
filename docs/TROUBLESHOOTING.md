@@ -60,6 +60,16 @@ npm run restore-providers
 
 账本从备份恢复后，用量面板和消费记录窗口会显示一次「账本文件损坏，已从上一份备份恢复」，点「知道了」后不再提示。
 
+## 气泡配置升级备份
+
+气泡配置升级到 schema 2 时会自动丢弃已退休的 `tapAdvance` / `subscriptionTapAdvance`，并把旧的内置默认布局换成当前默认。升级前会在数据目录留下一次 `.dshw-bubble.schema1-backup.json`（只在第一次升级时写，不会覆盖）。
+
+需要回到旧版时：
+
+1. 退出小龙娘；
+2. 把 `.dshw-bubble.schema1-backup.json` 复制为 `.dshw-bubble.json`；
+3. 重新启动。旧版本会忽略 `schema` 字段，回滚后仍可读取。
+
 ## 测试数量与已知失败
 
-当前结果见 [验证基线](BASELINE.md)。非 UTC+8 主机上会有 3 条时区相关测试失败，属于已知环境差异，不代表产品回归。
+当前结果见 [验证基线](BASELINE.md)；本轮后 `npm test` 在任意主机时区都是 745/745 通过。

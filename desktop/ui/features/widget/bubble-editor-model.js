@@ -52,10 +52,7 @@ export function loadBubbleEditorDraft(config, subscriptionMode) {
     const entries = step.kind === 'choice' ? step.options.map(option => option.item) : [step];
     for (const item of entries) if (Array.isArray(item.modules)) bubbleRowsCanon(item.modules);
   }
-  const tapAdvance = subscriptionMode
-    ? config?.subscriptionTapAdvance === true
-    : config?.tapAdvance === true;
-  return { items, library, tapAdvance };
+  return { items, library };
 }
 
 function saveBubbleEditorStep(step) {

@@ -466,7 +466,7 @@ import {
     var openSnapModal = snapEditor.open;
     var bubbleMask = null;
     var bubbleEditorState = {
-      items: [], lib: [], tapAdvance: false, editorSnap: null, itemSnap: null,
+      items: [], lib: [], editorSnap: null, itemSnap: null,
       itemIdx: -1, itemSide: -1, palEl: null, pvEl: null, pvPrevEl: null,
     };
     // Reminder and item editors share the bubble editor's live state and its
