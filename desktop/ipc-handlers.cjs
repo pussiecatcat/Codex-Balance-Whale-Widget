@@ -44,7 +44,17 @@ function registerIpcHandlers({ ipcMain, host }) {
   const settingsCommands = {
     'focus-whale': () => { host.show(); return true; },
     'open-logs': () => host.openDiagnostics(),
-    'open-editor': payload => { host.show(); return host.sendCommand('open-editor', { editor: typeof payload?.editor === 'string' ? payload.editor : '' }); },
+    'reset-position': () => host.resetPosition(),
+    'open-editor': payload => {
+      const request = {
+        editor: typeof payload?.editor === 'string' ? payload.editor : '',
+        args: payload && typeof payload.args === 'object' && payload.args ? payload.args : {},
+      };
+      // main.cjs 会先最小化设置窗口；嵌入式测试宿主没有这个方法，退回纯转发。
+      if (typeof host.openEditorFromSettings === 'function') return host.openEditorFromSettings(request);
+      host.show();
+      return host.sendCommand('open-editor', request);
+    },
   };
 
   ipcMain.on('whale-storage', event => { event.returnValue = accepted(event) ? host.storage() : {}; });
@@ -91,7 +101,12 @@ function registerIpcHandlers({ ipcMain, host }) {
   });
   ipcMain.handle('whale-settings-preview', async (event, request) => {
     if (!fromRole(event, 'settings') || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
-    try { return await host.settingsStore().preview(request || {}); }
+    try {
+      const result = await host.settingsStore().preview(request || {});
+      // 预览不落盘：算出的合并值交给挂件临时应用（目前只有大小和音量会响应）。
+      if (result.ok && request?.domain) host.previewSettings({ domain: request.domain, values: result.values });
+      return result;
+    }
     catch (error) { return { ok: false, error: error?.message || '预览失败' }; }
   });
 }

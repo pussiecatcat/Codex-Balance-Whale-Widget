@@ -146,6 +146,57 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     check(true, '保存后挂件立即应用大小 '+value);
   }
 
+  // ── 拖动预览（B1）：input 只改挂件显示，不写盘 ──────────────────────
+  {
+    const savedScale = (await dispatcher.soundSettings.load()).size.scale;
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await wait(async () => await window.webContents.executeJavaScript('window.__whaleRenderTest.status().scale === 2'), '挂件预览大小');
+    check(true, '拖动滑块时挂件立即预览 2.0');
+    const onDisk = JSON.parse(fs.readFileSync(path.join(dataDir, '.dshw-size.json'), 'utf8')).scale;
+    check(Math.abs(onDisk - savedScale) < 0.001, '拖动预览没有写盘（磁盘仍是 ' + onDisk + '）');
+    // 松手才提交草稿；提交后「撤销修改」才可用。
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='2'; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await waitFor('document.getElementById("set-revert").disabled === false', '撤销按钮可用');
+    await ev('document.getElementById("set-revert").click()');
+    await wait(async () => await window.webContents.executeJavaScript(`window.__whaleRenderTest.status().scale === ${savedScale}`), '撤销后挂件恢复');
+    check(true, '撤销后挂件恢复到已保存的大小 ' + savedScale);
+  }
+
+  // ── 草稿判断（A2）：改回原样不算未保存 ──────────────────────────────
+  {
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); const original=i.value; i.value='1.2'; i.dispatchEvent(new Event('change',{bubbles:true})); i.value=original; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    check(await ev('WhaleSettingsTest.anyPageDirty() === false'), '把值改回原样后不再算未保存修改');
+    check(await ev('document.getElementById("set-dirty").hidden === true'), '改回原样后顶部未保存提示消失');
+  }
+
+  // ── 读取失败（A3）：显示错误和重试，而不是静默不动 ──────────────────
+  {
+    await ev(`WhaleSettingsTest.renderLoadError('sound', new Error('模拟读取失败'))`);
+    const text = await ev('document.querySelector(".set-notice.error")?.textContent || ""');
+    check(text.includes('模拟读取失败'), '读取失败时内容区显示具体错误');
+    const retry = await ev('[...document.querySelectorAll(".set-notice.error button")].some(b=>b.textContent==="重试")');
+    check(retry, '读取失败时提供「重试」按钮');
+    const current = await ev(`document.querySelector('#set-nav [aria-current="true"]')?.textContent || ''`);
+    check(current.startsWith('声音与提醒'), '读取失败时左侧导航仍标出目标分类');
+    await ev('document.querySelector(".set-notice.error button").click()');
+    await waitFor('(document.querySelector(".set-notice.error")?.hidden !== false) && document.querySelectorAll(".set-row").length > 0', '重试后恢复');
+    check(true, '点重试后重新加载当前分类');
+  }
+
+  // ── 单位换算（A1）：毫秒存储按秒显示和写入 ──────────────────────────
+  {
+    await ev('WhaleSettingsTest.go("sound")');
+    await waitFor('WhaleSettingsTest.state.page === "sound"', '切到声音分类');
+    const shown = await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.turnCostCloseMs'); return r?.querySelector('input[type=number]')?.value; })()`);
+    check(shown === '9', '存储 9000 毫秒时输入框显示 9 秒（实际 ' + shown + '）');
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.turnCostCloseMs'); const i=r.querySelector('input[type=number]'); i.value='8'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
+    await waitFor('!WhaleSettingsTest.state.saving && document.getElementById("set-dirty").hidden', '毫秒字段保存');
+    const stored = (await dispatcher.soundSettings.load()).size.turnCostCloseMs;
+    check(stored === 8000, '填 8 秒保存为 8000 毫秒（实际 ' + stored + '）');
+    await ev('WhaleSettingsTest.go("appearance")');
+    await waitFor('WhaleSettingsTest.state.page === "appearance"', '回到外观分类');
+  }
+
 
   // ── 撤销：回到磁盘上的值 ────────────────────────────────────────────
   await ev('document.getElementById("set-revert").click()');
@@ -323,6 +374,9 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     { page:'media', id:'media.workshop', editor:'workshop', selector:'dialog[open]' },
     { page:'media', id:'media.audio', editor:'sound', selector:'[data-feature="sound-settings-dialog"]' },
     { page:'api', id:'api.models', editor:'api', selector:'dialog[open]' },
+    { page:'sound', id:'usage.events.question', editor:'reminder', selector:'.dshwv-bubmask' },
+    { page:'api', id:'api.customModels', editor:'api-model', selector:'dialog.api-model-card[open]' },
+    { page:'sound', id:'ui.feedbackEvent', editor:'feedback-events', selector:'dialog.whale-v3-dialog[open]' },
   ]) {
     await ev(`WhaleSettingsTest.go(${JSON.stringify(entry.page)})`);
     check(!(await ev('document.body.textContent')).includes('回到挂件细调'), '分类 '+entry.page+' 使用具体动作名称');

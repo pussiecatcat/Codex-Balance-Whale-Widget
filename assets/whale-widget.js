@@ -36,6 +36,8 @@ import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.
 import { createBubblePalette } from '/features/widget/bubble-palette.js';
 import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
 import { createSnapEditor } from '/features/widget/snap-editor.js';
+import { DEFAULT_SCALE, DEFAULT_BUBBLE_SHAPE, SNAP_VERSION, SNAP_DEFAULTS } from '/features/widget/widget-defaults.js';
+import { isEditorRoute } from '/features/widget/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
@@ -432,6 +434,7 @@ import {
       bindNameMarquee: bindNameMarquee, confirm: showConfirm
     });
     var closeRolePanel = roleManager.close;
+    var openRolePanel = roleManager.open;
     var toggleRolePanel = roleManager.toggle;
     var loadRoles = roleManager.load;
     var applyRole = roleManager.apply;
@@ -2285,7 +2288,7 @@ import {
       ellipse: 'M 827 248 A 373 232 0 1 0 81 246 A 373 232 0 0 0 301 465 A 57 32 10 0 0 413 484 A 373 232 0 0 0 827 248 Z',
       round: 'M 231 15 L 677 15 A 150 150 0 0 1 827 165 L 827 329 A 150 150 0 0 1 677 479 L 445 479 C 428 479 420 496 404 502 C 390 507 376 500 369 489 C 361 478 352 479 338 479 L 231 479 A 150 150 0 0 1 81 329 L 81 165 A 150 150 0 0 1 231 15 Z'
     };
-    var bubbleShape = 'ellipse';
+    var bubbleShape = DEFAULT_BUBBLE_SHAPE;
     var bubbleBox = document.createElement('div');
     bubbleBox.className = 'dshwv-pop';
     bubbleBox.innerHTML = '<svg viewBox="0 0 1026 700" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + '<path class="dshwv-bshape" fill="#FFFFFF" stroke="#203170" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" d="' + BUBBLE_SHAPES.ellipse + '"/>' + '<ellipse class="dshwv-b1" cx="352" cy="561" rx="37.5" ry="26" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '<ellipse class="dshwv-b2" cx="442" cy="646" rx="24.5" ry="18" fill="#FFFFFF" stroke="#203170" stroke-width="18"/>' + '</svg>';
@@ -2347,8 +2350,8 @@ import {
       });
     } catch (err) {}
     function applyBubbleShape(next) {
-      if (!BUBBLE_SHAPES) return 'ellipse';
-      if (!Object.prototype.hasOwnProperty.call(BUBBLE_SHAPES, next)) next = 'ellipse';
+      if (!BUBBLE_SHAPES) return DEFAULT_BUBBLE_SHAPE;
+      if (!Object.prototype.hasOwnProperty.call(BUBBLE_SHAPES, next)) next = DEFAULT_BUBBLE_SHAPE;
       if (next === bubbleShape) return bubbleShape;
       bubbleShape = next;
       try {
@@ -2375,7 +2378,7 @@ import {
     // Menu rows and the settings window call this instead of owning the path map.
     window.WhaleBubbleShape = Object.freeze({ apply: applyBubbleShape, current: function () { return bubbleShape; } });
     var state = {
-      scale: 1.5,
+      scale: DEFAULT_SCALE,
       h: 'right',
       hOff: 0,
       v: 'bottom',
@@ -2393,24 +2396,8 @@ import {
     };
     var drag = { active: false };
     var SNAP_KEY = 'dshw-snap';
-    var SNAP_VER = 3;
-    var SNAP_DEFAULTS = {
-      mode: 'ratio',
-      ratio: {
-        L: 10,
-        T: 0,
-        R: 10,
-        B: 15,
-        F: 50
-      },
-      px: {
-        L: 80,
-        T: 0,
-        R: 80,
-        B: 80,
-        F: -1
-      }
-    };
+    // SNAP_VERSION / SNAP_DEFAULTS come from features/widget/widget-defaults.js
+    // so the settings catalog can reference the same constants.
     var snapConfig = null;
     function cloneSnap(c) {
       return {
@@ -2492,7 +2479,7 @@ import {
         var raw = localStorage.getItem(SNAP_KEY);
         if (raw) {
           var d = JSON.parse(raw);
-          if (d && d.v === SNAP_VER) {
+          if (d && d.v === SNAP_VERSION) {
             if (d.mode === 'ratio' || d.mode === 'px' || d.mode === 'off') snapConfig.mode = d.mode;
             var keys = ['L', 'T', 'R', 'B', 'F'];
             var i, k;
@@ -2513,7 +2500,7 @@ import {
     function saveSnapConfig() {
       try {
         var out = cloneSnap(snapConfig);
-        out.v = SNAP_VER;
+        out.v = SNAP_VERSION;
         localStorage.setItem(SNAP_KEY, JSON.stringify(out));
       } catch (err) {}
     }
@@ -3129,11 +3116,10 @@ import {
       saveConfig();
       applyMenuBtnHideUI();
     }
-    function scaleToDisplay(s) {
-      return Math.round((s - MIN_SCALE) / ((MAX_SCALE - MIN_SCALE) / 19)) + 1;
-    }
-    function setScale(v) {
-      var next = Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(v))) * 10) / 10;
+    // 设置窗口拖动滑块时的临时预览：只改显示，不写配置。
+    function applyScale(next, persist) {
+      next = Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(next))) * 10) / 10;
+      if (!Number.isFinite(next)) return;
       var prevTrans = positioner.style.transition;
       positioner.style.transition = 'none';
       var rect = whaleLayoutRect();
@@ -3142,8 +3128,8 @@ import {
       state.scale = next;
       root.style.setProperty('--dshw-scale', String(next));
       scaleInput.value = String(next);
-      scaleNumber.value = String(scaleToDisplay(next));
-      saveConfig();
+      scaleNumber.value = String(next);
+      if (persist) saveConfig();
       var r2 = whaleLayoutRect();
       var vp = viewport();
       if (state.flip) {
@@ -3157,8 +3143,15 @@ import {
         positioner.style.transition = prevTrans;
       });
     }
-    function setVol(v) {
+    function setScale(v) {
+      applyScale(v, true);
+    }
+    function previewScale(v) {
+      applyScale(v, false);
+    }
+    function applyVol(v, persist) {
       var next = Math.round(Math.min(1, Math.max(0, Number(v))) * 100) / 100;
+      if (!Number.isFinite(next)) return;
       soundVol = next;
       volInput.value = String(next);
       volPct.textContent = Math.round(next * 100) + '%';
@@ -3166,7 +3159,13 @@ import {
         if (pressAudio) pressAudio.volume = next;
         if (releaseAudio) releaseAudio.volume = next;
       } catch (err) {}
-      saveConfig();
+      if (persist) saveConfig();
+    }
+    function setVol(v) {
+      applyVol(v, true);
+    }
+    function previewVol(v) {
+      applyVol(v, false);
     }
     function setSoundSet(v) {
       soundSet = typeof v === 'string' && v ? v : 'duck';
@@ -3282,7 +3281,7 @@ import {
           var saved = snapshot.size;
           state.scale = saved.scale;
           root.style.setProperty('--dshw-scale', String(saved.scale));
-          scaleInput.value = String(saved.scale); scaleNumber.value = String(scaleToDisplay(saved.scale));
+          scaleInput.value = String(saved.scale); scaleNumber.value = String(saved.scale);
           bubbleOn = saved.bubbleOn; bubbleToggle.checked = bubbleOn;
           scrollGapOn = saved.scrollGapOn; scrollGapPx = saved.scrollGapPx;
           scrollGapToggle.checked = scrollGapOn; scrollGapInput.value = String(scrollGapPx); scrollGapInput.disabled = !scrollGapOn;
@@ -3296,6 +3295,12 @@ import {
         window.WhaleAccountView.setMode(change.values.mode).catch(assetFailure);
         return;
       }
+      if (change && change.domain === 'api') {
+        // 接口地址、刷新间隔等改动后立刻拉一次余额，不必等下一个周期。
+        try { refresh(); } catch (err) { /* 失败会走余额区域自己的错误态 */ }
+        try { if (window.WhaleApiModels && window.WhaleApiModels.load) window.WhaleApiModels.load(true).catch(function () { /* 列表打开时会重试 */ }); } catch (err) { /* 模型模块未加载时忽略 */ }
+        return;
+      }
       if (!change || change.domain !== 'ui' || !Array.isArray(change.keys)) return;
       for (var i = 0; i < change.keys.length; i++) {
         var key = change.keys[i];
@@ -3304,6 +3309,9 @@ import {
           if (value === null || value === undefined) localStorage.removeItem(key);
           else localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
         } catch (err) {}
+      }
+      if (change.values && Object.hasOwn(change.values, 'dshw-display-currency')) {
+        try { if (window.WhaleMoney) window.WhaleMoney.setDisplayCurrency(change.values['dshw-display-currency']).catch(function () { /* 汇率不可用时保持原币种 */ }); } catch (err) { /* 金额尚未渲染时由下次刷新补上 */ }
       }
       if (change.values && Object.hasOwn(change.values, 'dshw-bubble-shape')) {
         try {
@@ -3321,6 +3329,15 @@ import {
       }
     }); } catch (err) {}
 
+    // 设置窗口拖动「大小」「点击音量」滑块时的临时预览：应用但不落盘。
+    // 保存后主进程会广播 whale-settings-changed，用磁盘值覆盖这次预览。
+    window.addEventListener('whale-settings-preview', function (event) {
+      var change = event && event.detail ? event.detail : null;
+      if (!change || change.domain !== 'size' || !change.values) return;
+      if (typeof change.values.scale === 'number') previewScale(change.values.scale);
+      if (typeof change.values.vol === 'number') previewVol(change.values.vol);
+    });
+
     window.addEventListener('whale-storage-reconciled', function () {
       window.WhaleBubbleShape.apply(localStorage.getItem('dshw-bubble-shape') || 'ellipse');
       window.WhaleFeedback?.reload();
@@ -3329,20 +3346,37 @@ import {
     // 这些弹层闭包在 whale-widget.js 内部、依赖鲸鱼自身的 DOM 与状态，
     // 所以不搬进设置窗口，只在这里加事件监听。
     window.addEventListener('whale-open-editor', function (event) {
-      var editor = event && event.detail ? String(event.detail.editor || '') : '';
+      var detail = event && event.detail ? event.detail : {};
+      var editor = String(detail.editor || '');
+      var args = detail.args && typeof detail.args === 'object' ? detail.args : {};
+      if (!isEditorRoute(editor)) return;
       // 主进程已经把鲸鱼点亮并置前了，这里只管关掉菜单再打开对应弹层。
       try { if (menuOpen) closeMenu(); } catch (err) {}
-      if (editor === 'role') { toggleRolePanel(); return; }
+      if (editor === 'role') { openRolePanel(); return; }
       if (editor === 'snap') { openSnapModal(); return; }
       if (editor === 'bubble') { openBubbleEditor(); return; }
-      if (editor === 'reminder') { usageAlertBudgetEditor('alert', function () {}); return; }
+      if (editor === 'reminder') {
+        var kind = ['turnCost', 'alert', 'budget', 'question', 'approval'].includes(args.kind) ? args.kind : 'alert';
+        usageAlertBudgetEditor(kind, function () {});
+        return;
+      }
+      if (editor === 'api-model') {
+        // DIY 模型的编辑器在 api-models.js；带 id 是编辑，null 是新建。
+        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: args.id == null ? null : String(args.id) } }));
+        return;
+      }
+      if (editor === 'feedback-events') {
+        // 设 置窗口的「各事件音色」直接打开按压手感/事件音色对话框，
+        // 不能再走「音效与提示」合并面板，那里没有音色预设。
+        if (window.WhaleFeedback) window.WhaleFeedback.open();
+        return;
+      }
       if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
       if (editor === 'api') { window.dispatchEvent(new Event('whale-open-settings')); return; }
       if (editor === 'sound') {
         var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
         if (soundEntry) soundEntry.click();
         else if (window.WhaleFeedback) window.WhaleFeedback.open();
-        return;
       }
     });
     function snapCheck() {
@@ -3780,7 +3814,7 @@ import {
         state.scale = d.scale;
         root.style.setProperty('--dshw-scale', String(d.scale));
         scaleInput.value = String(d.scale);
-        scaleNumber.value = String(scaleToDisplay(d.scale));
+        scaleNumber.value = String(d.scale);
         settle();
       }
       if (d && typeof d.vol === 'number') {

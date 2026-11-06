@@ -91,7 +91,7 @@ export class SoundSettingsService {
     };
   }
 
-  validateCommand(command) {
+  validateCommand(command, snapshots) {
     if (!plainObject(command) || command.schemaVersion !== SCHEMA_VERSION || typeof command.revision !== 'string'
       || !plainObject(command.size) || !plainObject(command.usage)) {
       throw new SoundSettingsError('INVALID_SOUND_SETTINGS', '音效设置格式无效', 400);
@@ -103,16 +103,28 @@ export class SoundSettingsService {
       throw new SoundSettingsError('INVALID_SOUND_TIMEOUT', '每轮消耗提示关闭时间无效', 400);
     }
     if (!validResourceId(command.size.soundSet)) throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '按压音效组无效', 400);
-    const references = [command.usage.taskEnd?.sel, command.usage.events?.question?.sel, command.usage.events?.approval?.sel];
-    if (references.some(value => !validSoundReference(value))) {
-      throw new SoundSettingsError('INVALID_SOUND_REFERENCE', '提示音效引用无效', 400);
+    // 只校验这次真的改过的 usage。否则一个遗留的坏引用会让所有「大小」改动都保存失败。
+    if (!snapshots) return;
+    let currentUsage;
+    try { currentUsage = this.whale.resolveUsageSettings(snapshots.usage.document || {}); }
+    catch { return; }
+    if (JSON.stringify(command.usage) === JSON.stringify(currentUsage)) return;
+    const references = [
+      ['任务结束提示音', command.usage.taskEnd?.sel],
+      ['提问提示音', command.usage.events?.question?.sel],
+      ['授权提示音', command.usage.events?.approval?.sel],
+    ];
+    for (const [label, value] of references) {
+      if (!validSoundReference(value)) {
+        throw new SoundSettingsError('INVALID_SOUND_REFERENCE', `${label}的音效引用无效：${String(value ?? '').slice(0, 80)}`, 400);
+      }
     }
   }
 
   saveSync(command) {
     this.recoverSync();
-    this.validateCommand(command);
     const before = this.snapshots();
+    this.validateCommand(command, before);
     const currentRevision = this.revisionOf(before);
     if (command.revision !== currentRevision) {
       throw new SoundSettingsError('SETTINGS_CONFLICT', '音效设置已在其他位置更改，请重新载入后再保存', 409);
