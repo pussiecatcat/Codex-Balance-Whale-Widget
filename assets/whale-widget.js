@@ -3179,7 +3179,8 @@ import {
     var releaseAudio = null;
     var releasePlayed = false;
     function forgetGroupSounds() {
-      try { if (window.WhaleAudio && window.WhaleAudio.forget) window.WhaleAudio.forget('/dsh-whale/sound/'); } catch (err) {}
+      // Best effort: without the engine there is no cache to drop.
+      if (window.WhaleAudio && window.WhaleAudio.forget) window.WhaleAudio.forget('/dsh-whale/sound/');
     }
     function applySoundSet() {
       try {
