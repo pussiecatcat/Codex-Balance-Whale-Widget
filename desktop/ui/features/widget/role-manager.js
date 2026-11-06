@@ -77,7 +77,8 @@ export function createRoleManager(deps) {
           togglePin(role.id, !role.pinned);
         });
         item.appendChild(pin);
-        if (role.id !== 'default') {
+        // 默认与内置角色随安装包提供，只能置顶不能删除。
+        if (role.id !== 'default' && !role.builtin) {
           const remove = document.createElement('button');
           remove.type = 'button';
           remove.className = 'dshwv-roledel';

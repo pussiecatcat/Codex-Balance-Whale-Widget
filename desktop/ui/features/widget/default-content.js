@@ -1,6 +1,7 @@
 import { FIRST_MODULES, QUOTA_CARDS, SUBSCRIPTION_QUEUE, SECOND_MODULES, COMPANION_ITEMS, API_SECOND_MODULES } from './defaults/content.js';
 const clone = value => JSON.parse(JSON.stringify(value));
-export const CURRENT_DEFAULTS_VERSION = 1;
+// 2：两档倒计时加底部横线（ul）。未改过默认气泡的配置会自动换成新版。
+export const CURRENT_DEFAULTS_VERSION = 2;
 
 // Built-in bubble content and editor draft rules. No DOM or persisted state.
 var BUBBLE_KIND_LABEL = {
@@ -26,6 +27,14 @@ export function bubbleLegacySubscriptionDefault(items) {
       var parts = item && Array.isArray(item.modules) ? item.modules : [];
       return parts.length === 5 && parts[0].text === 'Codex 额度消耗' && parts[1].text === (index ? '7d' : '5h') &&
         parts[2].type === 'quota' && parts[2].tpl === '{quota_used_round}' && parts[3].text === '距离重置';
+    })) return true;
+    // Version 1 of the remaining-share layout, before the countdowns were underlined.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 5 && parts[0].text === 'Codex 额度剩余' && parts[1].text === (index ? '7d' : '5h') &&
+        parts[2].type === 'quota' && parts[2].tpl === '{quota_left_round}' && parts[3].text === '距离重置' &&
+        parts[4].type === 'quota' && parts[4].tpl === (index ? '{quota_reset_short}' : '{quota_reset}') && !parts[4].ul &&
+        Object.keys(parts[2]).every(function (key) { return ['type', 'windowDurationMins', 'size', 'quietStale', 'tpl', 'role'].indexOf(key) >= 0; });
     })) return true;
     // The first badge layout showed the remaining share under a shorter title.
     if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {

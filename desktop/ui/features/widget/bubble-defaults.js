@@ -41,9 +41,31 @@ function isCurrentDefault(items, subscription) {
   return equal(candidate, expected);
 }
 
+// Configs saved before semantic roles carry tightTitle / titleBadge flags, and
+// their countdowns carry no role at all. Rendering only reads `role`, so without
+// this those bubbles lose the title, badge and countdown styling for good once
+// the user has edited them (edited bubbles never receive new defaults).
+const COUNTDOWN_TEMPLATES = new Set(['{quota_reset}', '{quota_reset_short}']);
+export function normalizeLegacyRoles(items) {
+  let changed = false;
+  for (const step of Array.isArray(items) ? items : []) {
+    for (const module of Array.isArray(step?.modules) ? step.modules : []) {
+      if (!module || typeof module !== 'object') continue;
+      if (module.tightTitle) { if (!module.role) module.role = 'title'; delete module.tightTitle; changed = true; }
+      if (module.titleBadge) { if (!module.role) module.role = 'badge'; delete module.titleBadge; changed = true; }
+      if (!module.role && module.type === 'quota' && !module.quotaStyle && !module.apiModelId && COUNTDOWN_TEMPLATES.has(module.tpl)) {
+        module.role = 'countdown'; changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 export function resolveBubbleConfig(config) {
   if (!config) return { config: null, changed: false };
   const resolved = clone(config);
+  normalizeLegacyRoles(resolved.items);
+  normalizeLegacyRoles(resolved.subscriptionItems);
   for (const subscription of [false, true]) {
     const keys = defaultsKeys(subscription);
     const items = resolved[keys.items];

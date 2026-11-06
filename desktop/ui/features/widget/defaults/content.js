@@ -106,6 +106,7 @@ export const SUBSCRIPTION_QUEUE = [
         "bold": true,
         "color": "#2fa24c",
         "tpl": "{quota_reset}",
+        "ul": true,
         "row": 2,
         "role": "countdown"
       }
@@ -159,6 +160,7 @@ export const SUBSCRIPTION_QUEUE = [
         "bold": true,
         "color": "#2fa24c",
         "tpl": "{quota_reset_short}",
+        "ul": true,
         "row": 2,
         "role": "countdown"
       }

@@ -74,3 +74,31 @@ test('draft mutation tracking records nested edits even when values are restored
   draft.push({ kind: 'custom', modules: [] });
   assert.equal(edited, true);
 });
+
+test('edited bubbles saved before semantic roles get their roles back', () => {
+  const step = { kind: 'custom', modules: [
+    { type: 'text', text: '我的标题', size: 4, tightTitle: true, row: 1 },
+    { type: 'text', text: '5h', size: 1, titleBadge: true, row: 1 },
+    { type: 'quota', windowDurationMins: 300, tpl: '{quota_reset}', row: 3 },
+    { type: 'quota', windowDurationMins: 300, tpl: '{quota_reset}', quotaStyle: 'meter' },
+  ] };
+  const input = { v: 1, items: [], lib: [], subscriptionItems: [step], subscriptionDefaultsVersion: CURRENT_DEFAULTS_VERSION, subscriptionDefaultsEdited: true };
+  const { config, changed } = resolveBubbleConfig(input);
+  const modules = config.subscriptionItems[0].modules;
+  assert.equal(changed, true);
+  assert.deepEqual(modules.map(module => module.role), ['title', 'badge', 'countdown', undefined]);
+  assert.equal('tightTitle' in modules[0] || 'titleBadge' in modules[1], false);
+  assert.equal(modules[0].text, '我的标题', 'the user edit itself is kept');
+  assert.equal(resolveBubbleConfig(config).changed, false, 'normalizing twice changes nothing');
+});
+
+test('an untouched version-1 default picks up the underlined countdowns', () => {
+  const v1 = bubbleDefaultQueue(true).map(step => ({ ...step, modules: step.modules.map(({ ul, ...module }) => module) }));
+  const { config } = resolveBubbleConfig({ v: 1, items: [], lib: [], subscriptionItems: v1, subscriptionDefaultsVersion: 1, subscriptionDefaultsEdited: false });
+  const countdowns = config.subscriptionItems.flatMap(step => step.modules).filter(module => module.role === 'countdown');
+  assert.equal(countdowns.length, 2);
+  assert.ok(countdowns.every(module => module.ul === true));
+  // The same layout saved without a version is recognised as the old default too.
+  const unversioned = resolveBubbleConfig({ v: 1, items: [], lib: [], subscriptionItems: v1 }).config;
+  assert.equal(unversioned.subscriptionDefaultsEdited, false);
+});

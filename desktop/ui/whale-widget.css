@@ -917,3 +917,37 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-trowline-fixed>.dshwv-trow{white-space:nowrap}
 .dshwv-trowline>.dshwv-mod-badge{display:inline-block;margin:0 0 calc(var(--dshw-u) * -6);text-align:center}
 .dshwv-trowline>.dshwv-mod-countdown{display:inline-block;text-align:center}
+
+/* ── 快速编辑器：两栏表单 ───────────────────────────────────────────────
+   文件开头的 label / input / select 规则服务于 API 设置对话框（块级标签、15px 上边距、
+   满宽且带 10px 内边距的输入框）。它们漏进快速编辑器后，标签被压到控件下方、复选框
+   占满整行把「加粗」挤成竖排。这里统一重置，并把每行排成「固定宽标签 + 控件」。 */
+.dshwv-qedit{--qedit-label:52px;--qedit-gap:8px;padding:12px 14px}
+.dshwv-qedit label{display:inline-flex;align-items:center;margin:0;font-size:12px;color:var(--color-203170);line-height:1.3}
+.dshwv-qedit input[type=checkbox]{width:14px;height:14px;margin:0;padding:0;flex:none;accent-color:var(--color-203170)}
+.dshwv-qedit input[type=range]{margin:0;padding:0;height:18px;background:none;border:0}
+.dshwv-qedit .dshwv-qedit-row,.dshwv-qedit>.dshwv-audiorow{display:flex;align-items:center;gap:var(--qedit-gap);margin:0 0 7px;min-height:28px;flex-wrap:nowrap}
+.dshwv-qedit .dshwv-qedit-row>label:first-child:not(.dshwv-qedit-check),.dshwv-qedit>.dshwv-audiorow>span:first-child{flex:0 0 var(--qedit-label);color:var(--color-536079);font-size:12px;font-weight:600;white-space:nowrap}
+.dshwv-qedit .dshwv-qedit-row>.dshwv-custwrap,.dshwv-qedit .dshwv-qedit-row>select,.dshwv-qedit>.dshwv-audiorow>.dshwv-fontwrap{flex:1 1 auto;min-width:0}
+.dshwv-qedit .dshwv-qedit-content{margin:0;padding:5px 8px;min-width:0}
+.dshwv-qedit .dshwv-tplchips{margin:-2px 0 8px calc(var(--qedit-label) + var(--qedit-gap))}
+.dshwv-qedit .dshwv-qedit-row>.dshwv-volpct{flex:0 0 30px;width:auto;text-align:right;font:600 12px/1 "JetBrains Mono",Consolas,"Microsoft YaHei UI",sans-serif;font-variant-numeric:tabular-nums}
+.dshwv-qedit .dshwv-qedit-checks{gap:18px;padding-left:calc(var(--qedit-label) + var(--qedit-gap));flex-wrap:wrap}
+.dshwv-qedit .dshwv-qedit-check{gap:5px;white-space:nowrap;cursor:pointer}
+.dshwv-qedit .dshwv-stylerow{display:flex;flex-direction:column;align-items:stretch;gap:7px;margin:0}
+.dshwv-qedit .dshwv-stylerow>.dshwv-qedit-row{flex:none;width:100%;margin:0}
+.dshwv-qedit .dshwv-stylerow .dshwv-qcolwrap{flex:1 1 auto;width:auto;max-width:none}
+.dshwv-qedit .dshwv-qcolorhost{gap:6px}
+.dshwv-qedit .dshwv-qcolorhost input[type=color]{width:26px;height:22px;margin:0}
+.dshwv-qedit .dshwv-qcolorhost .dshwv-bubmini{height:22px;font-size:11px;padding:0 7px}
+.dshwv-bubcard .dshwv-audiorow label{margin:0}
+.dshwv-bubcard .dshwv-audiorow input[type=checkbox]{width:14px;height:14px;margin:0;padding:0;flex:none;accent-color:var(--color-203170)}
+
+/* ── 额度气泡：标题与大数字纵向拉长，倒计时带底部横线 ─────────────────────
+   transform 不改变排版尺寸，所以拉长量用上下外边距补回来，避免压到相邻行；
+   标题以底边为原点拉伸，和角标的底边仍然对齐。 */
+.dshwv-trowline>.dshwv-mod-title{display:inline-block;transform:scaleY(var(--dshw-title-stretch,1.12));transform-origin:50% 100%;margin-top:.1em}
+.dshwv-trow.dshwv-mod-hero,.dshwv-trow.dshwv-trow-hero{transform:scaleY(var(--dshw-hero-stretch,1.12));transform-origin:50% 50%;margin-top:calc(var(--dshw-u) * 4 + .06em);margin-bottom:calc(var(--dshw-u) * 4 + .06em)}
+/* 底部横线画在固定宽度的倒计时槽位上（min-width 4.9em），所以两档倒计时的线一样长，
+   数字跳动时线也不会伸缩。渐变文字的 currentColor 是透明的，这时退回文字下划线。 */
+.dshwv-mod-countdown.dshwv-mod-underline:not(.dshwv-rgb){text-decoration:none;border-bottom:max(1.5px, calc(var(--dshw-u) * 5)) solid currentColor;padding-bottom:calc(var(--dshw-u) * 3);line-height:1.05}

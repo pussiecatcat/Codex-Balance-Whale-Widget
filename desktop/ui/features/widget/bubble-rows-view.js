@@ -1,5 +1,14 @@
 // Materialize frozen bubble rows into the live scene or the editor preview.
-export function bubbleFontFloor(level) { return Number(level) >= 12 ? 12 : 10; }
+import { isFineScale } from './font-scale.js';
+
+// 大数字的门槛按实际字号算（旧档位 12 ≈ 85 单位），新旧两套档位用同一条线。
+const HERO_UNITS = 85;
+
+// 小字在挂件缩小时仍要可读。细档位本来就是为了能调得更小，所以底线低一档。
+export function bubbleFontFloor(level, module) {
+  if (isFineScale(module)) return Number(level) >= 16 ? 11 : 8;
+  return Number(level) >= 12 ? 12 : 10;
+}
 
 export function createBubbleRowsView(deps) {
   const { document, window, WhaleMoney, bubbleSnapshot, bubbleModuleFontU,
@@ -63,7 +72,7 @@ export function createBubbleRowsView(deps) {
         if (m.type === 'quota' && m.quotaStyle === 'meter' && !m.apiModelId) row.classList.add('dshwv-quota-shell');
         if (m.type === 'plan' && m.quotaStyle === 'header') row.classList.add('dshwv-quota-heading');
         // 大数字和来源行由样式表定主次；用户在编辑器里设的颜色走行内样式，仍然优先。
-        if (m.type === 'quota' && !m.quotaStyle && !m.apiModelId && Number(fSize) >= 12 && fBold !== false) row.classList.add('dshwv-trow-hero');
+        if (m.type === 'quota' && !m.quotaStyle && !m.apiModelId && bubbleModuleFontU(fSize, m) >= HERO_UNITS && fBold !== false) row.classList.add('dshwv-trow-hero');
         if (m.type === 'source') row.classList.add('dshwv-trow-source');
         var tx = row;
         if (needBg) {
@@ -78,8 +87,8 @@ export function createBubbleRowsView(deps) {
         if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
         if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
         // Small modules must stay readable when the widget is scaled down.
-        var minimum = bubbleFontFloor(fSize);
-        row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
+        var minimum = bubbleFontFloor(fSize, m);
+        row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize, m) + '))';
         // A countdown changes width with its value, and the widest row decides the
         // fit scale, so without a fixed slot two quota steps render at different sizes.
 
@@ -124,7 +133,7 @@ export function createBubbleRowsView(deps) {
         if (!blk) return;
         try {
           var compFs = window.getComputedStyle ? parseFloat(window.getComputedStyle(blk.el).fontSize) : 0;
-          var multNow = bubbleModuleFontU(blk.fSize);
+          var multNow = bubbleModuleFontU(blk.fSize, blk.mod);
           var capPx = compFs && multNow ? bubbleRowCapU() * compFs / multNow : 0;
           if (capPx > 0 && blk.el.scrollWidth > capPx + 2) {
             blk.el.style.maxWidth = capPx + 'px';
