@@ -1,4 +1,4 @@
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -72,7 +72,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       if (await ev(`document.elementFromPoint(${hit.x}, ${hit.y})?.closest('[title="https://example.org/whale-audit"]') != null`)) break;
       await delay(100);
     }
-    assert.equal(await ev(`document.elementFromPoint(${hit.x}, ${hit.y})?.closest('[title="https://example.org/whale-audit"]') != null`), true, 'link must be the hit target before native input');
+    const hitInfo = await ev(`(() => { const el = document.elementFromPoint(${hit.x}, ${hit.y}); return { tag: el?.tagName, cls: String(el?.className || ''), title: el?.getAttribute?.('title') || '', html: String(el?.outerHTML || '').slice(0, 300), point: ${JSON.stringify(hit)} }; })()`);
+    assert.equal(await ev(`document.elementFromPoint(${hit.x}, ${hit.y})?.closest('[title="https://example.org/whale-audit"]') != null`), true, 'link must be the hit target before native input: ' + JSON.stringify(hitInfo));
     window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...hit }); await delay(30);
     window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...hit });
     const linkDeadline = Date.now() + 3000;
@@ -272,25 +273,29 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("window.__shapeResizeStyle=document.createElement('style');__shapeResizeStyle.textContent='html.desktop .dshwv-menu{width:270px!important}';document.head.append(__shapeResizeStyle)");
     await wait("(()=>{const m=document.querySelector('.dshwv-menu').getBoundingClientRect();return __whaleShapeTest.status().rectangles.some(r=>r.x<=m.left&&r.y<=m.top&&r.x+r.width>=m.right&&r.y+r.height>=m.bottom)})()",'CSS-only layout changes update full native menu region');
     await ev("__shapeResizeStyle.remove()"); await delay(100);
+    const electron = await import('electron');
+    const before = electron.BrowserWindow.getAllWindows().length;
     await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'api'}}))");
-    await wait("document.querySelector('#settings-dialog').open",'settings entry opens');
-    assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'an open dialog cannot intercept the transparent viewport corner');
-    assert.equal(await ev("getComputedStyle(document.querySelector('#settings-dialog'),'::backdrop').backgroundColor"),'rgba(0, 0, 0, 0)');
-    fs.writeFileSync(path.join(output,'api-settings.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("(()=>{const input=document.querySelector('#settings-form input[name=baseUrl]');input.value='https://example.test/v1';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#cancel-settings').click();})()");
-    await wait("!document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'an unsaved edit is not discarded silently');
-    await ev("document.querySelector('#keep-editing').click()");
-    await wait("document.querySelector('#settings-discard').hidden && document.querySelector('#settings-dialog').open",'keep editing returns to the form');
-    await ev("document.querySelector('#cancel-settings').click()");
-    await wait("!document.querySelector('#settings-discard').hidden",'cancel asks a second time');
-    await ev("document.querySelector('#discard-settings').click()");
-    await wait("!document.querySelector('#settings-dialog').open",'discarding closes the dialog');
-    checks.push('API settings asks before discarding an unsaved edit and can return to the form');
+    const opened = await (async () => {
+      for (let i = 0; i < 60; i++) {
+        if (electron.BrowserWindow.getAllWindows().length > before) return true;
+        await delay(100);
+      }
+      return false;
+    })();
+    assert.equal(opened, true, 'the API editor route opens the standalone settings window');
+    checks.push('the API editor route opens the standalone settings window');
+    for (const win of electron.BrowserWindow.getAllWindows()) if (win !== window) win.close();
+    await delay(200);
     await ev("if(!document.querySelector('.dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click()");
     await ev("document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
     await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
     await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
     await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'history modal loaded');
+    await ev("document.querySelector('.dshwv-usage-close')?.click()"); await delay(300);
+    assert.equal(await ev("window.whaleDesktop.command('usage')"), true);
+    await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'tray usage command opens the history modal');
+    checks.push('the tray usage command opens the history modal');
     assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-mask')).backgroundColor"),'rgba(0, 0, 0, 0)');
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'a modal mask cannot intercept the transparent viewport corner');
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
@@ -365,7 +370,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
   } catch (error) {
     const dialogs=await ev("[...document.querySelectorAll('dialog')].map(d=>({open:d.open,text:d.textContent.slice(0,1800)}))").catch(()=>[]);
     const rejections = await ev('window.__auditRejections || []').catch(()=>[]);
-    fs.writeFileSync(path.join(output, 'desktop-audit.json'), JSON.stringify({ ok: false, checks, error: error.message, errors, rejections, dialogs, dataDir }, null, 2));
+    const masks = await ev("[...document.querySelectorAll('.whale-sound-mask,.dshwv-bubmask,.dshwv-confirmmask')].map(m=>({ text: String(m.innerText || '').slice(0, 800), display: getComputedStyle(m).display }))").catch(()=>[]);
+    fs.writeFileSync(path.join(output, 'desktop-audit.json'), JSON.stringify({ ok: false, checks, error: error.message, errors, rejections, masks, dialogs, dataDir }, null, 2));
     throw error;
   }
 }

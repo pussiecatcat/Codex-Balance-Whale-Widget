@@ -56,6 +56,8 @@ child.stderr.on('data', chunk => { stderr += chunk; });
 child.stdout.on('data', () => {});
 
 const reportFile = path.join(output, 'settings-window.json');
+// A previous run must never be able to make this one look green.
+fs.rmSync(reportFile, { force: true });
 const timeout = setTimeout(() => child.kill('SIGKILL'), 90000);
 const exitCode = await new Promise(resolve => child.on('exit', code => resolve(code)));
 clearTimeout(timeout);

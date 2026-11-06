@@ -1,6 +1,6 @@
 import { requestJson } from '/services/request.js';
 import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
-import { statusForCode, statusForError, statusView } from '/features/widget/status-tones.js';
+import { statusForCode, statusForError, statusView } from '/shared/status-tones.js';
 
 (() => {
   'use strict';

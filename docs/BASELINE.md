@@ -1,4 +1,4 @@
-# 验证基线（2026-11-05，第二轮）
+# 验证基线（2026-11-06，架构整改第一段）
 
 一次性记录当前代码在本机跑出的结果，供以后的改动对照。评审 T-01 要求的是一份带日期的基线，而不是"应该能过"的声明。
 
@@ -11,23 +11,23 @@
 | Python | 3.12.14 |
 | 主机时区 | America/Los_Angeles |
 | Codex CLI | 0.166.0-alpha.6（仅用于 MCP / app-server 相关验证） |
-| 分支 | `fix/audit-followups-round2`（基于 `main` @ `9fc5afb`） |
+| 分支 | `arch/remediation`（基于 `main` @ `0746e9d`） |
 | 工作区 | 干净；本文档随本轮评审修复提交 |
-| 采集时间 | 2026-11-05T14:20Z |
+| 采集时间 | 2026-11-06T21:55Z |
 
 ## 结果
 
 | 命令 | 结果 |
 |---|---|
 | `npm run lint` | 通过 |
-| `npm test` | **665 tests / 665 pass / 0 fail** |
+| `npm test` | **756 tests / 756 pass / 0 fail** |
 | `npm run test:coverage` | 可运行；覆盖率数字按需查看，不设门槛 |
-| `npm run test:desktop` | 通过；23 项 Electron 检查（角色、APNG、气泡、未保存提示、150%/200% 缩放、模式切换、形状与退出） |
+| `npm run test:desktop` | 通过；24 项 Electron 检查（角色、APNG、气泡、150%/200% 缩放、独立设置窗口、托盘用量、模式切换、形状与退出） |
 | `npm run check:package` | 通过 |
-| `npm run check:architecture` | 通过（空 catch 302/302，CSS hex 111/111） |
+| `npm run check:architecture` | 通过（空 catch 269/269，CSS token 100/100，监听 85/85） |
 | CI `verify.yml` | lint、test、architecture、bench:ledger、check:calendar、build-release 全部执行 |
 | `npm run check:calendar` | 通过；提示峰谷日历覆盖到 2026-12-31 |
-| `npm run bench:ledger` | 通过；20,000 条真实字段事件 / 90 天 / 30 MB：load 约 226 ms、records 约 236 ms、today 冷读约 221 ms / 缓存命中约 0.4 ms、写入（首轮日界）约 238 ms、稳态观测约 183 ms |
+| `npm run bench:ledger` | 通过；20,000 条真实字段事件 / 90 天 / 30 MB：load 约 138 ms、records 约 124 ms、today 冷读约 122 ms / 缓存命中约 0.1 ms、观测约 121 ms |
 | `python scripts/build-release.py` | 通过（文件总数随文档增减；sha 与文件数不记入基线） |
 
 `npm run verify` 串起上述全部检查，在本机会停在测试步骤——原因见下节的 3 条已知失败。
@@ -66,6 +66,12 @@ GitHub Actions 的 Desktop audit 第一次运行（run `42015223743`，`5b4ea83`
 - DIY 编辑器增加模板搜索；模块库按当前模式分组；订阅模式的气泡可视化脚本先显式切到订阅模式。
 - 桌面审计增加 150%/200% 视图缩放场景，断言每行文字都在气泡内且字号不低于 10 px。
 - 修复 resize observer 在 frame 已卸载时调用 `fitFrameToBubble` 的空引用。
+
+## 架构整改第一段（2026-11-06）
+
+已完成并按任务提交：T01 门禁补盲、T02 生命周期门禁、T10 托盘用量、T11 死代码、T20 shared 目录、T21 气泡 schema 2 迁移、T22 完成提醒唯一换算、T30 scope/popover、T40 变更总线、T41 单写入路径、T42 删除挂件 API 弹窗。
+
+仍未执行：T23 widget-host 拆分、T31/T33 根脚本 ESM 与入口拆分、T34 设置窗口 ESM、T43 ui-state 服务、T50 main 拆分、T60 运行时推送、T70 CSS 收敛、T80 测试迁移、T90 文档整改、T95 发布验收。这些任务集中在入口重构与设置/Main 拆分，留给下一段。
 
 ## 复现
 

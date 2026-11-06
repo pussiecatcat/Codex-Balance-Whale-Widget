@@ -1,4 +1,4 @@
-import { LABELS } from './services/labels.js';
+import { LABELS } from './shared/labels.js';
 
 // 小龙娘设置目录 —— 界面控件、`!` 说明与 docs/CONFIGURATION.md 的唯一事实源。
 //
@@ -38,7 +38,7 @@ import { LABELS } from './services/labels.js';
       type: 'range', unit: '档', storedUnit: '倍', min: 1, max: 20, step: 1, scale: 0.1, offset: 0.5,
       defaultValue: 5, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale',
       store: '.dshw-size.json', key: 'scale', emptyValue: '缺省按 5 档（1.0 倍）处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '缩放角色图片本身，不改变气泡、菜单和文字的清晰度策略。',
@@ -53,7 +53,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: true, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.sound',
       store: '.dshw-size.json', key: 'sound', emptyValue: '缺省按 true 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '只管点击鲸鱼本身的手感音，不管任务完成、余额预警的提示音。',
@@ -68,7 +68,7 @@ import { LABELS } from './services/labels.js';
       type: 'range', unit: '百分比', min: 0, max: 1, step: 0.01,
       defaultValue: 0.9, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.vol',
       store: '.dshw-size.json', key: 'vol', emptyValue: '缺省按 0.9 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.sound'], hotReload: 'immediate',
       help: {
         use: '总音量。它会乘到每个事件自己的独立音量上，不是二选一。',
@@ -85,7 +85,7 @@ import { LABELS } from './services/labels.js';
       options: [{ value: 'duck', label: '小黄鸭（内置）' }, { value: 'fx1', label: '音效1（内置）' }],
       defaultValue: 'duck', defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.soundSet',
       store: '.dshw-size.json', key: 'soundSet', emptyValue: '留空按 duck 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.sound'], hotReload: 'immediate',
       help: {
         use: '决定「现有音效」这一档具体放什么声音。',
@@ -100,7 +100,7 @@ import { LABELS } from './services/labels.js';
       type: 'locked', value: 'ledger',
       defaultValue: 'ledger', defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.usageMode',
       store: '.dshw-size.json', key: 'usageMode', emptyValue: '写入时归一为 ledger',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'restart',
       help: {
         use: '早期用来切换用量统计口径的字段。',
@@ -115,7 +115,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: true, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.bubbleOn',
       store: '.dshw-size.json', key: 'bubbleOn', emptyValue: '缺省按 true 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '关掉后余额、任务完成、余额预警这些气泡都不再出现，点击鲸鱼也不会弹。',
@@ -130,7 +130,7 @@ import { LABELS } from './services/labels.js';
       type: 'note', note: '由上方「完成提醒」统一控制，这里只读，不再单独保存。',
       defaultValue: true, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostOn',
       store: '.dshw-size.json', key: 'turnCostOn', emptyValue: '缺省按 true 处理',
-      read: 'GET /api/sound-settings', write: '通过「完成提醒」写入',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（completion）',
       dependsOn: ['size.bubbleOn'], hotReload: 'immediate',
       help: {
         use: '订阅模式显示本轮 token，API 模式显示本轮观测到的消耗。',
@@ -145,7 +145,7 @@ import { LABELS } from './services/labels.js';
       type: 'number', unit: '秒', min: 0, max: 3600, step: 1, scale: 1000,
       defaultValue: 5, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostCloseMs',
       store: '.dshw-size.json', key: 'turnCostCloseMs', emptyValue: '缺省按 5000 毫秒处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.turnCostOn'], hotReload: 'immediate',
       help: {
         use: '用量气泡自动消失前的停留时间。',
@@ -161,7 +161,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: false, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapOn',
       store: '.dshw-size.json', key: 'scrollGapOn', emptyValue: '缺省按 false 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'after-save',
       help: {
         use: '把挂件整体左移一点，避免压住 Codex 窗口右边的滚动条。',
@@ -176,7 +176,7 @@ import { LABELS } from './services/labels.js';
       type: 'number', unit: '像素', min: 0, max: 200, step: 1,
       defaultValue: 17, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapPx',
       store: '.dshw-size.json', key: 'scrollGapPx', emptyValue: '0 表示不留距离',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.scrollGapOn'], hotReload: 'after-save',
       help: {
         use: '距离越大，鲸鱼离屏幕右边缘越远。',
@@ -191,7 +191,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: false, defaultSource: 'runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.menuBtnHide',
       store: '.dshw-size.json', key: 'menuBtnHide', emptyValue: '缺省按 false 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '让鲸鱼只显示角色本身，不显示左上角的菜单按钮。',
@@ -209,7 +209,7 @@ import { LABELS } from './services/labels.js';
       options: [{ value: 'subscription', label: 'Codex 订阅' }, { value: 'api', label: 'API 余额' }],
       defaultValue: 'subscription', defaultSource: 'runtime/composition.mjs#DISPLAY_MODE_DEFAULT',
       store: 'display-mode.json', key: 'mode', emptyValue: '非法值按 subscription 处理',
-      read: 'GET /api/display-mode', write: 'POST /api/display-mode',
+      read: 'GET /api/display-mode', write: 'whaleDesktop.settings.write（displayMode）',
       dependsOn: [], hotReload: 'immediate',
       help: {
         use: '这是显示来源的切换，不改变你的账号登录状态，也不改变 API 配置。',
@@ -223,7 +223,7 @@ import { LABELS } from './services/labels.js';
       label: LABELS.role, purpose: '选择鲸鱼当前使用的形象。',
       type: 'role',
       editor: { name: 'role', label: '打开角色选择' },
-      defaultValue: 'default', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId',
+      defaultValue: 'default', defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.roleId',
       store: 'ui-state.json', key: 'dshw-role', emptyValue: '留空按角色库默认处理',
       read: 'GET /dsh-whale/roles.json', write: 'POST /dsh-whale/role-pin.json + ui-state.json',
       dependsOn: [], hotReload: 'immediate',
@@ -239,7 +239,7 @@ import { LABELS } from './services/labels.js';
       label: LABELS.currency, purpose: '决定界面上的金额用美元还是人民币显示。',
       type: 'select',
       options: [{ value: 'USD', label: '美元 USD' }, { value: 'CNY', label: '人民币 CNY' }],
-      defaultValue: 'USD', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.displayCurrency',
+      defaultValue: 'USD', defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.displayCurrency',
       store: 'ui-state.json', key: 'dshw-display-currency', emptyValue: '非法值按 USD 处理',
       read: '本地偏好 + GET /api/fx/usd-cny', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -255,7 +255,7 @@ import { LABELS } from './services/labels.js';
       label: LABELS.bubbleShape, purpose: '切换鲸鱼说话时气泡的外形。',
       type: 'select',
       options: [{ value: 'ellipse', label: '椭圆' }, { value: 'round', label: '圆角方形' }],
-      defaultValue: 'ellipse', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.bubbleShape',
+      defaultValue: 'ellipse', defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.bubbleShape',
       store: 'ui-state.json', key: 'dshw-bubble-shape', emptyValue: '留空按 ellipse 处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -275,7 +275,7 @@ import { LABELS } from './services/labels.js';
         { value: 'crisp', label: '清脆' },
         { value: 'soft', label: '柔和' },
       ],
-      defaultValue: 'balanced', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.feel',
+      defaultValue: 'balanced', defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.feedback.feel',
       store: 'ui-state.json', key: 'dshw-v3-feedback.feel', emptyValue: '留空按 balanced 处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: [], hotReload: 'immediate',
@@ -298,7 +298,7 @@ import { LABELS } from './services/labels.js';
         { key: 'failed', label: '拥挤失败提示', hasOriginal: false },
       ],
       defaultValue: '按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8',
-      defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.events',
+      defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.feedback.events',
       editor: { name: 'feedback-events', label: '打开音色与手感编辑器' },
       store: 'ui-state.json', key: 'dshw-v3-feedback.events.<event>', emptyValue: '缺事件按默认补',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
@@ -315,7 +315,7 @@ import { LABELS } from './services/labels.js';
       id: 'ui.pos', page: 'position', tier: 2, domain: 'ui',
       label: '挂件位置', purpose: '记录鲸鱼停靠在桌面的哪个位置。',
       type: 'position',
-      defaultValue: '右下角', defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.position',
+      defaultValue: '右下角', defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.position',
       store: 'ui-state.json', key: 'dshw-pos', emptyValue: '留空按右下角处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
       dependsOn: ['ui.snap'], hotReload: 'immediate',
@@ -331,7 +331,7 @@ import { LABELS } from './services/labels.js';
       label: '自动贴边与翻转', purpose: '控制鲸鱼靠近屏幕边缘时的吸附范围和朝向翻转。',
       type: 'snap',
       defaultValue: { mode: 'ratio', ratio: { L: 10, T: 0, R: 10, B: 15, F: 50 }, px: { L: 80, T: 0, R: 80, B: 80, F: -1 } },
-      defaultSource: 'desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap',
+      defaultSource: 'desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.snap',
       editor: { name: 'snap', label: '打开位置编辑器' },
       store: 'ui-state.json', key: 'dshw-snap', emptyValue: '留空按默认比例处理',
       read: 'localStorage 读取', write: 'localStorage → whale-save-storage',
@@ -353,7 +353,7 @@ import { LABELS } from './services/labels.js';
       defaultValue: 'bubble', defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.on',
       store: 'usage-settings.json + .dshw-size.json', key: 'taskEnd.on / turnCostOn', emptyValue: '缺省气泡开、声音关',
       read: 'GET /api/sound-settings',
-      write: 'POST /api/sound-settings',
+      write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'immediate',
       help: {
         use: '决定一轮任务跑完后你会被怎么通知。这是常用组合，一个下拉就够了。',
@@ -374,7 +374,7 @@ import { LABELS } from './services/labels.js';
       ],
       defaultValue: 'preset:duck:press', defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.sel',
       store: 'usage-settings.json', key: 'taskEnd.sel', emptyValue: '空表示使用声音编辑器的回退选项',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.taskEndOn'], hotReload: 'immediate',
       help: {
         use: '决定「完成了」这一声长什么样。',
@@ -389,7 +389,7 @@ import { LABELS } from './services/labels.js';
       type: 'range', unit: '百分比', min: 0, max: 1, step: 0.01,
       defaultValue: null, defaultSource: 'runtime/ledger.mjs#usageDefaults().taskEnd.vol',
       store: 'usage-settings.json', key: 'taskEnd.vol / taskEnd.volSet', emptyValue: 'volSet 为 false 时跟随点击音量',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.taskEndOn', 'size.vol'], hotReload: 'immediate',
       help: {
         use: '完成提示通常应该比点击音更轻或更重，这个开关就是单独调它。',
@@ -404,7 +404,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.on',
       store: 'usage-settings.json', key: 'alert.on', emptyValue: '缺省按 true 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['ui.accountView', 'size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '余额快用完时先提醒，避免扣费中断。',
@@ -419,7 +419,7 @@ import { LABELS } from './services/labels.js';
       type: 'number', unit: '与 API 同币种', min: 0, step: 0.01,
       defaultValue: 5, defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.below',
       store: 'usage-settings.json', key: 'alert.below', emptyValue: '0 表示不预警',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.alertOn'], hotReload: 'after-save',
       help: {
         use: '余额掉到这个数以下就提醒你充值。',
@@ -434,7 +434,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: true, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget.on',
       store: 'usage-settings.json', key: 'budget.on', emptyValue: '缺省按 true 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['ui.accountView', 'size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '防止某天跑飞了花超。',
@@ -449,7 +449,7 @@ import { LABELS } from './services/labels.js';
       type: 'number', unit: '与 API 同币种', min: 0, step: 0.01,
       defaultValue: 10, defaultSource: 'runtime/ledger.mjs#usageDefaults().budget.amount',
       store: 'usage-settings.json', key: 'budget.amount', emptyValue: '0 表示不提醒',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.budgetOn'], hotReload: 'after-save',
       help: {
         use: '一天花到这个数就提醒你收一收。',
@@ -466,7 +466,7 @@ import { LABELS } from './services/labels.js';
       defaultValue: '余额已低于 {currency}{below}',
       defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.msg',
       store: 'usage-settings.json', key: 'alert.msg / budget.msg', emptyValue: '留空按默认文案',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: [], hotReload: 'after-save',
       help: {
         use: '改你在提醒里看到的句子。',
@@ -482,7 +482,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: false, defaultSource: 'runtime/ledger.mjs#usageDefaults',
       store: 'usage-settings.json', key: 'alert.autoClose / budget.autoClose', emptyValue: '缺省按 false 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '预警气泡不自动关的话会一直挂在桌面上，直到你手动关掉。',
@@ -497,7 +497,7 @@ import { LABELS } from './services/labels.js';
       type: 'number', unit: '秒', min: 0, max: 3600, step: 1,
       defaultValue: 6, defaultSource: 'runtime/ledger.mjs#usageDefaults',
       store: 'usage-settings.json', key: 'alert.ttlSec / budget.ttlSec', emptyValue: '0 表示不自动关闭',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.alertAutoClose'], hotReload: 'after-save',
       help: {
         use: '决定预警挂多久。',
@@ -518,7 +518,7 @@ import { LABELS } from './services/labels.js';
       defaultSource: 'runtime/ledger.mjs#usageDefaults().turnCost.lines',
       editor: { name: 'reminder', args: { kind: 'turnCost' }, label: '打开任务用量提示编辑器' },
       store: 'usage-settings.json', key: 'events.turnCost.lines', emptyValue: '提交空数组表示清空该组',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '改每轮结束时用量气泡里显示哪些内容、按什么样式排。',
@@ -540,7 +540,7 @@ import { LABELS } from './services/labels.js';
       defaultSource: 'runtime/ledger.mjs#usageDefaults().alert.lines',
       editor: { name: 'reminder', args: { kind: 'alert' }, label: '打开余额预警编辑器' },
       store: 'usage-settings.json', key: 'alert.lines / alert.below', emptyValue: '提交空数组表示清空该组',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.alertOn', 'size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '余额快用完时弹什么、写什么、链接到哪里。',
@@ -562,7 +562,7 @@ import { LABELS } from './services/labels.js';
       defaultSource: 'runtime/ledger.mjs#usageDefaults().budget.lines',
       editor: { name: 'reminder', args: { kind: 'budget' }, label: '打开每日预算提醒编辑器' },
       store: 'usage-settings.json', key: 'budget.lines / budget.amount', emptyValue: '提交空数组表示清空该组',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['usage.budgetOn', 'size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '一天花超预算时看到什么。',
@@ -584,7 +584,7 @@ import { LABELS } from './services/labels.js';
       ],
       defaultValue: null, defaultSource: 'runtime/ledger.mjs#usageDefaults().events.question',
       store: 'usage-settings.json', key: 'events.question.<field>', emptyValue: '缺省按开启、冒泡、静音处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: 'Codex 等你回答问题时提醒你，避免对话一直挂着。',
@@ -605,7 +605,7 @@ import { LABELS } from './services/labels.js';
       ],
       defaultValue: null, defaultSource: 'runtime/ledger.mjs#usageDefaults().events.approval',
       store: 'usage-settings.json', key: 'events.approval.<field>', emptyValue: '缺省按开启、冒泡、静音处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: 'Codex 真正需要你批准时才出现，自动批准的操作不会触发。',
@@ -620,7 +620,7 @@ import { LABELS } from './services/labels.js';
       type: 'boolean',
       defaultValue: false, defaultSource: 'runtime/ledger.mjs#usageDefaults().wait.charClose',
       store: 'usage-settings.json', key: 'wait.charClose', emptyValue: '缺省按 false 处理',
-      read: 'GET /api/sound-settings', write: 'POST /api/sound-settings',
+      read: 'GET /api/sound-settings', write: 'whaleDesktop.settings.write（size / usage）',
       dependsOn: ['size.bubbleOn'], hotReload: 'immediate',
       help: {
         use: '等待提问 / 授权的气泡默认点气泡就能收起；打开后点角色也可以。',
@@ -979,7 +979,7 @@ import { LABELS } from './services/labels.js';
         { key: 'items', label: 'API 模式序列' },
         { key: 'subscriptionItems', label: '订阅模式序列' },
       ],
-      defaultValue: null, defaultSource: 'desktop/ui/features/widget/default-content.js#bubbleDefaultQueue',
+      defaultValue: null, defaultSource: 'desktop/ui/shared/bubble-config/defaults.js#bubbleDefaultQueue',
       editor: { name: 'bubble', label: '打开气泡编辑器' },
       store: '.dshw-bubble.json', key: 'items / subscriptionItems', emptyValue: '空数组表示清空该模式序列',
       read: 'GET /dsh-whale/bubble.json', write: 'POST /dsh-whale/bubble.json',

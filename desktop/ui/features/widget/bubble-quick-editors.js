@@ -1,4 +1,4 @@
-import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from './font-scale.js';
+import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from '../../shared/bubble-config/font-scale.js';
 
 // Quick controls for text, data modules, and random sentence lines.
 export function createBubbleQuickEditors(deps) {

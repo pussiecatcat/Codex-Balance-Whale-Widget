@@ -4,34 +4,7 @@
 <title>Codex 小龙娘</title><link rel="stylesheet" href="/ui.css"><link rel="stylesheet" href="/whale-widget.css">
 <script type="module" src="/render.js"></script><script type="module" src="/turn-notice.js"></script><script type="module" src="/gesture.js"></script><script type="module" src="/preferences-v3.js"></script><script type="module" src="/dsh-whale/widget.js"></script><script type="module" src="/select-enhancer.js"></script><script type="module" src="/wait-notice.js"></script><script type="module" src="/sound-settings.js"></script><script type="module" src="/shape.js"></script><script type="module" src="/input.js"></script>
 </head><body>
-  <dialog id="settings-dialog" aria-labelledby="settings-title">
-    <form id="settings-form">
-      <header class="dialog-header"><div><h2 id="settings-title">API 余额设置</h2><p>自动跟随 Codex 的 API 配置，通常无需修改。</p></div><button type="button" id="close-settings" class="icon-button" aria-label="关闭 API 设置">×</button></header>
-      <div class="settings-content">
-      <div id="settings-error" class="notice" role="alert" hidden></div>
-      <p class="help privacy-help">已有配置已隐藏。留空保留原值；填写新值才会修改。</p>
-      <section class="provider-list" aria-labelledby="provider-heading">
-        <div class="provider-heading"><h3 id="provider-heading">服务商</h3><p class="help">小龙娘从这里读取余额和额度。当前 API 自动跟随 Codex；其他服务商可单独添加。</p></div>
-        <div class="provider-card" id="provider-auto-card">
-          <div class="provider-main"><strong>Codex 当前 API</strong><span class="provider-badge">自动</span><span id="provider-auto-status" class="provider-status" role="status" aria-live="polite">读取中…</span></div>
-          <div class="provider-actions"><button type="button" id="auto-api-test" class="quiet">测试</button><button type="button" id="auto-api-edit" class="quiet">编辑</button></div>
-        </div>
-        <div id="api-models-root"><p class="help">加载服务商模板…</p></div>
-      </section>
-      <details id="current-api-settings">
-        <summary>Codex 当前 API 设置（自动跟随）</summary>
-        <div class="field-grid"><label>API 地址<input name="baseUrl" type="url" placeholder="留空，跟随 Codex 当前配置"><small>更换域名须同时指定该服务的密钥环境变量。</small></label><label>密钥环境变量名<input name="keyEnv" placeholder="留空，使用 Codex 的现有密钥" autocomplete="off"><small>只填变量名，例如 MY_API_KEY；不要填密钥。</small></label></div>
-        <label>余额读取方式<select name="provider"><option value="auto">自动识别当前 API（推荐）</option><option value="billing">兼容账单接口</option><option value="newapi">兼容密钥额度接口</option><option value="custom-json">自定义 JSON 余额接口</option><option value="deepseek">原生余额接口</option></select><small>不确定就选“自动识别”。服务商模板在上方列表。</small></label>
-        <div class="connection-test"><button type="button" id="test-api-connection" class="quiet">测试连接</button><span id="api-connection-result" role="status" aria-live="polite"></span></div>
-        <p class="help">刚用 setx 或系统设置添加的环境变量，需要重启挂件后才会被读取。<button type="button" id="restart-whale" class="quiet">重新启动小龙娘</button></p>
-        <details><summary>其他 API 与自定义接口</summary><div class="field-grid"><label>Codex 配置方案（profile）<input name="profile" placeholder="默认方案"></label><label>项目目录（可选）<input name="projectDir" placeholder="读取该目录内的 .codex/config.toml"></label><label>自定义金额币种<input name="currency" maxlength="3" placeholder="USD"><small>兼容账单接口固定为 USD。</small></label><label>账单页面地址<input name="dashboardUrl" type="url" placeholder="留空，使用当前服务商"></label><label>余额路径<input name="balancePath" placeholder="/api/account/balance"></label><label>余额字段<input name="balanceField" placeholder="data.balance"></label><label>累计消耗字段（可选）<input name="usedField" placeholder="data.used"></label><label>金额换算系数<input name="balanceScale" type="number" min="0.000000001" step="any"></label><label>账单用量除数<input name="billingUsageDivisor" type="number" min="0.000001" step="any"><small>账单用量以美分返回时使用 100；请按接口文档调整。</small></label><label>每货币单位的 quota<input name="quotaPerUnit" type="number" min="0.000001" step="any"><small>仅用于返回原始 quota 的接口。</small></label></div></details>
-        <details><summary>每轮费用估算（可选）</summary><p class="help">未配置价格时，显示本轮期间观测到的 API 扣费；它可能包含同密钥的其他调用。配置价格后，按 Codex token 记录估算。价格单位是每百万 token，币种使用上方设置。留空保留全部现有价格；填写模型及完整价格只更新该模型。</p><label>模型名称<input name="priceModel" autocomplete="off" placeholder="与 Codex 的模型名称完全一致"></label><div class="field-grid"><label>输入价格<input name="priceInput" type="number" min="0" step="any" placeholder="留空保持原值"></label><label>缓存命中价格<input name="priceCached" type="number" min="0" step="any" placeholder="留空保持原值"></label><label>输出价格<input name="priceOutput" type="number" min="0" step="any" placeholder="留空保持原值"></label><label>缓存写入价格（可选）<input name="priceWrite" type="number" min="0" step="any" placeholder="与输入价格相同"></label></div><label class="check"><input name="removePrice" type="checkbox"> 删除填写的模型价格</label></details>
-      </details>
-      <label class="check"><input name="monitorSessions" type="checkbox"> 记录本机 token 用量与任务状态</label><p class="help">不发送聊天内容。使用会员账号？在菜单顶部切换到“Codex 订阅”，查看 5 小时与周额度。</p>
-      </div>
-      <div id="settings-discard" class="notice" role="alert" hidden>有未保存的修改。<button type="button" id="discard-settings" class="quiet">放弃修改</button><button type="button" id="keep-editing" class="quiet">继续编辑</button></div>
-      <div class="dialog-actions"><button type="button" id="cancel-settings" class="quiet">取消</button><button type="submit" class="primary">保存设置</button></div>
-    </form>
-  </dialog>
+
+  <div id="api-models-panel" hidden><div id="api-models-root"></div></div>
   <div id="toast" role="status" hidden></div>
 </body></html>

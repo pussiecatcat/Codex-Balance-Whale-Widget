@@ -1,6 +1,6 @@
 // The usage history modal owns its expandable charts and daily event view.
 import { createLedgerWarning } from './ledger-warning.js';
-import { ledgerDayKey } from '../../services/ledger-day.js';
+import { ledgerDayKey } from '../../shared/ledger-day.js';
 
 export function createUsageRecordsView(deps) {
   const { document, card: usageMoreCard, close: closeUsageRecordsWindow, dismissLedgerWarning,

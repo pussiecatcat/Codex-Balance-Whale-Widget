@@ -97,7 +97,7 @@ export class WaitNoticeController {
   }
 }
 
-export function startWaitNotice(options) {
+function startWaitNotice(options) {
   return new WaitNoticeController(options).start();
 }
 

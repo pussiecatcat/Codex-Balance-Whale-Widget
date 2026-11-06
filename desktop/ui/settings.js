@@ -334,9 +334,88 @@ import { soundOptions } from '/services/sound-reference.js';
   }
 
   async function bridgeTo(field) {
+    if (field?.id === 'api.models') { openPricingEditor(); return; }
     const target = pages.editorFor(field);
     if (!target) { showNotice('这个字段没有可打开的编辑器'); return; }
     await openEditor(target);
+  }
+
+  // The widget's API dialog used to own this form. Keep price editing in the
+  // settings window; the provider page and the API page share this one dialog.
+  function openPricingEditor() {
+    const mask = document.createElement('div');
+    mask.className = 'set-price-mask';
+    const card = document.createElement('div');
+    card.className = 'set-price-card';
+    const heading = document.createElement('h3');
+    heading.textContent = '每轮费用估算价格';
+    const hint = document.createElement('p');
+    hint.className = 'set-providers-hint';
+    hint.textContent = '单位是每百万 token，币种使用 API 页的金额币种。只更新填写的模型；删除时只填模型名并勾选删除。';
+    card.append(heading, hint);
+    const fields = {};
+    for (const [key, label] of [['model', '模型名称'], ['input', '输入价格'], ['cached', '缓存命中价格'], ['output', '输出价格'], ['write', '缓存写入价格（可选）']]) {
+      const row = document.createElement('label');
+      row.textContent = label;
+      const input = document.createElement('input');
+      input.type = key === 'model' ? 'text' : 'number';
+      if (input.type === 'number') { input.min = '0'; input.step = 'any'; }
+      fields[key] = input;
+      row.append(input);
+      card.append(row);
+    }
+    const removeRow = document.createElement('label');
+    removeRow.className = 'set-price-remove';
+    const remove = document.createElement('input');
+    remove.type = 'checkbox';
+    removeRow.append(remove, document.createTextNode(' 删除该模型的价格'));
+    card.append(removeRow);
+    const error = document.createElement('p');
+    error.className = 'set-providers-error';
+    error.hidden = true;
+    card.append(error);
+    const actions = document.createElement('div');
+    actions.className = 'set-price-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'set-button';
+    cancel.textContent = '取消';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'set-button primary';
+    save.textContent = '保存';
+    actions.append(cancel, save);
+    card.append(actions);
+    mask.append(card);
+    document.body.append(mask);
+    const close = () => mask.remove();
+    cancel.addEventListener('click', close);
+    mask.addEventListener('click', event => { if (event.target === mask) close(); });
+    save.addEventListener('click', async () => {
+      const model = fields.model.value.trim();
+      if (!model) { error.textContent = '请填写模型名称'; error.hidden = false; return; }
+      let prices = null;
+      if (!remove.checked) {
+        if ([fields.input, fields.cached, fields.output].some(input => input.value === '')) {
+          error.textContent = '请完整填写输入、缓存命中和输出价格';
+          error.hidden = false;
+          return;
+        }
+        prices = { input: Number(fields.input.value), cachedInput: Number(fields.cached.value), output: Number(fields.output.value) };
+        if (fields.write.value !== '') prices.cacheWrite = Number(fields.write.value);
+      }
+      save.disabled = true;
+      try {
+        const result = await bridge.writeSettings({ domain: 'api', changes: { pricingUpdate: { model, prices } }, force: true });
+        if (!result?.ok) throw new Error(result?.error || '价格保存失败');
+        close();
+        showNotice('价格已保存', 'info');
+      } catch (failure) {
+        error.textContent = failure?.message || '价格保存失败';
+        error.hidden = false;
+      } finally { save.disabled = false; }
+    });
+    fields.model.focus();
   }
 
   async function resetPosition() {
@@ -451,7 +530,30 @@ import { soundOptions } from '/services/sound-reference.js';
       status.classList.toggle('is-ok', ready);
       main.append(title, badge, status);
       auto.append(main);
-      edit(auto, { name: 'api' });
+      const test = document.createElement('button');
+      test.type = 'button';
+      test.className = 'set-button';
+      test.textContent = '测试连接';
+      test.addEventListener('click', async () => {
+        test.disabled = true;
+        status.className = 'set-provider-status';
+        status.textContent = '正在测试…';
+        try {
+          const result = await requestJson('/api/config/probe', { method: 'POST', body: {}, timeoutMs: 20000 });
+          if (result.stale || !result.ok) throw new Error(result.error || '连接失败');
+          status.textContent = '已连接 · ' + (result.balanceLabel || result.providerName || '当前 API');
+          status.classList.add('is-ok');
+        } catch (error) {
+          status.textContent = '连接失败：' + (error?.message || '未知错误');
+          status.classList.add('is-error');
+        } finally { test.disabled = false; }
+      });
+      const editApi = document.createElement('button');
+      editApi.type = 'button';
+      editApi.className = 'set-button';
+      editApi.textContent = '编辑';
+      editApi.addEventListener('click', () => { void go('api'); });
+      auto.append(test, editApi);
       box.append(auto);
       const list = models?.models || [];
       if (!list.length) {
@@ -483,6 +585,17 @@ import { soundOptions } from '/services/sound-reference.js';
       add.textContent = '在挂件中添加服务商';
       add.addEventListener('click', () => { void openEditor({ name: 'api-model', args: { id: null } }); });
       box.append(add);
+      const restart = document.createElement('button');
+      restart.type = 'button';
+      restart.className = 'set-button';
+      restart.textContent = '重新启动小龙娘';
+      restart.addEventListener('click', async () => {
+        try {
+          const restarted = await bridge.restart?.();
+          if (restarted === false) line(box, 'set-providers-error', '无法自动重新启动，请手动退出后重新打开。');
+        } catch { line(box, 'set-providers-error', '无法自动重新启动，请手动退出后重新打开。'); }
+      });
+      box.append(restart);
       line(box, 'set-providers-hint', '密钥只读取环境变量，配置文件不保存密钥内容。测试连接与新增在挂件的「API 余额设置」里完成。');
     } catch (error) {
       if (revision !== providerRevision) return;

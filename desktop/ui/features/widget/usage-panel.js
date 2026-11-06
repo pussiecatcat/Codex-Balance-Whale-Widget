@@ -5,7 +5,7 @@ import { openOver } from '../../services/layers.js';
 // holding a second copy of it.
 export function createUsagePanel({
   document, requestJson, settingsUrl, recordsUrl,
-  assetWarning, assetFailure, WhaleMoney, updateSoundSettings,
+  assetWarning, assetFailure, WhaleMoney, settingsClient,
   getPanel, getMain, fill, getState, refreshBalance, getTodayKey, getRecordsView,
 }) {
   let usageSet = null;
@@ -32,10 +32,11 @@ export function createUsagePanel({
 
   function save(patch) {
     try {
-      updateSoundSettings(
-        current => ({ size: current.size, usage: Object.assign({}, current.usage, patch || {}) }),
-        saved => { if (saved && saved.usage) usageSet = saved.usage; },
-      );
+      if (!settingsClient) throw new Error('设置服务不可用');
+      settingsClient.write({ domain: 'usage', changes: patch || {}, force: true }).then(result => {
+        if (result?.ok) { if (result.values) usageSet = result.values; }
+        else assetFailure(new Error(result?.error || '保存未完成，请重试'));
+      }).catch(assetFailure);
     } catch (error) { assetFailure(error); }
   }
 

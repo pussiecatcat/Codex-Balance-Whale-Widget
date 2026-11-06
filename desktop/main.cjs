@@ -12,6 +12,7 @@ const { syncNativeViewport } = require('./native-viewport.cjs');
 const { createHeartbeatMonitor } = require('./heartbeat.cjs');
 const { registerIpcHandlers } = require('./ipc-handlers.cjs');
 const { SettingsStore, createSoundSettingsDomains } = require('./settings-store.cjs');
+const { createChangeBus } = require('./change-bus.cjs');
 const { createTestHarness } = require('./test-harness.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
@@ -435,7 +436,8 @@ else {
     uiOrigin = UI_ORIGIN;
     const { startBridge } = await import(pathToFileURL(path.join(root, 'runtime', 'bridge.mjs')));
     const testOptions = await harness.load(dataDir);
-    dispatcher = createDispatcher({ dataDir, fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
+    const changeBus = createChangeBus({ targets: () => [window, settingsWindow] });
+    dispatcher = createDispatcher({ dataDir, onChange: change => changeBus.publish(change), fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
     // 小龙娘设置的唯一写入者。size/usage 经 SoundSettingsService 的同一事务落盘
     // （journal + 失败恢复），ui 走 UiStateStore 的按键合并，displayMode 走现有路由；
@@ -483,13 +485,7 @@ else {
         media: { read: () => ({}), write: () => { throw new Error('请在素材编辑器中保存'); } },
         apiModels: { read: () => ({}), write: () => { throw new Error('请在 API 编辑器中保存'); } },
       },
-      onChange: change => {
-        for (const target of [window, settingsWindow]) {
-          if (target && !target.isDestroyed() && !target.webContents.isDestroyed()) {
-            target.webContents.send('whale-settings-changed', change);
-          }
-        }
-      },
+      onChange: change => changeBus.publish(change),
     });
     await importLegacyStorage();
     session.defaultSession.protocol.handle('whale', async request => {

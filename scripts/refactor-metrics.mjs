@@ -34,19 +34,24 @@ export const GLOBAL_SURFACE = Object.freeze([
   'WhaleAccountView',
   'WhaleApiModels',
   'WhaleAudio',
+  'WhaleBubbleShape',
   'WhaleFeedback',
   'WhaleGesture',
   'WhaleLegacySoundUi',
   'WhaleLegacyUsage',
+  'WhaleMediaGuard',
+  'WhaleMoney',
   'WhaleQuota',
   'WhaleRendering',
   'WhaleSelect',
-  'WhaleBubbleShape',
+  'WhaleSettingsCatalog',
   'WhaleSettingsHelp',
   'WhaleSettingsPages',
   'WhaleSettingsTest',
   'WhaleStorageSync',
+  'WhaleTurnNotice',
   'WhaleWorkshopOpen',
+  'whaleToast',
 ]);
 
 // Reads of those globals from modules that have already been extracted, with the
@@ -56,12 +61,18 @@ export const GLOBAL_SURFACE = Object.freeze([
 // caps above work.
 export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/sound-settings/controller.js': { WhaleRendering: 1, WhaleSelect: 1 },
+  'desktop/ui/features/widget/asset-helpers.js': { whaleToast: 2 },
+  'desktop/ui/features/widget/audio-crop-editor.js': { WhaleMediaGuard: 3 },
   'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
   'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleQuota: 2 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1 },
-  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
-  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
+  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleMoney: 4, WhaleQuota: 2 },
+  'desktop/ui/features/widget/reminder-editor.js': { WhaleMoney: 7, WhaleTurnNotice: 2 },
+  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1, WhaleTurnNotice: 3 },
+  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1, WhaleMoney: 4 },
+  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4, WhaleMoney: 3 },
+  'desktop/ui/features/widget/usage-overview-view.js': { WhaleMoney: 5 },
+  'desktop/ui/features/widget/usage-panel.js': { WhaleMoney: 2 },
+  'desktop/ui/features/widget/usage-records-view.js': { WhaleMoney: 2 },
 });
 
 // Modules that still call fetch directly rather than going through the shared
@@ -94,6 +105,31 @@ export const EMPTY_CATCH_BUDGET = { total: 269 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
+// Unowned resources are the other half of the dependency problem: a timer or a
+// document listener nobody owns outlives the feature that created it. These
+// counts only go down as modules move onto scope.
+export const LIFECYCLE_BUDGET = { intervals: 10, documentListeners: 85, inlineStyles: 481 };
+// scope.js implements the owned wrappers themselves; its setInterval is the API.
+const LIFECYCLE_EXEMPT = new Set(['desktop/ui/services/scope.js']);
+
+export function lifecycleMetrics(root = ROOT) {
+  const files = [...new Set(['desktop/ui', 'assets/whale-widget.js'].flatMap(entry => listJavaScript(root, entry)))].sort();
+  const rows = { intervals: [], documentListeners: [], inlineStyles: [] };
+  for (const relative of files) {
+    if (LIFECYCLE_EXEMPT.has(relative)) continue;
+    const source = stripCommentsAndStrings(read(root, relative));
+    for (const match of source.matchAll(/\bsetInterval\s*\(/g)) rows.intervals.push({ file: relative, line: lineOf(source, match.index) });
+    for (const match of source.matchAll(/\b(?:document|window)\s*\.\s*addEventListener\s*\(/g)) rows.documentListeners.push({ file: relative, line: lineOf(source, match.index) });
+    for (const match of source.matchAll(/\.style\.[A-Za-z_$][\w$]*\s*=(?!=)/g)) rows.inlineStyles.push({ file: relative, line: lineOf(source, match.index) });
+  }
+  return {
+    intervals: rows.intervals.length,
+    documentListeners: rows.documentListeners.length,
+    inlineStyles: rows.inlineStyles.length,
+    rows,
+  };
+}
+
 const CSS_HEX_FILES = ['desktop/ui/whale-widget.css', 'desktop/ui/ui.css', 'assets/whale-widget.js'];
 function cssHexMetrics(root) {
   const tokens = new Set(), raw = [];
@@ -139,30 +175,85 @@ function listJavaScript(root, relative) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const child = path.join(directory, entry.name);
       if (entry.isDirectory()) walk(child);
-      else if (entry.name.endsWith('.js')) found.push(path.relative(root, child).split(path.sep).join('/'));
+      else if (/\.(?:js|mjs|cjs)$/.test(entry.name)) found.push(path.relative(root, child).split(path.sep).join('/'));
     }
   };
   walk(absolute);
   return found.sort();
 }
 
-// Counts `window.Whale*` reads, matching the `this.window.Whale*` form the
-// extracted modules use to reach the window they were handed. `window.whaleDesktop`
-// does not match, and is allowed by name.
-function globalReads(source) {
+// Remove comments and string/template literals but keep line breaks, so a name
+// inside a comment or a message never counts as a dependency.
+function stripCommentsAndStrings(source) {
+  let out = '', i = 0;
+  const n = source.length;
+  while (i < n) {
+    const ch = source[i], next = source[i + 1];
+    if (ch === '/' && next === '/') {
+      while (i < n && source[i] !== '\n') { out += ' '; i++; }
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      out += '  '; i += 2;
+      while (i < n && !(source[i] === '*' && source[i + 1] === '/')) { out += source[i] === '\n' ? '\n' : ' '; i++; }
+      if (i < n) { out += '  '; i += 2; }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch; out += ' '; i++;
+      while (i < n && source[i] !== quote) {
+        if (source[i] === '\\') { out += '  '; i += 2; continue; }
+        out += source[i] === '\n' ? '\n' : ' '; i++;
+      }
+      if (i < n) { out += ' '; i++; }
+      continue;
+    }
+    out += ch; i++;
+  }
+  return out;
+}
+
+const isBusinessGlobal = name => name === 'whaleToast' || /^Whale[\w$]*$/.test(name);
+
+// A read is a `window.Name`, `globalThis.Name`, `host.Name`, or a bare `Name`
+// from the frozen surface. The bare form is what the classic scripts actually
+// use, and it was invisible to the old gate.
+function globalReads(source, names = GLOBAL_SURFACE) {
   const counts = {};
-  for (const match of source.matchAll(/\bwindow\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
-    const name = match[1];
-    if (!/^Whale/.test(name) || name === ALLOWED_GLOBAL) continue;
-    counts[name] = (counts[name] || 0) + 1;
+  const stripped = stripCommentsAndStrings(source);
+  const lines = stripped.split('\n');
+  const lineOfIndex = index => lines[(stripped.slice(0, index).match(/\n/g) || []).length] || '';
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let total = 0;
+    for (const _match of stripped.matchAll(new RegExp('\\b(?:window|globalThis|host)\\s*\\.\\s*' + escaped + '\\b', 'g'))) total++;
+    for (const match of stripped.matchAll(new RegExp('\\b' + escaped + '\\b', 'g'))) {
+      const before = stripped.slice(Math.max(0, match.index - 1), match.index);
+      if (before === '.') continue;
+      if (/^\s*import\b/.test(lineOfIndex(match.index))) continue;
+      if (/(?:const|let|var|function|class)\s+$/.test(stripped.slice(Math.max(0, match.index - 40), match.index))) continue;
+      total++;
+    }
+    if (total) counts[name] = total;
   }
   return counts;
 }
 
-function relativeSpecifiers(source) {
+function specifiers(source) {
   return [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)]
-    .map(match => ({ spec: match[1], index: match.index }))
-    .filter(item => item.spec.startsWith('.'));
+    .map(match => ({ spec: match[1], index: match.index }));
+}
+
+function publishedNames(source) {
+  const stripped = stripCommentsAndStrings(source);
+  const names = new Set();
+  for (const match of stripped.matchAll(/\b(?:window|globalThis|host)\s*\.\s*([A-Za-z_$][\w$]*)\s*=(?!=)/g)) {
+    if (isBusinessGlobal(match[1]) || match[1] === ALLOWED_GLOBAL) names.add(match[1]);
+  }
+  for (const match of stripped.matchAll(/Object\s*\.\s*assign\s*\(\s*(?:window|globalThis|host)\s*,\s*\{([^}]*)\}/g)) {
+    for (const key of match[1].matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) if (isBusinessGlobal(key[1])) names.add(key[1]);
+  }
+  return [...names];
 }
 
 function countByFile(found) {
@@ -213,6 +304,41 @@ function moduleScript(html, source) {
       && /\btype=["']module["']/.test(tag));
 }
 
+const SHARED_ROOT = 'desktop/ui/shared';
+const SHARED_FORBIDDEN = [
+  [/\bwindow\s*\./g, 'window'],
+  [/\bdocument\s*\./g, 'document'],
+  [/\blocalStorage\b/g, 'localStorage'],
+  [/\bfetch\s*\(/g, 'fetch'],
+];
+
+function sharedPurityViolations(root) {
+  const rows = [];
+  for (const relative of listJavaScript(root, SHARED_ROOT)) {
+    const source = stripCommentsAndStrings(read(root, relative));
+    for (const [pattern, name] of SHARED_FORBIDDEN) {
+      for (const match of source.matchAll(pattern)) rows.push({ file: relative, line: lineOf(source, match.index), name });
+    }
+  }
+  return rows;
+}
+
+function reverseDependencies(root) {
+  const rows = [];
+  for (const relative of ['lib', 'runtime'].flatMap(entry => listJavaScript(root, entry))) {
+    const source = read(root, relative);
+    for (const { spec, index } of specifiers(source)) {
+      const target = spec.startsWith('/')
+        ? path.posix.normalize('desktop/ui' + spec)
+        : path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
+      if (target.startsWith('desktop/ui/') && !target.startsWith(SHARED_ROOT + '/')) {
+        rows.push({ file: relative, line: lineOf(source, index), target });
+      }
+    }
+  }
+  return rows;
+}
+
 export function collectDependencyMetrics({ root = ROOT } = {}) {
   const modules = [...new Set(MODULE_ROOTS.flatMap(directory => listJavaScript(root, directory)))].sort();
   const moduleReads = {};
@@ -225,8 +351,10 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
     if (Object.keys(reads).length) moduleReads[relative] = reads;
     if (relative.startsWith('desktop/ui/features/')) {
       const owner = relative.slice('desktop/ui/features/'.length).split('/')[0];
-      for (const { spec, index } of relativeSpecifiers(source)) {
-        const target = path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
+      for (const { spec, index } of specifiers(source)) {
+        const target = spec.startsWith('/')
+          ? path.posix.normalize('desktop/ui' + spec)
+          : path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
         if (!target.startsWith('desktop/ui/features/')) continue;
         if (target.slice('desktop/ui/features/'.length).split('/')[0] !== owner) {
           crossFeatureImports.push({ file: relative, line: lineOf(source, index), target });
@@ -243,8 +371,8 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
   }
   const publishedGlobals = [];
   for (const relative of PUBLISH_ROOTS.flatMap(entry => listJavaScript(root, entry))) {
-    for (const match of read(root, relative).matchAll(/\bwindow\s*\.\s*(Whale[\w$]*)\s*=/g)) {
-      if (!publishedGlobals.includes(match[1])) publishedGlobals.push(match[1]);
+    for (const name of publishedNames(read(root, relative))) {
+      if (!publishedGlobals.includes(name)) publishedGlobals.push(name);
     }
   }
   publishedGlobals.sort();
@@ -268,6 +396,8 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
     legacyDirectRequests: legacyRequests,
     legacyDirectRequestsByFile: countByFile(legacyRequests),
     globalStorage,
+    sharedViolations: sharedPurityViolations(root),
+    reverseDependencies: reverseDependencies(root),
   };
 }
 
@@ -294,6 +424,12 @@ function emptyCatchMetrics(root) {
 }
 
 export function dependencyErrors(dependency) {  const errors = [];
+  if (dependency.sharedViolations?.length) {
+    errors.push('desktop/ui/shared must stay pure (no window/document/localStorage/fetch): ' + dependency.sharedViolations.map(row => `${row.file}:${row.line} ${row.name}`).join(', '));
+  }
+  if (dependency.reverseDependencies?.length) {
+    errors.push('lib/ and runtime/ may only import desktop/ui/shared: ' + dependency.reverseDependencies.map(row => `${row.file}:${row.line} -> ${row.target}`).join(', '));
+  }
   const newGlobals = dependency.publishedGlobals.filter(name => !GLOBAL_SURFACE.includes(name));
   if (newGlobals.length) errors.push('Migrating a feature removes window globals, it never adds one; new: ' + newGlobals.join(', '));
   for (const [relative, reads] of Object.entries(dependency.moduleReads)) {
@@ -380,6 +516,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
     dependency: collectDependencyMetrics({ root }),
     emptyCatch: emptyCatchMetrics(root),
     cssHex: cssHexMetrics(root),
+    lifecycle: lifecycleMetrics(root),
   };
 }
 
@@ -405,6 +542,12 @@ export function refactorBoundaryErrors(metrics) {
     errors.push(`CSS color tokens must not exceed the existing budget of ${CSS_HEX_BUDGET.total} (found ${metrics.cssHex.total}). Use a design token instead, and lower the budget as surfaces are migrated.`);
   }
   if (metrics.cssHex.raw?.length) errors.push('Component CSS must use --color-* tokens instead of hex literals.');
+  for (const [key, budget] of Object.entries(LIFECYCLE_BUDGET)) {
+    if (metrics.lifecycle[key] > budget) {
+      const rows = metrics.lifecycle.rows[key].slice(0, 12).map(row => `${row.file}:${row.line}`).join(', ');
+      errors.push(`Unowned ${key} must not exceed the frozen budget of ${budget} (found ${metrics.lifecycle[key]}): ${rows}`);
+    }
+  }
   return errors;
 }
 

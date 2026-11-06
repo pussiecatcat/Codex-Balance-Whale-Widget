@@ -1,4 +1,4 @@
-import { UI_DEFAULTS } from '../../services/ui-defaults.js';
+import { UI_DEFAULTS } from '../../shared/ui-defaults.js';
 
 export function createRoleManager(deps) {
   const {

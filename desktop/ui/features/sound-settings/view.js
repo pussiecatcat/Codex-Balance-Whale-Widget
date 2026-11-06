@@ -1,5 +1,5 @@
 import { normalizeVolume, soundOptions, soundReferenceUrl } from '../../services/sound-reference.js';
-import { LABELS } from '../../services/labels.js';
+import { LABELS } from '../../shared/labels.js';
 
 function element(documentRef, parent, tag, text = '', className = '') {
   const node = documentRef.createElement(tag);

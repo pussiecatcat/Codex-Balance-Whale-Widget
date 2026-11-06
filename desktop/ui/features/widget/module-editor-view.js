@@ -1,5 +1,5 @@
 import { openOver } from '../../services/layers.js';
-import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from './font-scale.js';
+import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from '../../shared/bubble-config/font-scale.js';
 // Renders the module editor body. The mask, title and body elements stay in
 // the caller; this module owns the per-render color/size controls and the
 // dialog's content construction.

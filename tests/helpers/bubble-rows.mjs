@@ -1,5 +1,5 @@
 import { createBubbleRowsView } from '../../desktop/ui/features/widget/bubble-rows-view.js';
-import { bubbleRowsOf } from '../../desktop/ui/features/widget/bubble-layout.js';
+import { bubbleRowsOf } from '../../desktop/ui/shared/bubble-config/layout.js';
 
 export function renderBubbleRows(modules, { boxWidth = 505, scrollWidth = 0 } = {}) {
   function element() {

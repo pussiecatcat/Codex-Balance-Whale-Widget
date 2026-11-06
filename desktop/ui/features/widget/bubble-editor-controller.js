@@ -1,5 +1,5 @@
 import { openOver } from '../../services/layers.js';
-import { bubblePresetItems } from './default-content.js';
+import { bubblePresetItems } from '../../shared/bubble-config/defaults.js';
 import { trackBubbleDraft } from './bubble-editor-model.js';
 
 // Owns the bubble editor's open/save lifecycle and the queue rendering calls.
@@ -33,7 +33,7 @@ export function createBubbleEditorController({
   function dirty() {
     try {
       if (state.editorSnap === null) return true;
-      return state.editorSnap !== JSON.stringify([state.items, state.lib, state.tapAdvance]);
+      return state.editorSnap !== JSON.stringify([state.items, state.lib]);
     } catch { return true; }
   }
 
@@ -47,8 +47,7 @@ export function createBubbleEditorController({
       state.items = track(draft.items);
       resetItems = null;
       editedSinceOpen = false;
-      state.tapAdvance = draft.tapAdvance;
-      state.editorSnap = JSON.stringify([state.items, state.lib, state.tapAdvance]);
+      state.editorSnap = JSON.stringify([state.items, state.lib]);
       render();
       openOver(null, getMask());
       getMask().style.display = 'flex';
@@ -73,7 +72,6 @@ export function createBubbleEditorController({
       state.items = track(defaultQueue(editingSubscription));
       resetItems = JSON.stringify(state.items);
       editedSinceOpen = false;
-      state.tapAdvance = false;
       render();
     });
   }

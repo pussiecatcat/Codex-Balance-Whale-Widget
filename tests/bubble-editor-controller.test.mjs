@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { createBubbleEditorController } from '../desktop/ui/features/widget/bubble-editor-controller.js';
 import { createItemEditor } from '../desktop/ui/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '../desktop/ui/features/widget/bubble-editor-model.js';
-import { bubbleDefaultQueue, bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleEditEnsureModules } from '../desktop/ui/features/widget/default-content.js';
-import { resolveBubbleConfig } from '../desktop/ui/features/widget/bubble-defaults.js';
-import { bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
+import { bubbleDefaultQueue, bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleEditEnsureModules } from '../desktop/ui/shared/bubble-config/defaults.js';
+import { resolveBubbleConfig } from '../desktop/ui/shared/bubble-config/resolve.js';
+import { bubbleRowsCanon } from '../desktop/ui/shared/bubble-config/layout.js';
 
 function fixture() {
   const state = { items: [], lib: [], editorSnap: null };

@@ -4,7 +4,6 @@ import { readBoundedBodyText } from './bounded-body.mjs';
 // One profile shape for both "the API Codex is using" and every DIY model.
 // Endpoint resolution differs, but credential style, prices and alerts are the
 // same concepts; keeping them here stops the two settings paths from drifting.
-export const PRICE_FIELDS = Object.freeze(['input', 'cachedInput', 'cacheWrite', 'output']);
 
 const numeric = value => value !== null && value !== undefined && value !== '' && typeof value !== 'boolean' && Number.isFinite(Number(value)) ? Number(value) : null;
 

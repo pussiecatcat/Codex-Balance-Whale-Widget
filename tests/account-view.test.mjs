@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 import { registerMenuRow } from '../desktop/ui/features/widget/menu-layout.js';
 const source = (await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
 const exported = { module: { exports: {} }, requestJson: async () => ({}) }; vm.runInNewContext(source, exported);

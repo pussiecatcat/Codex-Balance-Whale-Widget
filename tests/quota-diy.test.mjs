@@ -1,4 +1,4 @@
-import * as quotaFormat from '../desktop/ui/services/quota-format.js';
+import * as quotaFormat from '../desktop/ui/shared/quota-format.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

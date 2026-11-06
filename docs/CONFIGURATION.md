@@ -103,7 +103,7 @@
 - **默认值**：5（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale`）
 - **存储**：`.dshw-size.json` 的 `scale`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：缺省按 5 档（1.0 倍）处理
 - **生效**：立即生效
 
@@ -121,7 +121,7 @@
 - **默认值**：ledger（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.usageMode`）
 - **存储**：`.dshw-size.json` 的 `usageMode`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：写入时归一为 ledger
 - **生效**：需要重载后生效
 
@@ -139,7 +139,7 @@
 - **默认值**：subscription（来源 `runtime/composition.mjs#DISPLAY_MODE_DEFAULT`）
 - **存储**：`display-mode.json` 的 `mode`
 - **读取**：`GET /api/display-mode`
-- **修改**：`POST /api/display-mode`
+- **修改**：`whaleDesktop.settings.write（displayMode）`
 - **空值**：非法值按 subscription 处理
 - **生效**：立即生效
 
@@ -154,7 +154,7 @@
 
 - **用途**：选择鲸鱼当前使用的形象。
 - **类型**：role
-- **默认值**：default（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId`）
+- **默认值**：default（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.roleId`）
 - **存储**：`ui-state.json` 的 `dshw-role`
 - **读取**：`GET /dsh-whale/roles.json`
 - **修改**：`POST /dsh-whale/role-pin.json + ui-state.json`
@@ -172,7 +172,7 @@
 
 - **用途**：决定界面上的金额用美元还是人民币显示。
 - **类型**：select，选项 美元 USD / 人民币 CNY
-- **默认值**：USD（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.displayCurrency`）
+- **默认值**：USD（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.displayCurrency`）
 - **存储**：`ui-state.json` 的 `dshw-display-currency`
 - **读取**：`本地偏好 + GET /api/fx/usd-cny`
 - **修改**：`localStorage → whale-save-storage`
@@ -197,7 +197,7 @@
 - **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.sound`）
 - **存储**：`.dshw-size.json` 的 `sound`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：缺省按 true 处理
 - **生效**：立即生效
 
@@ -215,7 +215,7 @@
 - **默认值**：0.9（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.vol`）
 - **存储**：`.dshw-size.json` 的 `vol`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.sound`
 - **空值**：缺省按 0.9 处理
 - **生效**：立即生效
@@ -235,7 +235,7 @@
 - **默认值**：duck（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.soundSet`）
 - **存储**：`.dshw-size.json` 的 `soundSet`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.sound`
 - **空值**：留空按 duck 处理
 - **生效**：立即生效
@@ -254,7 +254,7 @@
 - **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostOn`）
 - **存储**：`.dshw-size.json` 的 `turnCostOn`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`通过「完成提醒」写入`
+- **修改**：`whaleDesktop.settings.write（completion）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按 true 处理
 - **生效**：立即生效
@@ -273,7 +273,7 @@
 - **默认值**：5（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostCloseMs`）
 - **存储**：`.dshw-size.json` 的 `turnCostCloseMs`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.turnCostOn`
 - **空值**：缺省按 5000 毫秒处理
 - **生效**：立即生效
@@ -290,7 +290,7 @@
 
 - **用途**：调整按下与松开的动画节奏。
 - **类型**：select，选项 均衡 / 清脆 / 柔和
-- **默认值**：balanced（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.feel`）
+- **默认值**：balanced（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.feedback.feel`）
 - **存储**：`ui-state.json` 的 `dshw-v3-feedback.feel`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -308,7 +308,7 @@
 
 - **用途**：分别设置按下、松开、完成、取消、拥挤失败的声音。
 - **类型**：group
-- **默认值**：按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.events`）
+- **默认值**：按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.feedback.events`）
 - **存储**：`ui-state.json` 的 `dshw-v3-feedback.events.<event>`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -336,7 +336,7 @@
 - **默认值**：bubble（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.on`）
 - **存储**：`usage-settings.json + .dshw-size.json` 的 `taskEnd.on / turnCostOn`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省气泡开、声音关
 - **生效**：立即生效
@@ -356,7 +356,7 @@
 - **默认值**：preset:duck:press（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.sel`）
 - **存储**：`usage-settings.json` 的 `taskEnd.sel`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.taskEndOn`
 - **空值**：空表示使用声音编辑器的回退选项
 - **生效**：立即生效
@@ -375,7 +375,7 @@
 - **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.vol`）
 - **存储**：`usage-settings.json` 的 `taskEnd.vol / taskEnd.volSet`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.taskEndOn`、`size.vol`
 - **空值**：volSet 为 false 时跟随点击音量
 - **生效**：立即生效
@@ -394,7 +394,7 @@
 - **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().events.question`）
 - **存储**：`usage-settings.json` 的 `events.question.<field>`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按开启、冒泡、静音处理
 - **生效**：保存后用于下一次
@@ -417,7 +417,7 @@
 - **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().events.approval`）
 - **存储**：`usage-settings.json` 的 `events.approval.<field>`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按开启、冒泡、静音处理
 - **生效**：保存后用于下一次
@@ -440,7 +440,7 @@
 - **默认值**：false（来源 `runtime/ledger.mjs#usageDefaults().wait.charClose`）
 - **存储**：`usage-settings.json` 的 `wait.charClose`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按 false 处理
 - **生效**：立即生效
@@ -482,7 +482,7 @@
 - **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.bubbleOn`）
 - **存储**：`.dshw-size.json` 的 `bubbleOn`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：缺省按 true 处理
 - **生效**：立即生效
 
@@ -497,7 +497,7 @@
 
 - **用途**：切换鲸鱼说话时气泡的外形。
 - **类型**：select，选项 椭圆 / 圆角方形
-- **默认值**：ellipse（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.bubbleShape`）
+- **默认值**：ellipse（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.bubbleShape`）
 - **存储**：`ui-state.json` 的 `dshw-bubble-shape`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -515,7 +515,7 @@
 
 - **用途**：点击鲸鱼时依次弹出哪些气泡。
 - **类型**：
-- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/widget/default-content.js#bubbleDefaultQueue`）
+- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/shared/bubble-config/defaults.js#bubbleDefaultQueue`）
 - **存储**：`.dshw-bubble.json` 的 `items / subscriptionItems`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -570,7 +570,7 @@
 - **默认值**：false（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapOn`）
 - **存储**：`.dshw-size.json` 的 `scrollGapOn`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：缺省按 false 处理
 - **生效**：保存后用于下一次
 
@@ -588,7 +588,7 @@
 - **默认值**：17（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapPx`）
 - **存储**：`.dshw-size.json` 的 `scrollGapPx`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.scrollGapOn`
 - **空值**：0 表示不留距离
 - **生效**：保存后用于下一次
@@ -607,7 +607,7 @@
 - **默认值**：false（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.menuBtnHide`）
 - **存储**：`.dshw-size.json` 的 `menuBtnHide`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：缺省按 false 处理
 - **生效**：立即生效
 
@@ -622,7 +622,7 @@
 
 - **用途**：记录鲸鱼停靠在桌面的哪个位置。
 - **类型**：position
-- **默认值**：右下角（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.position`）
+- **默认值**：右下角（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.position`）
 - **存储**：`ui-state.json` 的 `dshw-pos`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -641,7 +641,7 @@
 
 - **用途**：控制鲸鱼靠近屏幕边缘时的吸附范围和朝向翻转。
 - **类型**：snap
-- **默认值**：{"mode":"ratio","ratio":{"L":10,"T":0,"R":10,"B":15,"F":50},"px":{"L":80,"T":0,"R":80,"B":80,"F":-1}}（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap`）
+- **默认值**：{"mode":"ratio","ratio":{"L":10,"T":0,"R":10,"B":15,"F":50},"px":{"L":80,"T":0,"R":80,"B":80,"F":-1}}（来源 `desktop/ui/shared/ui-defaults.js#UI_DEFAULTS.snap`）
 - **存储**：`ui-state.json` 的 `dshw-snap`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -763,7 +763,7 @@
 - **默认值**：true（来源 `runtime/ledger.mjs#usageDefaults().alert.on`）
 - **存储**：`usage-settings.json` 的 `alert.on`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`ui.accountView`、`size.bubbleOn`
 - **空值**：缺省按 true 处理
 - **生效**：保存后用于下一次
@@ -782,7 +782,7 @@
 - **默认值**：5（来源 `runtime/ledger.mjs#usageDefaults().alert.below`）
 - **存储**：`usage-settings.json` 的 `alert.below`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.alertOn`
 - **空值**：0 表示不预警
 - **生效**：保存后用于下一次
@@ -801,7 +801,7 @@
 - **默认值**：true（来源 `runtime/ledger.mjs#usageDefaults().budget.on`）
 - **存储**：`usage-settings.json` 的 `budget.on`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`ui.accountView`、`size.bubbleOn`
 - **空值**：缺省按 true 处理
 - **生效**：保存后用于下一次
@@ -820,7 +820,7 @@
 - **默认值**：10（来源 `runtime/ledger.mjs#usageDefaults().budget.amount`）
 - **存储**：`usage-settings.json` 的 `budget.amount`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.budgetOn`
 - **空值**：0 表示不提醒
 - **生效**：保存后用于下一次
@@ -839,7 +839,7 @@
 - **默认值**：余额已低于 {currency}{below}（来源 `runtime/ledger.mjs#usageDefaults().alert.msg`）
 - **存储**：`usage-settings.json` 的 `alert.msg / budget.msg`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **空值**：留空按默认文案
 - **生效**：保存后用于下一次
 
@@ -858,7 +858,7 @@
 - **默认值**：false（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `alert.autoClose / budget.autoClose`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按 false 处理
 - **生效**：保存后用于下一次
@@ -877,7 +877,7 @@
 - **默认值**：6（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `alert.ttlSec / budget.ttlSec`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.alertAutoClose`
 - **空值**：0 表示不自动关闭
 - **生效**：保存后用于下一次
@@ -896,7 +896,7 @@
 - **默认值**：任务用量 3 行（来源 `runtime/ledger.mjs#usageDefaults().turnCost.lines`）
 - **存储**：`usage-settings.json` 的 `events.turnCost.lines`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`size.bubbleOn`
 - **空值**：提交空数组表示清空该组
 - **生效**：保存后用于下一次
@@ -918,7 +918,7 @@
 - **默认值**：余额预警 4 行（来源 `runtime/ledger.mjs#usageDefaults().alert.lines`）
 - **存储**：`usage-settings.json` 的 `alert.lines / alert.below`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.alertOn`、`size.bubbleOn`
 - **空值**：提交空数组表示清空该组
 - **生效**：保存后用于下一次
@@ -940,7 +940,7 @@
 - **默认值**：预算提醒 2 行（来源 `runtime/ledger.mjs#usageDefaults().budget.lines`）
 - **存储**：`usage-settings.json` 的 `budget.lines / budget.amount`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`whaleDesktop.settings.write（size / usage）`
 - **依赖**：`usage.budgetOn`、`size.bubbleOn`
 - **空值**：提交空数组表示清空该组
 - **生效**：保存后用于下一次

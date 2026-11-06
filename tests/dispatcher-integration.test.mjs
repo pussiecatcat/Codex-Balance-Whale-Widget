@@ -237,3 +237,14 @@ test('one profiles view lists the Codex API and every DIY provider', async t => 
   assert.equal(JSON.stringify(payload).includes('DEEPSEEK_API_KEY'), false, 'environment names stay out of the profile list');
   assert.equal(payload.profiles[1].credential.configured, true);
 });
+
+test('a successful resource write publishes exactly one change', async t => {
+  const changes = [];
+  const { server } = await setup(t, { onChange: change => changes.push(change) });
+  const response = await server.dispatch('/dsh-whale/bubble.json', { method: 'PUT', body: JSON.stringify({ editingMode: 'api', items: [], lib: [] }) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(changes, [{ domain: 'bubble' }]);
+  const failed = await server.dispatch('/dsh-whale/bubble.json', { method: 'PUT', body: '{bad json' });
+  assert.equal(failed.status, 400);
+  assert.equal(changes.length, 1, 'a failed write does not publish');
+});

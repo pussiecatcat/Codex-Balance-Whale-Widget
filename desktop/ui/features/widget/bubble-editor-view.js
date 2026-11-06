@@ -1,4 +1,4 @@
-import { bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleRowLabel } from './default-content.js';
+import { bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleRowLabel } from '../../shared/bubble-config/defaults.js';
 import { addBubbleStep, deleteBubbleStep, moveBubbleStep, reorderBubbleStep, splitBubbleChoiceSide,
   pairBubbleSteps, pairBubbleStepWithNext, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from './bubble-editor-commands.js';
 

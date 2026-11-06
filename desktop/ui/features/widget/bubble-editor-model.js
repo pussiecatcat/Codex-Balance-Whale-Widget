@@ -1,8 +1,8 @@
 import { bubbleDefaultQueue,
   bubbleDefaultSecondModules, bubbleChoiceWeight, bubbleSingleFromItem,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from './default-content.js';
-import { bubbleRowsCanon } from './bubble-layout.js';
-import { bubbleItemsForMode, bubbleSavedMetadata, resolveBubbleConfig } from './bubble-defaults.js';
+  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from '../../shared/bubble-config/defaults.js';
+import { bubbleRowsCanon } from '../../shared/bubble-config/layout.js';
+import { bubbleItemsForMode, bubbleSavedMetadata, resolveBubbleConfig } from '../../shared/bubble-config/resolve.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -52,10 +52,7 @@ export function loadBubbleEditorDraft(config, subscriptionMode) {
     const entries = step.kind === 'choice' ? step.options.map(option => option.item) : [step];
     for (const item of entries) if (Array.isArray(item.modules)) bubbleRowsCanon(item.modules);
   }
-  const tapAdvance = subscriptionMode
-    ? config?.subscriptionTapAdvance === true
-    : config?.tapAdvance === true;
-  return { items, library, tapAdvance };
+  return { items, library };
 }
 
 function saveBubbleEditorStep(step) {

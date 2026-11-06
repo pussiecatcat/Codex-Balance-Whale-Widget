@@ -24,6 +24,7 @@ export function createComposition({
   autoRefresh = true,
   fetchImpl,
   fxFetchImpl = fetchImpl,
+  onChange = () => {},
 } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   migrateData(dataDir);
@@ -45,9 +46,31 @@ export function createComposition({
   // of registering into a web-server facade the dispatcher then had to emulate.
   const widgetRoutes = new Map();
   const effects = [];
+  const changeForPath = pathname => {
+    if (pathname === '/dsh-whale/bubble.json') return { domain: 'bubble' };
+    if (pathname.startsWith('/dsh-whale/role')) return { domain: 'media', kind: 'roles' };
+    if (pathname.startsWith('/dsh-whale/audio') || pathname.startsWith('/dsh-whale/sound/')) return { domain: 'media', kind: 'audio' };
+    if (pathname.startsWith('/dsh-whale/bubble-img')) return { domain: 'media', kind: 'images' };
+    return null;
+  };
   createWidgetHost(dataDir).apply({
     whale,
-    declareRoute: declaration => { widgetRoutes.set(declaration.path, declaration); return () => widgetRoutes.delete(declaration.path); },
+    changed: change => onChange(change),
+    declareRoute: declaration => {
+      // Every successful write on a widget resource publishes once, from here,
+      // instead of each route remembering to call the bus.
+      const wrapped = {
+        ...declaration,
+        handler: async req => {
+          const result = await declaration.handler(req);
+          const change = changeForPath(declaration.path);
+          if (change && ['POST', 'PUT', 'DELETE'].includes(req.method) && (result?.status ?? 200) < 400) onChange(change);
+          return result;
+        },
+      };
+      widgetRoutes.set(declaration.path, wrapped);
+      return () => widgetRoutes.delete(declaration.path);
+    },
     effect: effect => effects.push(effect()),
   });
 

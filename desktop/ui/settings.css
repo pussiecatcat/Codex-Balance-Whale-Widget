@@ -361,6 +361,17 @@ button, input, select { font: inherit; }
 .set-provider-badge { padding: 0 6px; border-radius: 4px; background: var(--tint-strong); color: var(--ink); font-size: 11px; line-height: 17px; }
 .set-provider-meta, .set-provider-status { color: var(--muted); font-size: 12px; }
 .set-provider-status.is-ok { color: var(--ok); }
+.set-provider-status.is-error { color: var(--danger); }
 .set-providers .set-button { flex: 0 0 auto; }
 .set-providers > .set-button.primary { align-self: stretch; height: 34px; border: 1px dashed var(--edge); background: transparent; color: var(--ink); }
 .set-providers > .set-button.primary:hover { background: var(--tint); border-color: var(--ink-soft); }
+
+/* 主接口价格编辑：挂件 API 弹窗删除后唯一的入口。 */
+.set-price-mask { position: fixed; inset: 0; z-index: 2000; background: rgba(18, 34, 64, .38); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.set-price-card { width: min(440px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: 0 12px 40px rgba(32, 49, 112, .22); }
+.set-price-card h3 { margin: 0 0 6px; color: var(--ink); font-size: 16px; }
+.set-price-card label { display: block; margin: 10px 0 0; color: var(--muted); font-size: 12.5px; }
+.set-price-card input[type="text"], .set-price-card input[type="number"] { width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); color: var(--ink); font: 13px/1.5 inherit; }
+.set-price-remove { display: flex !important; align-items: center; gap: 7px; }
+.set-price-remove input { margin: 0; width: 15px; }
+.set-price-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

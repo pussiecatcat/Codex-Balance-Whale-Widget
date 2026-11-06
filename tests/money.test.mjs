@@ -1,4 +1,4 @@
-import { UI_DEFAULTS } from '../desktop/ui/services/ui-defaults.js';
+import { UI_DEFAULTS } from '../desktop/ui/shared/ui-defaults.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

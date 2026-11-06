@@ -1,5 +1,5 @@
 // Materialize frozen bubble rows into the live scene or the editor preview.
-import { isFineScale } from './font-scale.js';
+import { isFineScale } from '../../shared/bubble-config/font-scale.js';
 
 // 大数字的门槛按实际字号算（旧档位 12 ≈ 85 单位），新旧两套档位用同一条线。
 const HERO_UNITS = 85;

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
+import { completionMode, completionPatch } from '../desktop/ui/shared/sound-model.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalog = (() => {
@@ -16,7 +17,7 @@ const catalog = (() => {
 })();
 const pages = (() => {
   const window = { WhaleSettingsCatalog: catalog };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window });
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window, completionMode, completionPatch });
   return window.WhaleSettingsPages;
 })();
 

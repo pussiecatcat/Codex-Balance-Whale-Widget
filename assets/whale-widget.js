@@ -1,24 +1,27 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
-import { UI_DEFAULTS } from '/services/ui-defaults.js';
+import { createSettingsClient } from '/services/settings-client.js';
+import { createToast } from '/services/toast.js';
+import { UI_DEFAULTS } from '/shared/ui-defaults.js';
 import { sound } from '/services/sound.js';
 import { openOver } from '/services/layers.js';
 import { bindAudioImport } from '/features/widget/audio-import.js';
-import { bubbleItemsForMode } from '/features/widget/bubble-defaults.js';
+import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import '/money.js';
 import '/quota.js';
 import '/account-view.js';
-import '/insights.js';
 import '/workshop.js';
 import '/media-guard.js';
 import '/audio-engine.js';
-import '/client.js';
 import '/api-models.js';
 import { requestJson } from '/services/request.js';
 import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
 import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
+
+window.whaleToast = createToast({ document: document });
+
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
@@ -35,7 +38,7 @@ import { createMenuControls } from '/features/widget/menu-controls.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createMenuLayout } from '/features/widget/menu-layout.js';
-import { LABELS } from '/services/labels.js';
+import { LABELS } from '/shared/labels.js';
 import { createUsageOverviewView } from '/features/widget/usage-overview-view.js';
 import { createUsageModelsView } from '/features/widget/usage-models-view.js';
 import { createUsagePanel, createUsageShell } from '/features/widget/usage-panel.js';
@@ -43,7 +46,7 @@ import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.
 import { createBubblePalette } from '/features/widget/bubble-palette.js';
 import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
 import { createSnapEditor } from '/features/widget/snap-editor.js';
-import { isEditorRoute } from '/features/widget/editor-routes.js';
+import { isEditorRoute } from '/shared/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
@@ -59,12 +62,12 @@ import { createItemEditor } from '/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
 import { createCustomSelectController } from '/features/widget/custom-select.js';
-import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
+import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/shared/bubble-config/layout.js';
 import {
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
-} from '/features/widget/default-content.js';
+} from '/shared/bubble-config/defaults.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
 //  分段索引  SECTION INDEX
@@ -108,10 +111,6 @@ import {
     var assetClient = createAssetClient();
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
-
-    function updateSoundSettings(mutate, onSaved, attempt) {
-      return configSync.updateSoundSettings(mutate, onSaved, attempt);
-    }
 
     // ==== [素材与媒体工具] ====
     var assetHelpers = createAssetHelpers({ window: window, FileReader: FileReader });
@@ -270,10 +269,11 @@ import {
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
 
     // ==== [用量面板与设置] ====
+    var settingsClient = window.whaleDesktop && window.whaleDesktop.settings ? createSettingsClient({ bridge: window.whaleDesktop }) : null;
     var usagePanelApi = createUsagePanel({
       document: document, requestJson: requestJson, settingsUrl: SETTINGS_URL, recordsUrl: USAGE_REC_URL,
       assetWarning: assetWarning, assetFailure: assetFailure, WhaleMoney: WhaleMoney,
-      updateSoundSettings: updateSoundSettings,
+      settingsClient: settingsClient,
       getPanel: function () { return usagePanel; }, getMain: function () { return usageMainEl; },
       fill: function (d) { fillUsagePanel(d); }, getState: function () { return state; },
       refreshBalance: function (manual) { refresh(manual); },
@@ -325,7 +325,7 @@ import {
     advancedBtn.textContent = LABELS.advanced;
     advancedBtn.addEventListener('click', function (event) {
       event.stopPropagation();
-      if (window.whaleDesktop?.openSettings) window.whaleDesktop.openSettings();
+      if (window.whaleDesktop?.openSettings) window.whaleDesktop.openSettings('providers');
       else window.dispatchEvent(new Event('whale-open-settings'));
     });
     footerRow.appendChild(advancedBtn);
@@ -467,7 +467,7 @@ import {
     var openSnapModal = snapEditor.open;
     var bubbleMask = null;
     var bubbleEditorState = {
-      items: [], lib: [], tapAdvance: false, editorSnap: null, itemSnap: null,
+      items: [], lib: [], editorSnap: null, itemSnap: null,
       itemIdx: -1, itemSide: -1, palEl: null, pvEl: null, pvPrevEl: null,
     };
     // Reminder and item editors share the bubble editor's live state and its
@@ -2323,12 +2323,11 @@ import {
     }
     // ==== [刷新与配置保存] ====
     var configSync = createConfigSync({
-      requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL,
+      requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL, settingsClient: settingsClient,
       root: root, localStorage: localStorage, timeoutMs: FETCH_TIMEOUT_MS,
       getState: function () { return state; },
       getAccountView: function () { return window.WhaleAccountView; },
       setNativeCurrency: function (currency) { WhaleMoney.setNativeCurrency(currency); },
-      onBalance: function (data) { window.dispatchEvent(new CustomEvent('whale-balance', { detail: data })); },
       checkAlerts: function (balance, today) { checkUsageAlerts(balance, today); },
       requireSaved: requireSaved, onError: assetFailure,
       getSizeSettings: function () { return {
@@ -2491,6 +2490,12 @@ import {
     // 真正执行一次，否则要等重载才生效。
     var settingsApplyEpoch = 0;
     try { window.whaleDesktop.onSettingsChanged(function (change) {
+      if (change && change.domain === 'bubble') { loadBubbleCfg(); return; }
+      if (change && change.domain === 'apiModels') { try { window.WhaleApiModels?.load?.(true); } catch (err) { /* a failed reload keeps the previous list */ } return; }
+      if (change && change.domain === 'media') {
+        try { if (change.kind === 'roles') loadRoles(); else if (change.kind === 'audio') loadAudio(); } catch (err) { /* a failed reload keeps the previous lists */ }
+        return;
+      }
       if (change && ['size', 'usage', 'completion'].includes(change.domain)) {
         var ownSettingsEpoch = ++settingsApplyEpoch;
         requestJson(SETTINGS_URL).then(function (snapshot) {
@@ -2592,7 +2597,7 @@ import {
       }
       if (editor === 'resources') { openResManager(); return; }
       if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
-      if (editor === 'api') { window.dispatchEvent(new Event('whale-open-settings')); return; }
+      if (editor === 'api') { window.whaleDesktop?.openSettings?.('providers'); return; }
       if (editor === 'sound') {
         var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
         if (soundEntry) soundEntry.click();
@@ -2928,15 +2933,6 @@ import {
       var detail=event.detail || {};
       usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
     });
-    window.addEventListener('whale-edit-sound-prompt', function (event) {
-      var detail = event.detail || {};
-      if (detail.key !== 'question' && detail.key !== 'approval') return;
-      usageAlertBudgetEditor(detail.key, detail.save, detail.config);
-    });
-    window.addEventListener('whale-edit-sound-turn-cost', function (event) {
-      var detail = event.detail || {};
-      usageAlertBudgetEditor('turnCost', detail.save, detail.config);
-    });
     var legacySoundUi = Object.freeze({
       mountMenuEntry: function (node) {
         return compactMenu.register({ id: 'sound', element: node });
@@ -3051,9 +3047,14 @@ import {
     window.addEventListener('whale-refresh', function () {
       refresh(true);
     });
+    // The tray's 「查看用量记录」 command arrives as this event; it used to have
+    // no listener at all.
+    window.addEventListener('whale-open-usage', function () {
+      openUsageRecordsWindow();
+    });
     var turnNoticePoller = createTurnNoticePoller({
       window: window, localStorage: localStorage, fetch: fetch,
-      WhaleTurnNotice: WhaleTurnNotice, CustomEvent: CustomEvent,
+      WhaleTurnNotice: WhaleTurnNotice,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
       playTaskEndSound: playTaskEndSound,
@@ -3079,7 +3080,6 @@ import {
       window.__dshWhaleWidgetLoading = false;
       window.__dshWhaleInit = false;
       window.__dshWhaleInitLoading = false;
-      window.dispatchEvent(new CustomEvent('whale-widget-failed', { detail: { message: String(err && err.message || err) } }));
       console.error('Whale widget initialization failed', err);
     }
   }

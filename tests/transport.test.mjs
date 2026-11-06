@@ -11,7 +11,7 @@ import { ROOT } from '../runtime/paths.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
-import { bubbleDefaultQueue, CURRENT_DEFAULTS_VERSION } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultQueue, CURRENT_DEFAULTS_VERSION } from '../desktop/ui/shared/bubble-config/defaults.js';
 
 async function setup(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-ipc-'));
@@ -235,13 +235,17 @@ test('unversioned bubble metadata is persisted once and retired flags stop being
   assert.equal(first.defaultsVersion, CURRENT_DEFAULTS_VERSION);
   assert.equal(first.defaultsEdited, false);
   assert.equal(first.subscriptionDefaultsEdited, false);
-  assert.equal(first.tapAdvance, true, 'legacy flags remain readable before the next save');
+  assert.equal(first.tapAdvance, undefined, 'the schema 2 migration drops the retired flag');
+  assert.equal(first.schema, 2);
+  const backup = path.join(config.dataDir, '.dshw-bubble.schema1-backup.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(backup, 'utf8')), legacy, 'the pre-migration file is kept once');
   const bytes = fs.readFileSync(file, 'utf8');
   assert.deepEqual(JSON.parse(bytes), first);
   await request('/dsh-whale/bubble.json');
   assert.equal(fs.readFileSync(file, 'utf8'), bytes, 'second load is idempotent');
   const result = await (await request('/dsh-whale/bubble.json', 'PUT', { ...first, editingMode: 'api' })).json();
   assert.equal(result.config.tapAdvance, undefined);
+  assert.equal(result.config.schema, 2);
   assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(file, 'utf8')), 'tapAdvance'), false);
   assert.equal(result.config.defaultsEdited, false);
 });

@@ -1,6 +1,6 @@
-import { TOKENS } from '../../services/quota-format.js';
-import { statusForCode, statusView } from './status-tones.js';
-import { fontUnits } from './font-scale.js';
+import { TOKENS } from '../../shared/quota-format.js';
+import { statusForCode, statusView } from '../../shared/status-tones.js';
+import { fontUnits } from '../../shared/bubble-config/font-scale.js';
 
 // Snapshot content is selected once per bubble open, with prior random picks scoped here.
 export function createBubbleContent(deps) {

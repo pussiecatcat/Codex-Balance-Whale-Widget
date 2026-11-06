@@ -1,4 +1,4 @@
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 // 设置窗口的交互与渲染检查，在 Electron 主进程内运行。
 //
 // 由 tests/settings-window-smoke.mjs 启动，使用隔离的临时数据目录。
@@ -357,13 +357,18 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   // Traverse actual settings buttons, IPC, preload and visible editor surfaces.
   const widgetEv = code => window.webContents.executeJavaScript(code, true);
   await widgetEv('window.__editorReceived=[]; window.addEventListener("whale-open-editor",e=>window.__editorReceived.push(e.detail.editor))');
+  await ev('WhaleSettingsTest.go("api")');
+  await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='api.models'); if(!r) throw Error('missing pricing row'); r.closest('.set-editor-card').querySelector('.set-editor-open').click(); })()`);
+  await waitFor('!!document.querySelector(".set-price-mask")', '价格编辑器在设置窗口内打开');
+  check(true, '主接口价格编辑器在设置窗口内打开');
+  await ev("[...document.querySelectorAll('.set-price-actions button')].find(b=>b.textContent==='取消').click()");
+  await waitFor('!document.querySelector(".set-price-mask")', '价格编辑器取消');
   for (const entry of [
     { page:'appearance', id:'ui.role', editor:'role', selector:'.dshwv-rolelist' },
     { page:'bubble', id:'bubble.sequences', editor:'bubble', selector:'.dshwv-bubmask' },
     { page:'media', id:'media.roles', editor:'resources', selector:'.dshwv-resmask' },
     { page:'media', id:'media.workshop', editor:'workshop', selector:'dialog[open]' },
     { page:'media', id:'media.audio', editor:'sound', selector:'[data-feature="sound-settings-dialog"]' },
-    { page:'api', id:'api.models', editor:'api', selector:'dialog[open]' },
     { page:'sound', id:'usage.events.question', editor:'reminder', selector:'.dshwv-bubmask' },
     { page:'api', id:'api.customModels', editor:'api-model', selector:'dialog.api-model-card[open]' },
     { page:'sound', id:'ui.feedbackEvent', editor:'feedback-events', selector:'dialog.whale-v3-dialog[open]' },

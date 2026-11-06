@@ -10,6 +10,7 @@ import {
   EMPTY_CATCH_BUDGET,
   CSS_HEX_BUDGET,
   GLOBAL_SURFACE,
+  lifecycleMetrics,
   MODULE_GLOBAL_READS,
   assertRefactorBoundaries,
   collectDependencyMetrics,
@@ -196,4 +197,69 @@ test('the CSS palette ratchet counts this tree and rejects a new color token', (
     'reuse a design token and lower CSS_HEX_BUDGET after consolidating colors');
   const over = { ...metrics, cssHex: { total: CSS_HEX_BUDGET.total + 1, values: [] } };
   assert.match(refactorBoundaryErrors(over).join('\n'), /CSS color tokens must not exceed/);
+});
+
+test('the gate sees bare identifier reads and host publications', t => {
+  const bare = fixture(t, {
+    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleQuota?.text();\n',
+  });
+  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleQuota/);
+
+  const host = fixture(t, {
+    'desktop/ui/new-global.js': "(function (host) { host.WhaleNewSurface = {}; })(window);\n",
+  });
+  assert.match(evaluate(host).join('\n'), /new: WhaleNewSurface/);
+});
+
+test('absolute import specifiers cannot hide a cross-feature dependency', t => {
+  const crossed = fixture(t, {
+    'desktop/ui/features/widget/a.js': "import { helper } from '/features/usage/helpers.js';\nexport const a = helper;\n",
+    'desktop/ui/features/usage/helpers.js': 'export const helper = () => 1;\n',
+  });
+  assert.match(evaluate(crossed).join('\n'), /one feature does not import another/);
+});
+
+test('a name in a comment or a string is not a dependency read', t => {
+  const quiet = fixture(t, {
+    'desktop/ui/features/widget/quiet.js': "// WhaleQuota and WhaleMoney are mentioned here\nexport const text = 'WhaleApiModels';\n",
+  });
+  assert.deepEqual(evaluate(quiet), []);
+});
+
+test('the lifecycle gate counts unowned timers, listeners and inline style writes', t => {
+  const root = fixture(t, {
+    'desktop/ui/features/widget/owned.js': [
+      'export function wire(scope, document, element) {',
+      "  scope.interval(() => {}, 1000);",
+      "  scope.on(document, 'click', () => {});",
+      "  setInterval(() => {}, 500);",
+      "  document.addEventListener('keydown', () => {});",
+      "  element.style.color = 'red';",
+      "  // setInterval(() => {}) and document.addEventListener() in a comment do not count",
+      "  const text = 'setInterval(';",
+      '  return text;',
+      '}',
+    ].join('\n'),
+  });
+  const metrics = lifecycleMetrics(root);
+  assert.equal(metrics.intervals, 1);
+  assert.equal(metrics.documentListeners, 1);
+  assert.equal(metrics.inlineStyles, 1);
+});
+
+test('shared stays pure and the server layers do not reach back into features', t => {
+  const impure = fixture(t, {
+    'desktop/ui/shared/bad.js': "export const el = () => document.createElement('div');\n",
+  });
+  assert.match(evaluate(impure).join('\n'), /desktop\/ui\/shared must stay pure/);
+
+  const reverse = fixture(t, {
+    'lib/bad.mjs': "import { x } from '../desktop/ui/features/widget/x.js';\nexport const y = x;\n",
+  });
+  assert.match(evaluate(reverse).join('\n'), /may only import desktop\/ui\/shared/);
+
+  const allowed = fixture(t, {
+    'lib/good.mjs': "import { x } from '../desktop/ui/shared/x.js';\nexport const y = x;\n",
+  });
+  assert.deepEqual(evaluate(allowed), []);
 });

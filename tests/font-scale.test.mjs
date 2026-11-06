@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fontUnits, displayLevel, upgradeFontScale, setFontLevel, legacyLevelToFine, FINE_FONT_SCALE } from '../desktop/ui/features/widget/font-scale.js';
+import { fontUnits, displayLevel, upgradeFontScale, setFontLevel, legacyLevelToFine, FINE_FONT_SCALE } from '../desktop/ui/shared/bubble-config/font-scale.js';
 
 test('the fine map is smaller than the legacy map at both ends', () => {
   assert.equal(fontUnits(1, {}), 40);

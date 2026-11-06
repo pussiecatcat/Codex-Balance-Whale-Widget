@@ -1,8 +1,22 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-21`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-32`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
+
+## 2026-11-06 架构整改
+
+- T01：架构门禁现在统计裸标识符读取、`host.` / `globalThis.` 发布和绝对说明符导入；ESLint 与 metrics 共用一份全局名单（21 个）。
+- T02：新增生命周期门禁，冻结无主 `setInterval`（10）、`document/window` 监听（88）和内联样式写入（481），此后只减不增。
+- T10：修复托盘「查看用量记录」点了没有反应：入口监听 `whale-open-usage`，桌面审计增加命令级断言。
+- T11：删除无监听的事件、无发送者的监听、不可达的 `insights.js` 和 4 个无引用导出；监听基线降到 86。
+- T20：新增 `desktop/ui/shared/`，把气泡配置、布局、字号、编辑器路由、状态词表和纯格式化模块移入；`lib/widget-host` 不再反向导入 `features/`，并新增「shared 保持纯净」「服务端只导入 shared」两道门禁。
+- T21：气泡配置升级到 schema 2，旧默认布局、语义角色和已退休的 `tapAdvance` 统一在迁移函数处理；升级前保留一次 `.dshw-bubble.schema1-backup.json`。
+- T22：完成提醒的「关闭 / 仅气泡 / 仅声音 / 两者」改为 `shared/sound-model.js` 的唯一换算；修复「仅声音」被写成关闭声音的读写不对称。
+- T30：新增 `services/scope.js`（监听、计时器、请求、子作用域统一释放）和 `services/popover.js`（唯一的下拉/帮助浮层关闭管理），并补行为测试。
+- T40/T41：新增主进程变更总线；挂件的大小、用量、完成提醒和显示模式全部改走 `whaleDesktop.settings.write`，与设置窗口同一条写入路径并广播变更；音效面板与用量面板也走同一条路径。
+- T42：删除挂件内的 API 设置弹窗和 `client.js`；Codex 当前 API 只在设置窗口「服务商 / API 与用量」里编辑，服务商页新增「测试连接」「重新启动小龙娘」；提示气泡不再拦截点击。
+- T42 补：主接口价格编辑器移入设置窗口；挂件保留隐藏的 DIY 模型编辑挂载点；设置冒烟测试不再读取上一次的旧报告。
 
 ## 2026-11-06 气泡细节与内置角色
 

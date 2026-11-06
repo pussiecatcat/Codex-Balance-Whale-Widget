@@ -1,5 +1,5 @@
 // Usage alert templates, interpolation, and presentation own their transient state.
-import { ledgerDayKey } from '../../services/ledger-day.js';
+import { ledgerDayKey } from '../../shared/ledger-day.js';
 export function createUsageAlerts(deps) {
   const { document, window, WhaleMoney, whaleMoneyTemplates, fmt, bubbleTokenValue,
     whaleCurrencySymbol, getUsageSet, getLastTurnNotice, getCurrency,
