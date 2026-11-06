@@ -109,11 +109,14 @@ export const CSS_HEX_BUDGET = { total: 100 };
 // document listener nobody owns outlives the feature that created it. These
 // counts only go down as modules move onto scope.
 export const LIFECYCLE_BUDGET = { intervals: 10, documentListeners: 86, inlineStyles: 481 };
+// scope.js implements the owned wrappers themselves; its setInterval is the API.
+const LIFECYCLE_EXEMPT = new Set(['desktop/ui/services/scope.js']);
 
 export function lifecycleMetrics(root = ROOT) {
   const files = [...new Set(['desktop/ui', 'assets/whale-widget.js'].flatMap(entry => listJavaScript(root, entry)))].sort();
   const rows = { intervals: [], documentListeners: [], inlineStyles: [] };
   for (const relative of files) {
+    if (LIFECYCLE_EXEMPT.has(relative)) continue;
     const source = stripCommentsAndStrings(read(root, relative));
     for (const match of source.matchAll(/\bsetInterval\s*\(/g)) rows.intervals.push({ file: relative, line: lineOf(source, match.index) });
     for (const match of source.matchAll(/\b(?:document|window)\s*\.\s*addEventListener\s*\(/g)) rows.documentListeners.push({ file: relative, line: lineOf(source, match.index) });
