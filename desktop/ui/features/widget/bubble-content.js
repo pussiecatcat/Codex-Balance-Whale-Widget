@@ -75,7 +75,7 @@ export function createBubbleContent(deps) {
       }
       if (m.type === 'balance') add('balance_ds', '余额数值'); else if (m.type === 'today') add('expense_ds', '今日已观测金额');
       else if (m.type === 'quota') {
-        add('quota_left', '剩余百分比（1 位小数）'); add('quota_left_round', '剩余百分比（整数）'); add('quota_used', '已用百分比');
+        add('quota_left', '剩余百分比（1 位小数）'); add('quota_left_round', '剩余百分比（整数）'); add('quota_used', '已用百分比'); add('quota_used_round', '已用百分比（整数）');
         add('quota_reset', '精确重置倒计时'); add('quota_reset_short', '简洁重置倒计时'); add('quota_reset_at', '重置时间'); add('quota_updated_at', '快照更新时间');
         add('quota_bar', '剩余额度条'); add('quota_label', '额度窗口名称');
         add('quota_source', '额度数据来源');

@@ -83,7 +83,7 @@ export function createBubbleRowsView(deps) {
         row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
         // A countdown changes width with its value, and the widest row decides the
         // fit scale, so without a fixed slot two quota steps render at different sizes.
-        if (m.type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(m.tpl || ''))) row.style.minWidth = '4.2em';
+        if (m.type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(m.tpl || ''))) row.style.minWidth = '4.9em';
         if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
         if (fItalic) row.style.fontStyle = 'italic';

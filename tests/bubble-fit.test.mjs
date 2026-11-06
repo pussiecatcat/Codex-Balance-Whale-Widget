@@ -137,7 +137,7 @@ test('both subscription steps share one layout', () => {
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.deepEqual(shape(short), shape(weekly));
   assert.deepEqual(short.modules.map(module => module.text || module.tpl),
-    ['Codex 额度', '5h', '{quota_left_round}', '距离充值', '{quota_reset_short}']);
+    ['Codex 额度消耗', '5h', '{quota_used_round}', '距离重置', '{quota_reset}']);
   assert.equal(weekly.modules[1].text, '7d');
 });
 
@@ -149,6 +149,18 @@ test('the earlier single-window default migrates to the aligned layout', () => {
     { type: 'source', size: 2, tpl: '{source_line}' },
   ] });
   assert.equal(bubbleLegacySubscriptionDefault([step('5 小时'), step('每周')]), true);
+  assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
+});
+
+test('the remaining-share badge layout migrates to the consumption title', () => {
+  const step = (badge, minutes) => ({ kind: 'custom', modules: [
+    { type: 'text', text: 'Codex 额度', size: 8, bold: true, row: 1 },
+    { type: 'text', text: badge, size: 2, bold: true, row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 20, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离充值', size: 2, bold: true, row: 2 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, tpl: '{quota_reset_short}', row: 2 },
+  ] });
+  assert.equal(bubbleLegacySubscriptionDefault([step('5h', 300), step('7d', 10080)]), true);
   assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
 });
 
@@ -200,5 +212,5 @@ test('no custom property on <html> may reference --dshw-u', () => {
 });
 
 test('a countdown-only row keeps one width so quota steps share a fit scale', () => {
-  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '4\.2em'/);
+  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '4\.9em'/);
 });

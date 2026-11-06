@@ -12,6 +12,7 @@ export const MIME = {
   '.png': 'image/png',
   '.gif': 'image/gif',
   '.mp3': 'audio/mpeg',
+  '.woff': 'font/woff',
 };
 
 // assets/ is media only. It also holds the widget's front-end source

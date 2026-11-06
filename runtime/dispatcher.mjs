@@ -23,7 +23,7 @@ const mimeFor = file => MIME[path.extname(file)] || ASSET_MIME[path.extname(file
 
 // Resolve a widget file by path instead of from a hand-kept table. Every new
 // module used to need an entry here, and a forgotten one failed only at runtime
-// as a 404 inside the widget. desktop/ui/ holds only .js, .css and .html, and the
+// as a 404 inside the widget. desktop/ui/ holds only .js, .css, .html and fonts, and the
 // extension must be one MIME knows, so the reachable set matches what the table
 // allowed. The file must exist now: an /assets/* request also resolves under
 // desktop/ui/ by extension, and a candidate left in place would shadow it.
