@@ -1,127 +1,74 @@
+<div align="center">
+
+<img src="docs/xiaolongniang.png" alt="Codex 小龙娘" width="200">
+
 # Codex 小龙娘
 
-<p align="center">
-  <img src="assets/DSniang1.png" alt="Codex 小龙娘" width="260">
-</p>
+**窗边的小龙娘：守护订阅额度与 API 余额，帮你记下coding一点一滴。支持气泡、音效与角色自定义。**
 
-把 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 的桌面宠物、气泡、音效、资源管理和本地记账能力适配到 Codex。当前构建标识为 `0.3.0+codex.20261009-quota-reliable`，主要面向 Windows；macOS 兼容代码与安装脚本已保留，但尚未完成实机验收。
+[![版本](https://img.shields.io/github/v/release/pussiecatcat/Codex-Balance-Whale-Widget?label=%E7%89%88%E6%9C%AC&color=203170)](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget/releases/latest)
+[![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-536ba9)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-%E5%B7%B2%E9%AA%8C%E8%AF%81-2fa24c)](#系统要求)
+[![macOS](https://img.shields.io/badge/macOS-%E5%BE%85%E5%AE%9E%E6%9C%BA%E9%AA%8C%E6%94%B6-9ba5bc)](docs/MACOS.md)
+[![Node.js](https://img.shields.io/badge/Node.js-24%2B-536ba9)](https://nodejs.org/)
 
-这个版本的重点是 **Codex Plus 订阅额度**：鲸鱼跟随 Codex 窗口，点击后显示五小时额度、每周额度、各自剩余百分比和重置倒计时。API 余额与本地账本仍完整保留，并放在独立模式中，不会把订阅额度、API 余额和本机 token 混为一谈。
+[概述](#概述) · [功能](#功能) · [安装](#安装) · [使用](#使用) · [数据来源](#数据来源) · [隐私与安全](#隐私与安全) · [故障排查](#故障排查) · [开发](#开发)
 
-## 主要功能
+</div>
 
-### Codex 订阅额度
+## 概述
 
-- 通过本机 `codex app-server` 的 `account/rateLimits/read` 读取当前登录账号提供的额度窗口。
-- 自动识别五小时与每周额度，用双色“潮汐卡片”显示剩余百分比、水位进度珠和逐秒更新的重置倒计时。
-- 订阅模式启动后即预取，气泡关闭时约每 30 秒更新，打开期间约每 10 秒更新；点击角色打开气泡与手动刷新都会绕过缓存强制读取。
-- 复用本机 app-server 连接，瞬时故障重连重试一次；额度查询独立于本机会话扫描，先显示已有数据，读取完成后原地更新。
-- 每轮对话结束后在 0、3、8、15 秒触发同步，网络恢复时立即刷新；并发请求合并，持续失败时逐步延长重试间隔。
-- 卡片显示“正在同步”、成功接收时间或“上次数据”；官方返回小数百分比时保留一位，不虚构额外精度。接收时间不代表服务端重新结算的时间。
-- 查询失败保留上次成功的额度和原始时间；没有成功记录时才尝试本机 `rate_limits` 记录。确实没有数据时显示等待同步或具体状态，绝不以 0% 替代未知。
-- 数据过期或跨重置时间时保留明确标注的历史数值，不推算新额度；退出、切换账号和登录失效时清除旧数据，避免串号。
-- 当前 Plus 登录已在 Windows 实机验证；额度数值会实时变化，因此仓库不保存个人额度快照。
+Codex 小龙娘是 Codex 桌面应用的桌面挂件。它跟随 Codex 窗口显示，让你无需离开当前工作，就能查看订阅额度、API 余额和本机用量。
 
-### 原版风格的气泡交互
+本项目基于 [DeepSeek Balance Whale Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 适配。
 
-- 第一次点击角色打开气泡；气泡打开后继续点击角色只播放按压、回弹和音效，方便连续“搓”桌宠。
-- 点击气泡切换到下一泡，最后一泡再次点击后收起。
-- Codex 订阅气泡不会在阅读过程中自动消失；API 气泡保留原有关闭时间。
-- 气泡、尾泡与文字按真实动画生命周期完整淡出，避免 Windows 原生窗口区域提前裁切。
-- 透明区域穿透到下面的应用，人物、菜单和气泡仍保持准确命中。
+> **注意：** 本项目不是 OpenAI 官方产品，也不代表上游发布。
 
-### 自定义气泡
+## 功能
 
-- Codex 订阅与 API 余额各自保存独立的气泡序列。
-- 每个序列支持最多 6 行、每行最多 6 个模块，可拖放排序并从模块库复用。
-- 内置模块包括文本、余额、今日用量、峰谷、下次峰谷、额度、套餐、随机文本、随机图片、固定图片、链接、本轮用量和会话标签。
-- Codex 专用模块提供“5 小时额度”和“每周额度”；可选新的“潮汐卡片”，也保留纯文字、进度条、自定义颜色与 `{quota_*}` 变量。
-- 每行可调字号、字重、斜体、下划线、文字颜色、底色和折行；图片支持独占行、缩放和权重随机。
-- 保留 15 种跑马灯颜色方案、五种峰谷显示样式，以及跨峰谷切换点的原地文字和配色更新。
-- 链接模块只在真实气泡中打开，编辑预览不会跳转；外部地址会经过桌面桥校验。
+| 功能 | 说明 |
+| --- | --- |
+| 订阅额度 | 分别显示五小时和每周窗口的剩余百分比与重置倒计时 |
+| API 余额与记账 | 显示余额、今日已观测消费和近 7 天记录，支持预警与每日预算 |
+| 每轮用量 | 任务结束后显示 token 用量；API 模式可显示观测金额或价格估算 |
+| DIY 模型 | 提供 34 个服务商模板，可配置接口、价格、提醒和手动额度 |
+| 自定义气泡 | 订阅和 API 模式各保存一套气泡序列，可调整内容块、字号、颜色和图片 |
+| 角色与素材 | 支持 PNG、GIF 和 APNG，可裁剪、翻转，并导入或导出素材包 |
+| 音效与提醒 | 可分别设置按压、任务完成、提问和授权提示 |
+| 显示模式 | 可跟随 Codex 窗口或常驻桌面，两种模式分别保存位置和大小 |
 
-### 每轮对话用量
+> **注意：** 34 个模板表示可配置的类型，不代表这些服务商都公开余额接口，也不代表都已使用真实账号测试。
 
-- 监测本机 Codex 会话，在一轮完成后显示输入、缓存、输出、推理和总 token。
-- 子任务用量归入主轮；迟到的子任务会修订记录，但不会重复弹泡或重复播放完成音。
-- API 模式可显示观测金额、价格估算、待记账或未知状态；订阅模式显示真实 token，不把百分比变化伪造成单轮额度消耗。
-- 失败、取消和被下一轮替代的未结束轮次保留已观测用量，并使用中性提示；重试中的瞬时错误不会提前结算。
+## 系统要求
 
-### API 余额与 DIY 模型
+| 项目 | 要求 |
+| --- | --- |
+| 操作系统 | Windows x64（已验证）；macOS 兼容代码已保留，尚未完成实机验收 |
+| Node.js | 24 或更高版本，包含 npm |
+| Codex | 支持插件功能的 Codex 桌面应用 |
+| 网络 | 首次安装时需要下载 Electron |
 
-- “小龙娘记账”按原版模型账本结构显示模型名称、余额/额度摘要、刷新、设置和自定义 API 添加入口；本机模型费用、近 7 天记录和更多消费记录紧随其后。
-- 每个模型的“设置”使用原版 DSH 风格详情卡，集中管理余额预警、今日预算、订阅额度、价格估算、已观测消费和可用的余额校正；“密钥 / 接口”与提示气泡编辑从详情卡进入。
-- 小龙娘记账与控制面板使用相同的半透明底色和完整高度；中文分区标题使用原版界面粗体，模型、日期、金额和 API 字母使用 Consolas 等宽字体，整个内容区统一上下滚动。
-- “近 7 天使用记录”完整展开七行，不再使用独立的狭窄滚动框；今日模型费用也随内容自然增长。
-- 保留原版 API 余额、今日消费、汇率、账本、对账、消费记录和余额校正。
-- 内置 34 个 DIY 模板，覆盖无余额接口、订阅配额、本地统计、兼容账单和自定义 JSON 端点等类型。
-- 支持 JSON 点路径与数组索引、多个额度窗口、模型名匹配、独立价格、每日 token、每日估算费用与提醒阈值。
-- 支持手动额度，以及按本机已记录 token 扣减的每日/每周 DIY 额度；估算值始终明确标注，不冒充供应商账单。
-- 凭据配置只保存环境变量名；带凭据的请求受目标地址、跳转、响应大小和超时限制。
-- DeepSeek 官方直连时可显示工作日/周末峰谷与下次切换倒计时；其他接口不会套用 DeepSeek 计价规则。
-
-> 34 个模板表示配置能力，不代表 34 家服务商都公开余额接口或都已用真实账号测试。无真实密钥的第三方接口使用模拟响应验证。
-
-### 紧凑设置与音效
-
-- 设置页沿用原版小尺寸平铺布局，包含角色、大小、气泡开关、滚动条避让、吸附、翻转、菜单按钮、资源管理和模式切换。
-- “提示与音效设置”完整复刻原版四个折叠入口：按压音效、每轮消耗提示、提问提示和授权提示（授权提示仅在 Codex 发起权限请求时触发），默认全部收起并在入口显示当前状态摘要。
-- 按压区提供音效组、新建音效组、音量和试听；每轮区提供冒泡内容、自动关闭、任务结束音、独立音量和试听；提问/授权区分别提供总开关、冒泡内容、音效开关、选音、音量和试听。
-- 设置先在草稿中编辑；只有保存才生效，取消、Esc 或点击遮罩会放弃本次改动。“恢复默认”也只修改草稿，可以继续取消。
-- Codex 进入等待回答时会触发提问提示；部分构建发起权限请求时会触发授权提示，当前版本的自动审批不产生等待事件。提示常驻到交互完成，也可点气泡收起。可选“点按角色关闭提示气泡”，同一条挂起提示被收起后不会反复弹回。
-- 支持内置音效组、自定义音效组、试听和 WAV 片段裁剪；关闭某项音效时下拉与音量置灰，音效开关和试听仍可操作。
-- 音效、API 模型、账户显示和按压手感等选择框统一使用原版风格的白色浮层；列表会避开窗口边缘，动态选项和禁用状态会自动同步。
-
-### 角色与资源管理
-
-- 支持 PNG、GIF、APNG 等角色素材，保留动画播放。
-- 支持裁剪、旋转、翻转、缩放、角色列表、固定角色、删除和默认回退。
-- 支持图片库、随机图片、音频片段、泡泡配置和模块库。
-- 素材包可以导入或导出角色、气泡图、音频片段和音效组；导入采用新 ID 并在校验失败时回滚。
-- 素材包不包含 API 凭据、个人设置、账本、聊天内容或额度快照。
-
-### 窗口随行与桌面驻留
-
-- 默认跟随 Codex 窗口移动、缩放、最小化和恢复。
-- 一个状态按钮在“桌面驻留”和“窗口随行”之间切换，并与素材包入口紧凑排在同一行。
-- 桌面驻留不依赖 Codex 窗口存活；两种模式的位置、缩放、翻转和显示状态分别保存。
-- Windows 提供 `Ctrl+Alt+W` 恢复显示，以及 `Ctrl+Alt+Shift+F10` 静默保存窗口诊断。
-- 显示恢复不会抢焦点、移动 Codex 或截取聊天内容。
-
-### 本地数据与安全
-
-- 桌面端使用受限 preload、CSP、本地 IPC 和 `whale://` 协议，不开启本地 HTTP 服务。
-- 导航、外部链接、媒体、导入包、API 地址、重定向和响应大小均有校验。
-- 设置、账本和资源使用临时文件加同目录重命名进行原子保存；Windows 占用错误会有限重试。
-- 账本使用固定精度金额，处理充值、乱序余额观测、版本冲突、历史裁剪和归档。
-- 历史会话统计在独立 worker 中运行，只读最近 8 天的 rollout：单文件超过 32 MB 跳过，最多 400 个文件、总读取 96 MB，目录遍历上限 12,000 项；不发送聊天正文。
-- 实时跟随只观测最近 64 个会话文件（外加正在恢复的会话），按 4 MB 分块读取；对启动前已存在的旧文件会从头顺序补读一遍生命周期，单行缓冲上限 8 MB。
+发行包不内置 Electron，也不是独立的可执行文件。
 
 ## 安装
 
-### 环境要求
-
-- Node.js 24 或更高版本，并包含 npm。
-- 支持插件功能的 Codex 桌面应用。
-- Windows x64 为已验证环境；桌面组件使用 Electron 44.3.0。
-- 首次安装需要联网下载 Electron。发行 ZIP 不内置 Electron 运行时，也不是独立 EXE。
-
 ### Windows
 
-1. 下载 Release 中的 `api-balance-whale-v0.3.0.zip` 并完整解压到固定目录。
-2. 不要直接从 ZIP 内运行脚本；双击 `launchers/安装插件.cmd`。
-3. 安装完成后新建一个 Codex 聊天，让 Codex 加载新版插件工具。
+1. 从 [Releases](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget/releases/latest) 下载 `api-balance-whale-版本号.zip`。请勿下载文件名带 `source` 的源码包。
+2. 将 ZIP 完整解压到一个固定目录。
+3. 双击 `launchers/安装插件.cmd`。
+4. 安装完成后，在 Codex 中新建聊天，以加载新版插件。
 
-也可以在 PowerShell 中先检查再安装：
+也可以使用 PowerShell，先检查再安装：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-package.ps1 -CheckOnly
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-package.ps1
 ```
 
-安装器会检查本地插件市场、备份旧插件、保留用户数据、注册插件并启动跟随服务。只有验证全部通过才会报告成功。
+安装器会备份旧插件并保留用户数据。所有验证通过后，才会报告安装成功。
 
-如果 Electron 下载缓慢，可以在同一 PowerShell 会话中临时设置镜像：
+如果 Electron 下载缓慢，请在同一 PowerShell 会话中设置镜像，然后运行安装命令：
 
 ```powershell
 $env:ELECTRON_MIRROR = 'https://mirrors.huaweicloud.com/electron/'
@@ -131,116 +78,144 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-packag
 
 ### macOS
 
-保留旧版本目录后运行 `launchers/安装 Mac 自动跟随.command`。安装需要 Xcode Command Line Tools 提供 Swift 编译器。macOS 脚本会安装桌面组件和 LaunchAgent，但目前不自动完成 Codex 插件市场注册；Apple Silicon/Intel、Spaces、多屏和睡眠唤醒仍需实机验证。详见 [macOS 说明](docs/MACOS.md)。
+> **注意：** macOS 版本尚未完成实机验收。Apple Silicon、Intel、Spaces、多屏和睡眠唤醒都需要进一步验证。
 
-## 日常使用
+1. 安装 Xcode Command Line Tools。
+2. 运行 `launchers/安装 Mac 自动跟随.command`。
 
-1. 打开 Codex 后等待鲸鱼出现；移动或缩放 Codex，确认鲸鱼跟随。
-2. 点击鲸鱼打开额度气泡，点击气泡依次浏览，继续点击角色可触发按压互动。
-3. 在紧凑菜单底部切换“Codex 订阅”与“API 余额”。
-4. 进入“气泡DIY”编辑两种模式各自的序列、模块与样式。
-5. 在“音效与提示”中调整按压、每轮结束、提问与授权的气泡、音效和音量。
-6. 如果挂件不可见，使用托盘中的“恢复显示小鲸鱼”或按 `Ctrl+Alt+W`。
+该脚本会安装桌面组件和 LaunchAgent，但不会自动注册 Codex 插件市场。详情请参阅 [macOS 说明](docs/MACOS.md)。
 
-退出挂件不会取消正在运行的 Codex 任务。
+### 回滚
 
-## 回滚
-
-Windows 双击 `launchers/回滚本次安装.cmd`，或运行：
+在 Windows 上，双击 `launchers/回滚本次安装.cmd`，或运行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-package.ps1 -CheckOnly
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-package.ps1
 ```
 
-回滚使用安装时生成的私有回执恢复旧代码和启动任务，同时保留最新设置、素材与账本。没有有效回执时脚本不会猜测备份位置。macOS 可运行 `launchers/回滚 Mac 更新.command`。
+回滚会恢复旧代码和启动任务，并保留最新的设置、素材和账本。在 macOS 上，请运行 `launchers/回滚 Mac 更新.command`。
 
-## 数据位置与隐私边界
+## 使用
 
-用户数据位于 `$CODEX_HOME/whale-widget`，默认是 `~/.codex/whale-widget`；也可以通过 `WHALE_HOME` 指定独立目录。
+### 查看额度或余额
 
-以下内容不会提交到本仓库，也不会进入公开发行包：
+1. 打开 Codex，等待角色出现。
+2. 点击角色，打开气泡。
+3. 点击气泡，查看下一条内容。在最后一条上再次点击，可收起气泡。气泡打开后再点角色，只会触发按压动画，不会切换内容。
 
-- API 密钥、账号资料和私有接口配置；
-- `runtime.json`、IPC 令牌、锁文件和运行日志；
-- 个人额度快照、账本、聊天/会话正文和真实账户截图；
-- 安装备份、回滚回执、桌面测试输出和本机路径。
+### 切换数据来源
 
-诊断文件只记录有限的窗口状态元数据。分享诊断前仍应自行检查内容。
+在菜单的 **数据来源** 中选择 **Codex 订阅** 或 **API 余额**。两种模式的数据和气泡序列相互独立。
 
-## 数据口径
+### 自定义外观与内容
 
-- **订阅额度**来自 Codex 当前登录账号提供的窗口百分比；它不是固定 token 总额。
-- **本机 token**来自当前电脑上可扫描到的 Codex 会话；它可能缺少其他设备或未被扫描的记录。
-- **API 余额变化**是余额观测差额，不能保证等于每一次请求的精确账单。
-- **价格估算**使用用户配置的模型价格与汇率，始终与供应商实际账单区分。
-- **峰谷提示**只展示规则，不自动改写历史账本。
+- 如需更换角色或调整大小，请使用菜单中的对应选项。
+- 如需编辑气泡内容，请打开菜单中的 **气泡DIY**。
+- 如需调整按压音效和各类提示，请打开菜单中的 **音效与提示**。
+- 如需查看全部选项，请打开完整设置窗口。你可以从菜单的 **高级设置** 或系统托盘进入。
 
-## 验证状态
+### 快捷键（Windows）
 
-- Node 单元测试通过；当前数量、环境与已知失败见 [验证基线](docs/BASELINE.md)。
-- Electron 额度专项检查通过，包含断网保留、恢复更新、开泡强刷与正常退出。
-- 本次真实查询能够返回五小时和每周窗口，同时观察到瞬时失败；耗时小样本不构成稳定速度或成功率保证。
-- 紧凑菜单、DSH 音效页面、Windows 原生区域、透明穿透、焦点和完整桌面烟测属于历史验证，本次未重跑完整验收。
-- macOS 实机、跨额度重置点刷新和长期多设备稳定性仍待验证。
+| 快捷键 | 操作 |
+| --- | --- |
+| `Ctrl+Alt+W` | 恢复显示 |
+| `Ctrl+Alt+Shift+F10` | 静默保存窗口诊断信息 |
 
-完整证据与限制见 [验证基线](docs/BASELINE.md) 与 [故障排查](docs/TROUBLESHOOTING.md)，原版报告逐项覆盖情况见 [DSH 功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)。
+恢复显示不会抢占焦点、移动 Codex 窗口或截取聊天内容。退出挂件也不会取消正在运行的 Codex 任务。
 
-## 开发与项目结构
+### 刷新频率
+
+| 状态 | 订阅额度更新频率 |
+| --- | --- |
+| 气泡关闭 | 约每 30 秒 |
+| 气泡打开 | 约每 10 秒 |
+| 点击角色打开气泡 | 立即刷新 |
+
+## 数据来源
+
+不同来源的数据含义不同，请勿直接比较或相加。
+
+| 数据 | 来源 | 限制 |
+| --- | --- | --- |
+| 订阅额度 | Codex 当前登录账号提供的窗口百分比 | 不代表固定的 token 总额 |
+| 本机 token | 当前电脑上可扫描到的 Codex 会话 | 可能缺少其他设备的记录 |
+| API 余额变化 | 余额观测差额 | 不保证等于每次请求的精确账单 |
+| 价格估算 | 你配置的模型价格与汇率 | 不等同于服务商账单 |
+| 峰谷提示 | 已识别的官方规则 | 仅用于展示，不会改写历史账本 |
+
+查询失败时，界面会保留上次成功的数值并标注时间。没有可用数据时，界面显示等待同步，不会用 0% 代替未知值。
+
+## 隐私与安全
+
+- **存储位置：** 用户数据保存在 `$CODEX_HOME/whale-widget`，默认路径为 `~/.codex/whale-widget`。你可以使用 `WHALE_HOME` 指定其他目录。
+- **凭据：** 配置中只保存环境变量名称，不保存密钥本身。
+- **本地通信：** 桌面端使用受限 preload、CSP 和本地 IPC，不开启本地 HTTP 服务。
+- **会话数据：** 统计用量时读取本机会话记录，不发送聊天正文。
+- **素材包：** 不包含 API 凭据、个人设置、账本、聊天内容或额度快照。
+
+如需了解更多信息，请参阅 [安全说明](SECURITY.md)。
+
+## 故障排查
+
+| 问题 | 解决方法 |
+| --- | --- |
+| 角色不显示 | 按 `Ctrl+Alt+W`，或在系统托盘中选择 **恢复显示小龙娘**。在跟随模式下，Codex 窗口最小化时角色也会隐藏 |
+| 额度显示「上次数据」 | 最近一次查询失败，界面正在显示上次成功的数值。连接恢复后会自动更新 |
+| 第三方 API 读不到余额 | 该服务可能没有公开余额接口。请改用手动额度或估算，详情请参阅 [额度 DIY 说明](docs/CODEX-QUOTA-DIY.md) |
+
+其他问题请参阅 [故障排查指南](docs/TROUBLESHOOTING.md)。
+
+### 已知限制
+
+- Codex 未提供可归属到单轮对话的额度变化，因此每轮提示显示 token，不显示额度百分比差值。
+- 桌面模式是独立的透明浮窗，不会嵌入系统壁纸层。
+- 本地工坊是离线素材管理器，不是在线市场。
+- 第三方 API 模板需要服务商提供相应接口，并由你自行配置。
+
+## 开发
+
+```powershell
+git clone https://github.com/pussiecatcat/Codex-Balance-Whale-Widget.git
+cd Codex-Balance-Whale-Widget
+npm ci
+npm test
+npm run verify
+npm start
+```
+
+| 命令 | 用途 |
+| --- | --- |
+| `npm test` | 运行单元测试 |
+| `npm run verify` | 运行提交前的完整检查 |
+| `npm start` | 启动挂件 |
+
+### 项目结构
 
 ```text
-assets/              原版角色、气泡、音频与共享前端逻辑
-desktop/             Electron 宿主、窗口跟随、原生窗口与界面
-runtime/             本地服务、额度读取、会话监测、账本与 API 模型
-lib/                 资源、媒体与工坊逻辑
-scripts/             安装、回滚、构建和验证脚本
-skills/              Codex 插件技能说明
-tests/               单元、界面、桌面与原生窗口测试
-vendor/              随源码分发的第三方运行依赖
-docs/                设计、功能审查、验证、平台和维护文档
-archive/             旧版 Codex 适配归档，便于追溯
+assets/      角色、气泡、音频和前端装配入口
+desktop/     Electron 宿主、窗口跟随和界面
+docs/        设计、验证、平台和维护文档
+launchers/   用户双击入口
+lib/         资源、媒体和工坊逻辑
+runtime/     本地服务、额度读取、会话监测、账本和 API 模型
+scripts/     安装、回滚、构建和验证脚本
+tests/       单元、界面和桌面测试
 ```
 
-运行单元测试：
+### 相关文档
 
-```powershell
-npm test
-```
+- [CLAUDE.md](CLAUDE.md)：架构与开发约定
+- [文档索引](docs/README.md)：全部文档
+- [验证基线](docs/BASELINE.md)：当前验证状态
+- [功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)：与原版的逐项对照
 
-构建公开发行包：
+## 致谢与许可
 
-```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
-```
+- **上游项目：** [MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)，作者 [MeteorNOX](https://github.com/MeteorNOX)
+- **当前维护者：** [pussiecatcat](https://github.com/pussiecatcat)
+- **Codex 适配历史维护者：** [Yang-huai406](https://github.com/Yang-huai406)
+- **macOS 兼容实现：** [PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128)，贡献者 [1llysviel](https://github.com/1llysviel)
+- **贡献者：** [halamadrid66666-cmyk](https://github.com/halamadrid66666-cmyk)
 
-构建器会执行公开文件清单、隐私扫描、ZIP 完整性和本地链接检查。生成目录、安装暂存目录和测试输出被 `.gitignore` 排除。
-
-## 已知限制
-
-- Codex 没有提供可可靠归属于单轮对话的“额度百分比消耗”，因此每轮提示展示真实 token，不显示伪造的百分比差值。
-- 本地工坊是离线素材管理器，不是在线市场。
-- 桌面模式是独立透明浮窗，不会嵌入系统壁纸层。
-- 第三方 API 模板需要相应服务提供接口并由用户自行配置；模板存在不等于服务可用。
-- 旧版本已经删除的历史数据无法恢复。
-
-## 文档
-
-- [Codex 额度 DIY 说明](docs/CODEX-QUOTA-DIY.md)
-- [DSH 原版功能逐项对照](docs/ORIGINAL-FEATURE-AUDIT.md)
-- [开发摘要](docs/history/DEVELOPMENT_SUMMARY.md)
-- [验证记录](docs/history/VERIFICATION-0.3.md)
-- [用户验收清单](docs/history/USER_TEST_CHECKLIST.md)
-- [显示与气泡生命周期说明](docs/SURFACE-LIFECYCLE-FIX.md)
-- [来源与改编范围](PROVENANCE.md)
-- [安全说明](SECURITY.md)
-
-## 来源、贡献与许可
-
-- 当前维护者：[pussiecatcat](https://github.com/pussiecatcat)，仓库：[pussiecatcat/Codex-Balance-Whale-Widget](https://github.com/pussiecatcat/Codex-Balance-Whale-Widget)。
-- 上游项目：[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)，作者 [MeteorNOX](https://github.com/MeteorNOX)。
-- Codex 适配历史维护者：[Yang-huai406](https://github.com/Yang-huai406)。
-- macOS 兼容实现来源：[PR #128](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/pull/128)，贡献者 [1llysviel](https://github.com/1llysviel)。
-- 贡献者：[halamadrid66666-cmyk](https://github.com/halamadrid66666-cmyk)。
-- 代码与文档沿用 MIT 许可，见 [LICENSE](LICENSE)。
-- 原图片、动图和音频按上游分发条款随项目提供，本仓库不把这些素材重新声明为原创或扩大其许可范围。
-- 第三方依赖见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+代码和文档采用 [MIT 许可](LICENSE)。原有图片、动图和音频的再分发条款尚待上游作者书面确认；本仓库不将这些素材声明为原创，也不扩大其许可范围。详情请参阅 [来源与署名](docs/ATTRIBUTION.md)、[第三方声明](THIRD_PARTY_NOTICES.md) 和 [PROVENANCE.md](PROVENANCE.md)。
