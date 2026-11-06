@@ -11,6 +11,7 @@ import { ROOT } from '../runtime/paths.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
+import { bubbleDefaultQueue, CURRENT_DEFAULTS_VERSION } from '../desktop/ui/features/widget/default-content.js';
 
 async function setup(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-ipc-'));
@@ -113,7 +114,10 @@ test('original widget settings and bubble sequences survive save and reload', as
   assert.equal(loaded.scale, 1.2); assert.equal(loaded.turnCostCloseMs, 0); assert.equal(loaded.vol, 0.3);
   const bubble = { v: 1, items: [{ kind: 'custom', modules: [{ type: 'text', text: '测试气泡' }, { type: 'balance', tpl: '{balance_api}' }] }], lib: [] };
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', bubble)).json()).ok, true);
-  assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config, bubble);
+  const storedBubble = (await (await request('/dsh-whale/bubble.json')).json()).config;
+  assert.deepEqual(storedBubble.items, bubble.items);
+  assert.equal(storedBubble.defaultsEdited, true);
+  assert.equal(storedBubble.defaultsVersion, CURRENT_DEFAULTS_VERSION);
   const quotaItems = [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300, tpl: '{quota_left}' }] }];
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, subscriptionItems: quotaItems })).json()).ok, true);
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, editingMode: 'subscription',
@@ -121,12 +125,12 @@ test('original widget settings and bubble sequences survive save and reload', as
   assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config.items, bubble.items);
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', bubble)).json()).ok, true);
   assert.deepEqual((await (await request('/dsh-whale/bubble.json')).json()).config.subscriptionItems, quotaItems);
-  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, tapAdvance: true })).json()).config.tapAdvance, true);
+  assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, tapAdvance: true })).json()).config.tapAdvance, undefined);
   assert.equal((await (await request('/dsh-whale/bubble.json', 'PUT', { ...bubble, editingMode: 'subscription', subscriptionItems: quotaItems,
-    subscriptionTapAdvance: false })).json()).config.subscriptionTapAdvance, false);
+    subscriptionTapAdvance: false })).json()).config.subscriptionTapAdvance, undefined);
   const clickConfig = (await (await request('/dsh-whale/bubble.json')).json()).config;
-  assert.equal(clickConfig.tapAdvance, true);
-  assert.equal(clickConfig.subscriptionTapAdvance, false);
+  assert.equal(clickConfig.tapAdvance, undefined);
+  assert.equal(clickConfig.subscriptionTapAdvance, undefined);
   const mid = await (await request('/api/sound-settings')).json();
   const usage = await (await request('/api/sound-settings', 'PUT', {
     schemaVersion: mid.schemaVersion, revision: mid.revision, size: mid.size,
@@ -219,4 +223,25 @@ test('MCP process supports initialization and tool discovery without logging cre
   const messages = output.trim().split('\n').map(JSON.parse);
   assert.equal(messages.find(x => x.id === 1).result.serverInfo.name, 'api-balance-whale');
   assert.deepEqual(messages.find(x => x.id === 2).result.tools.map(x => x.name), ['whale_balance', 'whale_usage', 'whale_status', 'whale_open']);
+});
+
+
+test('unversioned bubble metadata is persisted once and retired flags stop being written', async t => {
+  const { request, config } = await setup(t);
+  const file = path.join(config.dataDir, '.dshw-bubble.json');
+  const legacy = { v: 1, items: bubbleDefaultQueue(false), subscriptionItems: bubbleDefaultQueue(true), lib: [], tapAdvance: true };
+  fs.writeFileSync(file, JSON.stringify(legacy));
+  const first = (await (await request('/dsh-whale/bubble.json')).json()).config;
+  assert.equal(first.defaultsVersion, CURRENT_DEFAULTS_VERSION);
+  assert.equal(first.defaultsEdited, false);
+  assert.equal(first.subscriptionDefaultsEdited, false);
+  assert.equal(first.tapAdvance, true, 'legacy flags remain readable before the next save');
+  const bytes = fs.readFileSync(file, 'utf8');
+  assert.deepEqual(JSON.parse(bytes), first);
+  await request('/dsh-whale/bubble.json');
+  assert.equal(fs.readFileSync(file, 'utf8'), bytes, 'second load is idempotent');
+  const result = await (await request('/dsh-whale/bubble.json', 'PUT', { ...first, editingMode: 'api' })).json();
+  assert.equal(result.config.tapAdvance, undefined);
+  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(file, 'utf8')), 'tapAdvance'), false);
+  assert.equal(result.config.defaultsEdited, false);
 });

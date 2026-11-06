@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Catalogue and deletion UI for role art, bubble images, and sound assets.
 // Each successful mutation reports the new catalogue to its owning editor.
 export function createResourceManager({ document, client, confirm, requireSaved, onError, onRoleDelete,
@@ -100,6 +101,7 @@ export function createResourceManager({ document, client, confirm, requireSaved,
     loading.appendChild(node('div', '', '加载中…'));
     loading.firstChild.style.cssText = 'padding:8px 6px;color:#203170';
     card.replaceChildren(head, loading);
+    openOver(null, mask);
     mask.style.display = 'flex';
     const current = ++generation;
     const results = await Promise.allSettled([client.roles(), client.bubbleImages(), client.audio()]);

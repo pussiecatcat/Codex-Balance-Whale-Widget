@@ -62,6 +62,11 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # A dependency-free DOM contract suite catches lost listeners and missing rows.
+      - name: Renderer behavior tests
+        timeout-minutes: 3
+        run: npm run test:ui
+
       # 维护指标上限：入口行数、经典脚本标签数、源码截取测试数、音效边界的禁止依赖。
       - name: Architecture boundaries
         run: npm run check:architecture

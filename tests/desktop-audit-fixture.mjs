@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -82,24 +83,24 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     // Feedback controls are exercised through the combined compact sound panel.
     await ev("window.__whaleRenderTest.close();document.querySelector('.dshwv-menu-btn').click()");
     await wait("document.querySelector('.dshwv-menu').classList.contains('dshwv-menu-open')", 'compact menu opens for sound settings');
-    await ev("(async()=>{window.__soundBefore=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size);[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()})()");
+    await ev("(async()=>{window.__soundBefore=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size);document.querySelector('[data-action=\"open-sound-settings\"]').click()})()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings opens');
     await ev("(()=>{const e=document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));})()");
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await wait("!document.querySelector('.whale-sound-mask')", 'Escape dismisses the combined sound draft');
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol===window.__soundBefore.vol)"), true);
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
+    await ev("document.querySelector('[data-action=\"open-sound-settings\"]').click()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for save');
     await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click();})()");
     await wait("!document.querySelector('.whale-sound-mask')", 'combined sound settings save');
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol)"), 0);
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
+    await ev("document.querySelector('[data-action=\"open-sound-settings\"]').click()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for cancel');
     await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='.5';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='取消').click();})()");
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol)"), 0);
     checks.push('combined sound panel saves independent event volume and discards Cancel and Escape drafts');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
+    await ev("document.querySelector('[data-action=\"open-sound-settings\"]').click()");
     await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings opens for screenshot');
     assert.equal(await ev("document.querySelectorAll('.whale-sound-card>.whale-sound-block').length"), 4);
     assert.equal(await ev("[...document.querySelectorAll('.whale-sound-card>.whale-sound-block')].find(b=>b.querySelector('.whale-sound-block-title')?.textContent==='每轮消耗提示').querySelector('.whale-sound-wide-action').textContent"), '编辑提示内容');
@@ -198,11 +199,11 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     }
     await ev("window.__whaleRenderTest.close()"); await delay(320);
     await ev("WhaleAccountView.setMode('api')");
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='素材包导入/导出').click()"); await delay(100);
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'workshop'}}))"); await delay(100);
     fs.writeFileSync(path.join(output, 'workshop-v3.png'), (await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('.whale-v3-dialog[open]').close(); [...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='桌面驻留').click()"); await delay(150);
+    await ev("document.querySelector('.whale-v3-dialog[open]').close(); (()=>{const s=document.getElementById('dshw-desktop-display');s.value='standalone';s.dispatchEvent(new Event('change'));})()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'standalone');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='窗口随行').click()"); await delay(150);
+    await ev("(()=>{const s=document.getElementById('dshw-desktop-display');s.value='follow-codex';s.dispatchEvent(new Event('change'));})()"); await delay(150);
     assert.equal((await ev("whaleDesktop.command('mode')")), 'follow-codex');
     checks.push('feedback and material-package panels render; redundant member details are absent and one mode button toggles both directions');
     assert.equal(await ev("whaleDesktop.command('desktop')"), true);
@@ -271,7 +272,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("window.__shapeResizeStyle=document.createElement('style');__shapeResizeStyle.textContent='html.desktop .dshwv-menu{width:270px!important}';document.head.append(__shapeResizeStyle)");
     await wait("(()=>{const m=document.querySelector('.dshwv-menu').getBoundingClientRect();return __whaleShapeTest.status().rectangles.some(r=>r.x<=m.left&&r.y<=m.top&&r.x+r.width>=m.right&&r.y+r.height>=m.bottom)})()",'CSS-only layout changes update full native menu region');
     await ev("__shapeResizeStyle.remove()"); await delay(100);
-    await ev("document.querySelector('[data-action=\"open-api-settings\"]').click()");
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'api'}}))");
     await wait("document.querySelector('#settings-dialog').open",'settings entry opens');
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'an open dialog cannot intercept the transparent viewport corner');
     assert.equal(await ev("getComputedStyle(document.querySelector('#settings-dialog'),'::backdrop').backgroundColor"),'rgba(0, 0, 0, 0)');
@@ -285,6 +286,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('#discard-settings').click()");
     await wait("!document.querySelector('#settings-dialog').open",'discarding closes the dialog');
     checks.push('API settings asks before discarding an unsaved edit and can return to the form');
+    await ev("if(!document.querySelector('.dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click()");
     await ev("document.querySelector('[data-action=\"toggle-usage-records\"]').click()");
     await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
     await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
@@ -294,15 +296,15 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();document.querySelector('[data-action=\"toggle-usage-records\"]').click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menu').innerText");
-    for(const label of ['数据来源','角色','大小','显示方式','音效与提示','气泡','高级设置'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of [LABELS.role,LABELS.scale,LABELS.dataSource,LABELS.displayMode,LABELS.soundSettings,LABELS.bubble,LABELS.ledgerMenu,LABELS.advanced])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
-    await ev("document.querySelector('[title=\"集中管理当前导入插件的图片与音频资源\"]').click()");
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'resources'}}))");
     await wait("document.querySelectorAll('.dshwv-resmask .dshwv-rescat').length===2", 'resource manager loads image and audio catalogues');
     assert.equal(await ev("document.querySelector('.dshwv-resmask').style.display"), 'flex');
     await ev("document.querySelector('.dshwv-resclose').click()");
     checks.push('resource manager loads real image and audio catalogues and closes without changing the menu');
-    await ev("document.querySelector('[title=\"打开“气泡DIY”设置\"]').click()");
+    await ev("document.querySelector('[data-menu-id=\"bubble\"] button').click()");
     await wait("document.querySelector('.dshwv-bubmask')?.style.display==='flex' && document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip')?.textContent.includes('首次点击')", 'bubble draft editor renders its first row');
     assert.ok(await ev("document.querySelectorAll('.dshwv-bubmask .dshwv-bubrow-drag').length") >= 1);
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");
@@ -319,15 +321,18 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('.dshwv-bubmask .dshwv-bubbtn-no').click()");
     assert.equal(await ev("document.querySelector('.dshwv-bubmask').style.display"), 'none');
     checks.push('bubble draft, palette, quick module editor and color selector render and cancel cleanly');
-    await ev("document.querySelector('[title=\"自定义各边吸附区宽度与翻转线位置\"]').click()");
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'snap'}}))");
     await wait("document.querySelector('.dshwv-snapmask')?.style.display==='flex' && document.querySelectorAll('.dshwv-snaphandle').length===5", 'snap region editor renders its preview');
     assert.equal(await ev("(()=>{const input=document.querySelector('[title=\"左侧吸附区：距屏幕左边的宽度\"]');input.value='14';input.dispatchEvent(new Event('input',{bubbles:true}));return input.value})()"), '14');
     await ev("document.querySelector('.dshwv-snapbtn-no').click()");
     assert.equal(await ev("document.querySelector('.dshwv-snapmask').style.display"), 'none');
     checks.push('snap region editor updates its preview draft and cancels without saving');
+    await ev("if(!document.querySelector('.dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click()");
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,{...dip,width:360,height:320})});await delay(250);
-    assert.equal(await ev("(()=>{const menu=document.querySelector('.dshwv-menu'),m=menu.getBoundingClientRect(),v=document.querySelector('.dshwv-menuview');menu.scrollTop=menu.scrollHeight;const last=[...v.querySelectorAll('button,select,input')].filter(e=>e.offsetParent).at(-1)?.getBoundingClientRect();return m.left>=0&&m.top>=0&&m.right<=innerWidth&&m.bottom<=innerHeight&&last&&last.bottom<=m.bottom})()"),true,'small viewport keeps the compact menu bounded and its final control reachable');
+    const smallMenu = await ev("(()=>{const menu=document.querySelector('.dshwv-menu');menu.scrollTop=menu.scrollHeight;const m=menu.getBoundingClientRect();const last=menu.querySelector('[data-menu-id=advanced] button')?.getBoundingClientRect();return {menu:m.toJSON(),last:last?.toJSON(),width:innerWidth,height:innerHeight,open:menu.classList.contains('dshwv-menu-open')}})()");
     fs.writeFileSync(path.join(output,'compact-settings-small.png'),(await window.webContents.capturePage()).toPNG());
+    assert.ok(smallMenu.open && smallMenu.menu.left >= 0 && smallMenu.menu.top >= 0 && smallMenu.menu.right <= smallMenu.width + 1 && smallMenu.menu.bottom <= smallMenu.height + 1 && smallMenu.last && smallMenu.last.bottom <= smallMenu.menu.bottom + 1,
+      'small viewport keeps the compact menu bounded and its final control reachable: ' + JSON.stringify(smallMenu));
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,dip)});
     await ev("WhaleAccountView.setMode('api')");
     checks.push('compact original-style menu retains the complete settings inventory and remains scrollable at 360x320');

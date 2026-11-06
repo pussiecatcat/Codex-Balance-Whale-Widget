@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Renders the module editor body. The mask, title and body elements stay in
 // the caller; this module owns the per-render color/size controls and the
 // dialog's content construction.
@@ -477,4 +478,145 @@ export function createModuleEditorView({
     }
 
   return { render, get colorEl() { return colorEl; }, get sizeEl() { return sizeEl; } };
+}
+
+// Owns the module dialog, its nested save-as dialog and every event listener.
+export function createModuleEditorDialog({ document, view: moduleEditorView, button,
+  cleanLayers: whaleZClean, addToLibrary, getPalEl, renderPal, confirm: showConfirm }) {
+  var moduleMask, moduleEditRef = null, moduleOnSave = null, moduleEditNew = false;
+  var moduleTitleEl, moduleBodyEl;
+  function renderModuleEditor() { return moduleEditorView.render(moduleEditRef, moduleEditNew, moduleTitleEl, moduleBodyEl); }
+    var moduleNamePromptModule = null;
+    function openModuleNamePrompt(m) {
+      try {
+        moduleNamePromptModule = m || moduleEditRef || null;
+        moduleNameInput.value = '';
+        openOver(moduleMask, moduleNamePromptMask);
+        moduleNamePromptMask.style.display = 'flex';
+        setTimeout(function () {
+          try {
+            moduleNameInput.focus();
+          } catch (err) {}
+        }, 30);
+      } catch (err) {}
+    }
+    function closeModuleNamePrompt() {
+      moduleNamePromptMask.style.display = 'none';
+      moduleNamePromptModule = null;
+    }
+    function saveModuleNamePrompt() {
+      var m = moduleNamePromptModule || moduleEditRef;
+      if (!m) {
+        closeModuleNamePrompt();
+        return;
+      }
+      addToLibrary(moduleNameInput.value, m);
+      moduleNameInput.value = '';
+      closeModuleNamePrompt();
+      if (getPalEl()) renderPal();
+    }
+    function openModuleEditor(m, onSave, isNew) {
+      try {
+        whaleZClean();
+        moduleEditRef = m;
+        moduleOnSave = onSave || null;
+        moduleEditNew = !!isNew;
+        renderModuleEditor();
+        openOver(null, moduleMask);
+        moduleMask.style.display = 'flex';
+      } catch (err) {}
+    }
+    function closeModuleEditor(saved) {
+      try {
+        if (saved && moduleEditRef) {
+          if (moduleEditorView.colorEl) moduleEditRef.color = moduleEditorView.colorEl.value === '#203170' && !moduleEditRef.color ? '' : moduleEditorView.colorEl.value;
+          if (moduleEditorView.sizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleEditorView.sizeEl.value) || 6)));
+          if (moduleEditRef.type === 'image' && !moduleEditRef.imgId) {
+            showConfirm('请先选择或上传一张图片', function () {});
+            return;
+          }
+          if (moduleEditRef.type === 'randimg' && !(moduleEditRef.imgs || []).some(function (item) { return item && item.imgId; })) {
+            showConfirm('请至少选择一张随机图片', function () {});
+            return;
+          }
+          if (moduleOnSave) moduleOnSave(moduleEditRef);
+        }
+        moduleMask.style.display = 'none';
+        moduleEditRef = null;
+        moduleOnSave = null;
+        moduleEditNew = false;
+      } catch (err) {
+        moduleMask.style.display = 'none';
+      }
+    }
+    moduleMask = document.createElement('div');
+    moduleMask.className = 'dshwv-bubmask';
+    moduleMask.style.display = 'none';
+    var moduleCard = document.createElement('div');
+    moduleCard.className = 'dshwv-bubcard';
+    moduleTitleEl = document.createElement('div');
+    moduleTitleEl.className = 'dshwv-bubtitle';
+    moduleCard.appendChild(moduleTitleEl);
+    moduleBodyEl = document.createElement('div');
+    moduleCard.appendChild(moduleBodyEl);
+    var moduleBtns = document.createElement('div');
+    moduleBtns.className = 'dshwv-bubbtns';
+    moduleBtns.appendChild(button('取消', 'dshwv-bubbtn-no', function () {
+      closeModuleEditor(false);
+    }));
+    var saveAsBtn = document.createElement('button');
+    saveAsBtn.type = 'button';
+    saveAsBtn.className = 'dshwv-bubbtn dshwv-bubbtn-no';
+    saveAsBtn.textContent = '另存';
+    saveAsBtn.title = '另存为可选模块:把当前模块存入模块库,可在任意泡泡里复用';
+    saveAsBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openModuleNamePrompt(moduleEditRef);
+    });
+    moduleBtns.appendChild(saveAsBtn);
+    moduleBtns.appendChild(button('保存', 'dshwv-bubbtn-ok', function () {
+      closeModuleEditor(true);
+    }));
+    moduleCard.appendChild(moduleBtns);
+    moduleMask.appendChild(moduleCard);
+    document.body.appendChild(moduleMask);
+    var moduleNamePromptMask = document.createElement('div');
+    moduleNamePromptMask.className = 'dshwv-confirmmask';
+    moduleNamePromptMask.style.display = 'none';
+    var moduleNamePromptCard = document.createElement('div');
+    moduleNamePromptCard.className = 'dshwv-audiowin';
+    var moduleNamePromptTitle = document.createElement('div');
+    moduleNamePromptTitle.className = 'dshwv-audiotitle';
+    moduleNamePromptTitle.textContent = '存为可选模块';
+    moduleNamePromptCard.appendChild(moduleNamePromptTitle);
+    var moduleNameInput = document.createElement('input');
+    moduleNameInput.type = 'text';
+    moduleNameInput.className = 'dshwv-audionameinput';
+    moduleNameInput.maxLength = 20;
+    moduleNameInput.placeholder = '模块名称(留空自动编号)';
+    moduleNamePromptCard.appendChild(moduleNameInput);
+    var moduleNameBtns = document.createElement('div');
+    moduleNameBtns.className = 'dshwv-cropbtns';
+    var moduleNameCancel = document.createElement('button');
+    moduleNameCancel.type = 'button';
+    moduleNameCancel.className = 'dshwv-cropbtn dshwv-cropbtn-no';
+    moduleNameCancel.textContent = '取消';
+    moduleNameCancel.addEventListener('click', closeModuleNamePrompt);
+    var moduleNameOk = document.createElement('button');
+    moduleNameOk.type = 'button';
+    moduleNameOk.className = 'dshwv-cropbtn dshwv-cropbtn-ok';
+    moduleNameOk.textContent = '保存';
+    moduleNameOk.addEventListener('click', saveModuleNamePrompt);
+    moduleNameBtns.appendChild(moduleNameCancel);
+    moduleNameBtns.appendChild(moduleNameOk);
+    moduleNamePromptCard.appendChild(moduleNameBtns);
+    moduleNamePromptMask.appendChild(moduleNamePromptCard);
+    document.body.appendChild(moduleNamePromptMask);
+    moduleNameInput.addEventListener('keydown', function (e) {
+      try {
+        if (e.key === 'Enter') saveModuleNamePrompt(); else if (e.key === 'Escape') closeModuleNamePrompt();
+      } catch (err) {}
+    });
+
+  return { mask: moduleMask, open: openModuleEditor, close: closeModuleEditor };
 }

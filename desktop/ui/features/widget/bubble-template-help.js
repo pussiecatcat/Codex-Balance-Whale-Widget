@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Placeholder reference popover for module templates.
 export function createBubbleTemplateHelp({ document, viewport, bubbleTplHelpItems }) {
     var dshwvTplHelpEl = null;
@@ -28,6 +29,7 @@ export function createBubbleTemplateHelp({ document, viewport, bubbleTplHelpItem
         for (var i = 0; i < items.length; i++) html += '<div style="margin:1px 0"><b style="color:#2f4488">' + items[i].k + '</b> — ' + items[i].d + '</div>';
         html += '<div style="margin-top:5px;opacity:.65">其余文字原样显示;留空=默认自动内容</div>';
         dshwvTplHelpEl.innerHTML = html;
+        openOver(null, dshwvTplHelpEl);
         dshwvTplHelpEl.style.display = 'block';
         // height matters: without a bottom the popover's top computes to NaNpx and
         // the browser drops the assignment, leaving it wherever it was.

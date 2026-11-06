@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // The bubble item editor: open/close the per-step dialog and switch A/B
 // bubbles. It reads the shared edit buffer through the state object and the
 // late-bound overlay/render bindings through ctx.
@@ -23,6 +24,7 @@ export function createItemEditor(deps) {
         rowsCanon(it.modules);
         ctx.itemTitleEl.textContent = '编辑 ' + stepLabel(step, idx) + '内容(可拖动下方模块入框)';
         renderBubbleItemSideSwitch(step);
+        openOver(null, ctx.itemMask);
         ctx.itemMask.style.display = 'flex';
         ctx.renderPal();
         ctx.renderPv();

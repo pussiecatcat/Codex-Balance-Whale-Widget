@@ -1,3 +1,5 @@
+import { UI_DEFAULTS } from '../../services/ui-defaults.js';
+
 export function createRoleManager(deps) {
   const {
     document, window, localStorage, location, Image, rendering,
@@ -5,7 +7,7 @@ export function createRoleManager(deps) {
     assetClient, assetWarning, assetNotice, assetFailure, requireSaved,
     viewport, setupHitTest, makeNameCell, bindNameMarquee, confirm,
   } = deps;
-  let current = { id: 'default', name: '小鲸鱼', url: imageUrl };
+  let current = { id: UI_DEFAULTS.roleId, name: '小鲸鱼', url: imageUrl };
   let roles = [];
   const badIds = Object.create(null);
   let fallbackInProgress = false;
@@ -127,7 +129,7 @@ export function createRoleManager(deps) {
       return;
     }
     fallbackInProgress = true;
-    apply('default', '小鲸鱼', imageUrl, true);
+    apply(UI_DEFAULTS.roleId, '小鲸鱼', imageUrl, true);
   }
 
   function replace(nextRoles) {
@@ -144,7 +146,7 @@ export function createRoleManager(deps) {
 
   function handleDeleted(id, nextRoles) {
     replace(nextRoles);
-    if (current.id === id) apply('default', '小鲸鱼', imageUrl);
+    if (current.id === id) apply(UI_DEFAULTS.roleId, '小鲸鱼', imageUrl);
   }
 
   function load() {
@@ -160,7 +162,7 @@ export function createRoleManager(deps) {
         if (found && !badIds[found.id]) {
           if (current.id !== found.id) apply(found.id, found.name, found.url);
           else render();
-        } else if (saved && saved !== 'default') apply('default', '小鲸鱼', imageUrl);
+        } else if (saved && saved !== 'default') apply(UI_DEFAULTS.roleId, '小鲸鱼', imageUrl);
       }).catch(() => {});
     } catch (error) {}
   }

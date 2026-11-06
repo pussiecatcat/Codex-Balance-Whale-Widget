@@ -1,3 +1,5 @@
+import { registerMenuRow } from '/features/widget/menu-layout.js';
+import { LABELS } from '/services/labels.js';
 import { requestJson } from '/services/request.js';
 
 (() => {
@@ -36,7 +38,6 @@ import { requestJson } from '/services/request.js';
   }
   function updateButtons() { for (const button of modeButtons) { button.disabled = switching; button.setAttribute('aria-pressed', String(button.dataset.mode === mode)); }
     if (modeSelect) { modeSelect.disabled = switching; modeSelect.value = mode; }
-    for(const el of document.querySelectorAll('[data-account-api]'))el.hidden=mode==='subscription';
     document.documentElement.dataset.accountMode = mode;
     for (const el of document.querySelectorAll('.whale-mode-description')) el.textContent = mode === 'subscription' ? '查看 5 小时 / 周额度与本机 token 用量' : '查看当前 API 余额与消费记录';
     for (const el of document.querySelectorAll('.whale-mode-open')) el.textContent = mode === 'subscription' ? '查看订阅额度 →' : '配置 API 余额 →';
@@ -102,25 +103,29 @@ import { requestJson } from '/services/request.js';
     if (message) window.whaleToast?.(message);
     if (card) refresh(false);
   }
-  function init() {
-    const style = document.createElement('style'); style.textContent = `.whale-account-card{position:fixed;z-index:2147483646;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;box-sizing:border-box;padding:10px 12px;border:1px solid rgba(32,49,112,.35);border-radius:10px;background:#fff;color:#203170;box-shadow:0 6px 18px rgba(0,0,0,.18);font:12px/1.5 "Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-variant-numeric:tabular-nums;pointer-events:auto}.whale-account-card p{margin:3px 0}.whale-account-card small{display:block;color:#5a6a92;font-size:11px;line-height:1.4}.whale-account-card section{margin:6px 0 8px}.whale-account-card section>strong{display:block;padding-bottom:3px;border-bottom:1px solid rgba(32,49,112,.15);font-weight:700}.whale-account-card progress{display:block;width:100%;height:8px;margin:4px 0;border:0;border-radius:4px;overflow:hidden;appearance:none;background:rgba(32,49,112,.12)}.whale-account-card progress::-webkit-progress-bar{background:rgba(32,49,112,.12)}.whale-account-card progress::-webkit-progress-value{background:#203170;border-radius:4px}.whale-account-card button{border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170;font:inherit;padding:2px 9px;cursor:pointer}.whale-account-card button:hover{background:rgba(32,49,112,.16)}.whale-account-card>button{display:block;width:100%;margin-top:8px;padding:4px}.whale-account-header{display:flex;justify-content:space-between;align-items:center;font-size:13px}.whale-account-switch{border-top:1px solid rgba(32,49,112,.2);padding-top:6px;margin-top:6px!important}.whale-account-switch>span{color:#203170;font-size:12px;flex:0 0 auto}.whale-account-switch select{flex:1;min-width:0;margin:0;padding:3px 4px}`; document.head.append(style);
+  function mountModeRow() {
+    if (modeSelect?.isConnected) return;
     const menu = document.querySelector('.dshwv-menu');
     if (menu) {
       const view = menu.querySelector('.dshwv-menuview');
       if (view) {
-        const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch'; view.prepend(row);
-        text(row, 'span', '数据来源');
-        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '数据来源');
+        const row = document.createElement('div'); row.className = 'dshwv-menu-row whale-account-switch';
+        text(row, 'span', LABELS.dataSource);
+        modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', LABELS.dataSource);
         for (const [value, label] of [['subscription', 'Codex 订阅'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }
         modeSelect.addEventListener('change', () => setMode(modeSelect.value)); row.append(modeSelect);
-        status = document.createElement('span'); status.hidden = true; status.setAttribute('role', 'status'); row.append(status); updateButtons();
+        status = document.createElement('span'); status.hidden = true; status.setAttribute('role', 'status'); row.append(status); registerMenuRow(menu, { id: 'dataSource', element: row }); updateButtons();
       }
     }
+  }
+  function init() {
+    mountModeRow();
     const initialRevision = modeRevision;
     requestJson('/api/display-mode').then(data => { const next = data.mode || data.displayMode; if (validMode(next) && !switching && modeRevision === initialRevision) commit(next); }).catch(() => {});
     window.addEventListener('resize', position);
     window.addEventListener('whale-mode-changing', close);
   }
+  window.addEventListener('whale-widget-ready', mountModeRow);
   window.WhaleAccountView = { get mode() { return mode; }, toggleBubble, refresh, notice, close, setMode, quotaLabel };
   // Deferred scripts run at readyState=interactive before the widget creates its menu.
   if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();

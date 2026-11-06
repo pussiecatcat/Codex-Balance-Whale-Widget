@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Shared confirmation surface for destructive bubble, role and audio actions.
 export function createConfirmDialog({ document }) {
   const mask = document.createElement('div');
@@ -37,6 +38,7 @@ export function createConfirmDialog({ document }) {
     text.textContent = message;
     if (!okLabel) okLabel = String(message || '').includes('删除') ? '删除' : '确定';
     yes.textContent = okLabel;
+    openOver(null, mask);
     mask.style.display = 'flex';
   };
   return { show, hide, mask };

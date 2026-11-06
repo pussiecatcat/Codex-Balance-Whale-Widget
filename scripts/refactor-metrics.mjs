@@ -35,7 +35,6 @@ export const GLOBAL_SURFACE = Object.freeze([
   'WhaleApiModels',
   'WhaleAudio',
   'WhaleFeedback',
-  'WhaleFeedbackSources',
   'WhaleGesture',
   'WhaleLegacySoundUi',
   'WhaleLegacyUsage',
@@ -60,7 +59,6 @@ export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
   'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
   'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleQuota: 2 },
-  'desktop/ui/features/widget/task-end-sound.js': { WhaleFeedback: 4, WhaleFeedbackSources: 2 },
   'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1 },
   'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
   'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
@@ -92,20 +90,23 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 302 };
+export const EMPTY_CATCH_BUDGET = { total: 269 };
 
-// A design token pass only pays off if the raw palette stops growing. The
-// budget counts distinct hex values across the two stylesheets and the widget
-// entry; migrate a surface, then lower the number.
+// The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
 const CSS_HEX_FILES = ['desktop/ui/whale-widget.css', 'desktop/ui/ui.css', 'assets/whale-widget.js'];
 function cssHexMetrics(root) {
-  const values = new Set();
+  const tokens = new Set(), raw = [];
   for (const relative of CSS_HEX_FILES) {
-    let text; try { text = fs.readFileSync(path.join(root, relative), 'utf8'); } catch { continue; }
-    for (const match of text.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) values.add(match[0].toLowerCase());
+    let source; try { source = fs.readFileSync(path.join(root, relative), 'utf8'); } catch { continue; }
+    for (const match of source.matchAll(/(--color-[\w-]+)\s*:/g)) tokens.add(match[1]);
+    // ui.css declarations are the palette's only allowed literal values.
+    if (relative.endsWith('.css')) {
+      const components = source.replace(/--color-[\w-]+\s*:\s*#[0-9a-fA-F]{3,8}\b\s*;/g, '');
+      for (const match of components.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) raw.push({ file: relative, value: match[0] });
+    }
   }
-  return { total: values.size, values: [...values].sort() };
+  return { total: tokens.size, values: [...tokens].sort(), raw };
 }
 
 // The shared client is the module this whole gate funnels callers into, and
@@ -391,7 +392,7 @@ export function refactorBoundaryErrors(metrics) {
   if (!metrics.sound.combinedEndpointReferences.length) errors.push('The sound feature must use GET/PUT /api/sound-settings.');
   if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('sound-settings.js and wait-notice.js must load as ES modules.');
   if (metrics.sound.entryLines > 80) errors.push(`desktop/ui/sound-settings.js must remain a thin entry (<= 80 lines, found ${metrics.sound.entryLines}).`);
-  if (metrics.current.whaleWidgetLines > 6500) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 6500 lines (found ${metrics.current.whaleWidgetLines}).`);
+  if (metrics.current.whaleWidgetLines > 3100) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 3100 lines (found ${metrics.current.whaleWidgetLines}).`);
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
   if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
   errors.push(...dependencyErrors(metrics.dependency));
@@ -401,8 +402,9 @@ export function refactorBoundaryErrors(metrics) {
     errors.push(`Empty catch blocks must not exceed the existing budget of ${EMPTY_CATCH_BUDGET.total} (found ${metrics.emptyCatch.total}). Handle the error or add a comment explaining a deliberate best-effort catch, and lower the budget as sites are cleaned. By file — ${perFile}`);
   }
   if (metrics.cssHex.total > CSS_HEX_BUDGET.total) {
-    errors.push(`Distinct CSS hex colours must not exceed the existing budget of ${CSS_HEX_BUDGET.total} (found ${metrics.cssHex.total}). Use a design token instead, and lower the budget as surfaces are migrated.`);
+    errors.push(`CSS color tokens must not exceed the existing budget of ${CSS_HEX_BUDGET.total} (found ${metrics.cssHex.total}). Use a design token instead, and lower the budget as surfaces are migrated.`);
   }
+  if (metrics.cssHex.raw?.length) errors.push('Component CSS must use --color-* tokens instead of hex literals.');
   return errors;
 }
 

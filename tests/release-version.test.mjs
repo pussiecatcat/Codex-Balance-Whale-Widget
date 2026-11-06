@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { VERSION, ROOT } from '../runtime/paths.mjs';
 
 // runtime/paths.mjs used to carry its own `VERSION` literal next to the one in
@@ -24,4 +26,25 @@ test('no runtime or installer file repeats the release version as a literal', ()
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
     assert.equal(literal.test(text), false, file + ' must read the version from the manifest');
   }
+});
+
+test('candidate builds generate a package-only identity and releases retain the source version', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-build-version-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const before = fs.readFileSync(path.join(ROOT, '.codex-plugin/plugin.json'), 'utf8');
+  const base = readJson('.codex-plugin/plugin.json').version;
+  function build(folder, extra = []) {
+    const output = path.join(directory, folder);
+    const result = spawnSync('python', ['scripts/build-release.py', '--output', output, ...extra], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return JSON.parse(fs.readFileSync(path.join(output, 'release-manifest.json'), 'utf8'));
+  }
+  const candidate = build('candidate');
+  assert.match(candidate.internalVersion, /^\d+\.\d+\.\d+\+codex\.\d{8}-[A-Za-z0-9.-]+\.[a-f0-9]{12}$/);
+  assert.equal(candidate.sourceVersion, base);
+  assert.equal(candidate.status, 'local-test-candidate-awaiting-user-acceptance');
+  const released = build('release', ['--release-tag', 'v' + VERSION]);
+  assert.equal(released.internalVersion, base);
+  assert.equal(released.status, 'release-build');
+  assert.equal(fs.readFileSync(path.join(ROOT, '.codex-plugin/plugin.json'), 'utf8'), before, 'building must not edit the tracked manifest');
 });

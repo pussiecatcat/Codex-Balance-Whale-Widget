@@ -1,15 +1,17 @@
 import { requestJson } from './services/request.js';
-import { normalizeVolume, soundReferenceUrl } from './services/sound-reference.js';
+import { sound } from './services/sound.js';
 
 export class WaitNoticeController {
   constructor(options = {}) {
     this.window = options.windowRef || window;
     this.request = options.request || requestJson;
+    this.sound = options.sound || sound;
     this.usage = options.legacyUsage || (() => this.window.WhaleLegacyUsage);
     this.schedule = options.schedule || ((fn, delay) => this.window.setTimeout(fn, delay));
     this.cancelSchedule = options.cancelSchedule || (id => this.window.clearTimeout(id));
     this.settings = null;
     this.settingsAt = 0;
+    this.settingsGeneration = 0;
     this.activeId = '';
     this.dismissedId = '';
     this.timer = 0;
@@ -18,6 +20,7 @@ export class WaitNoticeController {
     this.abortController = new AbortController();
     this.onDismissed = event => { this.dismissedId = String(event.detail?.id || this.activeId || ''); };
     this.onSettings = event => {
+      this.settingsGeneration++;
       this.settings = event.detail?.usage || null;
       this.settingsAt = this.settings ? Date.now() : 0;
       if (this.activeId && this.dismissedId !== this.activeId) this.usage()?.hideWait?.(this.activeId);
@@ -35,15 +38,7 @@ export class WaitNoticeController {
   }
 
   play(config) {
-    const url = soundReferenceUrl(config.sel);
-    if (!url) return;
-    const volume = normalizeVolume(config.vol, 1);
-    if (this.window.WhaleAudio) this.window.WhaleAudio.play({ channel: 'notice', url, volume });
-    else {
-      const audio = new this.window.Audio(url);
-      audio.volume = volume;
-      audio.play().catch(() => {});
-    }
+    this.sound.preview(config.sel, config.vol, { channel: 'notice' });
   }
 
   async tick() {
@@ -51,9 +46,14 @@ export class WaitNoticeController {
     try {
       const now = Date.now();
       if (!this.settings || now - this.settingsAt > 3000) {
+        const generation = this.settingsGeneration;
         const snapshot = await this.request('/api/sound-settings', { signal: this.abortController.signal });
-        this.settings = snapshot.usage || {};
-        this.settingsAt = now;
+        if (this.disposed) return;
+        if (generation === this.settingsGeneration) {
+          this.settings = snapshot.usage || {};
+          this.sound.reload(snapshot);
+          this.settingsAt = now;
+        }
       }
       const state = await this.request('/dsh-whale/wait.json', { signal: this.abortController.signal });
       if (this.disposed) return;

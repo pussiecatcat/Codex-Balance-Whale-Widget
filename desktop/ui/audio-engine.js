@@ -1,4 +1,5 @@
 import { requestBytes } from '/services/request.js';
+import { sound } from './services/sound.js';
 
 (() => {
   'use strict';
@@ -22,7 +23,7 @@ import { requestBytes } from '/services/request.js';
       active.delete(key);
     }
   }
-  async function play({ channel = 'preview', url, preset = 'original', volume = .9 } = {}) {
+  async function play({ channel = 'preview', url, preset = 'original', volume = .9, onended } = {}) {
     stop(channel); const epoch = epochs.get(channel);
     if (!(Number(volume) > 0)) return;
     try {
@@ -43,15 +44,19 @@ import { requestBytes } from '/services/request.js';
         for (let i = 0; i < tones.length; i++) { const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(tones[i], now); o.connect(gain); nodes.push(o); o.start(now + i * .035); o.stop(now + .19); }
       }
       active.set(channel, nodes);
-      nodes[nodes.length - 1].onended = () => { gain.disconnect(); if (active.get(channel) === nodes) active.delete(channel); };
-    } catch { /* Missing or unsupported audio must never block interaction. */ }
+      nodes[nodes.length - 1].onended = () => {
+        gain.disconnect();
+        if (active.get(channel) === nodes) active.delete(channel);
+        if (epochs.get(channel) === epoch) onended?.();
+      };
+    } catch { onended?.(); /* Missing or unsupported audio must never block interaction. */ }
   }
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); ctx?.suspend().catch(() => {}); } });
   window.addEventListener('beforeunload', () => { stop(); clearTimeout(idle); ctx?.close().catch(() => {}); });
-  // A sound group keeps its URL when its press or release clip changes, so a cached
-  // decode would keep playing the old clip; callers drop the cache when groups change.
+  // Retained for explicit resource eviction; group URLs carry fragment identity.
   function forget(prefix = '') {
     for (const map of [buffers, pending]) for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key);
   }
   window.WhaleAudio = Object.freeze({ warm, play, stop, forget });
+  sound.attachEngine(window.WhaleAudio);
 })();

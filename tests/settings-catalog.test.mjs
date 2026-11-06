@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,17 +6,17 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 const { createSoundSettingsDomains } = createRequire(import.meta.url)('../desktop/settings-store.cjs');
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalogPath = path.join(root, 'desktop/ui/settings-catalog.js');
 
 // The catalog is a plain browser script that also assigns module.exports, so it
 // is loaded the same way tests/account-view.test.mjs loads its pure helpers.
-const catalogSource = fs.readFileSync(catalogPath, 'utf8');
+const catalogSource = fs.readFileSync(catalogPath, 'utf8').replace(/^import .*$/mg, '');
 function loadCatalog() {
   const module = { exports: {} };
-  vm.runInNewContext(catalogSource, { module, globalThis: {}, console });
+  vm.runInNewContext(catalogSource, { LABELS, module, globalThis: {}, console });
   return module.exports;
 }
 
@@ -72,16 +73,34 @@ test('every help entry is specific, not a generic fallback', () => {
   }
 });
 
-test('defaultSource points at a line that really exists in the repository', () => {
-  const catalog = loadCatalog();
-  for (const field of catalog.fields) {
-    const match = String(field.defaultSource).match(/^(.+):(\d+)$/);
-    assert.ok(match, `${field.id} 的 defaultSource 必须是 file:line`);
-    const file = path.join(root, match[1]);
-    assert.ok(fs.existsSync(file), `${field.id} 的 defaultSource 指向不存在的文件 ${match[1]}`);
-    const lines = fs.readFileSync(file, 'utf8').split('\n');
-    const line = Number(match[2]);
-    assert.ok(line >= 1 && line <= lines.length, `${field.id} 的 defaultSource 行号 ${line} 超出 ${match[1]}`);
+async function resolveDefaultSource(reference) {
+  const match = String(reference).match(/^([^#]+)#([A-Za-z_$][\w$]*)(\(\))?((?:\.[A-Za-z_$][\w$]*)*)$/);
+  assert.ok(match, `defaultSource 必须是 file#export.path：${reference}`);
+  const file = path.resolve(root, match[1]);
+  assert.ok(file.startsWith(root + path.sep) && fs.existsSync(file), `defaultSource 文件不存在：${reference}`);
+  const module = await import(pathToFileURL(file).href);
+  assert.ok(Object.hasOwn(module, match[2]), `defaultSource 导出不存在：${reference}`);
+  let value = module[match[2]];
+  if (match[3]) {
+    assert.equal(typeof value, 'function', reference);
+    value = value();
+  }
+  for (const key of match[4].split('.').filter(Boolean)) {
+    assert.ok(value != null && Object.hasOwn(value, key), `defaultSource 字段不存在：${reference}`);
+    value = value[key];
+  }
+  return value;
+}
+
+test('defaultSource resolves a real exported default or its factory', async () => {
+  for (const field of loadCatalog().fields) await resolveDefaultSource(field.defaultSource);
+  await assert.rejects(resolveDefaultSource('runtime/size-settings.mjs#MISSING_DEFAULT'), /导出不存在/);
+  await assert.rejects(resolveDefaultSource('runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.missing'), /字段不存在/);
+});
+
+test('provider settings describe the merged provider store', () => {
+  for (const field of loadCatalog().fields.filter(field => ['api', 'apiModels'].includes(field.domain))) {
+    assert.match(field.store, /^providers\.json → (codexApi|diyModels)$/);
   }
 });
 
@@ -149,7 +168,7 @@ test('fields that claim to be editable declare a write path', () => {
 
 test('nested settings preserve sibling fields and editor destinations are explicit', () => {
   const window = { WhaleSettingsCatalog: loadCatalog() };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8'), { window });
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window });
   const pages = window.WhaleSettingsPages;
   const field = window.WhaleSettingsCatalog.byId.get('usage.taskEndSel');
   const values = { usage: { taskEnd: { on: true, sel: 'old', vol: .4 } } };
@@ -158,4 +177,6 @@ test('nested settings preserve sibling fields and editor destinations are explic
   assert.deepEqual(patch.usage.taskEnd, { on: true, sel: 'preset:duck:press', vol: .4 });
   assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('api.models')).editor, 'api');
   assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.audio')).editor, 'sound');
+  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get(id)).editor, 'resources');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.workshop')).editor, 'workshop');
 });

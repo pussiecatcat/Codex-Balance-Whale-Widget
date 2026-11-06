@@ -16,14 +16,13 @@ function build(overrides = {}) {
     cancel: element(), save: element(), pressImport: element(), releaseImport: element(),
   };
   let press = '', release = '', groups = [{ id: 'g1', name: '旧组', press: 'p', release: 'r' }], fragments = [];
-  const requests = [], played = [];
-  class Audio {
-    constructor(url) { this.url = url; this.currentTime = 0; this.duration = 0.05; }
-    pause() {}
-    play() { played.push(this.url); return Promise.resolve(); }
-  }
+  const requests = [], played = [], endings = [];
+  const sound = {
+    stop() {}, warm: async () => {}, reload() {},
+    preview(ref, volume, options) { played.push(ref.id); endings.push(options.onended); return Promise.resolve(); },
+  };
   const editor = createAudioGroupEditor({
-    Audio, requestJson: async (url, options) => { requests.push(options.body); return { ok: true, groups: [{ id: 'g1', name: options.body.name, press: options.body.press, release: options.body.release }], fragments }; },
+    sound, requestJson: async (url, options) => { requests.push(options.body); return { ok: true, groups: [{ id: 'g1', name: options.body.name, press: options.body.press, release: options.body.release }], fragments }; },
     url: '/audio', elements,
     getGroups: () => groups, setGroups: value => { groups = value; },
     getFragments: () => fragments, setFragments: value => { fragments = value; },
@@ -35,7 +34,7 @@ function build(overrides = {}) {
     requireSaved: value => value, assetFailure: error => { throw error; },
     ...overrides,
   });
-  return { editor, elements, requests, played, get press() { return press; }, get release() { return release; }, get groups() { return groups; } };
+  return { editor, elements, requests, played, end: () => endings.at(-1)?.(), get press() { return press; }, get release() { return release; }, get groups() { return groups; } };
 }
 
 test('the audio editor opens a group and saves the draft through the API', async () => {
@@ -66,6 +65,14 @@ test('an empty name is rejected and preview plays press then release', async () 
   fx.editor.previewDown();
   assert.match(fx.played.at(-1), /p1/);
   fx.editor.previewUp();
-  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(fx.played.at(-1), 'p1', 'release waits for the press to finish');
+  fx.end();
   assert.match(fx.played.at(-1), /r1/);
+});
+
+test('closing a preview prevents a late press completion from playing release', () => {
+  const fx = build();
+  fx.editor.open({ id: 'g1', name: '组', press: 'p1', release: 'r1' });
+  fx.editor.previewDown(); fx.editor.previewUp(); fx.editor.hide(); fx.end();
+  assert.deepEqual(fx.played, ['p1']);
 });

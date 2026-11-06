@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // GIF/APNG role import dialog. Animated roles cannot be cropped, so this only
 // previews the image, takes a name and uploads it through the role endpoint.
 export function createGifRoleDialog({ document, requestJson, roleUrl, roleManager, requireSaved, assetFailure }) {
@@ -66,6 +67,7 @@ export function createGifRoleDialog({ document, requestJson, roleUrl, roleManage
     }
     name.value = '';
     preview.src = url;
+    openOver(null, mask);
     mask.style.display = 'flex';
   }
 

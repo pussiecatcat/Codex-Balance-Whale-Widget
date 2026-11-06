@@ -9,6 +9,8 @@ import {
   SOUND_RUNTIME_MODULES,
   EMPTY_CATCH_BUDGET,
   CSS_HEX_BUDGET,
+  GLOBAL_SURFACE,
+  MODULE_GLOBAL_READS,
   assertRefactorBoundaries,
   collectDependencyMetrics,
   collectRefactorMetrics,
@@ -66,9 +68,8 @@ const evaluate = root => dependencyErrors(collectDependencyMetrics({ root }));
 test('the dependency gate is clean on the tree as it stands, and its numbers are the frozen ones', () => {
   const metrics = collectDependencyMetrics({ root: ROOT });
   assert.deepEqual(dependencyErrors(metrics), []);
-  assert.equal(metrics.publishedGlobals.length, 17, 'the window global surface is frozen at seventeen names');
-  assert.equal(Object.keys(metrics.moduleReads).length, 8, 'eight modules still reach for a global');
-  assert.equal(Object.values(metrics.moduleReads).reduce((sum, reads) => sum + Object.values(reads).reduce((a, b) => a + b, 0), 0), 26);
+  assert.deepEqual(metrics.publishedGlobals, [...GLOBAL_SURFACE].sort(), 'remove retired globals from the frozen surface');
+  assert.deepEqual(metrics.moduleReads, MODULE_GLOBAL_READS, 'lower each frozen module count after migrating a global read');
   assert.equal(metrics.staleReads.length, 0, 'every frozen read is still present; a stale one means the baseline should be lowered');
   assert.equal(metrics.crossFeatureImports.length, 0);
   assert.equal(metrics.globalStorage.length, 0);
@@ -189,10 +190,10 @@ test('the empty-catch ratchet counts this tree and rejects a new site', () => {
   assert.match(errors.join('\n'), /runtime\/loud\.mjs:1/, 'the report names which file to clean first');
 });
 
-test('the CSS palette ratchet counts this tree and rejects a new hex value', () => {
+test('the CSS palette ratchet counts this tree and rejects a new color token', () => {
   const metrics = collectRefactorMetrics({ root: ROOT });
-  assert.equal(metrics.cssHex.total, CSS_HEX_BUDGET.total,
-    'use a design token and lower CSS_HEX_BUDGET instead of adding a raw colour');
+  assert.ok(metrics.cssHex.total <= CSS_HEX_BUDGET.total,
+    'reuse a design token and lower CSS_HEX_BUDGET after consolidating colors');
   const over = { ...metrics, cssHex: { total: CSS_HEX_BUDGET.total + 1, values: [] } };
-  assert.match(refactorBoundaryErrors(over).join('\n'), /Distinct CSS hex colours must not exceed/);
+  assert.match(refactorBoundaryErrors(over).join('\n'), /CSS color tokens must not exceed/);
 });

@@ -1,3 +1,5 @@
+import './settings-catalog.js';
+import './settings-pages.js';
 // 小龙娘完整设置窗口的控制器。
 //
 // 状态分三层，任何一层都不越权：

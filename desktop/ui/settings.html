@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- 普通不透明设置窗口。html 上刻意不加 class="desktop"：ui.css:187-188 会把
+<!-- 普通不透明设置窗口。html 上刻意不加 class="desktop"：挂件样式会把
      [class*="mask"] 和 dialog::backdrop 强制设为透明，只对透明挂件成立。 -->
 <html lang="zh-CN">
 <head>
@@ -7,9 +7,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>小龙娘设置</title>
 <link rel="stylesheet" href="/settings.css">
-<script src="/settings-catalog.js" defer></script>
+<script type="module" src="/settings-catalog.js"></script>
 <script src="/settings-help.js" defer></script>
-<script src="/settings-pages.js" defer></script>
+<script type="module" src="/settings-pages.js"></script>
 <script type="module" src="/settings.js"></script>
 </head>
 <body>

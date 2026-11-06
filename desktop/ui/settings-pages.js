@@ -1,3 +1,4 @@
+import './settings-catalog.js';
 // 设置窗口的分区与字段行渲染。
 //
 // 每个字段按设置目录（settings-catalog.js）里的 type 渲染成对应控件。同一分类
@@ -68,8 +69,11 @@
   }
   function editorFor(field) {
     if (field.domain === 'api' || field.domain === 'apiModels') return { editor: 'api', label: '打开 API 编辑器' };
-    if (field.domain === 'media') return field.id === 'media.audio'
-      ? { editor: 'sound', label: '打开音效编辑器' } : { editor: 'workshop', label: '打开素材管理' };
+    if (field.domain === 'media') {
+      if (field.id === 'media.audio') return { editor: 'sound', label: '打开音效编辑器' };
+      if (field.id === 'media.workshop') return { editor: 'workshop', label: '打开素材包导入导出' };
+      return { editor: 'resources', label: '打开素材管理' };
+    }
     if (field.id === 'ui.role') return { editor: 'role', label: '打开角色选择' };
     if (field.type === 'snap' || field.type === 'position') return { editor: 'snap', label: '打开位置编辑器' };
     if (field.page === 'sound') return { editor: 'sound', label: '打开音效编辑器' };

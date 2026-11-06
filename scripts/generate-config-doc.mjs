@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { LABELS } from '../desktop/ui/services/labels.js';
 // 把 desktop/ui/settings-catalog.js 里的字段目录写进 docs/CONFIGURATION.md。
 //
 // 界面控件、`!` 说明和本文件共用同一份目录，所以三者不会各写各的。
@@ -18,7 +19,7 @@ const END = '<!-- END GENERATED: settings-catalog -->';
 
 function loadCatalog() {
   const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(catalogFile, 'utf8'), { module, globalThis: {}, console });
+  vm.runInNewContext(fs.readFileSync(catalogFile, 'utf8').replace(/^import .*$/mg, ''), { LABELS, module, globalThis: {}, console });
   return module.exports;
 }
 

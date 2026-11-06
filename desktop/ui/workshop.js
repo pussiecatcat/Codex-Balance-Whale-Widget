@@ -25,11 +25,4 @@ import { requestJson } from '/services/request.js';
     const close = element('button', '关闭'); close.onclick = () => dialog.close(); const actions = element('div'); actions.className = 'dialog-actions'; actions.append(exportButton, importButton, reload, close); dialog.append(file, status, actions); dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
   }
   window.WhaleWorkshopOpen = open;
-  function initMenu() {
-    const menu = document.querySelector('.dshwv-menuview');
-    if (!menu) return;
-    const row = menu.querySelector('.whale-mode-row') || element('div'); row.classList.add('dshwv-menu-row','whale-utility-row'); const button = element('button', '素材包导入/导出'); button.className = 'dshwv-sound whale-workshop-button'; button.title = '备份、分享或导入角色、气泡图和音效素材'; button.onclick = open; row.append(button); if (!row.isConnected) menu.append(row);
-  }
-  if (document.readyState === 'complete') initMenu();
-  else document.addEventListener('DOMContentLoaded', initMenu, { once: true });
 })();

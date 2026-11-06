@@ -180,7 +180,10 @@ export function createCharacterInteraction(deps) {
     positioner.style.transition = 'none';
     if (!(state.h === null && state.v === null && applyAnchorPosition())) settle();
     void positioner.getBoundingClientRect();
-    window.requestAnimationFrame(() => { positioner.style.transition = ''; });
+    window.requestAnimationFrame(() => {
+      positioner.style.transition = '';
+      if (isMenuOpen()) positionMenu();
+    });
   });
   state.left = Math.max(0, viewport().w - root.offsetWidth - rightGap());
   state.top = Math.max(0, viewport().h - root.offsetHeight);

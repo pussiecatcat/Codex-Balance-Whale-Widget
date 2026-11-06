@@ -1,3 +1,10 @@
+// /api/sound-settings is the combined transaction boundary for audio preferences.
+// .dshw-size.json owns sound/vol/soundSet and turnCostOn/turnCostCloseMs;
+// usage-settings.json owns taskEnd, event prompts/volumes and wait behavior.
+// ui-state.json's dshw-v3-feedback owns feel and procedural event presets; the
+// renderer merges that snapshot through services/sound.reload, without copying
+// those fields into either transaction file. Legacy size/usage endpoints remain
+// compatibility writers for their respective documents.
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';

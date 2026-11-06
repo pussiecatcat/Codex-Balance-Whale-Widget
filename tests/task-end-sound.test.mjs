@@ -11,17 +11,17 @@ function fixture() {
     remove(index) { this.options.splice(index, 1); },
   };
   const plays = [];
-  const window = { WhaleFeedbackSources: {}, WhaleFeedback: { play: (...args) => plays.push(args) } };
+  const soundService = { reload() {}, play: (...args) => plays.push(args) };
   let refreshes = 0;
   const sound = createTaskEndSound({
-    document: { createElement: () => ({ value: '', textContent: '' }) }, window,
+    document: { createElement: () => ({ value: '', textContent: '' }) }, sound: soundService,
     Audio: class {}, taskEndSelect: select, getTaskEndDrop: () => ({ refresh: () => refreshes++ }),
     getUsageSettings: () => settings, setUsageSettings: value => { settings = value; },
     getAudioGroups: () => [{ id: 'custom', name: '自定义' }],
     getAudioFragments: () => [{ id: 'clip', name: '片段' }, { id: 'preset', name: '跳过', preset: true }],
     audioGroupName: id => id, getSoundState: () => ({ on: true, volume: 0.8 }),
   });
-  return { sound, select, window, plays, settings: () => settings, refreshes: () => refreshes };
+  return { sound, select, plays, settings: () => settings, refreshes: () => refreshes };
 }
 
 test('task end sound options keep groups, presets and imported fragments distinct', () => {
@@ -38,5 +38,17 @@ test('task end sound options keep groups, presets and imported fragments distinc
 test('task end sound routes the selected group through the feedback channel and its own volume', () => {
   const state = fixture();
   state.sound.play();
-  assert.deepEqual(state.plays, [['success', '/dsh-whale/sound/press.mp3?set=custom', 0.35]]);
+  assert.deepEqual(state.plays, [['success', { ref: 'grp:custom', volume: .35 }]]);
+});
+
+test('task end playback does not need hidden menu controls', () => {
+  const plays = [];
+  const controller = createTaskEndSound({
+    sound: { reload() {}, play: (...args) => plays.push(args) },
+    getUsageSettings: () => ({ taskEnd: { on: true, sel: 'frag:finish' } }),
+    getSoundState: () => ({ on: true, volume: .7 }),
+    getAudioGroups: () => [], getAudioFragments: () => [],
+  });
+  controller.fillOptions(); controller.refreshAfterAudio(); controller.play();
+  assert.deepEqual(plays, [['success', { ref: 'frag:finish', volume: .7 }]]);
 });
