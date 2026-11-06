@@ -44,12 +44,12 @@ const BUBBLE_CHIP_FONT = '"Microsoft YaHei UI","Microsoft YaHei",sans-serif';
 function bubbleSingleQuotaStep(minutes, badge, countdown) {
   // One window per click. Both steps use the same three rows and the same
   // sizes, so moving between them changes only the values, never the layout.
-  // The title says consumption, so the large number is the used share.
+  // The title says remaining, so the large number is the remaining share.
   // An expired reading is marked once, on the countdown row.
   return { kind: 'custom', modules: [
-    { type: 'text', text: 'Codex 额度消耗', size: 11, bold: true, tightTitle: true, row: 1 },
+    { type: 'text', text: 'Codex 额度剩余', size: 11, bold: true, tightTitle: true, row: 1 },
     { type: 'text', text: badge, size: 1, bold: true, color: '#ffffff', bg: '#203170', fontFamily: BUBBLE_CHIP_FONT, titleBadge: true, row: 1 },
-    { type: 'quota', windowDurationMins: minutes, size: 30, quietStale: true, tpl: '{quota_used_round}' },
+    { type: 'quota', windowDurationMins: minutes, size: 30, quietStale: true, tpl: '{quota_left_round}' },
     { type: 'text', text: '距离重置', size: 2, bold: true, color: '#ffffff', bgRgb: 'bamboo', fontFamily: BUBBLE_CHIP_FONT, row: 2 },
     { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, color: '#2fa24c', tpl: countdown, row: 2 }
   ] };
@@ -68,10 +68,10 @@ export function bubbleLegacySubscriptionDefault(items) {
         parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
         parts[2].type === 'quota' && parts[2].tpl === '{quota_reset_short}后重置' && parts[3].type === 'source';
     })) return true;
-    // The consumption title first shipped with other title, badge and number sizes.
+    // Every consumption layout, whatever its sizes, showed the used share.
     if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
       var parts = item && Array.isArray(item.modules) ? item.modules : [];
-      return parts.length === 5 && parts[0].text === 'Codex 额度消耗' && parts[1].text === (index ? '7d' : '5h') && parts[1].size === 2 &&
+      return parts.length === 5 && parts[0].text === 'Codex 额度消耗' && parts[1].text === (index ? '7d' : '5h') &&
         parts[2].type === 'quota' && parts[2].tpl === '{quota_used_round}' && parts[3].text === '距离重置';
     })) return true;
     // The first badge layout showed the remaining share under a shorter title.

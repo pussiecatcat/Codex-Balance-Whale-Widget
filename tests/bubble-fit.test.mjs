@@ -137,7 +137,7 @@ test('both subscription steps share one layout', () => {
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.deepEqual(shape(short), shape(weekly));
   assert.deepEqual(short.modules.map(module => module.text || module.tpl),
-    ['Codex 额度消耗', '5h', '{quota_used_round}', '距离重置', '{quota_reset}']);
+    ['Codex 额度剩余', '5h', '{quota_left_round}', '距离重置', '{quota_reset}']);
   assert.equal(weekly.modules[1].text, '7d');
 });
 
@@ -152,7 +152,7 @@ test('the earlier single-window default migrates to the aligned layout', () => {
   assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
 });
 
-test('the title badge sits on the baseline and the smaller consumption layout migrates', () => {
+test('the title badge sits on the baseline and the consumption layout migrates', () => {
   assert.match(rowsViewSource, /if \(m\.titleBadge\) \{\s+row\.style\.overflow = 'hidden'/);
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.equal(short.modules[0].size, 11);
@@ -161,6 +161,8 @@ test('the title badge sits on the baseline and the smaller consumption layout mi
   assert.equal(bubbleLegacySubscriptionDefault([short, weekly]), false);
   const older = [short, weekly].map(step => {
     const copy = JSON.parse(JSON.stringify(step));
+    copy.modules[0].text = 'Codex 额度消耗';
+    copy.modules[2].tpl = '{quota_used_round}';
     copy.modules[1].size = 2;
     return copy;
   });
