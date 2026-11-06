@@ -5,6 +5,7 @@ import { parseSoundReference, soundReferenceUrl } from '../desktop/ui/services/s
 import { buildSoundSave, createSoundDraft } from '../desktop/ui/features/sound-settings/model.js';
 import { SoundSettingsController } from '../desktop/ui/features/sound-settings/controller.js';
 import { WaitNoticeController } from '../desktop/ui/wait-notice.js';
+import { createSoundService } from '../desktop/ui/services/sound.js';
 
 const usage = () => ({
   taskEnd: { on: false, sel: 'preset:duck:press', vol: 1, volSet: false },
@@ -134,6 +135,37 @@ test('mode changes cancel an in-flight sound settings open before it can mount a
   controller.dispose();
 });
 
+test('a completed save cannot close or overwrite a panel opened after a mode change', async () => {
+  const windowRef = eventWindow(), views = [];
+  let completeSave, reads = 0, stops = 0;
+  windowRef.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
+  windowRef.dispatchEvent = event => windowRef.dispatch(event.type, event.detail);
+  const controller = new SoundSettingsController({
+    windowRef, documentRef: windowRef.document, sound: createSoundService(),
+    legacy: { mountMenuEntry: () => () => {}, audioEditor: {}, promptEditor: {}, applySettings() {} },
+    request: async (url, options = {}) => {
+      if (url.endsWith('audio.json')) return catalog();
+      if (options.method === 'PUT') return new Promise(resolve => { completeSave = () => resolve({ ...options.body, revision: 'saved' }); });
+      return { ...bundle(), revision: 'read-' + ++reads };
+    },
+    player: { play() {}, stop() { stops++; } },
+    createMenuEntry: () => ({ element: {}, setLoading() {}, destroy() {} }),
+    createView: () => { const view = { destroyed: false, destroy() { this.destroyed = true; } }; views.push(view); return view; },
+  }).start();
+  await controller.open();
+  const saving = controller.save();
+  windowRef.dispatch('whale-mode-changing');
+  await controller.open();
+  const newView = controller.view, stopsBeforeCompletion = stops;
+  completeSave(); await saving;
+  assert.equal(views[0].destroyed, true);
+  assert.equal(controller.view, newView);
+  assert.equal(newView.destroyed, false);
+  assert.equal(controller.bundle.revision, 'read-2');
+  assert.equal(stops, stopsBeforeCompletion, 'an old save must not stop the new view preview');
+  controller.dispose();
+});
+
 function eventWindow() {
   const listeners = new Map(), audioCalls = [];
   return {
@@ -160,6 +192,7 @@ test('wait notice controller deduplicates pending prompts, applies settings and 
   };
   const controller = new WaitNoticeController({
     windowRef,
+    sound: createSoundService({ engine: windowRef.WhaleAudio }),
     request,
     legacyUsage: () => ({ showWait: value => shown.push(value), hideWait: id => hidden.push(id) }),
     schedule: fn => { scheduled.push(fn); return scheduled.length; },
@@ -180,4 +213,35 @@ test('wait notice controller deduplicates pending prompts, applies settings and 
   const before = scheduled.length;
   await controller.tick();
   assert.equal(scheduled.length, before);
+});
+
+test('a delayed wait-settings read cannot replace a newer saved sound snapshot', async () => {
+  const windowRef = eventWindow(), service = createSoundService();
+  let resolveRead;
+  const old = { size: { soundSet: 'old', vol: .9 }, usage: { taskEnd: { on: false } } };
+  const saved = { size: { soundSet: 'new', vol: .2 }, usage: { taskEnd: { on: true } } };
+  const controller = new WaitNoticeController({
+    windowRef, sound: service, legacyUsage: () => null, schedule: () => 0,
+    request: url => url === '/api/sound-settings' ? new Promise(resolve => { resolveRead = resolve; }) : Promise.resolve({ pending: null }),
+  });
+  const reading = controller.tick();
+  service.reload(saved); controller.onSettings({ detail: saved });
+  resolveRead(old); await reading;
+  assert.equal(service.snapshot().size.soundSet, 'new');
+  assert.equal(service.snapshot().size.vol, .2);
+  assert.equal(controller.settings.taskEnd.on, true);
+  controller.dispose();
+});
+
+test('disposing during a wait-settings read prevents a late reload or another request', async () => {
+  const windowRef = eventWindow(), service = createSoundService();
+  let resolveRead, requests = 0;
+  const controller = new WaitNoticeController({
+    windowRef, sound: service, legacyUsage: () => null, schedule: () => 0,
+    request: () => { requests++; return new Promise(resolve => { resolveRead = resolve; }); },
+  });
+  const reading = controller.tick(); controller.dispose();
+  resolveRead({ size: { soundSet: 'late' }, usage: {} }); await reading;
+  assert.equal(service.snapshot().size.soundSet, undefined);
+  assert.equal(requests, 1);
 });

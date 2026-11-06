@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 // 设置窗口的交互与渲染检查，在 Electron 主进程内运行。
 //
 // 由 tests/settings-window-smoke.mjs 启动，使用隔离的临时数据目录。
@@ -269,34 +270,21 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     await waitWidget('!!document.querySelector(".dshwv-menuview")', '挂件菜单');
 
     const menu = await menuEv('(() => { const m=document.querySelector(".dshwv-menuview"); return [...m.children].filter(n=>!n.hidden && getComputedStyle(n).display!=="none").map(n=>(n.textContent||"").trim().slice(0,14)); })()');
-    for (const label of ['数据来源', '角色', '大小', '显示方式', '音效与提示', '气泡']) {
+    for (const label of [LABELS.role, LABELS.scale, LABELS.dataSource, LABELS.displayMode, LABELS.soundSettings, LABELS.bubble]) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
     const footer = await menuEv('document.querySelector(".dshwv-menu-footer")?.innerText || ""');
-    for (const label of ['高级设置']) {
+    for (const label of [LABELS.advanced]) {
       check(footer.includes(label), '一级菜单底部有「' + label + '」');
     }
-    const movedDown = await menuEv(`(() => {
-      const m = document.querySelector('.dshwv-menuview');
-      const hidden = [...m.children].filter(n => n.hidden).map(n => (n.textContent||'').trim());
-      // 主线菜单没有「进入独立桌面」独立行（显示方式在一级「显示方式」里），
-      // 「素材包导入/导出」按钮合在「查看数据」行内，所以这两项不在下沉清单里。
-      return ['音效','音量','每轮消耗提示','任务结束音效','避让滚动条','吸附与翻转','隐藏菜单按钮','资源管理','显示币种','参考汇率','气泡形状']
-        .filter(want => !hidden.some(h => h.indexOf(want) === 0));
-    })()`);
-    check(movedDown.length === 0, '以下行已从一级下沉（其余即全部隐藏）：' + (movedDown.join('、') || '无遗漏'));
+    const mounted = await menuEv('Array.from(document.querySelector(".dshwv-menuview").children, row => row.dataset.menuId)');
+    check(mounted.join(',') === 'role,size,dataSource,displayMode,sound,bubble', '一级菜单只挂载声明的六个控件行');
     check(await menuEv('!!document.getElementById("dshw-desktop-display")'), '显示方式有跟随/常驻切换');
-    check(await menuEv('!!document.getElementById("dshw-click-sound")'), '点击音效是独立开关');
-    check(await menuEv('!!document.getElementById("dshw-complete-reminder")'), '完成提醒是三选一');
-    const options = await menuEv('[...document.getElementById("dshw-complete-reminder").options].map(o=>o.value)');
-    check(options.includes('off') && options.includes('bubble') && options.includes('both'), '完成提醒含关闭/仅气泡/气泡和声音');
-    const apiBtnHidden = await menuEv(`(() => {
-      const btn = [...document.querySelectorAll('.dshwv-menuview button')].find(b => b.textContent === 'API 设置');
-      return !btn || btn.hidden || getComputedStyle(btn).display === 'none';
-    })()`);
-    check(apiBtnHidden, '旧的整屏「API 设置」按钮已由「高级设置」取代');
-    const remindValue = await menuEv('document.getElementById("dshw-complete-reminder").value');
-    check(['off', 'bubble', 'both', 'custom'].includes(remindValue), '完成提醒显示当前组合（' + remindValue + '）');
+    check(await menuEv('!!document.querySelector("[data-action=open-sound-settings]")'), '音效与提示有独立入口');
+    check(await menuEv('!document.getElementById("dshw-click-sound") && !document.getElementById("dshw-complete-reminder")'), '详细音效开关与完成提醒由设置窗口管理');
+    const mode = await menuEv('WhaleAccountView.mode');
+    const ledger = await menuEv('document.querySelector("[data-menu-id=ledger]")?.textContent || ""');
+    check(mode === 'api' ? ledger.includes(LABELS.ledgerMenu) : !ledger, '记账入口仅在 API 模式挂载');
     // 挂件菜单靠真实光标悬停才展开，而测试里光标路由是被桩掉的，
     // 所以一级菜单的可见性用上面的 DOM 断言证明，不产出截图。
   }
@@ -320,6 +308,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   for (const entry of [
     { page:'appearance', id:'ui.role', editor:'role', selector:'.dshwv-rolelist' },
     { page:'bubble', id:'bubble.sequences', editor:'bubble', selector:'.dshwv-bubmask' },
+    { page:'media', id:'media.roles', editor:'resources', selector:'.dshwv-resmask' },
     { page:'media', id:'media.workshop', editor:'workshop', selector:'dialog[open]' },
     { page:'media', id:'media.audio', editor:'sound', selector:'[data-feature="sound-settings-dialog"]' },
     { page:'api', id:'api.models', editor:'api', selector:'dialog[open]' },

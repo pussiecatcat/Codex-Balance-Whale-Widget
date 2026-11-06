@@ -84,27 +84,18 @@ test('editor draft isolates saved content and preserves the other account mode',
   const saved = saveBubbleEditorDraft(draft.items, draft.library, config, true);
   assert.deepEqual(saved.items, config.items);
   assert.equal(saved.subscriptionItems[0].modules[0].windowDurationMins, 10080);
-  assert.equal(saved.subscriptionTapAdvance, false);
+  assert.equal(Object.hasOwn(saved, 'subscriptionTapAdvance'), false);
 });
 
-test('the bubble editor saves character advancement only for the active account mode', () => {
-  const config = {
-    items: [{ kind: 'normal' }],
-    subscriptionItems: [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300 }] }],
-    lib: [], tapAdvance: true, subscriptionTapAdvance: false,
-  };
+test('the bubble editor reads retired character advancement flags without saving them', () => {
+  const config = { items: [{ kind: 'normal' }], subscriptionItems: [], lib: [], tapAdvance: true, subscriptionTapAdvance: false };
   assert.equal(loadBubbleEditorDraft(config, false).tapAdvance, true);
   assert.equal(loadBubbleEditorDraft(config, true).tapAdvance, false);
-
-  const apiSaved = saveBubbleEditorDraft([{ kind: 'normal' }], [], config, false, false);
-  assert.equal(apiSaved.tapAdvance, false);
-  assert.equal(apiSaved.subscriptionTapAdvance, false, 'the subscription preference is untouched');
-
-  const subscriptionSaved = saveBubbleEditorDraft(
-    [{ kind: 'custom', modules: [{ type: 'quota', windowDurationMins: 300 }] }], [], config, true, true,
-  );
-  assert.equal(subscriptionSaved.tapAdvance, true, 'the API preference is untouched');
-  assert.equal(subscriptionSaved.subscriptionTapAdvance, true);
+  for (const subscription of [false, true]) {
+    const saved = saveBubbleEditorDraft(bubbleDefaultQueue(subscription), [], config, subscription);
+    assert.equal(Object.hasOwn(saved, 'tapAdvance'), false);
+    assert.equal(Object.hasOwn(saved, 'subscriptionTapAdvance'), false);
+  }
 });
 
 test('choice weights are normalized to the documented integer range', () => {

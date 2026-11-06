@@ -1,17 +1,129 @@
 
 :root{
-  --surface:#ffffff;
-  --surface-raised:#ffffff;
-  --surface-muted:#f4f6fb;
-  --text:#293752;
-  --text-muted:#536079;
-  --text-hint:#5a6a92;
-  --border:#dce2ef;
-  --accent:#263c82;
-  --primary:#4358aa;
-  --status-ok:#2f855a;
-  --status-warn:#8a6a1f;
-  --status-critical:#c0392b;
+  --layer-widget:9999;
+  --layer-menu:10000;
+  --layer-dropdown:10010;
+  --layer-info:10030;
+  --layer-dialog:20000;
+  --layer-nested-dialog:21000;
+  --layer-editor:26000;
+  --layer-popover:27000;
+  --layer-toast:29000;
+  --layer-native:2147483647;
+
+  --color-fff:#fff;
+  --color-0002:#0002;
+  --color-0003:#0003;
+  --color-173d48:#173d48;
+  --color-1bb879:#1bb879;
+  --color-203170:#203170;
+  --color-263c82:#263c82;
+  --color-283650:#283650;
+  --color-293752:#293752;
+  --color-2f4488:#2f4488;
+  --color-2f855a:#2f855a;
+  --color-34425c:#34425c;
+  --color-34498a:#34498a;
+  --color-4059b3:#4059b3;
+  --color-425477:#425477;
+  --color-4358aa:#4358aa;
+  --color-495a83:#495a83;
+  --color-526595:#526595;
+  --color-526bd0:#526bd0;
+  --color-536079:#536079;
+  --color-536ba9:#536ba9;
+  --color-5a6574:#5a6574;
+  --color-5a6a92:#5a6a92;
+  --color-5f6368:#5f6368;
+  --color-6384d5:#6384d5;
+  --color-638695:#638695;
+  --color-66738b:#66738b;
+  --color-667981:#667981;
+  --color-68779e:#68779e;
+  --color-727b91:#727b91;
+  --color-788397:#788397;
+  --color-7b869a:#7b869a;
+  --color-7dffb3:#7dffb3;
+  --color-8192c2:#8192c2;
+  --color-8497d3:#8497d3;
+  --color-856322:#856322;
+  --color-8a6a1f:#8a6a1f;
+  --color-8a9bd2:#8a9bd2;
+  --color-8b622f:#8b622f;
+  --color-8e98ae:#8e98ae;
+  --color-994c42:#994c42;
+  --color-9ba5bc:#9ba5bc;
+  --color-9ba9cf:#9ba9cf;
+  --color-a0b8c2:#a0b8c2;
+  --color-a93226:#a93226;
+  --color-a9adb3:#a9adb3;
+  --color-aeb9d5:#aeb9d5;
+  --color-b83e49:#b83e49;
+  --color-b9cdd5:#b9cdd5;
+  --color-b9ced7:#b9ced7;
+  --color-bdc9df:#bdc9df;
+  --color-c0392b:#c0392b;
+  --color-c18a43:#c18a43;
+  --color-c3cfee:#c3cfee;
+  --color-c6ccd2:#c6ccd2;
+  --color-c9392b:#c9392b;
+  --color-d5e2e7:#d5e2e7;
+  --color-d77464:#d77464;
+  --color-dbe4f5:#dbe4f5;
+  --color-dce2ef:#dce2ef;
+  --color-dde1ec:#dde1ec;
+  --color-dfe2e6:#dfe2e6;
+  --color-dfe4ee:#dfe4ee;
+  --color-e0433f:#e0433f;
+  --color-e2e7f4:#e2e7f4;
+  --color-e7ebf6:#e7ebf6;
+  --color-e8eaed:#e8eaed;
+  --color-e8ecf3:#e8ecf3;
+  --color-e8ecf7:#e8ecf7;
+  --color-e8edf4:#e8edf4;
+  --color-e9ebf2:#e9ebf2;
+  --color-edf0f5:#edf0f5;
+  --color-edf0f8:#edf0f8;
+  --color-eef1f8:#eef1f8;
+  --color-eef1f9:#eef1f9;
+  --color-eef2fb:#eef2fb;
+  --color-f2f6ff:#f2f6ff;
+  --color-f3f5fb:#f3f5fb;
+  --color-f3f5fc:#f3f5fc;
+  --color-f3f6fc:#f3f6fc;
+  --color-f4f4f8:#f4f4f8;
+  --color-f4f5f8:#f4f5f8;
+  --color-f4f6fb:#f4f6fb;
+  --color-f6f7fb:#f6f7fb;
+  --color-f6f8fd:#f6f8fd;
+  --color-f8f9fc:#f8f9fc;
+  --color-f8fafd:#f8fafd;
+  --color-f8fbfc:#f8fbfc;
+  --color-fafbfe:#fafbfe;
+  --color-fbfcfe:#fbfcfe;
+  --color-fbfeff:#fbfeff;
+  --color-fff0ed:#fff0ed;
+  --color-fff5e5:#fff5e5;
+  --color-fff8e8:#fff8e8;
+  --color-ffffff:#ffffff;
+  --color-0b38492a:#0b38492a;
+  --color-142d3b55:#142d3b55;
+  --color-173d4855:#173d4855;
+  --color-182a4d66:#182a4d66;
+  --color-202e4b24:#202e4b24;
+
+  --surface:var(--color-ffffff);
+  --surface-raised:var(--color-ffffff);
+  --surface-muted:var(--color-f4f6fb);
+  --text:var(--color-293752);
+  --text-muted:var(--color-536079);
+  --text-hint:var(--color-5a6a92);
+  --border:var(--color-dce2ef);
+  --accent:var(--color-263c82);
+  --primary:var(--color-4358aa);
+  --status-ok:var(--color-2f855a);
+  --status-warn:var(--color-8a6a1f);
+  --status-critical:var(--color-c0392b);
   --radius-sm:8px;
   --radius-md:12px;
   --radius-lg:18px;
@@ -20,356 +132,6 @@
   --motion-slow:.3s;
   --motion-spring:cubic-bezier(.34,1.56,.64,1);
 }
-:root{font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}*{box-sizing:border-box}html,body{margin:0;background:transparent!important;overflow:hidden}button,input,select{font:inherit}button{cursor:pointer}.quiet{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:var(--radius-sm);padding:8px 12px}.primary{background:var(--primary);color:white;border:0;border-radius:8px;padding:10px 17px}.notice{padding:10px;background:#fff5e5;color:#856322;border-radius:8px;font-size:12px}#settings-discard{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}#settings-discard .quiet{margin-left:auto}[hidden]{display:none!important}dialog{border:1px solid var(--border);border-radius:var(--radius-lg);padding:0;width:min(690px,94vw);max-height:89vh;color:var(--text);box-shadow:0 22px 100px #0b38492a;z-index:2147483647}dialog::backdrop{background:#182a4d66;backdrop-filter:blur(3px)}dialog form{padding:26px}.dialog-header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}.dialog-header h2{font-size:19px;margin:0 0 8px}.dialog-header p,.help{font-size:11px;line-height:1.9;color:var(--text-hint)}.dialog-header p{margin:0}.icon-button{border:0;background:none;color:var(--text-hint);font-size:26px;line-height:1}label{font-size:12px;display:block;margin:15px 0 0;color:var(--text-muted)}input,select{width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 11px;background:#f8f9fc;color:#34425c;font-size:12px;margin-top:6px;min-width:0}input:focus,select:focus{outline:2px solid #6384d5}label small{display:block;font-size:10px;color:var(--text-hint);line-height:1.65;margin-top:6px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}details{border-top:1px solid #e8edf4;margin-top:22px;padding-top:16px}summary{font-size:12px;color:#495a83;cursor:pointer}.check{display:flex;align-items:center;gap:8px;margin-top:20px;line-height:1.6}.check input{width:15px;margin:0;accent-color:var(--primary)}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:2147483647;max-width:min(600px,90vw);background:#263c82;color:#fff;border-radius:12px;padding:14px 22px;font-size:12px;box-shadow:0 6px 30px #0002;line-height:1.6}html.desktop,html.desktop body{background:transparent!important;overflow:hidden}.desktop .whale-shell{display:none}.desktop .dshwv-root{filter:drop-shadow(0 3px 6px #0002)}@media(max-width:620px){.whale-shell{padding:24px 22px 130px}.intro{margin-top:36px}.cards{grid-template-columns:1fr}.usage-card{padding:22px}.usage-number{margin:14px 0}.tips{padding-right:90px}.field-grid{grid-template-columns:1fr}.brand small{display:none}.big-number{font-size:42px}dialog form{padding:19px}}
 
-/* Translation, mirror and pressed-body transforms remain on separate layers. */
-.dshwv-position{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:9999;transition:transform .16s ease;will-change:transform}
-.desktop .dshwv-root{position:absolute;left:0;top:0;right:auto;bottom:auto;transition:transform .3s ease!important;isolation:isolate}
-.desktop .dshwv-img{will-change:transform}
-.desktop .dshwv-img{image-rendering:auto;backface-visibility:hidden}
-.desktop .dshwv-pop svg{shape-rendering:geometricPrecision}
-/* The bubble body is a drawn path, so the content box must stay inside the
-   largest rectangle that shape can actually hold. The rounded variant has a much
-   larger inscribed rectangle than the ellipse, which is why it shows more. */
-/* Only the design-unit numbers live on <html>; the calc() runs at each use site.
-   A custom property referencing --dshw-u cannot be declared here, because a
-   var() inside a custom property only resolves against the same element and
-   --dshw-u is inherited from .dshwv-pop. */
-/* 椭圆的可用内接矩形受宽高互换限制：半高越大，可用的半宽越小，
-   上限为 358*sqrt(1-(hh/217)^2)。这里保持原来的高度 305（高度是竖向
-   放不下的主因，不能动），只把宽度从 440 提到该高度下的上限 505。
-   行宽增加 15% 后长句少换行，fit 的正反馈收缩就不容易触发。
-   曾经试过 530×285（更宽但更矮），结果内容竖向溢出气泡，反而更糟。 */
-html.desktop{--dshw-box-wu:505;--dshw-box-hu:305;--dshw-card-wu:240}
-html.desktop.dshw-shape-round{--dshw-box-wu:655;--dshw-box-hu:325;--dshw-card-wu:296}
-.desktop .dshwv-text{width:calc(var(--dshw-u) * var(--dshw-box-wu));height:calc(var(--dshw-u) * var(--dshw-box-hu));transition:opacity .16s ease,transform .3s ease;isolation:isolate;overflow:visible}
-.desktop .dshwv-frame{transform:scale(var(--dshw-fit,1));transform-origin:50% 50%}
-.desktop .dshwv-pop.dshwv-pop-open .dshwv-text{transition:opacity .16s ease .36s,transform .3s ease}
-.dshwv-frame{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;will-change:opacity;overflow:visible}
-.desktop .dshwv-frame .dshwv-gif{position:static;left:auto;top:auto;transform:none;opacity:1;transition:none;max-width:calc(var(--dshw-u) * 560);max-height:calc(var(--dshw-u) * 400)}
-.desktop .dshwv-root.dshwv-left .dshwv-frame .dshwv-gif{transform:none}
-.desktop .dshwv-menu{max-height:calc(100vh - 16px);overflow:auto}
-.private-reset{border:0;background:transparent;color:#5a6a92;font-size:12px;padding:4px 0;text-decoration:underline;text-underline-offset:2px}.privacy-help{padding:10px 12px;background:var(--surface-muted);border-radius:8px}.dshwv-fx-info-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 19px;width:19px;height:19px;padding:0;margin:0;border:1px solid #a9adb3;border-radius:50%;background:#e8eaed;color:#5f6368;font-size:13px;font-weight:700;line-height:1;cursor:pointer}.dshwv-fx-info-button:hover{background:#dfe2e6}.dshwv-fx-info-button:focus-visible{outline:2px solid #638695;outline-offset:2px}.dshwv-fx-info{position:fixed;z-index:10003;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;margin:0;padding:11px 13px;border:1px solid #c6ccd2;border-radius:9px;background:#fff;color:#5a6574;box-shadow:0 5px 18px #0003;white-space:pre-line;overflow-wrap:anywhere;font-size:12px;line-height:1.65;pointer-events:auto;user-select:text}.dshwv-fx-info:focus{outline:2px solid #a0b8c2;outline-offset:1px}
-
-/* Codex subscription quota: compact tide gauges inside the original whale bubble. */
-.desktop .dshwv-text .dshwv-quota-heading{
-  position:relative;
-  margin:0 0 calc(var(--dshw-u) * 10)!important;
-  color:#536ba9!important;
-  font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
-  font-size:calc(var(--dshw-u) * 56)!important;
-  font-weight:700!important;
-  line-height:1.15;
-}
-.desktop .dshwv-text .dshwv-quota-shell{
-  width:calc(var(--dshw-u) * var(--dshw-card-wu));
-  max-width:100%;
-  margin:calc(var(--dshw-u) * 6) auto!important;
-}
-/* Side-by-side gauges sit on one shared row, so the shell must not stretch. */
-.desktop .dshwv-text .dshwv-trowline .dshwv-quota-shell{
-  display:inline-block!important;
-  vertical-align:top!important;
-  margin:0 calc(var(--dshw-u) * 5)!important;
-}
-.desktop .dshwv-quota-meter{
-  --quota-accent:#203170;
-  --quota-ink:#203170;
-  --quota-wash:#f8fafd;
-  --quota-line:rgba(32,49,112,.16);
-  box-sizing:border-box;
-  display:grid!important;
-  grid-template-rows:auto auto auto;
-  gap:calc(var(--dshw-u) * 12);
-  width:100%;
-  padding:calc(var(--dshw-u) * 18) calc(var(--dshw-u) * 16)!important;
-  overflow:visible;
-  border:calc(var(--dshw-u) * 3) solid var(--quota-line);
-  border-radius:calc(var(--dshw-u) * 28)!important;
-  background:var(--quota-wash)!important;
-  color:var(--quota-ink)!important;
-  font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;
-  font-variant-numeric:tabular-nums;
-  line-height:1!important;
-  text-align:left;
-  text-shadow:none!important;
-  white-space:normal;
-}
-.desktop .dshwv-quota-meter-weekly{--quota-accent:#526bd0}
-.desktop .dshwv-quota-meter[data-quota-tone="caution"]{
-  --quota-accent:#c18a43;
-  --quota-ink:#8b622f;
-  --quota-wash:#fff8e8;
-  --quota-line:rgba(193,138,67,.21);
-}
-.desktop .dshwv-quota-meter[data-quota-tone="critical"]{
-  --quota-accent:#d77464;
-  --quota-ink:#994c42;
-  --quota-wash:#fff0ed;
-  --quota-line:rgba(215,116,100,.24);
-}
-.desktop .dshwv-quota-meter[data-quota-tone="unknown"]{
-  --quota-accent:#9ba5bc;
-  --quota-ink:#727b91;
-  --quota-wash:#f4f5f8;
-  --quota-line:rgba(114,123,145,.18);
-}
-/* 标签与数值上下排，两种形状一致：并排放不下时圆角会把「5 小时」拆成两行。 */
-.desktop .dshwv-quota-meter-head{
-  display:grid;
-  grid-template-columns:minmax(0,1fr);
-  justify-items:start;
-  gap:calc(var(--dshw-u) * 6);
-  min-width:0;
-}
-.desktop .dshwv-quota-meter-label{
-  font-size:max(10px,calc(var(--dshw-u) * 42));
-  font-weight:700;
-  white-space:nowrap;
-}
-.desktop .dshwv-quota-meter-value{
-  display:inline-flex;
-  align-items:baseline;
-  justify-self:start;
-  white-space:nowrap;
-  color:var(--quota-ink);
-  line-height:1;
-}
-.desktop .dshwv-quota-meter-number{
-  font-size:calc(var(--dshw-u) * 76);
-  white-space:nowrap;
-  font-weight:800;
-  letter-spacing:-.02em;
-}
-.desktop .dshwv-quota-meter-unit{
-  margin-left:calc(var(--dshw-u) * 5);
-  font-size:calc(var(--dshw-u) * 34);
-  font-weight:700;
-  opacity:.72;
-}
-/* 只读进度条：不画滑块圆点，否则看起来可以拖。 */
-.desktop .dshwv-quota-meter-track{
-  position:relative;
-  display:block;
-  width:100%;
-  height:calc(var(--dshw-u) * 14);
-  overflow:hidden;
-  border-radius:999px;
-  background:rgba(32,49,112,.12);
-}
-.desktop .dshwv-quota-meter-fill{
-  position:absolute;
-  inset:0 auto 0 0;
-  min-width:0;
-  border-radius:999px;
-  background:var(--quota-accent);
-  transition:width .45s cubic-bezier(.2,.7,.2,1);
-}
-.desktop .dshwv-quota-meter-foot{
-  display:grid;
-  grid-template-columns:minmax(0,1fr);
-  justify-items:start;
-  gap:calc(var(--dshw-u) * 3);
-  min-width:0;
-  color:color-mix(in srgb,var(--quota-ink) 82%,#8e98ae);
-  font-size:max(10px,calc(var(--dshw-u) * 28));
-  line-height:1.2;
-}
-/* 两张卡都写「14:32 更新」是重复信息：完整时间留在无障碍文本里，
-   只有数据过期时才显示「上次 …」。文字本身仍由 quota.js 写入。 */
-.desktop .dshwv-quota-meter-reset-label{display:none}
-.desktop .dshwv-quota-meter[data-quota-tone="unknown"] .dshwv-quota-meter-reset-label{display:block}
-/* 只在空格处换行，不再把倒计时拆成「重」「置」。 */
-.desktop .dshwv-quota-meter-reset{min-width:0;max-width:100%;text-align:left;white-space:normal;word-break:keep-all}
-/* A hairline in the gap between the two gauges would double the card borders. */
-@media (prefers-reduced-motion:reduce){
-  .desktop .dshwv-quota-meter-fill{transition:none}
-}
-
-.whale-v3-dialog{width:min(560px,90vw);max-height:85vh;overflow:auto;color:#203170;background:#fff;border:1px solid #bdc9df;border-radius:14px;padding:20px;font:14px/1.5 system-ui;pointer-events:auto}.whale-v3-dialog::backdrop{background:#182a4d66}.whale-v3-dialog h2{margin-top:0}.whale-v3-dialog label{display:flex;justify-content:space-between;gap:12px}.whale-v3-dialog fieldset{display:flex;align-items:center;gap:10px;border:1px solid #dbe4f5;border-radius:8px;margin:12px 0;flex-wrap:wrap}.whale-v3-dialog fieldset input{min-width:80px;flex:1}.whale-v3-dialog button,.whale-v3-dialog select{padding:6px 10px;border-radius:6px;border:1px solid #bdc9df;background:#f3f6fc;color:#203170}.whale-v3-dialog progress{width:100%;accent-color:#536ba9}.whale-v3-dialog p{white-space:normal;overflow-wrap:anywhere}
-
-.whale-v3-dialog>label{white-space:nowrap;align-items:center}.whale-v3-dialog>label>select{width:auto;min-width:0;flex:1}.whale-v3-dialog button:disabled{opacity:.45;cursor:not-allowed}
-/* Only editable fields accept text selection; dragging the companion never selects labels. */
-.dshwv-menu,.dshwv-menu *,.whale-account-card,.whale-account-card *{user-select:none;-webkit-user-select:none}
-.dshwv-menu input:not([type=range]):not([type=checkbox]),.dshwv-menu textarea,.whale-v3-dialog input:not([type=range]),.whale-v3-dialog textarea{user-select:text;-webkit-user-select:text}
-html[data-whale-cursor=grab]{cursor:grab}html[data-whale-cursor=grabbing],html[data-whale-cursor=grabbing] *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}
-.whale-v3-dialog .dialog-actions{position:sticky;bottom:-20px;background:white;padding:12px 0;margin-top:12px;z-index:2}
-
-/* Compact native companion surfaces. No viewport-sized dimming or blur. */
-html.desktop dialog::backdrop,html.desktop .whale-v3-dialog::backdrop{background:transparent;backdrop-filter:none}
-html.desktop [class*="mask"]{background:transparent!important;backdrop-filter:none!important}
-html.desktop .dshwv-menu button{font-family:inherit}
-html.desktop .dshwv-menu input{margin-top:0}
-html.desktop .dshwv-menu input[type=range]{padding:0;border:0}
-html.desktop .dshwv-menu input[type=checkbox]{padding:0}
-html.desktop .dshwv-menu button:focus-visible,html.desktop .dshwv-menu select:focus-visible{outline:2px solid #6384d5;outline-offset:2px}
-html.desktop dialog{background:#fff;color:#293752;border:1px solid #dce2ef;border-radius:16px;box-shadow:0 5px 14px #202e4b24;width:min(570px,calc(100vw - 24px));max-height:calc(100vh - 32px);font:13px/1.6 'Segoe UI','Microsoft YaHei',sans-serif}
-html.desktop dialog form{padding:22px}
-html.desktop .dialog-header{margin-bottom:16px}
-html.desktop .dialog-header h2{color:#283650;font-size:20px;letter-spacing:.2px}
-html.desktop .dialog-header p,html.desktop .help{font-size:12px;color:#536079;line-height:1.65}
-html.desktop dialog label{color:#536079;font-size:12px}
-html.desktop dialog input,html.desktop dialog select{background:#f8f9fc;border-color:#dfe4ee;color:#34425c;padding:9px 10px}
-html.desktop dialog details{margin-top:14px;padding-top:12px}
-html.desktop dialog summary{color:#495a83}
-html.desktop .privacy-help{background:#f4f6fb;padding:10px 12px;border-radius:9px}
-html.desktop .dialog-actions{position:sticky;bottom:-22px;background:#fff;border-top:1px solid #e8edf4;padding-top:12px;margin-top:18px}
-html.desktop .primary{background:#203170;border-radius:6px}
-html.desktop .primary:hover{background:#2f4488}
-html.desktop .quiet{border-color:rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170}
-html.desktop .quiet:hover{background:rgba(32,49,112,.16)}
-html.desktop .dshwv-usage-card{width:min(620px,calc(100vw - 24px));max-height:calc(100vh - 32px);border:1px solid #dce2ef;border-radius:16px;background:#fff;box-shadow:0 5px 14px #202e4b24;color:#34425c;font:13px/1.6 'Segoe UI','Microsoft YaHei',sans-serif;overflow:hidden}
-html.desktop .dshwv-usage-wintitle{padding:18px 22px 14px;font-size:19px;color:#283650;border-bottom:1px solid #edf0f5}
-html.desktop .dshwv-usage-close{top:15px;right:16px;color:#788397;font-size:22px}
-html.desktop .dshwv-usage-windowbody{padding:16px 22px 22px}
-html.desktop .dshwv-usage-oview{text-align:left;padding:16px 18px;margin-bottom:18px;background:#f3f5fc;border:1px solid #e7ebf6;border-radius:12px;color:#66738b}
-html.desktop .dshwv-usage-oview-num{font-size:32px;line-height:1.35;color:#34498a;margin:5px 0;font-variant-numeric:tabular-nums}
-html.desktop .dshwv-usage-hint{color:#7b869a;font-size:11px;line-height:1.7}
-html.desktop .dshwv-usage-collapse{padding:12px 4px;font-size:13px;color:#425477;border-color:#e8ecf3}
-html.desktop .dshwv-usage-collapse-body{padding:8px 4px}
-html.desktop .dshwv-usage-sub{background:transparent;color:#203170}
-@media(max-height:420px){html.desktop .whale-account-menu small{display:none}html.desktop .whale-account-menu{padding-bottom:6px}html.desktop .whale-mode-description{margin:3px 0}html.desktop .whale-menu-group>summary{padding:7px 2px}}
-html.desktop #settings-form{display:flex;flex-direction:column;max-height:calc(100vh - 34px);padding:20px}
-html.desktop #settings-form>.dialog-header,html.desktop #settings-form>.dialog-actions{flex:0 0 auto}
-html.desktop .settings-content{overflow:auto;min-height:0;padding-right:5px;scrollbar-width:thin;overscroll-behavior:contain}
-html.desktop #settings-form>.dialog-actions{position:static;margin-top:12px;padding-top:12px}
-html.desktop .icon-button:focus-visible{outline:2px solid #8497d3;border-radius:6px}
-
-/* Original-style prompt and sound cards, with the current controls kept intact. */
-html.desktop .whale-sound-entry{justify-content:space-between}
-html.desktop .whale-utility-row{display:flex;align-items:center;gap:6px;margin-top:3px}
-html.desktop .whale-utility-row>.dshwv-sound{flex:1 1 0;min-width:0;padding:4px 5px;font-size:11px;line-height:1.25;white-space:nowrap}
-html.desktop .whale-sound-mask{z-index:25000;padding:8px}
-html.desktop .whale-sound-card{width:min(440px,calc(100vw - 16px));max-height:88vh;overflow:hidden auto;scrollbar-width:thin;padding:14px 16px;text-align:left;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
-html.desktop .whale-sound-title{margin:2px 0 6px;text-align:center;font-size:15px;font-weight:700;color:#203170}
-html.desktop .whale-sound-error{margin:0 0 8px;color:#b83e49;font-size:12px;line-height:1.45}
-html.desktop .whale-sound-card{interpolate-size:allow-keywords}html.desktop .whale-sound-block{margin:10px 0 0;padding:0;border:0;background:transparent}html.desktop .whale-sound-block::details-content{block-size:0;overflow:hidden;opacity:0;transition:block-size .24s ease,opacity .18s ease,content-visibility .24s allow-discrete}html.desktop .whale-sound-block[open]::details-content{block-size:auto;opacity:1}
-html.desktop .whale-sound-block>summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border:0;border-radius:6px;background:rgba(32,49,112,.05);color:#203170;font-size:13px;cursor:pointer;user-select:none;transition:background-color .12s ease}html.desktop .whale-sound-block>summary:hover{background:rgba(32,49,112,.09)}
-html.desktop .whale-sound-block>summary::-webkit-details-marker{display:none}
-html.desktop .whale-sound-block>summary::after{content:"▸";flex:0 0 auto;margin-left:2px;font-size:11px;opacity:.6}
-html.desktop .whale-sound-block[open]>summary::after{content:"▾"}
-html.desktop .whale-sound-block-head>.dshwv-check{flex:0 0 auto;width:17px;height:17px;margin:0;accent-color:#263c82}
-html.desktop .whale-sound-block-title{flex:0 0 auto;font-size:13px;font-weight:400}
-html.desktop .whale-sound-block-summary{flex:1 1 auto;min-width:0;overflow:hidden;color:#203170;opacity:.7;text-align:right;text-overflow:ellipsis;white-space:nowrap;font:11px/1.2 "JetBrains Mono",Consolas,"Microsoft YaHei UI",sans-serif}
-html.desktop .whale-sound-block-body{padding:5px 8px 2px 10px}
-html.desktop .whale-sound-row{display:flex;align-items:center;gap:8px;min-height:34px;margin:1px 0;color:#203170;font-size:12px;white-space:nowrap}
-html.desktop .whale-sound-label{flex:0 0 78px}
-html.desktop .whale-sound-row>.dshwv-check{flex:0 0 auto;width:17px;height:17px;margin:0;accent-color:#263c82}
-html.desktop .whale-sound-row select{flex:1 1 auto;min-width:0;max-width:none;height:30px;padding:3px 7px}
-html.desktop .whale-sound-row .dshwv-range{flex:1 1 auto;min-width:70px;max-width:none;padding:0;border:0;accent-color:#263c82}
-html.desktop .whale-sound-row .dshwv-volpct{flex:0 0 40px;text-align:right;font:12px/1 "JetBrains Mono",Consolas,"Microsoft YaHei UI",sans-serif}
-html.desktop .whale-sound-row.is-dim .whale-sound-label{opacity:.42}
-html.desktop .whale-sound-group-row select{margin-left:auto}html.desktop .whale-sound-group-row .dshwv-custbtn{background:#fff;justify-content:center;font-family:"JetBrains Mono",Consolas,"Microsoft YaHei UI",sans-serif}html.desktop .whale-sound-group-row .dshwv-custbtn::after{display:none}html.desktop .whale-sound-group-row .dshwv-custlab{flex:0 1 auto}
-html.desktop .whale-sound-inline-button{flex:0 0 auto;padding:5px 8px;white-space:nowrap}
-html.desktop .whale-sound-wide-action{flex:1 1 auto;min-width:120px;margin-left:auto;padding:5px 9px}
-html.desktop .whale-sound-close-row .dshwv-number{flex:0 0 54px;width:54px;margin-left:1px;padding:4px 7px;color:#4059b3}
-html.desktop .whale-sound-unit{flex:0 0 auto}
-html.desktop .whale-sound-task-row select{margin-left:auto}
-html.desktop .whale-sound-play{flex:0 0 26px;width:26px;height:27px;padding:0;border:0;border-radius:5px;background:transparent;color:#203170;opacity:.6;font-size:17px;line-height:27px;text-align:center;cursor:pointer}
-html.desktop .whale-sound-play:hover{opacity:1;background:rgba(32,49,112,.1)}
-html.desktop .whale-sound-charclose{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0 2px;padding:10px 6px 2px;border-top:1px solid rgba(32,49,112,.12);color:#203170;font-size:13px;line-height:22px}
-html.desktop .whale-sound-charclose>.dshwv-check{width:17px;height:17px;margin:0;accent-color:#263c82}
-html.desktop .whale-sound-charclose>label{margin:0;cursor:pointer}
-html.desktop .whale-sound-help{flex:0 0 auto;width:22px;height:22px;padding:0;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.06);color:#203170;font:700 12px/20px "JetBrains Mono",Consolas,"Microsoft YaHei UI",sans-serif;cursor:pointer}html.desktop .whale-sound-help:hover,html.desktop .whale-sound-help[aria-expanded="true"]{background:rgba(32,49,112,.14)}
-html.desktop .whale-sound-help-pop{display:none;flex:1 0 100%;box-sizing:border-box;margin-top:4px;padding:9px 11px;border:1px solid rgba(32,49,112,.2);border-radius:8px;background:#fff;box-shadow:0 6px 18px rgba(24,36,78,.18);color:#203170;line-height:1.6;font-size:12px}html.desktop .whale-sound-help-pop strong{font-weight:700}
-html.desktop .whale-sound-help-pop.is-open{display:block}
-html.desktop .whale-sound-actions{margin:10px 0 0;padding-top:8px;border-top:0;background:#fff}
-@media(max-width:410px){html.desktop .whale-sound-card{padding-left:12px;padding-right:12px}html.desktop .whale-sound-label{flex-basis:70px}html.desktop .whale-sound-block-summary{max-width:150px}}
-#api-models-root{padding:8px 0}.api-model-list{display:grid;gap:6px;margin-bottom:10px}.api-model-row{display:flex;align-items:center;gap:6px;padding:7px 8px;border:1px solid #d5e2e7;border-radius:9px;background:#f8fbfc}.api-model-meta{display:flex;flex:1;min-width:0;flex-direction:column}.api-model-meta strong,.api-model-meta small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.api-model-meta small{color:#667981}.api-model-mask{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:12px;background:#142d3b55;pointer-events:auto}.api-model-card{width:min(410px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-sizing:border-box;padding:15px;border:1px solid #b9ced7;border-radius:14px;background:#fbfeff;color:#173d48;box-shadow:0 18px 46px #173d4855;font:13px/1.4 system-ui}.api-model-card h3{margin:0 0 10px}.api-model-card>label{display:grid;gap:4px;margin:8px 0}.api-model-card input,.api-model-card select{box-sizing:border-box;width:100%;padding:7px;border:1px solid #b9cdd5;border-radius:7px;background:#fff;color:#173d48}
-
-html.desktop dialog.api-model-card{width:min(410px,calc(100vw - 24px));padding:16px;background:#fff;color:#203170;font:13px/1.5 'Segoe UI','Microsoft YaHei',sans-serif}.api-model-card .api-model-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.api-model-card .api-model-fields>label:first-child,.api-model-card .api-model-fields>label:nth-child(2){grid-column:1/-1}.api-model-card input[type=checkbox]{width:16px;justify-self:start}.api-model-card .dialog-actions{bottom:-16px}.api-model-card label{overflow-wrap:anywhere}
-
-html.desktop #settings-dialog{width:min(450px,calc(100vw - 24px));font-size:12px}html.desktop #settings-form{padding:16px}html.desktop #settings-dialog .dialog-header h2{font-size:18px}html.desktop #settings-dialog input,html.desktop #settings-dialog select{padding:7px 9px}html.desktop #settings-dialog .field-grid{gap:0 12px}
-
-/* Shared DSH palette, control alignment and popup bounds for companion panels. */
-html.desktop{
-  --whale-ink:#203170;
-  --whale-accent:#263c82;
-  --whale-muted:#68779e;
-  --whale-surface:#f4f4f8;
-  --whale-outline:rgba(32,49,112,.18);
-}
-html.desktop dialog input[type=checkbox],html.desktop dialog input[type=radio]{width:17px;height:17px;margin:0;accent-color:var(--whale-accent);vertical-align:middle}
-html.desktop dialog .check,html.desktop dialog label.check{display:flex;align-items:center;gap:9px;line-height:1.45}
-html.desktop .whale-sound-row{min-height:36px;gap:8px;line-height:1.25}
-html.desktop .whale-sound-label{line-height:1.25;text-align:left}
-html.desktop .whale-sound-row>.dshwv-check{flex:0 0 17px}
-html.desktop .whale-sound-close-row .dshwv-number{height:30px}
-html.desktop .dshwv-rolelist,html.desktop .dshwv-audiolist{max-width:calc(100vw - 16px);max-height:min(240px,calc(100vh - 16px));overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
-html.desktop .dshwv-audioitem,html.desktop .dshwv-roleitem{min-height:30px;gap:7px;padding:4px 6px}
-html.desktop .dshwv-audiopin,html.desktop .dshwv-audiodel,html.desktop .dshwv-rolepin,html.desktop .dshwv-roledel{display:inline-flex;align-items:center;justify-content:center;border-radius:5px}
-html.desktop .dshwv-audiopin:hover,html.desktop .dshwv-audiodel:hover,html.desktop .dshwv-rolepin:hover,html.desktop .dshwv-roledel:hover{background:rgba(32,49,112,.09)}
-html.desktop .api-model-list{gap:7px}
-html.desktop .api-model-row{align-items:center;min-height:42px;padding:7px 8px;border-color:var(--whale-outline);border-radius:8px;background:#f6f7fb;color:var(--whale-ink)}
-html.desktop .api-model-meta{gap:2px;line-height:1.35}
-html.desktop .api-model-meta small{color:var(--whale-muted);line-height:1.35}
-html.desktop .api-model-row>.quiet{min-height:28px;padding:4px 8px;border-color:var(--whale-outline);border-radius:6px;background:#fff;color:var(--whale-ink);white-space:nowrap}
-html.desktop .api-model-row>.quiet:hover{background:var(--whale-surface)}
-html.desktop dialog.api-model-card{border-color:#dce2ef;border-radius:14px;background:#fff;color:var(--whale-ink);box-shadow:0 10px 28px rgba(24,36,78,.2)}
-html.desktop .api-model-card h3{margin:0 0 14px;color:var(--whale-ink);font-size:17px;line-height:1.35}
-html.desktop .api-model-card .api-model-fields{align-items:start;gap:8px 12px}
-html.desktop .api-model-card .api-model-fields>label{display:flex;flex-direction:column;gap:5px;min-width:0;margin:0;color:#536079;line-height:1.4}
-html.desktop .api-model-card .api-model-fields input,html.desktop .api-model-card .api-model-fields select{width:100%;min-width:0;min-height:32px;margin:0;padding:6px 8px;border-radius:7px}
-html.desktop .api-model-card .dialog-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
-html.desktop dialog.api-model-card :focus-visible,html.desktop .whale-sound-card :focus-visible,html.desktop .whale-v3-dialog :focus-visible{outline:2px solid #8a9bd2;outline-offset:2px}
-html.desktop dialog label>.dshwv-custwrap,html.desktop .api-model-card label>.dshwv-custwrap{width:100%;flex:0 0 auto}
-html.desktop dialog.api-model-detail-card{width:min(430px,calc(100vw - 18px));padding:14px 16px;border:1px solid rgba(32,49,112,.3);border-radius:12px;background:#fff;color:#203170;font:12px/1.45 "Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}
-html.desktop .api-model-detail-card h3{margin:0 0 8px;color:#203170;font-size:14px;font-weight:600}
-.api-model-detail-summary{min-height:18px;margin:0 0 7px;color:#68779e;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.api-model-detail-rows{display:flex;flex-direction:column}
-.api-model-detail-row{display:flex;align-items:center;gap:8px;min-height:38px;margin:0;color:#203170;font-size:12px;white-space:nowrap}
-.api-model-detail-label{display:flex;align-items:center;gap:6px;flex:0 0 118px;min-width:0}
-.api-model-detail-value{flex:1 1 auto;min-width:0;color:#68779e;text-align:right;overflow:hidden;text-overflow:ellipsis}
-.api-model-detail-button{flex:0 0 48px!important;width:48px!important;height:28px!important;padding:0!important;border-radius:6px!important}
-.api-model-help-dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1px solid rgba(32,49,112,.5);border-radius:50%;font-size:11px;font-weight:600;cursor:help}
-.api-model-detail-actions{margin-top:11px}
-.api-model-secondary{border:0;background:#e9ebf2;color:#203170}
-.api-model-secondary:hover{background:#dde1ec}
-html.desktop dialog.api-model-mini-card{width:min(430px,calc(100vw - 18px));padding:14px 16px;border-radius:12px;font:12px/1.45 "Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}
-html.desktop .api-model-mini-card h3{margin:0 0 11px;color:#203170;font-size:14px;font-weight:600}
-.api-model-edit-row{display:flex!important;align-items:center;gap:8px;min-height:36px;margin:0!important;color:#203170!important}
-.api-model-edit-label{flex:0 0 82px}
-.api-model-edit-row>input:not([type=checkbox]),.api-model-edit-row>select{flex:1 1 auto;width:auto!important;min-width:0;height:30px;margin:0!important;padding:3px 7px!important;border:1px solid rgba(32,49,112,.38)!important;border-radius:6px!important;background:#fff!important;color:#203170!important}
-.api-model-edit-row>input[type=checkbox]{flex:0 0 17px}
-.api-model-edit-row.is-disabled{opacity:.48}
-.api-model-edit-tail{flex:0 0 auto;color:#203170}
-.api-model-number{max-width:150px}
-.api-model-wide-action{display:block;width:100%;height:31px;margin:7px 0 4px;border:0;border-radius:6px;background:#203170;color:#fff;font-size:12px}
-.api-model-wide-action:hover{background:#2f4488}
-html.desktop dialog.api-model-connection-card{width:min(430px,calc(100vw - 18px));padding:14px 16px;border-radius:12px;font:12px/1.45 "Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif}
-html.desktop .api-model-connection-card h3{margin:0 0 10px;font-size:14px;font-weight:600}
-html.desktop .api-model-connection-card details{margin-top:10px;padding-top:9px}
-html.desktop .api-model-connection-card>details>label{display:flex;flex-direction:column;gap:4px;margin:8px 0;color:#536079}
-html.desktop .api-model-connection-card input,html.desktop .api-model-connection-card select{min-height:31px;margin-top:4px;padding:5px 7px}
-html.desktop .whale-v3-dialog>label>.dshwv-custwrap{width:auto;flex:1 1 auto}
-html.desktop .whale-v3-dialog fieldset>.dshwv-custwrap{flex:1 1 150px}
-html.desktop .whale-sound-row>.dshwv-custwrap{flex:1 1 auto;width:auto;min-width:0;margin-left:auto}
-html.desktop .whale-sound-row>.dshwv-custwrap .dshwv-custbtn{width:100%}
-html.desktop .whale-utility-row>.dshwv-custwrap{flex:1 1 0;min-width:0}
-@media(max-width:410px){
-  html.desktop .whale-sound-row{gap:6px}
-  html.desktop .whale-sound-label{flex-basis:68px}
-  html.desktop .whale-sound-close-row .dshwv-number{flex-basis:48px;width:48px}
-  html.desktop .api-model-card .api-model-fields{grid-template-columns:minmax(0,1fr)}
-  html.desktop .api-model-card .api-model-fields>label:first-child,html.desktop .api-model-card .api-model-fields>label:nth-child(2){grid-column:1}
-}
-.connection-test{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
-.connection-test button{white-space:nowrap}
-#api-connection-result{font-size:11px;line-height:1.6;color:var(--text-muted);flex:1 1 180px}
-#api-connection-result.is-ok{color:var(--status-ok)}
-#api-connection-result.is-error{color:var(--status-critical)}
-.dshwv-ledger-warning{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;line-height:1.6}
-.dshwv-ledger-warning .quiet{flex:0 0 auto}
-.provider-list{margin:4px 0 18px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
-.provider-heading{padding:14px 16px;background:var(--surface-muted)}
-.provider-heading h3{margin:0 0 4px;font-size:14px;color:var(--text)}
-.provider-heading .help{margin:0}
-.provider-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--border)}
-.provider-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.provider-badge{font-size:10px;padding:2px 6px;border-radius:999px;background:var(--surface-muted);color:var(--text-muted)}
-.provider-status{font-size:11px;color:var(--text-muted)}
-.provider-status.is-ok{color:var(--status-ok)}
-.provider-status.is-error{color:var(--status-critical)}
-.provider-actions{display:flex;gap:6px;flex:0 0 auto}
-.provider-list #api-models-root{border-top:1px solid var(--border);padding:0 16px 12px}
-.api-model-row{border-top:1px solid var(--border)}
+/* Global resets; components live in whale-widget.css. */
+*{box-sizing:border-box}[hidden]{display:none!important}

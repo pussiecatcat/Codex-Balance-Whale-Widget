@@ -5,11 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault } from '../desktop/ui/features/widget/default-content.js';
 
+import { renderBubbleRows } from './helpers/bubble-rows.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const widgetSource = fs.readFileSync(path.join(root, 'assets/whale-widget.js'), 'utf8');
-const rowsViewSource = fs.readFileSync(path.join(root, 'desktop/ui/features/widget/bubble-rows-view.js'), 'utf8');
-const defaultContentSource = fs.readFileSync(path.join(root, 'desktop/ui/features/widget/default-content.js'), 'utf8');
-const uiCss = fs.readFileSync(path.join(root, 'desktop/ui/ui.css'), 'utf8');
+
+
+const uiCss = fs.readFileSync(path.join(root, 'desktop/ui/whale-widget.css'), 'utf8');
 
 // Matches the inset WhaleRendering.fitFrameToBubble applies: half the 18u stroke
 // plus breathing room, measured from the drawn path.
@@ -153,10 +155,11 @@ test('the earlier single-window default migrates to the aligned layout', () => {
 });
 
 test('the title badge sits on the baseline and the consumption layout migrates', () => {
-  assert.match(rowsViewSource, /if \(m\.titleBadge\) \{\s+row\.style\.overflow = 'hidden'/);
+  const rendered = renderBubbleRows(bubbleDefaultSubscriptionQueue()[0].modules);
+  assert.ok(rendered.nodes.some(node => node.classList.contains('dshwv-mod-badge')));
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.equal(short.modules[0].size, 11);
-  assert.equal(short.modules[1].titleBadge, true);
+  assert.equal(short.modules[1].role, 'badge');
   assert.equal(short.modules[1].size, 1);
   assert.equal(bubbleLegacySubscriptionDefault([short, weekly]), false);
   const older = [short, weekly].map(step => {
@@ -195,17 +198,19 @@ test('the layout with a title per window migrates to the badge layout', () => {
 });
 
 test('the previous stacked default is still detected and migrated', () => {
-  assert.match(
-    defaultContentSource,
-    /bubbleLegacySubscriptionDefault[\s\S]*?modules\.length === 3/,
-    'users saved on the old three-module default must be detected and migrated'
-  );
+  assert.equal(bubbleLegacySubscriptionDefault([{ kind: 'custom', modules: [
+    { type: 'plan', quotaStyle: 'header', tpl: '{plan_name}' },
+    { type: 'quota', quotaStyle: 'meter', windowDurationMins: 300, row: 1 },
+    { type: 'quota', quotaStyle: 'meter', windowDurationMins: 10080, row: 2 },
+  ] }]), true);
 });
 
 test('row wrapping follows the selected shape instead of a fixed 560u', () => {
-  assert.match(uiCss, /--dshw-box-wu:\d+/, 'ui.css must publish the box width for the renderer to read');
-  assert.match(rowsViewSource, /function bubbleRowCapU\(\)/, 'the renderer must read the box width');
-  assert.doesNotMatch(rowsViewSource, /560 \* (uVal2|compFs)/, 'no hardcoded 560u row cap may survive');
+  const modules = [{ type: 'text', text: 'wide row' }];
+  const ellipse = renderBubbleRows(modules, { boxWidth: 505, scrollWidth: 600 });
+  const round = renderBubbleRows(modules, { boxWidth: 655, scrollWidth: 600 });
+  assert.equal(ellipse.parent.children[0].classList.contains('dshwv-mod-wrap'), true);
+  assert.equal(round.parent.children[0].classList.contains('dshwv-mod-wrap'), false);
 });
 
 test('the frame scale is applied to the frame, never to .dshwv-text', () => {
@@ -228,6 +233,11 @@ test('no custom property on <html> may reference --dshw-u', () => {
   }
 });
 
-test('a countdown-only row keeps one width so quota steps share a fit scale', () => {
-  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '4\.9em'/);
+test('countdown and badge roles create one unbroken shared row', () => {
+  const { parent, nodes } = renderBubbleRows(bubbleDefaultSubscriptionQueue()[0].modules);
+  assert.equal(parent.children.length, 3);
+  assert.ok(parent.children[0].classList.contains('dshwv-trowline-fixed'));
+  assert.ok(parent.children[2].classList.contains('dshwv-trowline-fixed'));
+  assert.ok(nodes.some(node => node.classList.contains('dshwv-mod-countdown')));
+  assert.equal(nodes.some(node => node.style.minWidth), false);
 });

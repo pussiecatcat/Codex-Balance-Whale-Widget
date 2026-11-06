@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Snap region editor: draft controls, preview geometry, and pointer handling.
 export function createSnapEditor(deps) {
   const { document, viewport, cloneSnap, clampSnapKey, fixSnapConfig,
@@ -326,6 +327,7 @@ export function createSnapEditor(deps) {
         renderSnapModes();
         renderSnapPreview();
         syncSnapInputs();
+        openOver(null, snapMask);
         snapMask.style.display = 'flex';
       } catch (err) {}
     }

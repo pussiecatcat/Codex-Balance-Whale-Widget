@@ -1,33 +1,19 @@
 import { requestJson } from '../../services/request.js';
 import { buildSoundSave, createSoundDraft, restoreSoundDefaults } from './model.js';
 import { createSoundMenuEntry, createSoundSettingsView } from './view.js';
+import { sound } from '../../services/sound.js';
 
 const SETTINGS_URL = '/api/sound-settings';
 const AUDIO_URL = '/dsh-whale/audio.json';
 
-function previewPlayer(windowRef) {
-  let audio = null;
-  const stop = () => {
-    if (audio) { audio.pause(); audio.currentTime = 0; audio = null; }
-    windowRef.WhaleAudio?.stop?.('notice');
-  };
+function previewPlayer(service) {
   return {
-    play(url, volume) {
-      stop();
-      if (!url) return;
-      if (windowRef.WhaleAudio) {
-        windowRef.WhaleAudio.play({ channel: 'notice', url, volume });
-        return;
-      }
-      audio = new windowRef.Audio(url);
-      audio.volume = Math.max(0, Math.min(1, Number(volume) || 0));
-      audio.play().catch(() => {});
-    },
-    stop,
+    play: (ref, volume) => service.preview(ref, volume, { channel: 'sound-settings-preview' }),
+    stop: () => service.stop('sound-settings-preview'),
   };
 }
 
-export function waitForLegacySoundUi(windowRef = window, { signal } = {}) {
+function waitForLegacySoundUi(windowRef = window, { signal } = {}) {
   if (windowRef.WhaleLegacySoundUi) return Promise.resolve(windowRef.WhaleLegacySoundUi);
   return new Promise((resolve, reject) => {
     const ready = event => {
@@ -53,7 +39,8 @@ export class SoundSettingsController {
     this.request = options.request || requestJson;
     this.createMenuEntry = options.createMenuEntry || createSoundMenuEntry;
     this.createView = options.createView || createSoundSettingsView;
-    this.player = options.player || previewPlayer(this.window);
+    this.sound = options.sound || sound;
+    this.player = options.player || previewPlayer(this.sound);
     this.abortController = new AbortController();
     this.entry = null;
     this.unmount = null;
@@ -88,6 +75,7 @@ export class SoundSettingsController {
       if (this.disposed || operation.signal.aborted) return;
       this.bundle = bundle;
       this.catalog = catalog;
+      this.sound.reload({ ...bundle, catalog });
       this.draft = createSoundDraft(bundle, catalog);
       this.view = this.createView({
         documentRef: this.document,
@@ -97,7 +85,11 @@ export class SoundSettingsController {
         onSave: () => this.save(),
         onClose: () => { this.view = null; this.player.stop(); },
         onRestore: () => restoreSoundDefaults(this.draft),
-        onEditAudio: () => this.legacy.audioEditor.open({ groupId: null }),
+        onEditAudio: async () => {
+          const result = await this.legacy.audioEditor.open({ groupId: null });
+          if (result?.catalog) this.sound.reload({ catalog: result.catalog });
+          return result;
+        },
         onEditPrompt: (kind, config) => this.legacy.promptEditor.open({ kind, config }),
         onPreview: (url, volume) => this.player.play(url, volume),
         onStopPreview: () => this.player.stop(),
@@ -113,17 +105,22 @@ export class SoundSettingsController {
   }
 
   async save() {
+    const savingView = this.view;
     const command = buildSoundSave(this.bundle, this.draft);
     const saved = await this.request(SETTINGS_URL, {
       method: 'PUT', body: command, signal: this.abortController.signal,
     });
-    this.bundle = saved;
+    if (this.disposed) return saved;
+    const ownsView = this.view === savingView;
+    if (ownsView) this.bundle = saved;
+    this.sound.reload(saved);
     this.legacy.applySettings(saved);
     this.window.dispatchEvent(new this.window.CustomEvent('whale-sound-settings-applied', { detail: saved }));
-    const current = this.view;
-    this.view = null;
-    current?.destroy();
-    this.player.stop();
+    if (ownsView) {
+      this.view = null;
+      savingView?.destroy();
+      this.player.stop();
+    }
     return saved;
   }
 

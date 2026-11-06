@@ -18,9 +18,24 @@ test('encodeWav writes a mono 16-bit PCM header and clamps samples', async () =>
   assert.equal(new DataView(bytes.buffer).getInt16(46, true), 0x7fff);
 });
 
-test('choosing an audio file opens the crop dialog', async () => {
-  const fs = await import('node:fs');
-  const source = fs.readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-  assert.match(source, /audioCropFileInput\.addEventListener\('change'[\s\S]{0,400}?validateAudioFile\(f\)[\s\S]{0,120}?audioCropEditor\.open\(await f\.arrayBuffer\(\), f\.name\)/,
-    'the file picker has a change listener that opens the crop dialog');
+test('choosing an audio file validates it and opens the crop dialog; cancel and errors do not', async () => {
+  const { bindAudioImport } = await import('../desktop/ui/features/widget/audio-import.js');
+  const handlers = new Map();
+  const input = { value: 'picked', files: [], addEventListener: (name, callback) => handlers.set(name, callback), removeEventListener: name => handlers.delete(name) };
+  const opened = [], errors = [], order = [];
+  const dispose = bindAudioImport({ input,
+    validate: async file => { order.push('validate'); if (file.invalid) throw Error('invalid audio'); },
+    open: async (bytes, name) => { order.push('open'); opened.push({ bytes, name }); },
+    onError: error => errors.push(error.message),
+  });
+  const bytes = new ArrayBuffer(4);
+  input.files = [{ name: 'clip.wav', arrayBuffer: async () => { order.push('read'); return bytes; } }];
+  await handlers.get('change')();
+  assert.deepEqual(order, ['validate', 'read', 'open']);
+  assert.deepEqual(opened, [{ bytes, name: 'clip.wav' }]);
+  assert.equal(input.value, '');
+  input.files = []; await handlers.get('change')();
+  input.files = [{ invalid: true }]; await handlers.get('change')();
+  assert.equal(opened.length, 1); assert.deepEqual(errors, ['invalid audio']);
+  dispose(); assert.equal(handlers.has('change'), false);
 });

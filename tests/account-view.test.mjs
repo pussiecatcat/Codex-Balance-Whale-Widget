@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-const source = (await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
+import { LABELS } from '../desktop/ui/services/labels.js';
+import { registerMenuRow } from '../desktop/ui/features/widget/menu-layout.js';
+const source = (await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
 const exported = { module: { exports: {} }, requestJson: async () => ({}) }; vm.runInNewContext(source, exported);
 const { windowText, tokenText, noticeText, quotaLabel } = exported.module.exports;
 
@@ -27,7 +29,7 @@ test('subscription failure consumption displays tokens without API money or fun 
 });
 function runtime(requestJson) {
   const storage = new Map(); const events = [];
-  const context = { document: { documentElement: {dataset:{}}, readyState: 'loading', addEventListener() {}, querySelectorAll(){return []} }, window: { dispatchEvent(e) { events.push(e); } }, localStorage: { getItem(k) { return storage.get(k); }, setItem(k,v) { storage.set(k,v); } }, requestJson, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
+  const context = { LABELS, registerMenuRow, document: { documentElement: {dataset:{}}, readyState: 'loading', addEventListener() {}, querySelectorAll(){return []} }, window: { addEventListener() {}, dispatchEvent(e) { events.push(e); } }, localStorage: { getItem(k) { return storage.get(k); }, setItem(k,v) { storage.set(k,v); } }, requestJson, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
   vm.runInNewContext(source, context);
   return { api: context.window.WhaleAccountView, storage, events, window:context.window };
 }

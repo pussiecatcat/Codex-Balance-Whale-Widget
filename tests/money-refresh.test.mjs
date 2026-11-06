@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
+import { UI_DEFAULTS } from '../desktop/ui/services/ui-defaults.js';
 
-const source = (await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/m, '');
-const box = { module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 7, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
+const source = (await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
+const box = { UI_DEFAULTS, module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 7, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
 vm.runInNewContext(source, box);
 const { createMoneyState } = box.module.exports;
 const clockAt = Date.parse('2026-09-16T04:00:00Z');
@@ -145,7 +146,7 @@ test('browser refresh requests carry force/reason and automatic events only stag
   let rate = 7, disconnected = false;
   const document = { body: {}, hidden: false,
     addEventListener(name, callback) { documentEvents.set(name, callback); }, removeEventListener(name) { documentEvents.delete(name); } };
-  const browser = { Intl, Date, document,
+  const browser = { UI_DEFAULTS, Intl, Date, document,
     localStorage: { getItem: () => null, setItem() {} },
     MutationObserver: class { observe() {} disconnect() { disconnected = true; } },
     addEventListener(name, callback) { browserEvents.set(name, callback); }, removeEventListener(name) { browserEvents.delete(name); },

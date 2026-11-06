@@ -67,27 +67,12 @@ export function createBubbleRowsView(deps) {
         if (m.type === 'source') row.classList.add('dshwv-trow-source');
         var tx = row;
         if (needBg) {
-          row.style.padding = '1px 6px';
-          row.style.borderRadius = '7px';
-          row.style.textShadow = 'none';
+          row.classList.add('dshwv-mod-chip');
           tx = document.createElement('span');
           tx.className = 'dshwv-trowtx';
           row.appendChild(tx);
         }
-        // The title row is the widest and sets the fit scale, so it gives back the
-        // wide monospace gaps instead of shrinking the whole bubble.
-        if (m.tightTitle) {
-          row.style.letterSpacing = '-.02em';
-          row.style.wordSpacing = '-.3em';
-        }
-        // An inline-block that clips has its baseline at its bottom edge, which puts
-        // the badge on the title's baseline whatever font each of them uses.
-        if (m.titleBadge) {
-          row.style.overflow = 'hidden';
-          row.style.padding = '0 5px';
-          row.style.borderRadius = '6px';
-          row.style.lineHeight = '1.15';
-        }
+        if (['title', 'badge', 'hero', 'countdown', 'chip'].includes(m.role)) row.classList.add('dshwv-mod-' + m.role);
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
         if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
@@ -97,11 +82,11 @@ export function createBubbleRowsView(deps) {
         row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
         // A countdown changes width with its value, and the widest row decides the
         // fit scale, so without a fixed slot two quota steps render at different sizes.
-        if (m.type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(m.tpl || ''))) row.style.minWidth = '4.9em';
-        if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
-        if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
-        if (fItalic) row.style.fontStyle = 'italic';
-        if (fUl) row.style.textDecoration = 'underline';
+
+        if (whaleMoneyTemplates.has(m)) row.classList.add('dshwv-mod-money');
+        if (fBold) row.classList.add(m.type === 'balance' ? 'dshwv-mod-balance-bold' : 'dshwv-mod-bold'); else if (m.type === 'balance') row.classList.add('dshwv-mod-balance');
+        if (fItalic) row.classList.add('dshwv-mod-italic');
+        if (fUl) row.classList.add('dshwv-mod-underline');
         var fFont = m.fontFamily || '';
         if (line && line.fontFamily) fFont = line.fontFamily;
         if (fFont) row.style.fontFamily = fFont;
@@ -143,11 +128,9 @@ export function createBubbleRowsView(deps) {
           var capPx = compFs && multNow ? bubbleRowCapU() * compFs / multNow : 0;
           if (capPx > 0 && blk.el.scrollWidth > capPx + 2) {
             blk.el.style.maxWidth = capPx + 'px';
-            blk.el.style.whiteSpace = 'normal';
-            blk.el.style.overflowWrap = 'anywhere';
-            blk.el.style.wordBreak = 'break-word';
+            blk.el.classList.add('dshwv-mod-wrap');
           } else {
-            blk.el.style.whiteSpace = 'nowrap';
+            blk.el.classList.remove('dshwv-mod-wrap');
           }
         } catch (err) {}
       }
@@ -159,8 +142,7 @@ export function createBubbleRowsView(deps) {
           var u0 = String(lmd.url || '').trim();
           if (!(/^https?:\/\//i).test(u0)) return;
           var lel = blk2.el;
-          lel.style.cursor = 'pointer';
-          lel.style.pointerEvents = 'auto';
+          lel.classList.add('dshwv-mod-link');
           lel.title = u0;
           lel.addEventListener('click', function (e) {
             try {
@@ -221,42 +203,19 @@ export function createBubbleRowsView(deps) {
           } catch (err) {}
           var para = document.createElement('div');
           para.className = 'dshwv-trow dshwv-trowline';
-          para.style.textAlign = 'center';
+
           if (capPx2 > 0) para.style.maxWidth = capPx2 + 'px';
           for (var p = 0; p < chunk.length; p++) {
             var pr = chunk[p];
             var pe = pr.el;
-            pe.style.display = 'inline';
-            pe.style.verticalAlign = 'baseline';
-            pe.style.margin = '0 calc(var(--dshw-u) * 6) 0 0';
-            if (!pr.bg) {
-              pe.style.padding = '1px 0';
-            }
-            if (pr.bg) {
-              pe.style.boxDecorationBreak = 'clone';
-              pe.style.webkitBoxDecorationBreak = 'clone';
-            }
-            {
-              pe.style.whiteSpace = 'normal';
-              pe.style.overflowWrap = 'anywhere';
-              pe.style.wordBreak = 'break-word';
-              pe.style.maxWidth = '';
-            }
-            // min-width has no effect on an inline box. The line stays whole, because
-            // wrapping it would change the row height and the fit scale too.
-            if (pe.style.overflow === 'hidden') pe.style.margin = '0 0 calc(var(--dshw-u) * -6)';
-            if (pe.style.minWidth || pe.style.overflow === 'hidden') {
-              pe.style.display = 'inline-block';
-              pe.style.textAlign = 'center';
-              para.style.maxWidth = '';
-              para.style.whiteSpace = 'nowrap';
-              for (var q = 0; q < chunk.length; q++) chunk[q].el.style.whiteSpace = 'nowrap';
+            if (!pr.bg) pe.classList.add('dshwv-mod-plain');
+            if (pe.classList.contains('dshwv-mod-badge') || pe.classList.contains('dshwv-mod-countdown')) {
+              para.classList.add('dshwv-trowline-fixed');
             }
             para.appendChild(pe);
             enableLinkRun(pr);
           }
           parentEl.appendChild(para);
-          for (var p2 = 0; p2 < chunk.length; p2++) {}
           rows++;
         }
       }
@@ -323,5 +282,5 @@ export function createBubbleRowsView(deps) {
         bubbleRowsTo(tb, mods || []);
       } catch (err) {}
     }
-  return { render: bubbleRenderModules, preview: bubblePreviewInto };
+  return { render: bubbleRenderModules, preview: bubblePreviewInto, rowsTo: bubbleRowsTo };
 }

@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // Role crop editor: preview, zoom/rotate/flip, pointer dragging and the final
 // 610x610 PNG upload. It owns its DOM so the widget entry only wires the file
 // input and the server callbacks.
@@ -218,6 +219,7 @@ export function createRoleCropEditor({ document, window, requestJson, roleUrl, I
           cropAngle.value = '0';
           cropAngleNum.value = '0';
           positionCrop();
+          openOver(null, cropMask);
           cropMask.style.display = 'flex';
         };
         imgEl.onerror = function () { assetNotice('图片解码失败，请选择其他图片'); };

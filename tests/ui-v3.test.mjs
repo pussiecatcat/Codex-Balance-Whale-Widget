@@ -13,16 +13,16 @@ function audioFixture() {
     createGain() { return { gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }; }
     createBufferSource() { const source = { connect() {}, start() { this.started = true; }, stop() { this.stopped = true; } }; sources.push(source); return source; }
   }
-  const context = { window: { addEventListener() {} }, AudioContext, requestBytes: async () => new ArrayBuffer(1), setTimeout: callback => { idle = callback; return 1; }, clearTimeout() {} };
-  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/m, ''), context);
+  const context = { sound: { attachEngine() {} }, window: { addEventListener() {} }, AudioContext, requestBytes: async () => new ArrayBuffer(1), setTimeout: callback => { idle = callback; return 1; }, clearTimeout() {} };
+  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/gm, ''), context);
   return { api: context.window.WhaleAudio, sources, contexts: () => contexts, idle: () => idle() };
 }
 test('forgetting group sounds decodes an edited clip again under the same URL', async () => {
   let fetches = 0;
   class AudioContext { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } decodeAudioData() { return Promise.resolve({ duration: 1 }); } }
-  const context = { window: { addEventListener() {} }, AudioContext, requestBytes: async () => { fetches++; return new ArrayBuffer(1); },
+  const context = { sound: { attachEngine() {} }, window: { addEventListener() {} }, AudioContext, requestBytes: async () => { fetches++; return new ArrayBuffer(1); },
     setTimeout: () => 1, clearTimeout() {} };
-  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/m, ''), context);
+  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/gm, ''), context);
   const api = context.window.WhaleAudio, url = '/dsh-whale/sound/press.mp3?set=g1';
   await api.warm(url); await api.warm(url);
   assert.equal(fetches, 1, 'a second play reuses the decode');

@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 // The press/release fragment picker. Values and DOM stay in the caller; this
 // module owns the panel lifecycle and the list of available fragments.
 export function createAudioSlotPanel({
@@ -94,6 +95,7 @@ export function createAudioSlotPanel({
       panel.style.width = width + 'px';
       panel.style.left = Math.max(4, Math.min(bounds.left, vp.w - width - 4)) + 'px';
       panel.style.top = bounds.bottom + 4 + 'px';
+      openOver(null, panel);
       panel.style.display = 'block';
     } catch (error) { return; }
   }

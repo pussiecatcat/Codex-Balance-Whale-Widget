@@ -1,26 +1,31 @@
+import { sound } from './services/sound.js';
+import { UI_DEFAULTS } from './services/ui-defaults.js';
+
 (() => {
   'use strict';
   const key = 'dshw-v3-feedback', events = { press: '按下', release: '松开', success: '完成提示', cancelled: '取消提示', failed: '拥挤失败提示' };
-  const defaults = () => ({ feel: 'balanced', events: Object.fromEntries(Object.keys(events).map(k => [k, { preset: k === 'press' || k === 'release' || k === 'success' ? 'original' : 'silent', volume: .8 }])) });
+  const defaults = () => structuredClone(UI_DEFAULTS.feedback);
   const clone = value => JSON.parse(JSON.stringify(value));
   let settings = defaults();
   // 设置窗口保存后由主进程广播过来，这里重新读一次 localStorage 即可生效。
   function load() {
     settings = defaults();
     try { const saved = JSON.parse(localStorage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
+    sound.reload({ feedback: settings });
     return clone(settings);
   }
   load();
   function play(event, url, master = 1, override) {
     const cfg = (override || settings).events[event];
     if (!cfg) return false;
-    window.WhaleAudio.play({ channel: event === 'press' || event === 'release' ? 'gesture' : 'notice', url, preset: cfg.preset, volume: cfg.preset === 'silent' ? 0 : cfg.volume * master });
+    sound.play(event, { url, volume: master, feedback: override || settings });
     return true;
   }
   function saveSettings(value) {
     const next = clone(value || defaults());
     localStorage.setItem(key, JSON.stringify(next));
     settings = next;
+    sound.reload({ feedback: settings });
     window.dispatchEvent(new CustomEvent('whale-feedback-applied', { detail: clone(settings) }));
     return clone(settings);
   }
@@ -39,13 +44,13 @@
       const volume = document.createElement('input'); volume.type = 'range'; volume.min = '0'; volume.max = '1'; volume.step = '.01'; volume.value = draft.events[event].volume; volume.setAttribute('aria-label', label + '音量');
       const number = document.createElement('output'); number.textContent = Math.round(volume.value * 100) + '%';
       volume.oninput = () => { draft.events[event].volume = Number(volume.value); number.textContent = Math.round(volume.value * 100) + '%'; };
-      const preview = document.createElement('button'); preview.type = 'button'; preview.textContent = '试听'; preview.onclick = () => play(event, window.WhaleFeedbackSources?.[event] || '/dsh-whale/sound/press.mp3?set=duck', 1, draft);
+      const preview = document.createElement('button'); preview.type = 'button'; preview.textContent = '试听'; preview.onclick = () => play(event, window.WhaleFeedbackSources?.[event] || sound.urlFor({ groupId: sound.snapshot().size.soundSet || 'duck', slot: event }), 1, draft);
       row.append(select, volume, number, preview); dialog.append(row);
     }
     const actions = document.createElement('div'); actions.className = 'dialog-actions';
     const cancel = document.createElement('button'); cancel.textContent = '取消'; cancel.onclick = () => dialog.close();
     const save = document.createElement('button'); save.textContent = '保存'; save.className = 'primary'; save.onclick = () => { try { saveSettings(draft); dialog.close(); } catch { window.whaleToast?.('设置未能保存，请检查存储空间。'); } };
-    actions.append(cancel, save); dialog.append(actions); dialog.addEventListener('close', () => { window.WhaleAudio.stop(); dialog.remove(); }); document.body.append(dialog); dialog.showModal();
+    actions.append(cancel, save); dialog.append(actions); dialog.addEventListener('close', () => { sound.stop(); dialog.remove(); }); document.body.append(dialog); dialog.showModal();
   }
   window.WhaleFeedback = { play, open, save: saveSettings, reload: load, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
 })();

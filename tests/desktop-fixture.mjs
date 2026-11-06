@@ -1,3 +1,4 @@
+import { LABELS } from '../desktop/ui/services/labels.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -133,10 +134,10 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await wait('!window.__whaleRenderTest.status().busy', 'petting refresh completes');
     const afterPetting = await ev("({text:document.querySelector('.dshwv-pop').innerText,epoch:window.__whaleRenderTest.status().epoch,front:window.__whaleRenderTest.status().front,shown:window.__whaleRenderTest.status().shown,switching:window.__whaleRenderTest.status().switching})");
     assert.equal(afterPetting.text, firstBubble.text);
-    assert.ok(afterPetting.epoch > firstBubble.epoch, 'each default character click restarts the queue');
+    assert.equal(afterPetting.epoch, firstBubble.epoch, 'character petting leaves the active bubble scene unchanged');
     assert.equal(afterPetting.shown, true); assert.equal(afterPetting.switching, false);
-    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), true);
-    checks.push('default character clicks return to the first bubble and the queue-advance setting is available');
+    assert.equal(await ev("document.querySelector('.dshwv-bubcard').innerText.includes('点按角色推进泡泡队列')"), false);
+    checks.push('character petting preserves the active bubble and the retired advance setting is absent');
     for (let retry = 0; retry < 3; retry++) {
       await ev('window.__whaleRenderTest.close()');
       await wait('!window.__whaleRenderTest.status().shown&&!window.__whaleRenderTest.status().switching', 'bubble closed before repeated first click');
@@ -157,11 +158,11 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     point = await hitPoint(); move(point.x, point.y); await delay(120); await clickSelector('.dshwv-menu-btn');
     await wait("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})", 'menu open');
     const menu = await ev("document.querySelector('.dshwv-menu').innerText");
-    for (const label of ['角色', '音效', '气泡DIY', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
+    for (const label of [LABELS.role, LABELS.scale, LABELS.dataSource, LABELS.displayMode, LABELS.soundSettings, LABELS.bubble, LABELS.ledgerMenu, LABELS.advanced]) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /峰谷|高峰|倒计时/); checks.push('clickable menu retains original management controls');
-    for (const label of ['音效与提示', '素材包导入/导出']) assert.ok(menu.includes(label), label);
+    assert.equal(await ev("document.querySelector('[data-menu-id=\"sound\"] button').textContent"), LABELS.soundSettings);
     assert.doesNotMatch(menu, /音效与手感|会员额度详情|本地创意工坊|跟随 Codex/);
-    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='音效/提示泡泡设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    const soundSettings = await ev("(() => {const b=document.querySelector('[data-action=\"open-sound-settings\"]');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
     await clickAt(soundSettings); await wait("document.querySelector('.whale-sound-mask')?.checkVisibility({opacityProperty:true})", 'merged sound settings');
     const soundPanel = await ev("document.querySelector('.whale-sound-card').textContent");
     for (const label of ['按压音效', '每轮消耗提示', '提问提示', '授权提示', '新建音效组', '编辑提示内容', '点按角色关闭提示气泡']) assert.match(soundPanel, new RegExp(label));
@@ -173,8 +174,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('.whale-sound-card>.whale-sound-block').open=false");
     await clickSelector('.whale-sound-card .dshwv-bubbtn-no');
     checks.push('DSH-style press, turn, question and approval sound sections are complete; redundant entries are removed');
-    const settings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='API 设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
-    await clickAt(settings); await wait("document.querySelector('#settings-dialog').open", 'API dialog');
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'api'}}))");
+    await wait("document.querySelector('#settings-dialog').open", 'API dialog');
     assert.equal(await ev("document.querySelectorAll('[name*=peak],[name*=Peak]').length"), 0); checks.push('settings open inside widget with schedule controls removed');
     await clickSelector('#cancel-settings');
     point = await hitPoint(); move(point.x, point.y); await delay(150);
@@ -189,10 +190,10 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     };})()`);
     assert.match(bubbleEditorOverview.text, /首次点击弹出内容/);
     assert.match(bubbleEditorOverview.text, /再次点击弹出内容/);
-    assert.match(bubbleEditorOverview.text, /点按角色推进泡泡队列/);
+    assert.doesNotMatch(bubbleEditorOverview.text, /点按角色推进泡泡队列/);
     assert.deepEqual(bubbleEditorOverview.weights.map(weight => weight.value), ['10', '1']);
     assert.ok(bubbleEditorOverview.weights.every(weight => weight.rightGap >= 3 && weight.rightGap <= 5 && weight.centerGap <= 1));
-    checks.push('bubble editor matches the reference labels, anchored weights and queue checkbox');
+    checks.push('bubble editor retains content labels and anchored weights without the retired queue checkbox');
     await buttonByText('首次点击 · 编辑内容');
     const currentMask = "[...document.querySelectorAll('.dshwv-bubmask')].filter(e=>e.checkVisibility({opacityProperty:true})).at(-1)";
     const editor = await ev(`(${currentMask}).innerText`);
@@ -211,13 +212,13 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     ]); true`);
     await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().switching", 'advanced queue first item');
     assert.match(await ev("document.querySelector('.dshwv-pop').innerText"), /队列第一项/);
-    await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().switching", 'character advances queue');
+    await clickSelector('.dshwv-pop'); await wait("!window.__whaleRenderTest.status().switching", 'bubble click advances queue');
     assert.match(await ev("document.querySelector('.dshwv-pop').innerText"), /队列第二项/);
-    await clickAt(await hitPoint()); await wait("!window.__whaleRenderTest.status().shown", 'character closes final queue item');
-    checks.push('saving the checkbox makes character clicks advance and then close the bubble queue');
+    await clickSelector('.dshwv-pop'); await wait("!window.__whaleRenderTest.status().shown", 'bubble click closes final queue item');
+    checks.push('bubble clicks advance and then close the bubble queue');
     point = await hitPoint(); move(point.x,point.y); await delay(100);
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
-    await buttonByText('管理', "document.querySelector('.dshwv-menu')");
+    await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'resources'}}))");
     await wait("[...document.querySelectorAll('.dshwv-resmask')].some(e=>e.checkVisibility({opacityProperty:true}))", 'resource manager');
     const resClose = await ev("(() => {const e=[...document.querySelectorAll('.dshwv-resclose')].find(e=>e.checkVisibility({opacityProperty:true}));const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()");
     await clickAt(resClose); checks.push('resource manager opens and closes through actual controls');

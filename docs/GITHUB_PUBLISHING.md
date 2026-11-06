@@ -8,7 +8,7 @@
 - 本地开发分支：`main` 加临时特性分支（`codex/*`、`fix/*`）
 - 发行标签：普通语义版本（`v0.3.0`、`v0.4.0`），不再使用 `codex-v0.3.0-fixed.<n>`
 - Release 标题：`Codex 小龙娘 v0.3.0`
-- 插件构建标识：唯一权威来源是 `.codex-plugin/plugin.json` 的 `version`；发布标签只取 `+` 之前的基础版本，`+codex.<build>` 仅用于本地测试包
+- 正式版本：修改 `.codex-plugin/plugin.json` 的 `version`；发布标签只取 `+` 之前的基础版本。开发包由构建器自动生成 `+codex.<UTC 日期>-<git describe>.<内容摘要>`，不再为每次测试修改清单和发布说明。
 
 版本号不在这份文档里二次维护：打包时以 `plugin.json` 与 `CHANGELOG.md` 为准，两者不一致说明有一步没做。
 
@@ -43,8 +43,12 @@
 在仓库根目录使用 Python 3.10+：
 
 ```powershell
-python scripts/build-release.py --release-tag codex-v0.3.0-fixed.18
+python scripts/build-release.py --release-tag v0.3.0
 ```
+
+不传 `--release-tag` 时生成开发包。构建器只改 ZIP 中的插件清单，源码清单保持原样；未提交的修改或导出源码也用内容摘要区分。`release-manifest.json` 同时记录 `sourceVersion` 和实际的 `internalVersion`。正式构建传入 `--release-tag`，保留源码版本，不追加开发标识。
+
+Windows 安装器不按 SemVer 大小跳过版本：它先暂存并替换源码，然后调用插件注册，最后以 `-ceq` 核对完整版本和启用状态。因此不同开发后缀可以覆盖旧安装；构建脚本不改变该安装行为。
 
 构建器会：
 

@@ -40,7 +40,7 @@
 | `size.scrollGapOn` | 避开右侧滚动条 | 位置与交互 | 二级 | size | `scrollGapOn` |
 | `size.scrollGapPx` | 避让距离 | 位置与交互 | 二级 | size | `scrollGapPx` |
 | `size.menuBtnHide` | 隐藏菜单按钮 | 位置与交互 | 二级 | size | `menuBtnHide` |
-| `ui.accountView` | 查看数据 | 外观与显示 | 一级 | displayMode | `mode` |
+| `ui.accountView` | 数据来源 | 外观与显示 | 一级 | displayMode | `mode` |
 | `ui.role` | 角色 | 外观与显示 | 一级 | ui | `dshw-role` |
 | `ui.displayCurrency` | 显示币种 | 外观与显示 | 二级 | ui | `dshw-display-currency` |
 | `ui.bubbleShape` | 气泡形状 | 气泡内容 | 二级 | ui | `dshw-bubble-shape` |
@@ -88,13 +88,13 @@
 
 ### 外观与显示（`appearance`）
 
-角色、大小、桌面显示方式与数据显示来源。
+角色、大小、显示方式与数据来源。
 
 #### `size.scale` — 大小
 
 - **用途**：调整鲸鱼在桌面上的整体大小。
 - **类型**：range，单位 倍，范围 0.6 – 2.5，步长 0.1
-- **默认值**：1.5（来源 `runtime/size-settings.mjs:6`）
+- **默认值**：1（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale`）
 - **存储**：`.dshw-size.json` 的 `scale`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -112,7 +112,7 @@
 
 - **用途**：历史遗留字段，当前实现已固定。
 - **类型**：locked
-- **默认值**：ledger（来源 `runtime/size-settings.mjs:10`）
+- **默认值**：ledger（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.usageMode`）
 - **存储**：`.dshw-size.json` 的 `usageMode`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -124,13 +124,13 @@
 - 有什么用：早期用来切换用量统计口径的字段。
 - 怎么调：不可修改。读和写都会归一为 ledger，界面上只读展示。
 - 什么时候生效：不适用。
-- 适合怎么选：不用管。显示数据来源请改「数据显示」那一项。
+- 适合怎么选：不用管。显示数据来源请改「数据来源」那一项。
 
-#### `ui.accountView` — 查看数据
+#### `ui.accountView` — 数据来源
 
 - **用途**：决定鲸鱼点开后显示订阅额度还是 API 余额。
 - **类型**：select，选项 Codex 订阅 / API 余额
-- **默认值**：subscription（来源 `runtime/composition.mjs:50`）
+- **默认值**：subscription（来源 `runtime/composition.mjs#createComposition`）
 - **存储**：`display-mode.json` 的 `mode`
 - **读取**：`GET /api/display-mode`
 - **修改**：`POST /api/display-mode`
@@ -148,7 +148,7 @@
 
 - **用途**：选择鲸鱼当前使用的形象。
 - **类型**：role
-- **默认值**：默认角色（来源 `assets/whale-widget.js:147`）
+- **默认值**：默认角色（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId`）
 - **存储**：`ui-state.json` 的 `dshw-role`
 - **读取**：`GET /dsh-whale/roles.json`
 - **修改**：`POST /dsh-whale/role-pin.json + ui-state.json`
@@ -166,7 +166,7 @@
 
 - **用途**：决定界面上的金额用美元还是人民币显示。
 - **类型**：select，选项 美元 USD / 人民币 CNY
-- **默认值**：USD（来源 `desktop/ui/money.js:13`）
+- **默认值**：USD（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.displayCurrency`）
 - **存储**：`ui-state.json` 的 `dshw-display-currency`
 - **读取**：`本地偏好 + GET /api/fx/usd-cny`
 - **修改**：`localStorage → whale-save-storage`
@@ -188,7 +188,7 @@
 
 - **用途**：控制按下和松开鲸鱼时是否发声。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/size-settings.mjs:7`）
+- **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.sound`）
 - **存储**：`.dshw-size.json` 的 `sound`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -206,7 +206,7 @@
 
 - **用途**：按下与松开音量的总音量。
 - **类型**：range，单位 百分比，范围 0 – 1，步长 0.01
-- **默认值**：0.9（来源 `runtime/size-settings.mjs:8`）
+- **默认值**：0.9（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.vol`）
 - **存储**：`.dshw-size.json` 的 `vol`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -226,7 +226,7 @@
 
 - **用途**：选择按下与松开使用的音色素材组。
 - **类型**：select，选项 小黄鸭（内置） / 音效1（内置）
-- **默认值**：duck（来源 `runtime/size-settings.mjs:9`）
+- **默认值**：duck（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.soundSet`）
 - **存储**：`.dshw-size.json` 的 `soundSet`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -245,7 +245,7 @@
 
 - **用途**：一轮任务结束后弹出本轮用量气泡。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/size-settings.mjs:12`）
+- **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostOn`）
 - **存储**：`.dshw-size.json` 的 `turnCostOn`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -264,7 +264,7 @@
 
 - **用途**：控制任务结束用量气泡的停留时间。
 - **类型**：number，单位 秒，范围 0 – 3600，步长 1
-- **默认值**：5（来源 `runtime/size-settings.mjs:13`）
+- **默认值**：5（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostCloseMs`）
 - **存储**：`.dshw-size.json` 的 `turnCostCloseMs`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -284,7 +284,7 @@
 
 - **用途**：调整按下与松开的动画节奏。
 - **类型**：select，选项 均衡 / 清脆 / 柔和
-- **默认值**：balanced（来源 `desktop/ui/preferences-v3.js:4`）
+- **默认值**：balanced（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.feel`）
 - **存储**：`ui-state.json` 的 `dshw-v3-feedback.feel`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -302,7 +302,7 @@
 
 - **用途**：分别设置按下、松开、完成、取消、拥挤失败的声音。
 - **类型**：group
-- **默认值**：按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8（来源 `desktop/ui/preferences-v3.js:4`）
+- **默认值**：按下/松开/完成为「现有音效」；取消与拥挤失败为「静音」；各事件独立音量 0.8（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.feedback.events`）
 - **存储**：`ui-state.json` 的 `dshw-v3-feedback.events.<event>`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -327,7 +327,7 @@
 
 - **用途**：任务结束后用气泡、声音或两者一起提醒。
 - **类型**：combo
-- **默认值**：气泡和声音（来源 `runtime/ledger.mjs:157`）
+- **默认值**：仅气泡（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.on`）
 - **存储**：`usage-settings.json + .dshw-size.json` 的 `taskEnd.on / turnCostOn`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -347,7 +347,7 @@
 
 - **用途**：选择任务结束时播放的声音。
 - **类型**：select，选项 小黄鸭·按下 / 小黄鸭·松开 / 音效1·按下 / 音效1·松开
-- **默认值**：preset:duck:press（来源 `runtime/ledger.mjs:157`）
+- **默认值**：preset:duck:press（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.sel`）
 - **存储**：`usage-settings.json` 的 `taskEnd.sel`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -366,7 +366,7 @@
 
 - **用途**：单独调节任务完成音的响度。
 - **类型**：range，单位 百分比，范围 0 – 1，步长 0.01
-- **默认值**：跟随点击音量（来源 `runtime/ledger.mjs:157`）
+- **默认值**：跟随点击音量（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.vol`）
 - **存储**：`usage-settings.json` 的 `taskEnd.vol / taskEnd.volSet`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -389,7 +389,7 @@
 
 - **用途**：控制鲸鱼说话时是否弹出气泡。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/size-settings.mjs:11`）
+- **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.bubbleOn`）
 - **存储**：`.dshw-size.json` 的 `bubbleOn`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -407,7 +407,7 @@
 
 - **用途**：切换鲸鱼说话时气泡的外形。
 - **类型**：select，选项 椭圆 / 圆角方形
-- **默认值**：ellipse（来源 `assets/whale-widget.js:3654`）
+- **默认值**：ellipse（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.bubbleShape`）
 - **存储**：`ui-state.json` 的 `dshw-bubble-shape`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -425,7 +425,7 @@
 
 - **用途**：点击鲸鱼时依次弹出哪些气泡。
 - **类型**：
-- **默认值**：由内置默认序列决定（来源 `assets/whale-widget.js:1362`）
+- **默认值**：由内置默认序列决定（来源 `desktop/ui/features/widget/default-content.js#bubbleDefaultQueue`）
 - **存储**：`.dshw-bubble.json` 的 `items / subscriptionItems`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -435,13 +435,11 @@
 - **细调位置**：复杂编辑器仍在挂件自身的弹层中打开，本页只显示参数摘要与「回到挂件细调」
   - 子字段 `items` — API 模式序列
   - 子字段 `subscriptionItems` — 订阅模式序列
-  - 子字段 `tapAdvance` — API 模式点击切换
-  - 子字段 `subscriptionTapAdvance` — 订阅模式点击切换
 
 **`.help`**
 
 - 有什么用：两种模式各有一套序列，切换模式不会互相覆盖。
-- 怎么调：在挂件的「自定义泡泡」编辑器里调整，序列是一串气泡模块。
+- 怎么调：在挂件的「气泡DIY」编辑器里调整，序列是一串气泡模块。
 - 什么时候生效：保存后用于下一次点击。
 - 适合怎么选：把常用的放前面：余额、额度、状态。
 
@@ -449,7 +447,7 @@
 
 - **用途**：可以复用的气泡内容片段。
 - **类型**：
-- **默认值**：空（来源 `assets/whale-widget.js:2280`）
+- **默认值**：空（来源 `desktop/ui/features/widget/bubble-editor-model.js#loadBubbleEditorDraft`）
 - **存储**：`.dshw-bubble.json` 的 `lib`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -479,7 +477,7 @@
 
 - **用途**：让挂件右侧留出空隙，减少遮挡滚动条。
 - **类型**：boolean
-- **默认值**：false（来源 `runtime/size-settings.mjs:14`）
+- **默认值**：false（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapOn`）
 - **存储**：`.dshw-size.json` 的 `scrollGapOn`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -497,7 +495,7 @@
 
 - **用途**：避开右侧滚动条时留出的宽度。
 - **类型**：number，单位 像素，范围 0 – 200，步长 1
-- **默认值**：17（来源 `runtime/size-settings.mjs:15`）
+- **默认值**：17（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scrollGapPx`）
 - **存储**：`.dshw-size.json` 的 `scrollGapPx`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -516,7 +514,7 @@
 
 - **用途**：收起鲸鱼身上那个 ☰ 按钮。
 - **类型**：boolean
-- **默认值**：false（来源 `runtime/size-settings.mjs:16`）
+- **默认值**：false（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.menuBtnHide`）
 - **存储**：`.dshw-size.json` 的 `menuBtnHide`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -534,7 +532,7 @@
 
 - **用途**：记录鲸鱼停靠在桌面的哪个位置。
 - **类型**：position
-- **默认值**：右下角（来源 `assets/whale-widget.js:2371`）
+- **默认值**：右下角（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.position`）
 - **存储**：`ui-state.json` 的 `dshw-pos`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -545,7 +543,7 @@
 **`.help`**
 
 - 有什么用：拖动鲸鱼时会自动记住位置，这里只用来查看和复位。
-- 怎么调：直接拖动即可，或点「移回右下角」复位。
+- 怎么调：直接拖动即可；找不到时可在托盘菜单选「移回右下角」。
 - 什么时候生效：拖动结束立即保存。
 - 适合怎么选：不需要手动设置，拖到你顺手的位置就行。
 
@@ -553,7 +551,7 @@
 
 - **用途**：控制鲸鱼靠近屏幕边缘时的吸附范围和朝向翻转。
 - **类型**：snap
-- **默认值**：比例模式：左右 10%、下 15%、上 0%；翻转线 50%（来源 `assets/whale-widget.js:3763`）
+- **默认值**：比例模式：左右 10%、下 15%、上 0%；翻转线 50%（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap`）
 - **存储**：`ui-state.json` 的 `dshw-snap`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -577,7 +575,7 @@
 
 - **用途**：鲸鱼形象图片库。
 - **类型**：
-- **默认值**：内置角色（来源 `lib/widget-host.mjs:193`）
+- **默认值**：内置角色（来源 `lib/widget-host.mjs#ROLE_DEFAULT_ID`）
 - **存储**：`whale-roles/roles.json` 的 `roles[<id>]`
 - **读取**：`GET /dsh-whale/roles.json`
 - **修改**：`POST /dsh-whale/role-pin.json / role-delete.json`
@@ -602,7 +600,7 @@
 
 - **用途**：音效组和音频片段库。
 - **类型**：
-- **默认值**：内置 duck / fx1（来源 `lib/widget-host.mjs:34`）
+- **默认值**：内置 duck / fx1（来源 `lib/widget-host.mjs#PRESET_GROUPS`）
 - **存储**：`whale-audio/audio.json` 的 `groups / fragments`
 - **读取**：`GET /dsh-whale/audio.json`
 - **修改**：`POST /dsh-whale/audio.json`
@@ -626,7 +624,7 @@
 
 - **用途**：气泡里可以引用的图片库。
 - **类型**：
-- **默认值**：内置图片（来源 `lib/widget-host.mjs:52`）
+- **默认值**：内置图片（来源 `lib/widget-host.mjs#DEFAULT_BUBBLE_IMGS`）
 - **存储**：`whale-bubble-imgs/bubble-imgs.json` 的 `bubbleImgs[<id>]`
 - **读取**：`GET /dsh-whale/bubble-imgs.json`
 - **修改**：`POST /dsh-whale/bubble-img-upload.json`
@@ -649,7 +647,7 @@
 
 - **用途**：把角色、图片、音频打包带走或迁移。
 - **类型**：action
-- **默认值**：—（来源 `lib/workshop.mjs:28`）
+- **默认值**：—（来源 `lib/workshop.mjs#WORKSHOP_MAX_BYTES`）
 - **存储**：`（即时操作，不落配置）` 的 `—`
 - **读取**：`GET /api/workshop/export`
 - **修改**：`POST /api/workshop/import`
@@ -672,7 +670,7 @@
 
 - **用途**：API 余额低于阈值时提醒。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/ledger.mjs:176`）
+- **默认值**：true（来源 `runtime/ledger.mjs#usageDefaults().alert.on`）
 - **存储**：`usage-settings.json` 的 `alert.on`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -691,7 +689,7 @@
 
 - **用途**：余额低于多少时触发预警。
 - **类型**：number，单位 与 API 同币种，范围 0 – 不限，步长 0.01
-- **默认值**：5（来源 `runtime/ledger.mjs:176`）
+- **默认值**：5（来源 `runtime/ledger.mjs#usageDefaults().alert.below`）
 - **存储**：`usage-settings.json` 的 `alert.below`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -710,7 +708,7 @@
 
 - **用途**：当天观测到的用量超过预算时提醒。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/ledger.mjs:182`）
+- **默认值**：true（来源 `runtime/ledger.mjs#usageDefaults().budget.on`）
 - **存储**：`usage-settings.json` 的 `budget.on`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -729,7 +727,7 @@
 
 - **用途**：当天用量超过多少时提醒。
 - **类型**：number，单位 与 API 同币种，范围 0 – 不限，步长 0.01
-- **默认值**：10（来源 `runtime/ledger.mjs:182`）
+- **默认值**：10（来源 `runtime/ledger.mjs#usageDefaults().budget.amount`）
 - **存储**：`usage-settings.json` 的 `budget.amount`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -748,7 +746,7 @@
 
 - **用途**：自定义预警与预算提醒的文案。
 - **类型**：message
-- **默认值**：余额已低于 {currency}{below} / 今日已观测用量达到 {currency}{amount}（来源 `runtime/ledger.mjs:176`）
+- **默认值**：余额已低于 {currency}{below} / 今日已观测用量达到 {currency}{amount}（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `alert.msg / budget.msg`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -767,7 +765,7 @@
 
 - **用途**：控制余额预警和预算提醒是否自动消失。
 - **类型**：boolean
-- **默认值**：false（来源 `runtime/ledger.mjs:176`）
+- **默认值**：false（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `alert.autoClose / budget.autoClose`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -786,7 +784,7 @@
 
 - **用途**：预警气泡自动关闭前的停留时间。
 - **类型**：number，单位 秒，范围 0 – 3600，步长 1
-- **默认值**：6（来源 `runtime/ledger.mjs:176`）
+- **默认值**：6（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `alert.ttlSec / budget.ttlSec`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -805,7 +803,7 @@
 
 - **用途**：自定义任务用量、余额预警、预算提醒三类气泡的模块。
 - **类型**：group
-- **默认值**：任务用量 3 行、余额预警 4 行、预算提醒 2 行（来源 `runtime/ledger.mjs:176`）
+- **默认值**：任务用量 3 行、余额预警 4 行、预算提醒 2 行（来源 `runtime/ledger.mjs#usageDefaults`）
 - **存储**：`usage-settings.json` 的 `<domain>.lines`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -828,8 +826,8 @@
 
 - **用途**：选择用哪种方式读取 API 余额。
 - **类型**：select，选项 自动识别当前 API（推荐） / 兼容账单接口 / 兼容密钥额度接口 / 自定义 JSON 余额接口 / 原生余额接口
-- **默认值**：auto（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `provider`
+- **默认值**：auto（来源 `runtime/config.mjs#DEFAULT_CONFIG.provider`）
+- **存储**：`providers.json → codexApi` 的 `provider`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`ui.accountView`
@@ -847,8 +845,8 @@
 
 - **用途**：指定余额接口的根地址。
 - **类型**：url
-- **默认值**：留空表示沿用 Codex 当前配置（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `baseUrl`
+- **默认值**：留空表示沿用 Codex 当前配置（来源 `runtime/config.mjs#DEFAULT_CONFIG.baseUrl`）
+- **存储**：`providers.json → codexApi` 的 `baseUrl`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **空值**：留空表示跟随 Codex
@@ -866,8 +864,8 @@
 
 - **用途**：告诉挂件从哪个已有环境变量读取密钥。
 - **类型**：text
-- **默认值**：留空使用 Codex 的现有密钥（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `keyEnv`
+- **默认值**：留空使用 Codex 的现有密钥（来源 `runtime/config.mjs#DEFAULT_CONFIG.keyEnv`）
+- **存储**：`providers.json → codexApi` 的 `keyEnv`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.baseUrl`
@@ -886,8 +884,8 @@
 
 - **用途**：指定读取哪一个 Codex profile。
 - **类型**：text
-- **默认值**：默认方案（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `profile`
+- **默认值**：默认方案（来源 `runtime/config.mjs#DEFAULT_CONFIG.profile`）
+- **存储**：`providers.json → codexApi` 的 `profile`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **空值**：留空使用默认方案
@@ -905,8 +903,8 @@
 
 - **用途**：从指定目录里的 .codex/config.toml 读取配置。
 - **类型**：text
-- **默认值**：留空读取当前配置（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `projectDir`
+- **默认值**：留空读取当前配置（来源 `runtime/config.mjs#DEFAULT_CONFIG.projectDir`）
+- **存储**：`providers.json → codexApi` 的 `projectDir`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.profile`
@@ -925,8 +923,8 @@
 
 - **用途**：指定接口返回金额的币种代码。
 - **类型**：text，单位 三位大写字母
-- **默认值**：USD（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `currency`
+- **默认值**：USD（来源 `runtime/config.mjs#DEFAULT_CONFIG.currency`）
+- **存储**：`providers.json → codexApi` 的 `currency`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.provider`
@@ -944,8 +942,8 @@
 
 - **用途**：自定义接口里余额数据的请求路径。
 - **类型**：text
-- **默认值**：由服务商模板决定（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `balancePath`
+- **默认值**：由服务商模板决定（来源 `runtime/config.mjs#DEFAULT_CONFIG.balancePath`）
+- **存储**：`providers.json → codexApi` 的 `balancePath`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.provider`
@@ -964,8 +962,8 @@
 
 - **用途**：指定余额在返回 JSON 里的位置。
 - **类型**：text
-- **默认值**：data.balance（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `balanceField`
+- **默认值**：data.balance（来源 `runtime/config.mjs#DEFAULT_CONFIG.balanceField`）
+- **存储**：`providers.json → codexApi` 的 `balanceField`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.balancePath`
@@ -984,8 +982,8 @@
 
 - **用途**：指定累计已用金额在返回 JSON 里的位置。
 - **类型**：text
-- **默认值**：留空表示不读取累计消耗（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `usedField`
+- **默认值**：留空表示不读取累计消耗（来源 `runtime/config.mjs#DEFAULT_CONFIG.usedField`）
+- **存储**：`providers.json → codexApi` 的 `usedField`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.balanceField`
@@ -1004,8 +1002,8 @@
 
 - **用途**：把接口返回的原始数字换算成真实金额。
 - **类型**：number，范围 1e-9 – 不限
-- **默认值**：1（来源 `runtime/config.mjs:10`）
-- **存储**：`api-settings.json` 的 `balanceScale`
+- **默认值**：1（来源 `runtime/config.mjs#DEFAULT_CONFIG.balanceScale`）
+- **存储**：`providers.json → codexApi` 的 `balanceScale`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.balanceField`
@@ -1024,8 +1022,8 @@
 
 - **用途**：把账单接口的用量数值还原成真实量。
 - **类型**：number，范围 0.000001 – 不限
-- **默认值**：100（来源 `runtime/config.mjs:11`）
-- **存储**：`api-settings.json` 的 `billingUsageDivisor`
+- **默认值**：100（来源 `runtime/config.mjs#DEFAULT_CONFIG.billingUsageDivisor`）
+- **存储**：`providers.json → codexApi` 的 `billingUsageDivisor`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.provider`
@@ -1043,8 +1041,8 @@
 
 - **用途**：把原始 quota 换算成金额。
 - **类型**：number，范围 0.000001 – 不限
-- **默认值**：500000（来源 `runtime/config.mjs:11`）
-- **存储**：`api-settings.json` 的 `quotaPerUnit`
+- **默认值**：500000（来源 `runtime/config.mjs#DEFAULT_CONFIG.quotaPerUnit`）
+- **存储**：`providers.json → codexApi` 的 `quotaPerUnit`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.provider`
@@ -1062,8 +1060,8 @@
 
 - **用途**：点提醒气泡里的链接时打开的页面。
 - **类型**：url
-- **默认值**：留空使用当前服务商（来源 `runtime/config.mjs:9`）
-- **存储**：`api-settings.json` 的 `dashboardUrl`
+- **默认值**：留空使用当前服务商（来源 `runtime/config.mjs#DEFAULT_CONFIG.dashboardUrl`）
+- **存储**：`providers.json → codexApi` 的 `dashboardUrl`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
 - **依赖**：`api.provider`
@@ -1082,8 +1080,8 @@
 
 - **用途**：让挂件知道你每轮任务用了多少。
 - **类型**：boolean
-- **默认值**：true（来源 `runtime/config.mjs:12`）
-- **存储**：`api-settings.json` 的 `monitorSessions`
+- **默认值**：true（来源 `runtime/config.mjs#DEFAULT_CONFIG.monitorSessions`）
+- **存储**：`providers.json → codexApi` 的 `monitorSessions`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **空值**：缺省按 true 处理
@@ -1100,8 +1098,8 @@
 
 - **用途**：多久重新读一次 API 余额。
 - **类型**：number，单位 秒，范围 15 – 3600，步长 1
-- **默认值**：60（来源 `runtime/config.mjs:12`）
-- **存储**：`api-settings.json` 的 `refreshSeconds`
+- **默认值**：60（来源 `runtime/config.mjs#DEFAULT_CONFIG.refreshSeconds`）
+- **存储**：`providers.json → codexApi` 的 `refreshSeconds`
 - **读取**：`GET /api/config`
 - **修改**：`PUT /api/config`
 - **依赖**：`ui.accountView`
@@ -1119,8 +1117,8 @@
 
 - **用途**：按模型单价把本轮 token 换算成金额。
 - **类型**：group
-- **默认值**：空表示不估算，按观测到的扣费显示（来源 `runtime/config.mjs:12`）
-- **存储**：`api-settings.json` 的 `models.<model>`
+- **默认值**：空表示不估算，按观测到的扣费显示（来源 `runtime/config.mjs#DEFAULT_CONFIG.models`）
+- **存储**：`providers.json → codexApi` 的 `models.<model>`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config（pricingUpdate）`
 - **依赖**：`api.provider`、`api.currency`
@@ -1144,8 +1142,8 @@
 
 - **用途**：为每个 API 模型单独配置接口、提醒、价格和额度。
 - **类型**：group
-- **默认值**：由所选服务商模板提供（来源 `runtime/api-models.mjs:6`）
-- **存储**：`api-models.json` 的 `models[<id>].<field>`
+- **默认值**：由所选服务商模板提供（来源 `runtime/api-models.mjs#API_TEMPLATES`）
+- **存储**：`providers.json → diyModels` 的 `models[<id>].<field>`
 - **读取**：`GET /api/models`
 - **修改**：`PUT /api/models`
 - **依赖**：`api.provider`
@@ -1186,8 +1184,8 @@
 
 - **用途**：当接口不返回剩余额度时，由你手填一个数字。
 - **类型**：group
-- **默认值**：未设置（来源 `runtime/api-models.mjs:105`）
-- **存储**：`api-models.json` 的 `manualQuota`
+- **默认值**：未设置（来源 `runtime/api-models.mjs#ApiModelRegistry`）
+- **存储**：`providers.json → diyModels` 的 `manualQuota`
 - **读取**：`GET /api/models`
 - **修改**：`PUT /api/models`
 - **依赖**：`api.customModels`

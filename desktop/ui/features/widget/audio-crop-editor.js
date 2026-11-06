@@ -1,3 +1,4 @@
+import { openOver } from '../../services/layers.js';
 export function encodeWav(buffer) {
       var numCh = buffer.numberOfChannels;
       var sampleRate = buffer.sampleRate;
@@ -90,7 +91,7 @@ export function createAudioCropEditor({ window, elements, requestJson, uploadFra
           updateAudioCropOkState();
           // The crop dialog opens from the audio-group editor, which the sound panel
           // lifts to 27000; without its own lift it would open behind both.
-          audioCropMask.style.zIndex = '27100';
+          openOver(null, audioCropMask);
           audioCropMask.style.display = 'flex';
         }, function () {
           assetNotice('音频解码失败');

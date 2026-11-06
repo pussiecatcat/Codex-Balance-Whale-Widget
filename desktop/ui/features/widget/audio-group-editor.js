@@ -1,96 +1,62 @@
+import { sound as defaultSound } from '../../services/sound.js';
+import { openOver } from '../../services/layers.js';
+
 // The audio group editor: open/hide state, press/release preview playback and
 // the save transaction. The DOM and slot panel are built by the caller; this
 // module owns the values, preview players and the feature-dialog promise.
 export function createAudioGroupEditor({
-  Audio, requestJson, url, elements, getGroups, setGroups, getFragments, setFragments,
+  sound = defaultSound, requestJson, url, elements, getGroups, setGroups, getFragments, setFragments,
   getPress, setPress, getRelease, setRelease, getSoundSet, setSoundSet,
   getVolume, renderGroups, refreshTaskEnd, applySoundSet, slotPanel,
   startImport, requireSaved, assetFailure,
 }) {
   let editingId = null;
   let session = null;
-  let pressAudio = null;
-  let releaseAudio = null;
-  let timer = null;
-  let ready = false;
+  let previewEpoch = 0;
   let pressing = false;
   let pressEnded = false;
   let releasePlayed = false;
 
   function stopPreview() {
-    try {
-      if (timer) { clearTimeout(timer); timer = null; }
-      if (pressAudio) { pressAudio.pause(); pressAudio.currentTime = 0; }
-      if (releaseAudio) { releaseAudio.pause(); releaseAudio.currentTime = 0; }
-      pressing = false;
-      pressEnded = false;
-      releasePlayed = false;
-    } catch {}
+    previewEpoch++;
+    sound.stop('audio-group-preview');
+    pressing = false;
+    pressEnded = false;
+    releasePlayed = false;
   }
 
-  function ensurePreview(force) {
-    try {
-      if (!force && ready) return true;
-      const pressId = getPress() || '', releaseId = getRelease() || '';
-      stopPreview();
-      try {
-        if (pressAudio) { pressAudio.pause(); pressAudio = null; }
-        if (releaseAudio) { releaseAudio.pause(); releaseAudio = null; }
-      } catch {}
-      if (pressId) {
-        pressAudio = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(pressId));
-        pressAudio.preload = 'auto';
-        pressAudio.volume = getVolume();
-      }
-      if (releaseId) {
-        releaseAudio = new Audio('/dsh-whale/audio-fragment.wav?id=' + encodeURIComponent(releaseId));
-        releaseAudio.preload = 'auto';
-        releaseAudio.volume = getVolume();
-      }
-      ready = true;
-      return true;
-    } catch { return false; }
+  function ensurePreview() {
+    stopPreview();
+    sound.warm({ kind: 'fragment', id: getPress() || '' }).catch(() => {});
+    sound.warm({ kind: 'fragment', id: getRelease() || '' }).catch(() => {});
+    return true;
   }
 
   function playRelease() {
-    try {
-      if (releasePlayed || !releaseAudio) return;
-      releasePlayed = true;
-      releaseAudio.currentTime = 0;
-      const promise = releaseAudio.play();
-      if (promise && typeof promise.catch === 'function') promise.catch(() => {});
-    } catch {}
+    if (releasePlayed || !getRelease()) return;
+    releasePlayed = true;
+    sound.preview({ kind: 'fragment', id: getRelease() }, getVolume(), { channel: 'audio-group-preview' });
   }
 
   function previewDown() {
-    try {
-      stopPreview();
-      if (!ensurePreview()) return;
-      pressing = true;
-      pressEnded = false;
-      releasePlayed = false;
-      if (!pressAudio) { pressEnded = true; return; }
-      pressAudio.onended = () => {
+    stopPreview();
+    pressing = true;
+    const epoch = previewEpoch;
+    if (!getPress()) { pressEnded = true; return; }
+    sound.preview({ kind: 'fragment', id: getPress() }, getVolume(), {
+      channel: 'audio-group-preview',
+      onended: () => {
+        if (epoch !== previewEpoch) return;
         pressEnded = true;
-        if (!pressing && !releasePlayed) previewUp();
-      };
-      const promise = pressAudio.play();
-      if (promise && typeof promise.catch === 'function') promise.catch(() => {});
-    } catch {}
+        if (!pressing) playRelease();
+      },
+    });
   }
 
   function previewUp() {
-    try {
-      if (!pressing) return;
-      pressing = false;
-      if (!pressAudio || pressEnded) { playRelease(); return; }
-      let known = false, remain = 0;
-      try {
-        const duration = pressAudio.duration;
-        if (isFinite(duration) && duration > 0) { known = true; remain = (duration - pressAudio.currentTime) * 1000; }
-      } catch {}
-      if (known) timer = setTimeout(() => { timer = null; playRelease(); }, Math.max(0, remain - 100));
-    } catch {}
+    if (!pressing) return;
+    pressing = false;
+    if (pressEnded || !getPress()) playRelease();
   }
 
   function open(group) {
@@ -128,7 +94,7 @@ export function createAudioGroupEditor({
     const group = options.groupId ? getGroups().find(item => item.id === options.groupId) || null : null;
     return new Promise(resolve => {
       session = { resolve, zIndex: elements.mask.style.zIndex };
-      elements.mask.style.zIndex = '27000';
+      openOver(options.parentElement || null, elements.mask);
       open(group);
     });
   }
@@ -146,6 +112,7 @@ export function createAudioGroupEditor({
         let selectedId = editingId || '';
         setGroups(data.groups);
         if (Array.isArray(data.fragments)) setFragments(data.fragments);
+        sound.reload({ catalog: { groups: getGroups(), fragments: getFragments() } });
         renderGroups();
         refreshTaskEnd();
         if (!editingId) {

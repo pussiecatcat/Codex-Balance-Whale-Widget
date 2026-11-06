@@ -56,6 +56,7 @@ export function bubbleRowsCanon(mods) {
   try {
     if (!Array.isArray(mods)) return;
     var flat = bubbleRowsFlat(bubbleRowsOf(mods));
+    if (flat.length === mods.length && flat.every((module, index) => module === mods[index])) return;
     mods.length = 0;
     for (var i = 0; i < flat.length; i++) mods.push(flat[i]);
   } catch (err) {}
