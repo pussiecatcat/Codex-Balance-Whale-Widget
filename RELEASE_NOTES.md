@@ -1,6 +1,6 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-9`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-10`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 

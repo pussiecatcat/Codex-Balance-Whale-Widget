@@ -679,9 +679,8 @@ import {
         // pass. Anything it does not name stays between the groups and the footer.
         function arrangeMenu() {
           var groups = [
-            [root.querySelector('.whale-account-switch'), rowExact('显示方式')],
             [rowExact('角色'), rowExact('大小')],
-            [rowExact('音效与提示'), rowExact('气泡')]
+            [root.querySelector('.whale-account-switch'), rowExact('显示方式'), rowExact('音效与提示'), rowExact('气泡')]
           ];
           function separator() {
             var line = document.createElement('div');
