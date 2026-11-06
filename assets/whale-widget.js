@@ -676,28 +676,18 @@ import {
           })[0] || null;
         }
         // Rows arrive from several scripts at different times, so this runs on every
-        // pass. Anything it does not name stays between the groups and the footer.
+        // pass. Anything it does not name stays between these rows and the footer.
         function arrangeMenu() {
-          var groups = [
-            [rowExact('角色'), rowExact('大小')],
-            [root.querySelector('.whale-account-switch'), rowExact('显示方式'), rowExact('音效与提示'), rowExact('气泡')]
-          ];
-          function separator() {
-            var line = document.createElement('div');
-            line.className = 'dshwv-menu-sep';
-            return line;
-          }
+          var rows = [rowExact('角色'), rowExact('大小'), root.querySelector('.whale-account-switch'),
+            rowExact('显示方式'), rowExact('音效与提示'), rowExact('气泡')];
           Array.prototype.slice.call(root.children).forEach(function (child) {
             if (child.classList && child.classList.contains('dshwv-menu-sep')) child.remove();
           });
           var ordered = document.createDocumentFragment();
-          groups.forEach(function (rows, index) {
-            if (index) ordered.appendChild(separator());
-            rows.forEach(function (row) { if (row) ordered.appendChild(row); });
-          });
+          rows.forEach(function (row) { if (row) ordered.appendChild(row); });
           root.insertBefore(ordered, root.firstChild);
           var footer = root.querySelector('.dshwv-menu-footer');
-          if (footer) { root.appendChild(separator()); root.appendChild(footer); }
+          if (footer) root.appendChild(footer);
         }
         function setLabel(row, text) {
           if (!row || !row.firstElementChild) return;
