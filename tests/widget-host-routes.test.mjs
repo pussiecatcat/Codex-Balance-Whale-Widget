@@ -22,7 +22,7 @@ function fixture(t) {
 // is handed can stay empty.
 function declarations(t, root = fixture(t)) {
   const found = new Map();
-  createWidgetHost(root).apply({ whale: {}, declareRoute: d => { found.set(d.path, d); return () => {}; }, effect: () => {} });
+  createWidgetHost(root).declare({ whale: {}, declareRoute: d => { found.set(d.path, d); return () => {}; }, effect: () => {} });
   return found;
 }
 

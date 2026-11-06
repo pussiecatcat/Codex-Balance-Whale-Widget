@@ -53,7 +53,7 @@ export function createComposition({
     if (pathname.startsWith('/dsh-whale/bubble-img')) return { domain: 'media', kind: 'images' };
     return null;
   };
-  createWidgetHost(dataDir).apply({
+  createWidgetHost(dataDir).declare({
     whale,
     changed: change => onChange(change),
     declareRoute: declaration => {

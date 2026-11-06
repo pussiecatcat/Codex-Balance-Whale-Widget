@@ -1,8 +1,12 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-32`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-33`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
+
+## 2026-11-06 架构整改第二段
+
+- T23：`lib/widget-host.mjs` 从 934 行拆成只做装配的入口和 `lib/resources/` 下的 roles、audio、bubble-images、bubble-config、static-media、records；每个资源模块自己管理路径、校验和持久化。
 
 ## 2026-11-06 架构整改
 
