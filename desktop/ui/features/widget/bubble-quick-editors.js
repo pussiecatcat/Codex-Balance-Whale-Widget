@@ -1,3 +1,5 @@
+import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from './font-scale.js';
+
 // Quick controls for text, data modules, and random sentence lines.
 export function createBubbleQuickEditors(deps) {
   const { document, window, qeditClose, qeditEnsure, qRow, qLabel,
@@ -5,11 +7,11 @@ export function createBubbleQuickEditors(deps) {
     getPreviewElement, bubbleTplHelpToggle } = deps;
     function qStyleChecksBuild(getBool, setBool) {
       var row = qRow();
+      // 字形开关是一组选项，不是「标签 + 控件」行：版式由 .dshwv-qedit-checks 决定。
+      row.className += ' dshwv-qedit-checks';
       [['加粗', 'bold'], ['斜体', 'italic'], ['下划线', 'ul']].forEach(function (item) {
         var lab = document.createElement('label');
-        lab.style.display = 'inline-flex';
-        lab.style.alignItems = 'center';
-        lab.style.gap = '3px';
+        lab.className = 'dshwv-qedit-check';
         var cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = !!getBool(item[1]);
@@ -70,17 +72,17 @@ export function createBubbleQuickEditors(deps) {
       r1.appendChild(qLabel('字号'));
       var sz = document.createElement('input');
       sz.type = 'range';
-      sz.min = '1';
-      sz.max = '50';
+      sz.min = String(FONT_LEVEL_MIN);
+      sz.max = String(FONT_LEVEL_MAX);
       sz.step = '1';
       sz.className = 'dshwv-range';
       sz.style.flex = '1';
-      sz.value = String(Math.max(1, Math.min(50, Math.round(Number(m.size) || 6))));
+      sz.value = String(displayLevel(m));
       var szNum = document.createElement('span');
       szNum.className = 'dshwv-volpct';
       szNum.textContent = sz.value;
       sz.addEventListener('input', function () {
-        m.size = Math.round(Number(sz.value) || 3);
+        setFontLevel(m, sz.value);
         szNum.textContent = sz.value;
         changed();
       });
@@ -175,17 +177,17 @@ export function createBubbleQuickEditors(deps) {
         r.appendChild(qLabel('字号'));
         var sz = document.createElement('input');
         sz.type = 'range';
-        sz.min = '1';
-        sz.max = '50';
+        sz.min = String(FONT_LEVEL_MIN);
+        sz.max = String(FONT_LEVEL_MAX);
         sz.step = '1';
         sz.className = 'dshwv-range';
         sz.style.flex = '1';
-        sz.value = String(Math.max(1, Math.min(50, Math.round(Number(m.size) || 6))));
+        sz.value = String(displayLevel(m));
         var num = document.createElement('span');
         num.className = 'dshwv-volpct';
         num.textContent = sz.value;
         sz.addEventListener('input', function () {
-          m.size = Math.round(Number(sz.value) || 3);
+          setFontLevel(m, sz.value);
           num.textContent = sz.value;
           changed();
         });
@@ -444,17 +446,18 @@ export function createBubbleQuickEditors(deps) {
       r1.appendChild(qLabel('字号'));
       var sz = document.createElement('input');
       sz.type = 'range';
-      sz.min = '1';
-      sz.max = '50';
+      sz.min = String(FONT_LEVEL_MIN);
+      sz.max = String(FONT_LEVEL_MAX);
       sz.step = '1';
       sz.className = 'dshwv-range';
       sz.style.flex = '1';
-      sz.value = String(Math.max(1, Math.min(50, Math.round(Number(lv('size', 'size', 6))))));
+      sz.value = String(displayLevel(mod, lv('size', 'size', 6)));
       var szNum = document.createElement('span');
       szNum.className = 'dshwv-volpct';
       szNum.textContent = sz.value;
       sz.addEventListener('input', function () {
-        line.size = Math.round(Number(sz.value) || 3);
+        // 句子的字号和模块共用一套档位：先把整个模块换到细档位，再改这一句。
+        setFontLevel(mod, sz.value, line);
         szNum.textContent = sz.value;
       });
       r1.appendChild(sz);

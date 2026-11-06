@@ -1,14 +1,14 @@
 import { TOKENS } from '../../services/quota-format.js';
 import { statusForCode, statusView } from './status-tones.js';
+import { fontUnits } from './font-scale.js';
 
 // Snapshot content is selected once per bubble open, with prior random picks scoped here.
 export function createBubbleContent(deps) {
   const { window, getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
     usageFillText, bubbleCloneModule, getMode = () => '', getQuotaSource = () => '', random = Math.random } = deps;
-    function bubbleModuleFontU(level) {
-      var n = Number(level) || 6;
-      n = Math.max(1, Math.min(50, Math.round(n)));
-      return Math.round(40 + (n - 1) * 200 / 49);
+    // 字号档位 → 气泡单位；新旧两套映射由模块自己的 fontScale 决定（见 font-scale.js）。
+    function bubbleModuleFontU(level, module) {
+      return fontUnits(level, module);
     }
     function bubbleTokenValue(value) {
       return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value).toLocaleString('en-US') : '暂无';

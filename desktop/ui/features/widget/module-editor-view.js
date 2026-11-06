@@ -1,4 +1,5 @@
 import { openOver } from '../../services/layers.js';
+import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from './font-scale.js';
 // Renders the module editor body. The mask, title and body elements stay in
 // the caller; this module owns the per-render color/size controls and the
 // dialog's content construction.
@@ -390,15 +391,17 @@ export function createModuleEditorView({
         sizeRow.appendChild(sl);
         sizeEl = document.createElement('input');
         sizeEl.type = 'range';
-        sizeEl.min = '1';
-        sizeEl.max = '50';
+        sizeEl.min = String(FONT_LEVEL_MIN);
+        sizeEl.max = String(FONT_LEVEL_MAX);
         sizeEl.step = '1';
         sizeEl.className = 'dshwv-cropzoom';
-        sizeEl.value = String(m.size || 6);
+        sizeEl.value = String(displayLevel(m));
+        // 保存时只在滑块真的动过（或是新模块）才换到细档位，没碰字号的旧模块原样保留。
+        sizeEl.dataset.initial = sizeEl.value;
         sizeRow.appendChild(sizeEl);
         var sizeNum = document.createElement('span');
         sizeNum.className = 'dshwv-volpct';
-        sizeNum.textContent = String(m.size || 6);
+        sizeNum.textContent = sizeEl.value;
         sizeEl.addEventListener('input', function () {
           sizeNum.textContent = sizeEl.value;
         });
@@ -530,7 +533,8 @@ export function createModuleEditorDialog({ document, view: moduleEditorView, but
       try {
         if (saved && moduleEditRef) {
           if (moduleEditorView.colorEl) moduleEditRef.color = moduleEditorView.colorEl.value === '#203170' && !moduleEditRef.color ? '' : moduleEditorView.colorEl.value;
-          if (moduleEditorView.sizeEl) moduleEditRef.size = Math.max(1, Math.min(50, Math.round(Number(moduleEditorView.sizeEl.value) || 6)));
+          var sizeInput = moduleEditorView.sizeEl;
+          if (sizeInput && (moduleEditNew || sizeInput.value !== sizeInput.dataset.initial)) setFontLevel(moduleEditRef, sizeInput.value);
           if (moduleEditRef.type === 'image' && !moduleEditRef.imgId) {
             showConfirm('请先选择或上传一张图片', function () {});
             return;
