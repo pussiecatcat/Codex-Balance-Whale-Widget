@@ -3571,6 +3571,17 @@ import {
       previewEnsure: audioEditPreviewEnsure, refreshTaskEnd: refreshTaskEndAfterAudio,
       requireSaved: requireSaved, assetFailure: assetFailure, assetNotice: assetNotice
     });
+    // The chosen file opens the crop dialog. This listener was lost when the crop
+    // editor moved to its own module, which left 导入 opening a picker that did nothing.
+    audioCropFileInput.addEventListener('change', async function () {
+      var f = audioCropFileInput.files && audioCropFileInput.files[0];
+      audioCropFileInput.value = '';
+      if (!f) return;
+      try {
+        await WhaleMediaGuard.validateAudioFile(f);
+        audioCropEditor.open(await f.arrayBuffer(), f.name);
+      } catch (err) { assetNotice(err.message); }
+    });
     function audioDeleteFragmentInSlot(slot, id) {
       if (!id) return;
       var f = null;
