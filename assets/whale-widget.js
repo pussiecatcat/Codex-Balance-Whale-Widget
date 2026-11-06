@@ -3051,6 +3051,11 @@ import {
     window.addEventListener('whale-refresh', function () {
       refresh(true);
     });
+    // The tray's 「查看用量记录」 command arrives as this event; it used to have
+    // no listener at all.
+    window.addEventListener('whale-open-usage', function () {
+      openUsageRecordsWindow();
+    });
     var turnNoticePoller = createTurnNoticePoller({
       window: window, localStorage: localStorage, fetch: fetch,
       WhaleTurnNotice: WhaleTurnNotice, CustomEvent: CustomEvent,

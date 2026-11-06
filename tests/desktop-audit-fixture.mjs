@@ -291,6 +291,10 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await wait("document.querySelector('[data-action=\"open-usage-history\"]')",'usage overview loaded'); await delay(300);
     await ev("document.querySelector('[data-action=\"open-usage-history\"]').click()");
     await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'history modal loaded');
+    await ev("document.querySelector('.dshwv-usage-close')?.click()"); await delay(300);
+    assert.equal(await ev("window.whaleDesktop.command('usage')"), true);
+    await wait("document.querySelector('.dshwv-usage-wintitle')?.textContent==='API 消费记录'",'tray usage command opens the history modal');
+    checks.push('the tray usage command opens the history modal');
     assert.equal(await ev("getComputedStyle(document.querySelector('.dshwv-usage-mask')).backgroundColor"),'rgba(0, 0, 0, 0)');
     assert.equal(await ev("__whaleInputTest.hit({x:1,y:1})"),false,'a modal mask cannot intercept the transparent viewport corner');
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
