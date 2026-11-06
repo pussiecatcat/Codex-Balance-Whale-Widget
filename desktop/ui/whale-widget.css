@@ -75,7 +75,7 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-menu-row{display:flex;align-items:center;gap:8px;margin:5px 0;color:#203170;font-size:12px;white-space:nowrap}
 .dshwv-range{flex:1;min-width:0;accent-color:#203170}
 .dshwv-number{width:44px;border:1px solid rgba(32,49,112,.4);border-radius:6px;padding:2px 4px;font-size:12px;color:#203170;background:#fff;box-sizing:border-box}
-.dshwv-number.dshwv-scale-value{color:#7dffb3;font-weight:700;text-align:center}
+.dshwv-number.dshwv-scale-value{color:#7dffb3;font-weight:700;text-align:left}
 .dshwv-number.dshwv-scale-value::-webkit-inner-spin-button,.dshwv-number.dshwv-scale-value::-webkit-outer-spin-button{appearance:none;margin:0}
 .whale-sound-entry>button{flex:1;min-width:0}
 .dshwv-menu-footer>button{flex:1;height:24px;padding:0;border-style:dashed}
