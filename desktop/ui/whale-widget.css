@@ -1,5 +1,6 @@
 @font-face{font-family:"JetBrains Mono";font-weight:100 600;font-display:swap;src:url("/fonts/JetBrainsMono-Regular.woff") format("woff")}
-@font-face{font-family:"JetBrains Mono";font-weight:700 900;font-display:swap;src:url("/fonts/JetBrainsMono-Bold.woff") format("woff")}
+@font-face{font-family:"JetBrains Mono";font-weight:700;font-display:swap;src:url("/fonts/JetBrainsMono-Bold.woff") format("woff")}
+@font-face{font-family:"JetBrains Mono";font-weight:800 900;font-display:swap;src:url("/fonts/JetBrainsMono-ExtraBold.woff") format("woff")}
 /* 从 assets/whale-widget.js 抽出的挂件样式。
 :root{
   --surface:#ffffff;
@@ -55,7 +56,7 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-pop.dshwv-pop-open .dshwv-text{opacity:1;transition:opacity var(--motion-fast) ease .36s}
 .dshwv-root.dshwv-left .dshwv-text{transform:translate(-50%,-50%) scaleX(-1)}
 .dshwv-text .dshwv-trow{flex:0 0 auto;margin:calc(var(--dshw-u) * 2) 0}
-.dshwv-trow.dshwv-trow-hero{color:#203170;font-weight:800;letter-spacing:-.01em;line-height:1.08;margin:calc(var(--dshw-u) * 4) 0;font-variant-numeric:tabular-nums}
+.dshwv-trow.dshwv-trow-hero{color:#203170;font-weight:800;letter-spacing:-.01em;line-height:1;margin:calc(var(--dshw-u) * 4) 0;font-variant-numeric:tabular-nums}
 .dshwv-trow.dshwv-trow-source{color:#5a6a92;margin-top:calc(var(--dshw-u) * 12);letter-spacing:.01em}
 .dshwv-text .dshwv-mimg{flex:0 0 auto}
 .dshwv-text .dshwv-label,.dshwv-text .dshwv-amount,.dshwv-text .dshwv-hint{flex:0 0 auto;margin-left:auto;margin-right:auto}

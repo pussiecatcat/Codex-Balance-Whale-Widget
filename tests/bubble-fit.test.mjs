@@ -124,8 +124,8 @@ test('the subscription default shows one large quota per click', () => {
   assert.deepEqual(quotas(steps[1]).map(module => module.windowDurationMins), [10080, 10080]);
   assert.equal(steps.flatMap(step => step.modules).some(module => module.quotaStyle === 'meter'), false,
     'layout D uses a large number, not the two-column meter cards');
-  assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 4]);
-  assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 4]);
+  assert.deepEqual(quotas(steps[0]).map(module => module.size), [30, 4]);
+  assert.deepEqual(quotas(steps[1]).map(module => module.size), [30, 4]);
 });
 
 test('fitting measures against the svg, not the path that is still scaled down', () => {
@@ -150,6 +150,20 @@ test('the earlier single-window default migrates to the aligned layout', () => {
   ] });
   assert.equal(bubbleLegacySubscriptionDefault([step('5 小时'), step('每周')]), true);
   assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
+});
+
+test('the title badge sits on the baseline and the smaller consumption layout migrates', () => {
+  assert.match(rowsViewSource, /if \(m\.titleBadge\) row\.style\.overflow = 'hidden'/);
+  const [short, weekly] = bubbleDefaultSubscriptionQueue();
+  assert.equal(short.modules[0].size, 11);
+  assert.equal(short.modules[1].titleBadge, true);
+  const older = [short, weekly].map(step => {
+    const copy = JSON.parse(JSON.stringify(step));
+    copy.modules[0].size = 8;
+    copy.modules[2].size = 20;
+    return copy;
+  });
+  assert.equal(bubbleLegacySubscriptionDefault(older), true);
 });
 
 test('the remaining-share badge layout migrates to the consumption title', () => {

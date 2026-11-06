@@ -6,7 +6,8 @@
    风格是克制的桌面工具：浅灰底、白色分组卡片、一种深蓝强调色，
    界面文字用雅黑，数值用等宽字体。 */
 @font-face{font-family:"JetBrains Mono";font-weight:100 600;font-display:swap;src:url("/fonts/JetBrainsMono-Regular.woff") format("woff")}
-@font-face{font-family:"JetBrains Mono";font-weight:700 900;font-display:swap;src:url("/fonts/JetBrainsMono-Bold.woff") format("woff")}
+@font-face{font-family:"JetBrains Mono";font-weight:700;font-display:swap;src:url("/fonts/JetBrainsMono-Bold.woff") format("woff")}
+@font-face{font-family:"JetBrains Mono";font-weight:800 900;font-display:swap;src:url("/fonts/JetBrainsMono-ExtraBold.woff") format("woff")}
 :root {
   --ink: #203170;
   --ink-hover: #2f4488;
