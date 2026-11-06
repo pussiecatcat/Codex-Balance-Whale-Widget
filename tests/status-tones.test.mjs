@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STATUS_TONES, statusForCode, statusForError, statusView } from '../desktop/ui/features/widget/status-tones.js';
+import { STATUS_TONES, statusForCode, statusForError, statusView } from '../desktop/ui/shared/status-tones.js';
 
 test('every status carries a tone and a next action', () => {
   for (const [status, view] of Object.entries(STATUS_TONES)) {

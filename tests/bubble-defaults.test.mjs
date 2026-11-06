@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CURRENT_DEFAULTS_VERSION, bubbleDefaultQueue } from '../desktop/ui/features/widget/default-content.js';
-import { resolveBubbleConfig, bubbleItemsForMode } from '../desktop/ui/features/widget/bubble-defaults.js';
+import { CURRENT_DEFAULTS_VERSION, bubbleDefaultQueue } from '../desktop/ui/shared/bubble-config/defaults.js';
+import { resolveBubbleConfig, bubbleItemsForMode } from '../desktop/ui/shared/bubble-config/resolve.js';
 import { saveBubbleEditorDraft, trackBubbleDraft } from '../desktop/ui/features/widget/bubble-editor-model.js';
 
 const custom = [{ kind: 'custom', modules: [{ type: 'text', text: 'my own bubble' }] }];

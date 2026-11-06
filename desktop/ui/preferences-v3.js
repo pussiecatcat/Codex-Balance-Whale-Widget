@@ -1,5 +1,5 @@
 import { sound } from './services/sound.js';
-import { UI_DEFAULTS } from './services/ui-defaults.js';
+import { UI_DEFAULTS } from './shared/ui-defaults.js';
 
 (() => {
   'use strict';

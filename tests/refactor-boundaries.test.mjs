@@ -246,3 +246,20 @@ test('the lifecycle gate counts unowned timers, listeners and inline style write
   assert.equal(metrics.documentListeners, 1);
   assert.equal(metrics.inlineStyles, 1);
 });
+
+test('shared stays pure and the server layers do not reach back into features', t => {
+  const impure = fixture(t, {
+    'desktop/ui/shared/bad.js': "export const el = () => document.createElement('div');\n",
+  });
+  assert.match(evaluate(impure).join('\n'), /desktop\/ui\/shared must stay pure/);
+
+  const reverse = fixture(t, {
+    'lib/bad.mjs': "import { x } from '../desktop/ui/features/widget/x.js';\nexport const y = x;\n",
+  });
+  assert.match(evaluate(reverse).join('\n'), /may only import desktop\/ui\/shared/);
+
+  const allowed = fixture(t, {
+    'lib/good.mjs': "import { x } from '../desktop/ui/shared/x.js';\nexport const y = x;\n",
+  });
+  assert.deepEqual(evaluate(allowed), []);
+});

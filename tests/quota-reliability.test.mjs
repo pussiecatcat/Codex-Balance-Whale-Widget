@@ -1,4 +1,4 @@
-import * as quotaFormat from '../desktop/ui/services/quota-format.js';
+import * as quotaFormat from '../desktop/ui/shared/quota-format.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createCodexRateLimitsClient, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
-import { statusView } from '../desktop/ui/features/widget/status-tones.js';
+import { statusView } from '../desktop/ui/shared/status-tones.js';
 import { createInsightsService } from '../runtime/insights.mjs';
 
 const defer = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };

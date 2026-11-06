@@ -1,6 +1,6 @@
 {
   "name": "api-balance-whale",
-  "version": "0.3.0+codex.20261106-ui-25",
+  "version": "0.3.0+codex.20261106-ui-26",
   "description": "随 Codex 桌面应用自动启停的桌面挂件；显示订阅额度、API 余额与本机记账，保留拖动、点击、角色、气泡和音效。",
   "author": {
     "name": "pussiecatcat",

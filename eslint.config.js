@@ -101,6 +101,7 @@ const rendererModules = [
   'desktop/ui/settings.js',
   'desktop/ui/features/**/*.js',
   'desktop/ui/services/**/*.js',
+  'desktop/ui/shared/**/*.js',
 ];
 
 // Every desktop/ui script is an ES module now; the classic branch below is kept

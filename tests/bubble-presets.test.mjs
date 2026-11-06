@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleDefaultQueue, bubblePresetItems, bubbleDefaultCompanionQueue } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultQueue, bubblePresetItems, bubbleDefaultCompanionQueue } from '../desktop/ui/shared/bubble-config/defaults.js';
 
 const modulesOf = items => items.flatMap(item => (item.modules || []).map(module => module.type));
 

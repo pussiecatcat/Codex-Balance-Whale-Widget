@@ -1,5 +1,5 @@
 import { openOver } from '../../services/layers.js';
-import { bubblePresetItems } from './default-content.js';
+import { bubblePresetItems } from '../../shared/bubble-config/defaults.js';
 import { trackBubbleDraft } from './bubble-editor-model.js';
 
 // Owns the bubble editor's open/save lifecycle and the queue rendering calls.

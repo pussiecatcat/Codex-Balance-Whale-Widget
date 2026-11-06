@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-import { UI_DEFAULTS } from '../desktop/ui/services/ui-defaults.js';
+import { UI_DEFAULTS } from '../desktop/ui/shared/ui-defaults.js';
 
 const source = (await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
 const box = { UI_DEFAULTS, module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 7, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };

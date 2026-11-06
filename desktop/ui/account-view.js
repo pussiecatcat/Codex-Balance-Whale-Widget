@@ -1,5 +1,5 @@
 import { registerMenuRow } from '/features/widget/menu-layout.js';
-import { LABELS } from '/services/labels.js';
+import { LABELS } from '/shared/labels.js';
 import { requestJson } from '/services/request.js';
 
 (() => {

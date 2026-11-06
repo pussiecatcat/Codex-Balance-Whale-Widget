@@ -1,5 +1,5 @@
 import { requestJson } from '/services/request.js';
-import { statusForError, statusView } from '/features/widget/status-tones.js';
+import { statusForError, statusView } from '/shared/status-tones.js';
 
 (() => {
   'use strict';

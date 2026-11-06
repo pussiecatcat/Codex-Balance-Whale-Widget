@@ -1,4 +1,4 @@
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 // 设置窗口的交互与渲染检查，在 Electron 主进程内运行。
 //
 // 由 tests/settings-window-smoke.mjs 启动，使用隔离的临时数据目录。

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubblePickChoiceItem, bubbleStepToBubble } from '../desktop/ui/features/widget/default-content.js';
-import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/features/widget/bubble-layout.js';
+import { bubbleChoiceWeight, bubbleDefaultQueue, bubbleDefaultSubscriptionQueue, bubblePickChoiceItem, bubbleStepToBubble } from '../desktop/ui/shared/bubble-config/defaults.js';
+import { bubbleRowsOf, bubbleRowsCanon } from '../desktop/ui/shared/bubble-config/layout.js';
 import { aggregateUsageModels } from '../desktop/ui/features/widget/usage-charts.js';
 import { reorderBubbleStep, splitBubbleChoiceSide, pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from '../desktop/ui/features/widget/bubble-editor-commands.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '../desktop/ui/features/widget/bubble-editor-model.js';

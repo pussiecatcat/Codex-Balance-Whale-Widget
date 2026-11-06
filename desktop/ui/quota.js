@@ -1,6 +1,6 @@
-import { QUOTA_LABELS as labels, countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, fill, quotaState, quotaText } from '/services/quota-format.js';
+import { QUOTA_LABELS as labels, countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, fill, quotaState, quotaText } from '/shared/quota-format.js';
 import { requestJson } from '/services/request.js';
-import { statusView } from '/features/widget/status-tones.js';
+import { statusView } from '/shared/status-tones.js';
 
 (() => {
   'use strict';

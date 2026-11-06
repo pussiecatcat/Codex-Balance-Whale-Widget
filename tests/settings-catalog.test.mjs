@@ -1,4 +1,4 @@
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -131,7 +131,7 @@ test('dynamic entries enumerate their sub-fields instead of standing in for a wh
 });
 
 test('editor routes are explicit and every one exists in the widget', async () => {
-  const { EDITOR_ROUTES } = await import(pathToFileURL(path.join(root, 'desktop/ui/features/widget/editor-routes.js')).href);
+  const { EDITOR_ROUTES } = await import(pathToFileURL(path.join(root, 'desktop/ui/shared/editor-routes.js')).href);
   const needsEditor = field => !!field.bridged || !!field.editor
     || ['role', 'snap', 'group', 'message', 'action'].includes(field.type);
   for (const field of loadCatalog().fields) {

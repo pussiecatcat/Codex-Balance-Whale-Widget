@@ -172,7 +172,7 @@ function listJavaScript(root, relative) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const child = path.join(directory, entry.name);
       if (entry.isDirectory()) walk(child);
-      else if (entry.name.endsWith('.js')) found.push(path.relative(root, child).split(path.sep).join('/'));
+      else if (/\.(?:js|mjs|cjs)$/.test(entry.name)) found.push(path.relative(root, child).split(path.sep).join('/'));
     }
   };
   walk(absolute);
@@ -301,6 +301,41 @@ function moduleScript(html, source) {
       && /\btype=["']module["']/.test(tag));
 }
 
+const SHARED_ROOT = 'desktop/ui/shared';
+const SHARED_FORBIDDEN = [
+  [/\bwindow\s*\./g, 'window'],
+  [/\bdocument\s*\./g, 'document'],
+  [/\blocalStorage\b/g, 'localStorage'],
+  [/\bfetch\s*\(/g, 'fetch'],
+];
+
+function sharedPurityViolations(root) {
+  const rows = [];
+  for (const relative of listJavaScript(root, SHARED_ROOT)) {
+    const source = stripCommentsAndStrings(read(root, relative));
+    for (const [pattern, name] of SHARED_FORBIDDEN) {
+      for (const match of source.matchAll(pattern)) rows.push({ file: relative, line: lineOf(source, match.index), name });
+    }
+  }
+  return rows;
+}
+
+function reverseDependencies(root) {
+  const rows = [];
+  for (const relative of ['lib', 'runtime'].flatMap(entry => listJavaScript(root, entry))) {
+    const source = read(root, relative);
+    for (const { spec, index } of specifiers(source)) {
+      const target = spec.startsWith('/')
+        ? path.posix.normalize('desktop/ui' + spec)
+        : path.posix.normalize(path.posix.join(path.posix.dirname(relative), spec));
+      if (target.startsWith('desktop/ui/') && !target.startsWith(SHARED_ROOT + '/')) {
+        rows.push({ file: relative, line: lineOf(source, index), target });
+      }
+    }
+  }
+  return rows;
+}
+
 export function collectDependencyMetrics({ root = ROOT } = {}) {
   const modules = [...new Set(MODULE_ROOTS.flatMap(directory => listJavaScript(root, directory)))].sort();
   const moduleReads = {};
@@ -358,6 +393,8 @@ export function collectDependencyMetrics({ root = ROOT } = {}) {
     legacyDirectRequests: legacyRequests,
     legacyDirectRequestsByFile: countByFile(legacyRequests),
     globalStorage,
+    sharedViolations: sharedPurityViolations(root),
+    reverseDependencies: reverseDependencies(root),
   };
 }
 
@@ -384,6 +421,12 @@ function emptyCatchMetrics(root) {
 }
 
 export function dependencyErrors(dependency) {  const errors = [];
+  if (dependency.sharedViolations?.length) {
+    errors.push('desktop/ui/shared must stay pure (no window/document/localStorage/fetch): ' + dependency.sharedViolations.map(row => `${row.file}:${row.line} ${row.name}`).join(', '));
+  }
+  if (dependency.reverseDependencies?.length) {
+    errors.push('lib/ and runtime/ may only import desktop/ui/shared: ' + dependency.reverseDependencies.map(row => `${row.file}:${row.line} -> ${row.target}`).join(', '));
+  }
   const newGlobals = dependency.publishedGlobals.filter(name => !GLOBAL_SURFACE.includes(name));
   if (newGlobals.length) errors.push('Migrating a feature removes window globals, it never adds one; new: ' + newGlobals.join(', '));
   for (const [relative, reads] of Object.entries(dependency.moduleReads)) {

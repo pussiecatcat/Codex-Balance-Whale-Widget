@@ -1,5 +1,5 @@
-import { CURRENT_DEFAULTS_VERSION, bubbleDefaultQueue, bubbleLegacySubscriptionDefault } from './default-content.js';
-import { bubbleRowsCanon } from './bubble-layout.js';
+import { CURRENT_DEFAULTS_VERSION, bubbleDefaultQueue, bubbleLegacySubscriptionDefault } from './defaults.js';
+import { bubbleRowsCanon } from './layout.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object'

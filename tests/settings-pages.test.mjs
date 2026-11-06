@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalog = (() => {

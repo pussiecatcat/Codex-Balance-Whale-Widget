@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault } from '../desktop/ui/shared/bubble-config/defaults.js';
 
 import { renderBubbleRows } from './helpers/bubble-rows.mjs';
 

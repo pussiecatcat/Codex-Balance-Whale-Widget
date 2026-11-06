@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 // 把 desktop/ui/settings-catalog.js 里的字段目录写进 docs/CONFIGURATION.md。
 //
 // 界面控件、`!` 说明和本文件共用同一份目录，所以三者不会各写各的。

@@ -11,7 +11,7 @@ import { ROOT } from '../runtime/paths.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
-import { bubbleDefaultQueue, CURRENT_DEFAULTS_VERSION } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultQueue, CURRENT_DEFAULTS_VERSION } from '../desktop/ui/shared/bubble-config/defaults.js';
 
 async function setup(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-ipc-'));

@@ -1,9 +1,9 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
-import { UI_DEFAULTS } from '/services/ui-defaults.js';
+import { UI_DEFAULTS } from '/shared/ui-defaults.js';
 import { sound } from '/services/sound.js';
 import { openOver } from '/services/layers.js';
 import { bindAudioImport } from '/features/widget/audio-import.js';
-import { bubbleItemsForMode } from '/features/widget/bubble-defaults.js';
+import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import '/money.js';
 import '/quota.js';
@@ -34,7 +34,7 @@ import { createMenuControls } from '/features/widget/menu-controls.js';
 import { createBubbleContent } from '/features/widget/bubble-content.js';
 import { createUsageNavigation } from '/features/widget/usage-navigation.js';
 import { createMenuLayout } from '/features/widget/menu-layout.js';
-import { LABELS } from '/services/labels.js';
+import { LABELS } from '/shared/labels.js';
 import { createUsageOverviewView } from '/features/widget/usage-overview-view.js';
 import { createUsageModelsView } from '/features/widget/usage-models-view.js';
 import { createUsagePanel, createUsageShell } from '/features/widget/usage-panel.js';
@@ -42,7 +42,7 @@ import { createBubbleQuickEditors } from '/features/widget/bubble-quick-editors.
 import { createBubblePalette } from '/features/widget/bubble-palette.js';
 import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js';
 import { createSnapEditor } from '/features/widget/snap-editor.js';
-import { isEditorRoute } from '/features/widget/editor-routes.js';
+import { isEditorRoute } from '/shared/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
@@ -58,12 +58,12 @@ import { createItemEditor } from '/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
 import { createCustomSelectController } from '/features/widget/custom-select.js';
-import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/features/widget/bubble-layout.js';
+import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/shared/bubble-config/layout.js';
 import {
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
   bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
-} from '/features/widget/default-content.js';
+} from '/shared/bubble-config/defaults.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
 //  分段索引  SECTION INDEX

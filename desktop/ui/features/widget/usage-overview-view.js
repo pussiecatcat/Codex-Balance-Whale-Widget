@@ -1,5 +1,5 @@
 import { createLedgerWarning } from './ledger-warning.js';
-import { ledgerDayKey } from '../../services/ledger-day.js';
+import { ledgerDayKey } from '../../shared/ledger-day.js';
 
 // API usage overview formatting and its compact daily summary view.
 export function createUsageOverviewView(deps) {

@@ -1,6 +1,6 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-25`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-26`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
@@ -10,6 +10,7 @@
 - T02：新增生命周期门禁，冻结无主 `setInterval`（10）、`document/window` 监听（88）和内联样式写入（481），此后只减不增。
 - T10：修复托盘「查看用量记录」点了没有反应：入口监听 `whale-open-usage`，桌面审计增加命令级断言。
 - T11：删除无监听的事件、无发送者的监听、不可达的 `insights.js` 和 4 个无引用导出；监听基线降到 86。
+- T20：新增 `desktop/ui/shared/`，把气泡配置、布局、字号、编辑器路由、状态词表和纯格式化模块移入；`lib/widget-host` 不再反向导入 `features/`，并新增「shared 保持纯净」「服务端只导入 shared」两道门禁。
 
 ## 2026-11-06 气泡细节与内置角色
 

@@ -1,8 +1,8 @@
 import { bubbleDefaultQueue,
   bubbleDefaultSecondModules, bubbleChoiceWeight, bubbleSingleFromItem,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from './default-content.js';
-import { bubbleRowsCanon } from './bubble-layout.js';
-import { bubbleItemsForMode, bubbleSavedMetadata, resolveBubbleConfig } from './bubble-defaults.js';
+  bubbleIsChoice, bubbleChoiceOptions, bubbleDefaultModules } from '../../shared/bubble-config/defaults.js';
+import { bubbleRowsCanon } from '../../shared/bubble-config/layout.js';
+import { bubbleItemsForMode, bubbleSavedMetadata, resolveBubbleConfig } from '../../shared/bubble-config/resolve.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 

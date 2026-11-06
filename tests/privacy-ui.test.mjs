@@ -6,7 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { ConfigStore, PRIVATE_SETTING_FIELDS } from '../runtime/config.mjs';
 import { WhaleService } from '../runtime/service.mjs';
-import { statusForError, statusView } from '../desktop/ui/features/widget/status-tones.js';
+import { statusForError, statusView } from '../desktop/ui/shared/status-tones.js';
 import { createDispatcher } from '../runtime/dispatcher.mjs';
 
 const marker = 'PRIVACY_FIXTURE_ONLY';

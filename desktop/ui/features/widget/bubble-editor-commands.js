@@ -1,6 +1,6 @@
 import {
   bubbleIsChoice, bubbleChoiceOptions, bubbleSingleFromItem, bubbleStepToBubble,
-} from './default-content.js';
+} from '../../shared/bubble-config/defaults.js';
 
 // Draft commands mutate only the supplied editor draft. Views decide when to repaint.
 export function moveBubbleStep(items, index, direction) {

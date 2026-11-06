@@ -1,4 +1,4 @@
-import { LABELS } from '../desktop/ui/services/labels.js';
+import { LABELS } from '../desktop/ui/shared/labels.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
