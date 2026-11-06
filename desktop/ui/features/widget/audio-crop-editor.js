@@ -88,6 +88,9 @@ export function createAudioCropEditor({ window, elements, requestJson, uploadFra
             audioCropName.value = '';
           } catch (err) {}
           updateAudioCropOkState();
+          // The crop dialog opens from the audio-group editor, which the sound panel
+          // lifts to 27000; without its own lift it would open behind both.
+          audioCropMask.style.zIndex = '27100';
           audioCropMask.style.display = 'flex';
         }, function () {
           assetNotice('音频解码失败');

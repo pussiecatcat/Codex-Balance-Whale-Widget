@@ -15,7 +15,6 @@ import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
-import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-control.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
 import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
@@ -57,7 +56,7 @@ import {
   bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault,
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
   bubbleModuleListLabel, bubbleEditEnsureModules,
-  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight,
+  bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubblePickChoiceItem,
 } from '/features/widget/default-content.js';
 // Adapted from MeteorNOX dsh-whale-widget (MIT). Scheduling modules removed; money display uses two decimals.
 // ────────────────────────────────────────────────────────────────────────────
@@ -365,8 +364,8 @@ import {
     bubbleCustomBtn.type = 'button';
     bubbleCustomBtn.className = 'dshwv-roleimport';
     bubbleCustomBtn.style.flex = '1';
-    bubbleCustomBtn.textContent = '自定义泡泡';
-    bubbleCustomBtn.title = '打开“自定义泡泡”设置';
+    bubbleCustomBtn.textContent = '气泡DIY';
+    bubbleCustomBtn.title = '打开“气泡DIY”设置';
     bubbleCustomBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       openBubbleEditor();
@@ -564,7 +563,8 @@ import {
     var rowLogs = menuRow();
     var logsOpenBtn = document.createElement('button');
     logsOpenBtn.type = 'button';
-    logsOpenBtn.className = 'dshwv-roleimport';
+    logsOpenBtn.className = 'dshwv-sound';
+    logsOpenBtn.style.flex = '1';
     logsOpenBtn.textContent = '打开';
     logsOpenBtn.title = '打开运行日志目录（runtime.log）；反馈问题时请附上最近一段';
     logsOpenBtn.addEventListener('click', function (e) {
@@ -661,12 +661,36 @@ import {
         function rowByLabel(text) {
           var rows = Array.prototype.slice.call(root.children);
           for (var i = 0; i < rows.length; i++) {
-            if (rows[i].classList && rows[i].classList.contains('dshwv-menu-row')) {
+            // The merged sound entry starts with 音效 too and must not be taken for the old row.
+            if (rows[i].classList && rows[i].classList.contains('dshwv-menu-row') && !rows[i].classList.contains('whale-sound-entry')) {
               var first = rows[i].firstElementChild;
               if (first && first.textContent && first.textContent.trim().indexOf(text) === 0) return rows[i];
             }
           }
           return null;
+        }
+        function rowExact(text) {
+          return Array.prototype.slice.call(root.children).filter(function (row) {
+            return row.classList && row.classList.contains('dshwv-menu-row') && !row.classList.contains('dshwv-level1-sunk') &&
+              row.firstElementChild && row.firstElementChild.textContent.trim() === text;
+          })[0] || null;
+        }
+        // Rows arrive from several scripts at different times, so this runs on every
+        // pass. Anything it does not name stays between these rows and the footer.
+        function arrangeMenu() {
+          var rows = [rowExact('角色'), rowExact('大小'), root.querySelector('.whale-account-switch'),
+            rowExact('显示方式'), rowExact('音效与提示'), rowExact('气泡')];
+          Array.prototype.slice.call(root.children).forEach(function (child) {
+            if (child.classList && child.classList.contains('dshwv-menu-sep')) child.remove();
+          });
+          var ordered = document.createDocumentFragment();
+          rows.forEach(function (row) { if (row) ordered.appendChild(row); });
+          root.insertBefore(ordered, root.firstChild);
+          // The footer sits below the ledger button, outside the view that slides away
+          // when the ledger opens, so it is last in the menu box itself.
+          var box = root.closest('.dshwv-menu');
+          var footer = box && box.querySelector('.dshwv-menu-footer');
+          if (footer) box.appendChild(footer);
         }
         function setLabel(row, text) {
           if (!row || !row.firstElementChild) return;
@@ -681,7 +705,7 @@ import {
           row.classList.add('dshwv-level1-sunk');
         }
         // 下沉到完整设置窗口的行：一行都不留在日常菜单里。
-        ['音效', '音量', '每轮消耗提示', '任务结束音效', '音效与提示', '气泡形状',
+        ['音效', '音量', '每轮消耗提示', '任务结束音效', '气泡形状',
           '避让滚动条', '吸附与翻转', '隐藏菜单按钮', '资源管理', '显示币种', '参考汇率',
           '峰谷时段', '素材包导入/导出', '进入独立桌面', '改为跟随 Codex'].forEach(function (text) {
           sink(rowByLabel(text));
@@ -690,11 +714,11 @@ import {
         // 旧的整屏「API 设置」按钮由「高级设置…」取代。
         if (typeof apiSettingsBtn !== 'undefined' && apiSettingsBtn) sink(apiSettingsBtn);
 
-        if (root.dataset.compacted === '1') return;
+        if (root.dataset.compacted === '1') { arrangeMenu(); return; }
         root.dataset.compacted = '1';
 
         var modeRow = menuRow();
-        modeRow.appendChild(menuLabel('桌面显示'));
+        modeRow.appendChild(menuLabel('显示方式'));
         var modeSel = document.createElement('select');
         modeSel.id = 'dshw-desktop-display';
         modeSel.className = 'dshwv-sound';
@@ -738,48 +762,34 @@ import {
         });
         remindRow.appendChild(remindSel);
 
-        var advancedRow = menuRow();
-        advancedRow.appendChild(menuLabel('高级设置…'));
+        var footerRow = menuRow();
+        footerRow.classList.add('dshwv-menu-footer');
         var advancedBtn = document.createElement('button');
         advancedBtn.type = 'button';
-        advancedBtn.className = 'dshwv-roleimport';
-        advancedBtn.style.flex = '1';
-        advancedBtn.textContent = '打开';
+        advancedBtn.className = 'dshwv-sound';
+        advancedBtn.textContent = '高级设置';
         advancedBtn.title = '打开完整设置窗口';
         advancedBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           try { window.whaleDesktop.openSettings(); } catch (err) { window.dispatchEvent(new Event('whale-open-settings')); }
         });
-        advancedRow.appendChild(advancedBtn);
+        sink(rowLogs);
+        footerRow.appendChild(advancedBtn);
 
-        var bottomRow = menuRow();
-        bottomRow.appendChild(menuLabel('位置'));
-        var moveBtn = document.createElement('button');
-        moveBtn.type = 'button';
-        moveBtn.className = 'dshwv-roleimport';
-        moveBtn.style.flex = '1';
-        moveBtn.textContent = '移回右下角';
-        moveBtn.title = '把鲸鱼移回桌面右下角';
-        moveBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          window.dispatchEvent(new Event('whale-reset-position'));
-        });
-        bottomRow.appendChild(moveBtn);
+        var scaleRow = rowExact('大小');
+        if (scaleRow && scaleRow.querySelector('.dshwv-number')) scaleRow.querySelector('.dshwv-number').classList.add('dshwv-scale-value');
 
-        // 方案顺序：查看数据 · 角色 · 大小 · 桌面显示 · 点击音效 · 完成提醒 · 气泡
-        var sizeRow = rowByLabel('大小');
-        var roleRow = rowByLabel('角色');
-        var anchor = sizeRow || roleRow;
-        if (anchor && anchor.parentNode === root) {
-          root.insertBefore(modeRow, anchor.nextSibling);
-          root.insertBefore(soundRow, modeRow.nextSibling);
-          root.insertBefore(remindRow, soundRow.nextSibling);
-        }
-        root.appendChild(advancedRow);
-        root.appendChild(bottomRow);
+        root.appendChild(modeRow);
+        root.appendChild(soundRow);
+        root.appendChild(remindRow);
+        // 这两项由「音效与提示」面板和设置窗口接管；控件仍保留，因为回填配置要写它们。
+        sink(soundRow);
+        sink(remindRow);
+        root.appendChild(footerRow);
+        arrangeMenu();
         syncLevel1Controls();
       }
-      // 其余脚本（音效入口、独立桌面、素材包、数据显示）会在各自的
+      // 其余脚本（音效入口、独立桌面、素材包、数据来源）会在各自的
       // DOMContentLoaded 里往菜单追加行，所以推迟一拍再收敛一次。
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
@@ -971,9 +981,9 @@ import {
     });
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
-    var bubbleAdvanceControl = null;
-    function bubbleDefaultQueue() {
-      return buildBubbleDefaultQueue(window.WhaleAccountView?.mode === 'subscription');
+    function bubbleDefaultQueue(subscriptionMode) {
+      if (typeof subscriptionMode !== 'boolean') subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
+      return buildBubbleDefaultQueue(subscriptionMode);
     }
     var itemEditor = createItemEditor({
       document: document, state: bubbleEditorState, target: bubbleEditTarget, stepLabel: bubbleEditStepLabel,
@@ -993,7 +1003,7 @@ import {
     });
     var bubbleEditorApi = createBubbleEditorController({
       state: bubbleEditorState, view: bubbleEditorView,
-      getMask: function () { return bubbleMask; }, getAdvance: function () { return bubbleAdvanceControl; },
+      getMask: function () { return bubbleMask; },
       getMode: function () { return window.WhaleAccountView?.mode; },
       getConfig: function () { return bubbleCfg; }, isConfigLoaded: function () { return bubbleCfgLoaded; },
       loadConfig: loadBubbleCfg, saveConfig: saveBubbleCfg,
@@ -1416,13 +1426,17 @@ import {
     bubbleCard.className = 'dshwv-bubcard';
     var bubbleTitle = document.createElement('div');
     bubbleTitle.className = 'dshwv-bubtitle';
-    bubbleTitle.textContent = '自定义泡泡';
+    bubbleTitle.textContent = '气泡DIY';
     bubbleCard.appendChild(bubbleTitle);
     var bubblePresetRow = document.createElement('div');
     bubblePresetRow.className = 'dshwv-bubpresets';
     var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
-      ? [['quota', '额度优先'], ['quota-cards', '潮汐卡片'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
-      : [['balance', '余额优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']];
+      ? [['quota', '额度优先'], ['quota-cards', '双卡片'], ['minimal', '只看数字'], ['companion', '带随机台词']]
+      : [['balance', '余额优先'], ['minimal', '只看数字'], ['companion', '带随机台词']];
+    var bubblePresetLabel = document.createElement('div');
+    bubblePresetLabel.className = 'dshwv-bubpresets-label';
+    bubblePresetLabel.textContent = '套用模板（替换下面的内容，保存前可取消）';
+    bubbleCard.appendChild(bubblePresetLabel);
     presetSpecs.forEach(function (spec) {
       var pbtn = document.createElement('button');
       pbtn.type = 'button';
@@ -1470,15 +1484,9 @@ import {
     var bubbleAddBtn = document.createElement('button');
     bubbleAddBtn.type = 'button';
     bubbleAddBtn.className = 'dshwv-bubadd';
-    bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
+    bubbleAddBtn.textContent = '+ 添加下一条';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
-    bubbleAdvanceControl = createBubbleAdvanceControl({
-      document: document,
-      viewport: viewport,
-      onChange: function (value) { bubbleEditorState.tapAdvance = value; }
-    });
-    bubbleCard.appendChild(bubbleAdvanceControl.element);
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -2742,18 +2750,7 @@ import {
       bubbleRenderModules(usageAlertModsResolved(configured, null, notice.amount, notice));
     }
     function bubblePickChoiceStep(step) {
-      var opts = bubbleChoiceOptions(step);
-      if (!opts.length) return null;
-      var total = 0;
-      for (var i = 0; i < opts.length; i++) total += bubbleChoiceWeight(opts[i]);
-      var r = Math.random() * total;
-      var acc = 0;
-      for (var j = 0; j < opts.length; j++) {
-        acc += bubbleChoiceWeight(opts[j]);
-        if (r < acc) return opts[j] && opts[j].item || null;
-      }
-      var last = opts[opts.length - 1];
-      return last && last.item || null;
+      return bubblePickChoiceItem(step, Math.random);
     }
     function bubbleShowSeqNext() {
       var step = bubbleSeq[bubbleSeqIdx];
@@ -2819,11 +2816,6 @@ import {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
-      },
-      shouldAdvanceOnCharacter: function () {
-        return window.WhaleAccountView?.mode === 'subscription'
-          ? bubbleCfg?.subscriptionTapAdvance === true
-          : bubbleCfg?.tapAdvance === true;
       },
       canAdvance: function () { return bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length; },
       showNext: bubbleShowSeqNext,
@@ -3186,8 +3178,13 @@ import {
     var pressAudio = null;
     var releaseAudio = null;
     var releasePlayed = false;
+    function forgetGroupSounds() {
+      // Best effort: without the engine there is no cache to drop.
+      if (window.WhaleAudio && window.WhaleAudio.forget) window.WhaleAudio.forget('/dsh-whale/sound/');
+    }
     function applySoundSet() {
       try {
+        forgetGroupSounds();
         if (pressAudio) { pressAudio.pause(); pressAudio.removeAttribute('src'); pressAudio.load(); }
         if (releaseAudio) { releaseAudio.pause(); releaseAudio.removeAttribute('src'); releaseAudio.load(); }
         if (window.WhaleAudio) { window.WhaleAudio.stop('gesture'); ['press', 'release'].forEach(function (slot) { if (!audioGroupSlotEmpty(soundSet, slot)) window.WhaleAudio.warm('/dsh-whale/sound/' + slot + '.mp3?set=' + encodeURIComponent(soundSet)).catch(function () {}); }); pressAudio = null; releaseAudio = null; return; }
@@ -3230,7 +3227,10 @@ import {
       if (!soundOn || !releaseAudio) return;
       try { if (pressAudio) pressAudio.pause(); releaseAudio.currentTime = 0; releaseAudio.play().catch(function () {}); } catch (err) {}
     }
+    // Only the character squishes. The bubble shares the same parent, so a transform
+    // on the parent would deform and shake the text above it.
     function pressDown() {
+      // The bubble rides along with the character; a press never changes its content.
       if (window.WhaleGesture) window.WhaleGesture.apply(body, true, window.WhaleFeedback && window.WhaleFeedback.feel);
       else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
       playPress();
@@ -3497,7 +3497,7 @@ import {
     // ==== [音频组与槽面板] ====
     var audioGroupList = createAudioGroupList({
       document: document, requestJson: requestJson, url: AUDIO_URL,
-      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; forgetGroupSounds(); },
       getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
       getPanel: function () { return audioGroupPanel; }, closePanel: closeAudioGroupPanel,
       makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
@@ -3527,7 +3527,7 @@ import {
         play: audioEditPlay, cancel: audioEditCancel, save: audioEditSave,
         pressImport: audioEditPressImport, releaseImport: audioEditReleaseImport
       },
-      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; forgetGroupSounds(); },
       getFragments: function () { return audioFragments; }, setFragments: function (fragments) { audioFragments = fragments; },
       getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
       getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
@@ -3565,11 +3565,22 @@ import {
       },
       requestJson: requestJson, uploadFragment: function (name, dataUrl) { return assetClient.uploadAudioFragment(name, dataUrl); },
       getFragments: function () { return audioFragments; }, setFragments: function (value) { audioFragments = value; },
-      getGroups: function () { return audioGroups; }, setGroups: function (value) { audioGroups = value; },
+      getGroups: function () { return audioGroups; }, setGroups: function (value) { audioGroups = value; forgetGroupSounds(); },
       applySlot: function (slot, id) { if (slot === 'press') audioEditPressVal = id; else audioEditReleaseVal = id; audioSlotPanel.refresh(); },
       renderGroups: renderAudioGroupPanel, refreshSlot: function () { audioSlotPanel.refresh(); },
       previewEnsure: audioEditPreviewEnsure, refreshTaskEnd: refreshTaskEndAfterAudio,
       requireSaved: requireSaved, assetFailure: assetFailure, assetNotice: assetNotice
+    });
+    // The chosen file opens the crop dialog. This listener was lost when the crop
+    // editor moved to its own module, which left 导入 opening a picker that did nothing.
+    audioCropFileInput.addEventListener('change', async function () {
+      var f = audioCropFileInput.files && audioCropFileInput.files[0];
+      audioCropFileInput.value = '';
+      if (!f) return;
+      try {
+        await WhaleMediaGuard.validateAudioFile(f);
+        audioCropEditor.open(await f.arrayBuffer(), f.name);
+      } catch (err) { assetNotice(err.message); }
     });
     function audioDeleteFragmentInSlot(slot, id) {
       if (!id) return;

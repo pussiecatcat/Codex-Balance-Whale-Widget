@@ -157,14 +157,11 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     point = await hitPoint(); move(point.x, point.y); await delay(120); await clickSelector('.dshwv-menu-btn');
     await wait("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})", 'menu open');
     const menu = await ev("document.querySelector('.dshwv-menu').innerText");
-    for (const label of ['角色', '音效', '自定义泡泡', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
+    for (const label of ['角色', '音效', '气泡DIY', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /峰谷|高峰|倒计时/); checks.push('clickable menu retains original management controls');
-    for (const label of ['音效与提示', '固定在桌面', '素材包导入/导出']) assert.ok(menu.includes(label), label);
+    for (const label of ['音效与提示', '素材包导入/导出']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /音效与手感|会员额度详情|本地创意工坊|跟随 Codex/);
-    assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].filter(b=>['固定在桌面','跟随 Codex'].includes(b.textContent)).length"), 1);
-    assert.equal(await ev("document.querySelector('.whale-utility-row').querySelectorAll('button').length"), 2);
-    assert.equal(await ev("(()=>{const b=[...document.querySelector('.whale-utility-row').querySelectorAll('button')].map(e=>e.getBoundingClientRect());return Math.abs(b[0].top-b[1].top)<1&&b.every(r=>r.width<180)})()"), true);
-    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='全局设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='音效/提示泡泡设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
     await clickAt(soundSettings); await wait("document.querySelector('.whale-sound-mask')?.checkVisibility({opacityProperty:true})", 'merged sound settings');
     const soundPanel = await ev("document.querySelector('.whale-sound-card').textContent");
     for (const label of ['按压音效', '每轮消耗提示', '提问提示', '授权提示', '新建音效组', '编辑提示内容', '点按角色关闭提示气泡']) assert.match(soundPanel, new RegExp(label));
@@ -183,26 +180,19 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     point = await hitPoint(); move(point.x, point.y); await delay(150);
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
     const buttonByText = async (text, scope = 'document') => clickAt(await ev(`(() => {const scope=${scope};const b=[...scope.querySelectorAll('button, .dshwv-bubchip')].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.checkVisibility({opacityProperty:true}));if(!b)throw new Error('missing visible control: '+${JSON.stringify(text)});const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`));
-    await buttonByText('自定义泡泡');
+    await buttonByText('气泡DIY');
     await wait("[...document.querySelectorAll('.dshwv-bubmask')].some(e=>e.checkVisibility({opacityProperty:true}))", 'bubble editor');
     const bubbleEditorMask = "[...document.querySelectorAll('.dshwv-bubmask')].find(e=>e.checkVisibility({opacityProperty:true}))";
     const bubbleEditorOverview = await ev(`(() => {const mask=${bubbleEditorMask};return {
       text:mask.innerText,
-      checked:mask.querySelector('.dshwv-bubadvance-check').checked,
       weights:[...mask.querySelectorAll('.dshwv-choicegrp')].map(group=>{const g=group.getBoundingClientRect(),w=group.querySelector('.dshwv-winput').getBoundingClientRect();return{value:group.querySelector('.dshwv-winput').value,rightGap:Math.round(g.right-w.right),centerGap:Math.round(Math.abs((g.top+g.bottom-w.top-w.bottom)/2))};})
     };})()`);
     assert.match(bubbleEditorOverview.text, /首次点击弹出内容/);
     assert.match(bubbleEditorOverview.text, /再次点击弹出内容/);
     assert.match(bubbleEditorOverview.text, /点按角色推进泡泡队列/);
-    assert.equal(bubbleEditorOverview.checked, false);
     assert.deepEqual(bubbleEditorOverview.weights.map(weight => weight.value), ['10', '1']);
     assert.ok(bubbleEditorOverview.weights.every(weight => weight.rightGap >= 3 && weight.rightGap <= 5 && weight.centerGap <= 1));
-    const advanceHelpPoint = await ev(`(() => {const r=(${bubbleEditorMask}).querySelector('.dshwv-bubadvance-q').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-    move(advanceHelpPoint.x, advanceHelpPoint.y); await delay(160);
-    await wait("document.querySelector('.dshwv-bubadvance-pop')?.checkVisibility({opacityProperty:true})", 'character advance help');
-    assert.match(await ev("document.querySelector('.dshwv-bubadvance-pop').innerText"), /关闭（默认）[\s\S]*回到第 1 个泡泡[\s\S]*开启[\s\S]*往后推进一项[\s\S]*收起泡泡/);
-    fs.writeFileSync(path.join(output, 'bubble-editor-help.png'), (await window.webContents.capturePage()).toPNG());
-    checks.push('bubble editor matches the reference labels, anchored weights, queue checkbox and hover help');
+    checks.push('bubble editor matches the reference labels, anchored weights and queue checkbox');
     await buttonByText('首次点击 · 编辑内容');
     const currentMask = "[...document.querySelectorAll('.dshwv-bubmask')].filter(e=>e.checkVisibility({opacityProperty:true})).at(-1)";
     const editor = await ev(`(${currentMask}).innerText`);
@@ -213,11 +203,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     };
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
     checks.push('bubble module editor retains the restored original peak-period module');
-    await clickSelector('.dshwv-bubadvance-check');
-    assert.equal(await ev("document.querySelector('.dshwv-bubadvance-check').checked"), true);
     await buttonByText('保存', bubbleEditorMask); await dismissFixtureConfirm();
     await wait(`!(${bubbleEditorMask})`, 'bubble editor saves and closes');
-    assert.equal(await ev("fetch('/dsh-whale/bubble.json',{cache:'no-store'}).then(r=>r.json()).then(d=>d.config.tapAdvance)"), true);
     await ev(`window.__whaleRenderTest.close(); window.__whaleRenderTest.queue([
       {kind:'custom',modules:[{type:'text',text:'队列第一项'}]},
       {kind:'custom',modules:[{type:'text',text:'队列第二项'}]}

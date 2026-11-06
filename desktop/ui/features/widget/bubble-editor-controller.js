@@ -5,11 +5,12 @@ import { bubblePresetItems } from './default-content.js';
 // item editor and the reminder editor swap the same fields while their dialogs
 // are open; this module only drives the sequence-level operations.
 export function createBubbleEditorController({
-  state, view, getMask, getAdvance, getMode,
+  state, view, getMask, getMode,
   getConfig, isConfigLoaded, loadConfig, saveConfig, draftOf, draftSave, defaultQueue,
   showConfirm, assetFailure, closeRolePanel, closeAudioGroupPanel,
 }) {
-  const subscription = () => getMode() === 'subscription';
+  // 编辑会话固定打开时的账号模式，中途切换模式也不会写到另一套配置里。
+  let editingSubscription = false;
 
   function renderFirst() { view.renderFirst(); }
   function renderMore() { view.renderMore(); }
@@ -29,38 +30,38 @@ export function createBubbleEditorController({
     } catch { return true; }
   }
 
-  function open() {
+  function openWithCache() {
     try {
-      if (!isConfigLoaded()) {
-        loadConfig().then(ok => {
-          if (ok) open(); else assetFailure(new Error('自定义泡泡配置读取失败'));
-        });
-        return;
-      }
       closeRolePanel();
       closeAudioGroupPanel();
-      const draft = draftOf(getConfig(), subscription());
+      editingSubscription = getMode() === 'subscription';
+      const draft = draftOf(getConfig(), editingSubscription);
       state.lib = draft.library;
       state.items = draft.items;
       state.tapAdvance = draft.tapAdvance;
-      getAdvance().setValue(state.tapAdvance);
       state.editorSnap = JSON.stringify([state.items, state.lib, state.tapAdvance]);
       render();
       getMask().style.display = 'flex';
     } catch {}
   }
 
+  // 每次打开都先读最新配置：另一个实例可能刚保存过权重，旧缓存不能把它覆盖。
+  function open() {
+    loadConfig().then(ok => {
+      if (ok || isConfigLoaded()) openWithCache();
+      else assetFailure(new Error('气泡DIY配置读取失败'));
+    });
+  }
+
   function close() {
     getMask().style.display = 'none';
-    getAdvance().hideHelp();
     state.editorSnap = null;
   }
 
   function reset() {
-    showConfirm(subscription() ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=上轮用量)?', () => {
-      state.items = defaultQueue();
+    showConfirm(editingSubscription ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=上轮用量)?', () => {
+      state.items = defaultQueue(editingSubscription);
       state.tapAdvance = false;
-      getAdvance().setValue(false);
       render();
     });
   }
@@ -68,7 +69,7 @@ export function createBubbleEditorController({
   function applyPreset(name) {
     const labels = { quota: '额度优先', 'quota-cards': '潮汐卡片', balance: '余额优先', minimal: '极简', companion: '小龙娘陪伴' };
     showConfirm('用「' + (labels[name] || name) + '」预设替换当前泡泡序列？保存前不会写入，取消可放弃。', () => {
-      state.items = bubblePresetItems(name, subscription());
+      state.items = bubblePresetItems(name, editingSubscription);
       state.itemIdx = 0;
       state.itemSide = 0;
       render();
@@ -78,7 +79,7 @@ export function createBubbleEditorController({
   function save() {
     try {
       const doSave = () => {
-        saveConfig(draftSave(state.items, state.lib, getConfig(), subscription(), state.tapAdvance), ok => {
+        saveConfig(draftSave(state.items, state.lib, getConfig(), editingSubscription, state.tapAdvance), ok => {
           if (ok !== false) close();
         });
       };

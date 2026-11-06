@@ -1,9 +1,9 @@
-// Character clicks either restart or advance a round; bubble clicks always
-// advance or dismiss the active scene.
+// A character click only opens a closed bubble. Once open, the character just
+// reacts to being pressed; bubble clicks advance or dismiss the active scene.
 export function createBubbleInteraction(deps) {
   const {
     isEnabled, getScene, isShown, getCurrentNotice, closeWait,
-    isSubscription, refreshQuota, startRound, shouldAdvanceOnCharacter, canAdvance, showNext,
+    isSubscription, refreshQuota, startRound, canAdvance, showNext,
     closeCost, closeAlert, closeBubble,
   } = deps;
 
@@ -18,14 +18,7 @@ export function createBubbleInteraction(deps) {
       }
       if (scene?.kind === 'cost' || scene?.kind === 'alert') return;
       if (isSubscription()) refreshQuota();
-      if (isShown() && shouldAdvanceOnCharacter?.() === true) {
-        if (canAdvance()) showNext();
-        else closeBubble();
-        return;
-      }
-      // With the option off, every character click begins again at the first
-      // item. The bubble itself remains the way to move forward in that mode.
-      startRound();
+      if (!isShown()) startRound();
     } catch (error) {}
   }
 

@@ -74,6 +74,20 @@ export function createBubbleRowsView(deps) {
           tx.className = 'dshwv-trowtx';
           row.appendChild(tx);
         }
+        // The title row is the widest and sets the fit scale, so it gives back the
+        // wide monospace gaps instead of shrinking the whole bubble.
+        if (m.tightTitle) {
+          row.style.letterSpacing = '-.02em';
+          row.style.wordSpacing = '-.3em';
+        }
+        // An inline-block that clips has its baseline at its bottom edge, which puts
+        // the badge on the title's baseline whatever font each of them uses.
+        if (m.titleBadge) {
+          row.style.overflow = 'hidden';
+          row.style.padding = '0 5px';
+          row.style.borderRadius = '6px';
+          row.style.lineHeight = '1.15';
+        }
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
         if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
@@ -81,6 +95,9 @@ export function createBubbleRowsView(deps) {
         // Small modules must stay readable when the widget is scaled down.
         var minimum = bubbleFontFloor(fSize);
         row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
+        // A countdown changes width with its value, and the widest row decides the
+        // fit scale, so without a fixed slot two quota steps render at different sizes.
+        if (m.type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(m.tpl || ''))) row.style.minWidth = '4.9em';
         if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
         if (fItalic) row.style.fontStyle = 'italic';
@@ -224,6 +241,16 @@ export function createBubbleRowsView(deps) {
               pe.style.overflowWrap = 'anywhere';
               pe.style.wordBreak = 'break-word';
               pe.style.maxWidth = '';
+            }
+            // min-width has no effect on an inline box. The line stays whole, because
+            // wrapping it would change the row height and the fit scale too.
+            if (pe.style.overflow === 'hidden') pe.style.margin = '0 0 calc(var(--dshw-u) * -6)';
+            if (pe.style.minWidth || pe.style.overflow === 'hidden') {
+              pe.style.display = 'inline-block';
+              pe.style.textAlign = 'center';
+              para.style.maxWidth = '';
+              para.style.whiteSpace = 'nowrap';
+              for (var q = 0; q < chunk.length; q++) chunk[q].el.style.whiteSpace = 'nowrap';
             }
             para.appendChild(pe);
             enableLinkRun(pr);

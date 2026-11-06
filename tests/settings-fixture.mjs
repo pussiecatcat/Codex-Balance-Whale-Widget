@@ -269,22 +269,23 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     await waitWidget('!!document.querySelector(".dshwv-menuview")', '挂件菜单');
 
     const menu = await menuEv('(() => { const m=document.querySelector(".dshwv-menuview"); return [...m.children].filter(n=>!n.hidden && getComputedStyle(n).display!=="none").map(n=>(n.textContent||"").trim().slice(0,14)); })()');
-    for (const label of ['数据显示', '角色', '大小', '桌面显示', '点击音效', '完成提醒', '气泡']) {
+    for (const label of ['数据来源', '角色', '大小', '显示方式', '音效与提示', '气泡']) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
-    for (const label of ['高级设置', '移回右下角']) {
-      check(menu.some(text => text.includes(label)), '一级菜单底部有「' + label + '」');
+    const footer = await menuEv('document.querySelector(".dshwv-menu-footer")?.innerText || ""');
+    for (const label of ['高级设置']) {
+      check(footer.includes(label), '一级菜单底部有「' + label + '」');
     }
     const movedDown = await menuEv(`(() => {
       const m = document.querySelector('.dshwv-menuview');
       const hidden = [...m.children].filter(n => n.hidden).map(n => (n.textContent||'').trim());
-      // 主线菜单没有「进入独立桌面」独立行（桌面显示在一级「桌面显示」里），
+      // 主线菜单没有「进入独立桌面」独立行（显示方式在一级「显示方式」里），
       // 「素材包导入/导出」按钮合在「查看数据」行内，所以这两项不在下沉清单里。
       return ['音效','音量','每轮消耗提示','任务结束音效','避让滚动条','吸附与翻转','隐藏菜单按钮','资源管理','显示币种','参考汇率','气泡形状']
         .filter(want => !hidden.some(h => h.indexOf(want) === 0));
     })()`);
     check(movedDown.length === 0, '以下行已从一级下沉（其余即全部隐藏）：' + (movedDown.join('、') || '无遗漏'));
-    check(await menuEv('!!document.getElementById("dshw-desktop-display")'), '桌面显示有跟随/常驻切换');
+    check(await menuEv('!!document.getElementById("dshw-desktop-display")'), '显示方式有跟随/常驻切换');
     check(await menuEv('!!document.getElementById("dshw-click-sound")'), '点击音效是独立开关');
     check(await menuEv('!!document.getElementById("dshw-complete-reminder")'), '完成提醒是三选一');
     const options = await menuEv('[...document.getElementById("dshw-complete-reminder").options].map(o=>o.value)');
@@ -293,7 +294,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
       const btn = [...document.querySelectorAll('.dshwv-menuview button')].find(b => b.textContent === 'API 设置');
       return !btn || btn.hidden || getComputedStyle(btn).display === 'none';
     })()`);
-    check(apiBtnHidden, '旧的整屏「API 设置」按钮已由「高级设置…」取代');
+    check(apiBtnHidden, '旧的整屏「API 设置」按钮已由「高级设置」取代');
     const remindValue = await menuEv('document.getElementById("dshw-complete-reminder").value');
     check(['off', 'bubble', 'both', 'custom'].includes(remindValue), '完成提醒显示当前组合（' + remindValue + '）');
     // 挂件菜单靠真实光标悬停才展开，而测试里光标路由是被桩掉的，

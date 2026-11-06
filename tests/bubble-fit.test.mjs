@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bubbleDefaultSubscriptionQueue } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault } from '../desktop/ui/features/widget/default-content.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const widgetSource = fs.readFileSync(path.join(root, 'assets/whale-widget.js'), 'utf8');
@@ -124,8 +124,74 @@ test('the subscription default shows one large quota per click', () => {
   assert.deepEqual(quotas(steps[1]).map(module => module.windowDurationMins), [10080, 10080]);
   assert.equal(steps.flatMap(step => step.modules).some(module => module.quotaStyle === 'meter'), false,
     'layout D uses a large number, not the two-column meter cards');
-  assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 4]);
-  assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 4]);
+  assert.deepEqual(quotas(steps[0]).map(module => module.size), [30, 4]);
+  assert.deepEqual(quotas(steps[1]).map(module => module.size), [30, 4]);
+});
+
+test('fitting measures against the svg, not the path that is still scaled down', () => {
+  assert.match(fs.readFileSync(new URL('../desktop/ui/render.js', import.meta.url), 'utf8'), /path\.ownerSVGElement \|\| path\)\.getScreenCTM/);
+});
+
+test('both subscription steps share one layout', () => {
+  const shape = step => step.modules.map(({ type, size, row, bold }) => [type, size, row, bold]);
+  const [short, weekly] = bubbleDefaultSubscriptionQueue();
+  assert.deepEqual(shape(short), shape(weekly));
+  assert.deepEqual(short.modules.map(module => module.text || module.tpl),
+    ['Codex 额度剩余', '5h', '{quota_left_round}', '距离重置', '{quota_reset}']);
+  assert.equal(weekly.modules[1].text, '7d');
+});
+
+test('the earlier single-window default migrates to the aligned layout', () => {
+  const step = label => ({ kind: 'custom', modules: [
+    { type: 'text', text: label + '剩余', size: 4 },
+    { type: 'quota', windowDurationMins: 300, size: 20, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 300, size: 3, tpl: '{quota_reset_short}后重置' },
+    { type: 'source', size: 2, tpl: '{source_line}' },
+  ] });
+  assert.equal(bubbleLegacySubscriptionDefault([step('5 小时'), step('每周')]), true);
+  assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
+});
+
+test('the title badge sits on the baseline and the consumption layout migrates', () => {
+  assert.match(rowsViewSource, /if \(m\.titleBadge\) \{\s+row\.style\.overflow = 'hidden'/);
+  const [short, weekly] = bubbleDefaultSubscriptionQueue();
+  assert.equal(short.modules[0].size, 11);
+  assert.equal(short.modules[1].titleBadge, true);
+  assert.equal(short.modules[1].size, 1);
+  assert.equal(bubbleLegacySubscriptionDefault([short, weekly]), false);
+  const older = [short, weekly].map(step => {
+    const copy = JSON.parse(JSON.stringify(step));
+    copy.modules[0].text = 'Codex 额度消耗';
+    copy.modules[2].tpl = '{quota_used_round}';
+    copy.modules[1].size = 2;
+    return copy;
+  });
+  assert.equal(bubbleLegacySubscriptionDefault(older), true);
+});
+
+test('the remaining-share badge layout migrates to the consumption title', () => {
+  const step = (badge, minutes) => ({ kind: 'custom', modules: [
+    { type: 'text', text: 'Codex 额度', size: 8, bold: true, row: 1 },
+    { type: 'text', text: badge, size: 2, bold: true, row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 20, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离充值', size: 2, bold: true, row: 2 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, tpl: '{quota_reset_short}', row: 2 },
+  ] });
+  assert.equal(bubbleLegacySubscriptionDefault([step('5h', 300), step('7d', 10080)]), true);
+  assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
+});
+
+test('the layout with a title per window migrates to the badge layout', () => {
+  const step = (label, minutes, countdown) => ({ kind: 'custom', modules: [
+    { type: 'text', text: label, size: 8, bold: true },
+    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', quietStale: true, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离充值', size: 2, bold: true, row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, ul: true, tpl: countdown, row: 1 },
+  ] });
+  const previous = [step('5 小时额度', 300, '{quota_reset}'), step('每周额度', 10080, '{quota_reset_short}')];
+  assert.equal(bubbleLegacySubscriptionDefault(previous), true);
+  previous[0].modules[0].text = '我的额度';
+  assert.equal(bubbleLegacySubscriptionDefault(previous), false, 'an edited title is the user\'s own and stays');
 });
 
 test('the previous stacked default is still detected and migrated', () => {
@@ -160,4 +226,8 @@ test('no custom property on <html> may reference --dshw-u', () => {
     assert.doesNotMatch(block, /--[\w-]+:[^;{}]*var\(--dshw-u\)/,
       'html.desktop must only carry plain design-unit numbers: ' + block.slice(0, 90));
   }
+});
+
+test('a countdown-only row keeps one width so quota steps share a fit scale', () => {
+  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '4\.9em'/);
 });

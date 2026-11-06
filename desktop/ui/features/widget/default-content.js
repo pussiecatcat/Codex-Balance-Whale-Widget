@@ -40,23 +40,55 @@ export function bubbleDefaultQuotaCards() {
   ] }];
 }
 
-function bubbleSingleQuotaStep(minutes, label) {
-  // Layout D: one large number per click, with the other window available on
-  // the next click. No cards, no meter, no plan header.
+const BUBBLE_CHIP_FONT = '"Microsoft YaHei UI","Microsoft YaHei",sans-serif';
+function bubbleSingleQuotaStep(minutes, badge, countdown) {
+  // One window per click. Both steps use the same three rows and the same
+  // sizes, so moving between them changes only the values, never the layout.
+  // The title says remaining, so the large number is the remaining share.
+  // An expired reading is marked once, on the countdown row.
   return { kind: 'custom', modules: [
-    // 层次与 API 余额气泡一致：标题 8、靛蓝大数字 20、说明 4、来源 2。
-    { type: 'text', text: label + '剩余', size: 8, bold: true },
-    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', tpl: '{quota_left_round}' },
-    { type: 'quota', windowDurationMins: minutes, size: 4, tpl: '{quota_reset_short}后重置' },
-    { type: 'source', size: 2, tpl: '{source_line}' }
+    { type: 'text', text: 'Codex 额度剩余', size: 11, bold: true, tightTitle: true, row: 1 },
+    { type: 'text', text: badge, size: 1, bold: true, color: '#ffffff', bg: '#203170', fontFamily: BUBBLE_CHIP_FONT, titleBadge: true, row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 30, quietStale: true, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离重置', size: 2, bold: true, color: '#ffffff', bgRgb: 'bamboo', fontFamily: BUBBLE_CHIP_FONT, row: 2 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, color: '#2fa24c', tpl: countdown, row: 2 }
   ] };
 }
 
 export function bubbleDefaultSubscriptionQueue() {
-  return [bubbleSingleQuotaStep(300, '5 小时'), bubbleSingleQuotaStep(10080, '每周')];
+  return [bubbleSingleQuotaStep(300, '5h', '{quota_reset}'), bubbleSingleQuotaStep(10080, '7d', '{quota_reset_short}')];
 }
 export function bubbleLegacySubscriptionDefault(items) {
   try {
+    // The earlier one-window-per-click layout carried a source row and a plain
+    // reset line, so its two steps did not line up.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 4 && parts[0].type === 'text' && /剩余$/.test(String(parts[0].text || '')) &&
+        parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
+        parts[2].type === 'quota' && parts[2].tpl === '{quota_reset_short}后重置' && parts[3].type === 'source';
+    })) return true;
+    // Every consumption layout, whatever its sizes, showed the used share.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 5 && parts[0].text === 'Codex 额度消耗' && parts[1].text === (index ? '7d' : '5h') &&
+        parts[2].type === 'quota' && parts[2].tpl === '{quota_used_round}' && parts[3].text === '距离重置';
+    })) return true;
+    // The first badge layout showed the remaining share under a shorter title.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 5 && parts[0].text === 'Codex 额度' && parts[1].text === (index ? '7d' : '5h') &&
+        parts[2].type === 'quota' && parts[2].tpl === '{quota_left_round}' &&
+        parts[3].text === '距离充值' && parts[4].type === 'quota' && parts[4].tpl === '{quota_reset_short}';
+    })) return true;
+    // The layout before the title badge named each window in its own title.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 4 && parts[0].type === 'text' && parts[0].text === (index ? '每周额度' : '5 小时额度') &&
+        parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
+        parts[2].type === 'text' && parts[2].text === '距离充值' &&
+        parts[3].type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(parts[3].tpl || ''));
+    })) return true;
     if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
     var modules = items[0].modules;
     if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;
@@ -808,7 +840,20 @@ export function bubbleChoiceOptions(step) {
   return step && step.kind === 'choice' && Array.isArray(step.options) ? step.options : [];
 }
 export function bubbleChoiceWeight(o) {
-  return Math.max(1, Math.round(Number(o && o.w) || 1));
+  return Math.min(99, Math.max(1, Math.round(Number(o && o.w) || 1)));
+}
+export function bubblePickChoiceItem(step, random = Math.random) {
+  const options = bubbleChoiceOptions(step);
+  if (!options.length) return null;
+  let total = 0;
+  for (const option of options) total += bubbleChoiceWeight(option);
+  const threshold = random() * total;
+  let accumulated = 0;
+  for (const option of options) {
+    accumulated += bubbleChoiceWeight(option);
+    if (threshold < accumulated) return option?.item || null;
+  }
+  return options[options.length - 1]?.item || null;
 }
 export function bubbleSingleFromItem(itm) {
   return {

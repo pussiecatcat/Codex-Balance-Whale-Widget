@@ -18,6 +18,7 @@ if (isSettingsWindow) {
     writeSettings: request => ipcRenderer.invoke('whale-settings-write', request),
     previewSettings: request => ipcRenderer.invoke('whale-settings-preview', request),
     focusWhale: editor => ipcRenderer.invoke('whale-command', editor ? 'open-editor' : 'focus-whale', { editor }),
+    openLogs: () => ipcRenderer.invoke('whale-command', 'open-logs'),
     onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
     onNavigate: callback => ipcRenderer.on('whale-settings-navigate', (_event, target) => callback(target)),
   });

@@ -70,7 +70,10 @@
     // getBoundingClientRect reports transformed geometry, so a scale left by the
     // previous scene would shrink this measurement and compound the error.
     frame.style.removeProperty('--dshw-fit');
-    const matrix = path.getScreenCTM();
+    // Use the svg's matrix. The path carries a CSS scale(.7) until the bubble is
+    // open, so its own matrix would fit a first bubble to a shrunken outline and
+    // make it smaller than the bubbles that follow.
+    const matrix = (path.ownerSVGElement || path).getScreenCTM();
     if (!matrix) return 1;
     // --dshw-u is declared as an unresolved calc(), so getPropertyValue returns
     // a token stream rather than a length. The pop box is exactly 1026 user
@@ -217,6 +220,13 @@
       this.switching = false;
       for (const animation of this.animations) animation.cancel();
       this.animations.length = 0;
+      // A click during a fade lands on the content that was fading in. Falling
+      // back to the old frame first would flash it between two quick clicks.
+      if (this.fading) {
+        this.front = this.fading.incoming;
+        this.back = this.fading.outgoing;
+        this.fading = null;
+      }
       this.front.root.style.opacity = this.hasFrame ? '1' : '0';
       this.back.root.style.opacity = '0';
       this.front.root.inert = !this.hasFrame;
@@ -265,13 +275,15 @@
         const fade = this.hasFrame;
         outgoing.root.inert = true;
         if (fade) {
+          this.fading = { incoming, outgoing };
           this.animations = [
-            outgoing.root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease', fill: 'forwards' }),
-            incoming.root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease', fill: 'forwards' }),
+            outgoing.root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 110, easing: 'ease', fill: 'forwards' }),
+            incoming.root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 110, easing: 'ease', fill: 'forwards' }),
           ];
           presentFor(220);
           await Promise.all(this.animations.map(animation => animation.finished));
           if (epoch !== this.epoch) return false;
+          this.fading = null;
         }
         incoming.root.style.opacity = '1'; outgoing.root.style.opacity = '0';
         for (const animation of this.animations) animation.cancel();

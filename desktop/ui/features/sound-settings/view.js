@@ -12,7 +12,7 @@ export function createSoundMenuEntry({ documentRef = document, onOpen }) {
   const root = element(documentRef, null, 'div', '', 'dshwv-menu-row whale-sound-entry');
   root.dataset.feature = 'sound-settings';
   element(documentRef, root, 'span', '音效与提示');
-  const button = element(documentRef, root, 'button', '全局设置', 'dshwv-roleimport');
+  const button = element(documentRef, root, 'button', '音效/提示泡泡设置', 'dshwv-roleimport');
   button.type = 'button';
   button.dataset.action = 'open-sound-settings';
   button.addEventListener('click', onOpen);
@@ -20,7 +20,7 @@ export function createSoundMenuEntry({ documentRef = document, onOpen }) {
     element: root,
     setLoading(loading, error = '') {
       button.disabled = loading;
-      button.textContent = error ? '读取失败，重试' : loading ? '读取中…' : '全局设置';
+      button.textContent = error ? '读取失败，重试' : loading ? '读取中…' : '音效/提示泡泡设置';
       button.title = error;
     },
     destroy() { button.removeEventListener('click', onOpen); root.remove(); },
@@ -180,7 +180,7 @@ export function createSoundSettingsView(options) {
     controls[kind + 'Volume'] = volume(volumeRow, config.vol, value => { config.vol = value; });
   };
   waitSection('question', '提问提示', '提问提示音效');
-  waitSection('approval', '授权提示（仅权限请求）', '授权提示音');
+  waitSection('approval', '授权提示', '授权提示音');
 
   const charRow = element(documentRef, card, 'div', '', 'whale-sound-charclose');
   controls.charClose = check(charRow, draft.wait.charClose, value => { draft.wait.charClose = value; });
@@ -189,8 +189,19 @@ export function createSoundSettingsView(options) {
   charLabel.htmlFor = controls.charClose.id;
   const help = element(documentRef, charRow, 'button', '?', 'whale-sound-help');
   help.type = 'button'; help.setAttribute('aria-label', '查看说明');
-  const tip = element(documentRef, charRow, 'div', '等待提问或权限请求时，默认点气泡即可收起，同一条挂起提示不会再次弹回。当前 Codex 的自动审批不写入会话记录，因此不会触发授权提示。打开后，点角色也能收起提示气泡。', 'whale-sound-help-pop');
-  help.addEventListener('click', event => { event.stopPropagation(); tip.classList.toggle('is-open'); });
+  const tip = element(documentRef, charRow, 'div', '', 'whale-sound-help-pop');
+  for (const [text, strong] of [['等待提问 / 授权的提示气泡：'], ['默认点气泡就能收起来', true],
+    ['（同一条挂起后不会再自动弹回；你回答或批准之后、或有新的提问 / 授权时，照常冒泡并响铃）。'],
+    ['打开这个开关后，'], ['点角色也能收掉提示气泡', true], ['。默认关闭。'],
+    ['授权提示只在真正需要你批准时出现，Codex 自动批准的操作不会触发。']]) {
+    element(documentRef, tip, strong ? 'strong' : 'span', text);
+    if (text.endsWith('。') && !strong) tip.append(documentRef.createElement('br'));
+  }
+  help.setAttribute('aria-expanded', 'false');
+  help.addEventListener('click', event => {
+    event.stopPropagation();
+    help.setAttribute('aria-expanded', String(tip.classList.toggle('is-open')));
+  });
 
   const actions = element(documentRef, card, 'div', '', 'dshwv-bubbtns whale-sound-actions');
   const action = (text, className, listener) => {

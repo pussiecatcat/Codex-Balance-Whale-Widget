@@ -4,17 +4,6 @@ import { requestJson } from '/services/request.js';
   'use strict';
   function text(parent, tag, value) { const el = document.createElement(tag); el.textContent = value; parent.append(el); return el; }
   function time(value) { if (!value) return '未知'; const d = new Date(typeof value === 'number' && value < 1e12 ? value * 1000 : value); return Number.isFinite(d.getTime()) ? d.toLocaleString() : '未知'; }
-  function switchDesktop(command) {
-    const expected=command==='desktop'?'standalone':'follow-codex';
-    return new Promise((resolve,reject)=>{
-      const clean=()=>{clearTimeout(timer);window.removeEventListener('whale-desktop-mode',done);};
-      const done=e=>{if(e.detail===expected){clean();requestAnimationFrame(()=>requestAnimationFrame(resolve));}};
-      const timer=setTimeout(()=>{clean();reject(Error('切换尚未完成，请稍后重试或查看运行状态'));},8000);
-      window.addEventListener('whale-desktop-mode',done);
-      window.dispatchEvent(new Event('whale-mode-changing'));
-      Promise.resolve(window.whaleDesktop.command(command)).then(result=>{if(result===false||result?.ok===false){clean();reject(Error('切换未完成'));}},e=>{clean();reject(e);});
-    });
-  }
   function open() {
     if (window.WhaleAccountView?.mode === 'subscription') return;
     const dialog = document.createElement('dialog'); dialog.className = 'whale-v3-dialog';
@@ -46,16 +35,6 @@ import { requestJson } from '/services/request.js';
       if(!member){try{const p=await requestJson('/api/pricing');if(window.WhaleAccountView?.mode!=='subscription'){insights.hidden=!p.visible;row.hidden=!p.visible;}}catch{}}
     };
     accountModeChanged(); window.addEventListener('whale-account-view',accountModeChanged);setInterval(accountModeChanged,60000);
-    if (window.whaleDesktop?.command) {
-      const modeRow = document.createElement('div'); modeRow.className = 'dshwv-menu-row whale-mode-row whale-utility-row';
-      const button = text(modeRow, 'button', '桌面驻留'); button.className = 'dshwv-sound whale-mode-button';
-      let currentMode = 'follow-codex';
-      const paintMode = mode => {currentMode=mode==='standalone'?'standalone':'follow-codex';button.textContent=currentMode==='standalone'?'窗口随行':'桌面驻留';button.title=currentMode==='standalone'?'让桌宠随 Codex 窗口移动':'让桌宠在 Codex 隐藏后仍驻留桌面';};
-      button.onclick = async () => {const command=currentMode==='standalone'?'follow':'desktop';button.disabled=true;try{await switchDesktop(command);window.whaleToast?.(command==='desktop'?'已切换为桌面驻留':'已切换为窗口随行');}catch(e){window.whaleToast?.(e.message);}finally{button.disabled=false;}};
-      window.addEventListener('whale-desktop-mode',event=>paintMode(event.detail));
-      Promise.resolve(window.whaleDesktop.command('mode')).then(paintMode).catch(()=>{});
-      container.append(modeRow);
-    }
   }
   window.addEventListener('whale-open-insights', open);
   if (document.readyState === 'complete') initMenu();

@@ -24,9 +24,10 @@ import { statusView } from '/features/widget/status-tones.js';
     const days = Math.floor(seconds / 86400); seconds %= 86400;
     const hours = Math.floor(seconds / 3600); seconds %= 3600;
     const minutes = Math.floor(seconds / 60);
-    if (days) return `${days}天 ${String(hours).padStart(2, '0')}小时`;
-    if (hours) return `${hours}小时 ${String(minutes).padStart(2, '0')}分`;
-    return `${Math.max(1, minutes)}分钟`;
+    const pad = value => String(value).padStart(2, '0');
+    if (days) return `${pad(days)}d ${pad(hours)}h`;
+    if (hours) return `${pad(hours)}h ${pad(minutes)}m`;
+    return `${pad(Math.max(1, minutes))}m`;
   }
   function resetAt(reset) {
     const time = timeValue(reset);
@@ -68,6 +69,7 @@ import { statusView } from '/features/widget/status-tones.js';
     const map = {
       quota_label: labels[minutes], quota_left: valid ? left.toFixed(1) + '%' : '未观测',
       quota_left_round: valid ? Math.round(left) + '%' : '未观测', quota_used: valid ? item.usedPercent.toFixed(1) + '%' : '未观测',
+      quota_used_round: valid ? Math.round(item.usedPercent) + '%' : '未观测',
       quota_reset: item ? countdown(item.resetsAt, now) : '未观测', quota_reset_short: item ? countdownShort(item.resetsAt, now) : '等待同步',
       quota_reset_at: item ? resetAt(item.resetsAt) : '等待同步', quota_bar: quotaBar(left),
       quota_updated_at: snapshotAt(observedAt),
@@ -79,7 +81,7 @@ import { statusView } from '/features/widget/status-tones.js';
   function quotaText(module, subscription, now = Date.now()) {
     const state = quotaState(module, subscription, now);
     const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
-    return result + (state.expired ? '（上次数据，待同步）' : '');
+    return result + (state.expired && !module?.quietStale ? '（上次数据，待同步）' : '');
   }
   function planName(type) {
     const key = String(type || '').toLowerCase();
