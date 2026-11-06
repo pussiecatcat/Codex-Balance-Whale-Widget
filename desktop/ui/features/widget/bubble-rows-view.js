@@ -82,7 +82,12 @@ export function createBubbleRowsView(deps) {
         }
         // An inline-block that clips has its baseline at its bottom edge, which puts
         // the badge on the title's baseline whatever font each of them uses.
-        if (m.titleBadge) row.style.overflow = 'hidden';
+        if (m.titleBadge) {
+          row.style.overflow = 'hidden';
+          row.style.padding = '0 5px';
+          row.style.borderRadius = '6px';
+          row.style.lineHeight = '1.15';
+        }
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
         if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
@@ -239,7 +244,7 @@ export function createBubbleRowsView(deps) {
             }
             // min-width has no effect on an inline box. The line stays whole, because
             // wrapping it would change the row height and the fit scale too.
-            if (pe.style.overflow === 'hidden') pe.style.margin = '0 0 calc(var(--dshw-u) * -7)';
+            if (pe.style.overflow === 'hidden') pe.style.margin = '0 0 calc(var(--dshw-u) * -6)';
             if (pe.style.minWidth || pe.style.overflow === 'hidden') {
               pe.style.display = 'inline-block';
               pe.style.textAlign = 'center';

@@ -153,14 +153,15 @@ test('the earlier single-window default migrates to the aligned layout', () => {
 });
 
 test('the title badge sits on the baseline and the smaller consumption layout migrates', () => {
-  assert.match(rowsViewSource, /if \(m\.titleBadge\) row\.style\.overflow = 'hidden'/);
+  assert.match(rowsViewSource, /if \(m\.titleBadge\) \{\s+row\.style\.overflow = 'hidden'/);
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.equal(short.modules[0].size, 11);
   assert.equal(short.modules[1].titleBadge, true);
+  assert.equal(short.modules[1].size, 1);
+  assert.equal(bubbleLegacySubscriptionDefault([short, weekly]), false);
   const older = [short, weekly].map(step => {
     const copy = JSON.parse(JSON.stringify(step));
-    copy.modules[0].size = 8;
-    copy.modules[2].size = 20;
+    copy.modules[1].size = 2;
     return copy;
   });
   assert.equal(bubbleLegacySubscriptionDefault(older), true);
