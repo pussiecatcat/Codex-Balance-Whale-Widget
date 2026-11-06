@@ -47,3 +47,13 @@ test('saved anchors clamp distances and account for the scrollbar gap only on th
   assert.deepEqual(savedAnchor({ state: { left: 8, top: 4 }, viewport: { w: 200, h: 100 }, width: 20, height: 30, rightGap: 17 }),
     { v: 2, hAnchor: 'left', hDist: 8, vAnchor: 'top', vDist: 4 });
 });
+
+test('the widget mirrors every size key it writes back after another window saves', async () => {
+  const { readFileSync } = await import('node:fs');
+  const widget = readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
+  const handler = widget.match(/onSettingsChanged\(function \(change\) \{[\s\S]*?refitBubble\(\);/)?.[0] || '';
+  // soundOn, soundVol, soundSet, turnCostOn and turnCostCloseMs come from applySoundSettingsSnapshot.
+  for (const assignment of ['applySoundSettingsSnapshot(snapshot)', 'state.scale =', 'bubbleOn =', 'scrollGapOn =', 'scrollGapPx =', 'menuBtnHide =']) {
+    assert.ok(handler.includes(assignment), 'missing ' + assignment);
+  }
+});

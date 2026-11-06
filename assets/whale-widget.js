@@ -2484,6 +2484,9 @@ import {
           scaleInput.value = String(saved.scale); scaleNumber.value = String(scaleToDisplay(saved.scale));
           bubbleOn = saved.bubbleOn; bubbleToggle.checked = bubbleOn;
           scrollGapOn = saved.scrollGapOn; scrollGapPx = saved.scrollGapPx;
+          // Mirror every saved size key the widget writes back; a stale copy would be
+          // saved over the new value by the next drag or menu change.
+          menuBtnHide = saved.menuBtnHide === true;
           applyMenuBtnHideUI(); settle(); syncLevel1Controls();
           window.WhaleRendering.refitBubble();
         }).catch(assetFailure);
