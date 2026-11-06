@@ -1,8 +1,14 @@
 import { bubbleIsChoice, bubbleChoiceOptions, bubbleChoiceWeight, bubbleRowLabel } from './default-content.js';
 import { addBubbleStep, deleteBubbleStep, moveBubbleStep, reorderBubbleStep, splitBubbleChoiceSide,
-  pairBubbleSteps, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from './bubble-editor-commands.js';
+  pairBubbleSteps, pairBubbleStepWithNext, replaceBubbleChoiceSide, moveBubbleStepToEnd, unpairBubbleStep } from './bubble-editor-commands.js';
 
 // Owns list rendering and the drag gesture; draft mutations live in commands.
+// Shows what a step says, so rows can be told apart without opening them.
+function bubbleChipSummary(step) {
+  const line = (step?.modules || []).find(module => module?.type === 'text' && String(module.text || '').trim());
+  return line ? String(line.text).trim().slice(0, 18) : '编辑内容';
+}
+
 export function bubbleDropShadow(zone) {
   return { before: '0 -3px 0 #203170', after: '0 3px 0 #203170',
     pairL: 'inset 3px 0 0 #203170', pairR: 'inset -3px 0 0 #203170' }[zone] || '';
@@ -223,7 +229,7 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
   }
   function renderFirst() {
     const step = getItems()[0] || { kind: 'normal' }, chip = getFirstChip();
-    chip.textContent = '首次点击 · 编辑内容';
+    chip.textContent = '首次点击 · ' + bubbleChipSummary(step);
     chip.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(step) + ')';
   }
   function renderChoice(row, step, index) {
@@ -241,7 +247,7 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       group.appendChild(sideHandle);
       const chip = document.createElement('button');
       chip.type = 'button'; chip.className = 'dshwv-bubchip dshwv-bubchip-btn dshwv-choicechip';
-      chip.textContent = (side === 0 ? 'A' : 'B') + ' · 编辑内容';
+      chip.textContent = (side === 0 ? 'A' : 'B') + ' · ' + bubbleChipSummary(option.item);
       chip.title = '点击编辑该泡(' + bubbleRowLabel(option.item) + ')';
       chip.draggable = true;
       chip.addEventListener('dragstart', event => { event.stopPropagation(); startDrag(index, side, event); });
@@ -336,13 +342,21 @@ export function createBubbleEditorView({ document, getItems, getFirstChip, getMo
       else {
         const chip = document.createElement('button');
         chip.type = 'button'; chip.className = 'dshwv-bubchip dshwv-bubchip-btn';
-        chip.textContent = '第' + (index + 1) + '次点击 · 编辑内容';
+        chip.textContent = '第' + (index + 1) + '次点击 · ' + bubbleChipSummary(step);
         chip.title = '点击编辑该泡泡的内容模块(' + bubbleRowLabel(step) + ')；拖到泡泡左半边成为 A，右半边成为 B';
         chip.draggable = true;
         chip.addEventListener('dragstart', event => { event.stopPropagation(); startDrag(index, -1, event); });
         chip.addEventListener('dragend', cancelDrag);
         chip.addEventListener('click', event => { event.stopPropagation(); openItem(index, -1); });
         row.appendChild(chip);
+        const pair = document.createElement('button');
+        pair.type = 'button'; pair.className = 'dshwv-bubpair'; pair.textContent = '二选一';
+        pair.title = '和下一条组成随机二选一，每次随机显示其中一条';
+        pair.addEventListener('click', event => {
+          event.stopPropagation();
+          if (pairBubbleStepWithNext(getItems(), index)) renderMore();
+        });
+        row.appendChild(pair);
         const del = document.createElement('button');
         del.type = 'button'; del.className = 'dshwv-bubmini'; del.textContent = '✕'; del.title = '删除该次点击';
         del.addEventListener('click', () => { if (deleteBubbleStep(getItems(), index)) renderMore(); });

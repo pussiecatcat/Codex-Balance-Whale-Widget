@@ -68,6 +68,14 @@ export function pairBubbleSteps(items, from, to, zone) {
   return true;
 }
 
+// Makes this step and the one after it a random pair. Without a plain step to
+// pair with, it first adds an empty step right after this one.
+export function pairBubbleStepWithNext(items, index) {
+  if (index < 1 || !items[index] || bubbleIsChoice(items[index])) return false;
+  if (!items[index + 1] || bubbleIsChoice(items[index + 1])) items.splice(index + 1, 0, { kind: 'custom', modules: [] });
+  return pairBubbleSteps(items, index + 1, index, 'pairR');
+}
+
 export function replaceBubbleChoiceSide(items, from, to, side) {
   const source = items[from], target = items[to];
   if (!source || !target || bubbleIsChoice(source) || !bubbleIsChoice(target)) return false;

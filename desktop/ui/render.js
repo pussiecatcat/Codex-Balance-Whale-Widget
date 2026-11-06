@@ -70,7 +70,10 @@
     // getBoundingClientRect reports transformed geometry, so a scale left by the
     // previous scene would shrink this measurement and compound the error.
     frame.style.removeProperty('--dshw-fit');
-    const matrix = path.getScreenCTM();
+    // Use the svg's matrix. The path carries a CSS scale(.7) until the bubble is
+    // open, so its own matrix would fit a first bubble to a shrunken outline and
+    // make it smaller than the bubbles that follow.
+    const matrix = (path.ownerSVGElement || path).getScreenCTM();
     if (!matrix) return 1;
     // --dshw-u is declared as an unresolved calc(), so getPropertyValue returns
     // a token stream rather than a length. The pop box is exactly 1026 user

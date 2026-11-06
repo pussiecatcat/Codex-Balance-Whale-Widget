@@ -65,7 +65,7 @@ const choice = () => ({ kind: 'choice', options: [{ item: custom('A'), w: 1 }, {
 test('the first chip describes the first step, defaulting when the draft is empty', () => {
   const filled = fixture([custom('首泡'), custom('次泡')]);
   filled.view.renderFirst();
-  assert.equal(filled.firstChip.textContent, '首次点击 · 编辑内容');
+  assert.equal(filled.firstChip.textContent, '首次点击 · 首泡');
   assert.match(filled.firstChip.title, /^点击编辑该泡泡的内容模块\(.+\)$/);
 
   const empty = fixture([]);
@@ -78,8 +78,8 @@ test('the list renders one editable row per step after the first', () => {
   fx.view.renderMore();
   assert.equal(fx.moreList.children.length, 2);
   const rows = fx.moreList.children;
-  assert.equal(chipIn(rows[0]).textContent, '第2次点击 · 编辑内容');
-  assert.equal(chipIn(rows[1]).textContent, '第3次点击 · 编辑内容');
+  assert.equal(chipIn(rows[0]).textContent, '第2次点击 · 二');
+  assert.equal(chipIn(rows[1]).textContent, '第3次点击 · 三');
   assert.deepEqual(rows.map(row => row.attributes['data-i']), ['1', '2']);
 });
 
@@ -166,7 +166,7 @@ test('a choice step renders an A/B chip pair that opens the matching side', () =
   fx.view.renderMore();
   const chips = choiceChipsIn(fx.moreList.children[0]);
   assert.equal(chips.length, 2);
-  assert.equal(chips[0].textContent, 'A · 编辑内容');
+  assert.equal(chips[0].textContent, 'A · A');
   chips[1].fire('click');
   assert.deepEqual(fx.calls.opened, [[1, 1]]);
 });
@@ -423,4 +423,18 @@ test('dragging an existing A/B row by its handle always reorders the whole row',
   target.fire('drop', { clientX: 70, clientY: 30 });
 
   assert.deepEqual(fx.items().map(step => step.kind), ['normal', 'custom', 'choice']);
+});
+
+test('the pair button joins a row with the next one, or with a new empty row', () => {
+  const next = fixture([custom('一'), custom('二'), custom('三')]);
+  next.view.renderMore();
+  next.moreList.children[0].children.find(child => child.className === 'dshwv-bubpair').fire('click', { stopPropagation() {} });
+  assert.equal(next.moreList.children.length, 1);
+  assert.equal(choiceChipsIn(next.moreList.children[0]).length, 2);
+
+  const alone = fixture([custom('一'), custom('二')]);
+  alone.view.renderMore();
+  alone.moreList.children[0].children.find(child => child.className === 'dshwv-bubpair').fire('click', { stopPropagation() {} });
+  assert.equal(alone.moreList.children.length, 1);
+  assert.equal(choiceChipsIn(alone.moreList.children[0]).length, 2);
 });

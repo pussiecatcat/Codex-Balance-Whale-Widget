@@ -108,7 +108,7 @@ import { requestJson } from '/services/request.js';
     if (menu) {
       const view = menu.querySelector('.dshwv-menuview');
       if (view) {
-        const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch';
+        const row = text(view, 'div', ''); row.className = 'dshwv-menu-row whale-account-switch'; view.prepend(row);
         text(row, 'span', '数据显示');
         modeSelect = document.createElement('select'); modeSelect.className = 'dshwv-sound'; modeSelect.setAttribute('aria-label', '数据显示');
         for (const [value, label] of [['subscription', 'Codex 订阅'], ['api', 'API 余额']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; modeSelect.append(option); }

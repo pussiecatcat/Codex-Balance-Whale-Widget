@@ -128,6 +128,10 @@ test('the subscription default shows one large quota per click', () => {
   assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 4]);
 });
 
+test('fitting measures against the svg, not the path that is still scaled down', () => {
+  assert.match(fs.readFileSync(new URL('../desktop/ui/render.js', import.meta.url), 'utf8'), /path\.ownerSVGElement \|\| path\)\.getScreenCTM/);
+});
+
 test('both subscription steps share one layout', () => {
   const shape = step => step.modules.map(({ type, size, row, bold }) => [type, size, row, bold]);
   const [short, weekly] = bubbleDefaultSubscriptionQueue();

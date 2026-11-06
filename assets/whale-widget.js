@@ -565,6 +565,7 @@ import {
     var logsOpenBtn = document.createElement('button');
     logsOpenBtn.type = 'button';
     logsOpenBtn.className = 'dshwv-roleimport';
+    logsOpenBtn.style.flex = '1';
     logsOpenBtn.textContent = '打开';
     logsOpenBtn.title = '打开运行日志目录（runtime.log）；反馈问题时请附上最近一段';
     logsOpenBtn.addEventListener('click', function (e) {
@@ -1422,8 +1423,12 @@ import {
     var bubblePresetRow = document.createElement('div');
     bubblePresetRow.className = 'dshwv-bubpresets';
     var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
-      ? [['quota', '额度优先'], ['quota-cards', '潮汐卡片'], ['minimal', '极简'], ['companion', '小龙娘陪伴']]
-      : [['balance', '余额优先'], ['minimal', '极简'], ['companion', '小龙娘陪伴']];
+      ? [['quota', '额度优先'], ['quota-cards', '双卡片'], ['minimal', '只看数字'], ['companion', '带随机台词']]
+      : [['balance', '余额优先'], ['minimal', '只看数字'], ['companion', '带随机台词']];
+    var bubblePresetLabel = document.createElement('div');
+    bubblePresetLabel.className = 'dshwv-bubpresets-label';
+    bubblePresetLabel.textContent = '套用模板（替换下面的内容，保存前可取消）';
+    bubbleCard.appendChild(bubblePresetLabel);
     presetSpecs.forEach(function (spec) {
       var pbtn = document.createElement('button');
       pbtn.type = 'button';
@@ -1471,12 +1476,11 @@ import {
     var bubbleAddBtn = document.createElement('button');
     bubbleAddBtn.type = 'button';
     bubbleAddBtn.className = 'dshwv-bubadd';
-    bubbleAddBtn.textContent = '+ 添加泡泡(点完上一个后显示下一个)';
+    bubbleAddBtn.textContent = '+ 添加下一条';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
     bubbleAdvanceControl = createBubbleAdvanceControl({
       document: document,
-      viewport: viewport,
       onChange: function (value) { bubbleEditorState.tapAdvance = value; }
     });
     bubbleCard.appendChild(bubbleAdvanceControl.element);
