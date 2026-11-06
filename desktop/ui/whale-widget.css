@@ -943,11 +943,8 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-bubcard .dshwv-audiorow label{margin:0}
 .dshwv-bubcard .dshwv-audiorow input[type=checkbox]{width:14px;height:14px;margin:0;padding:0;flex:none;accent-color:var(--color-203170)}
 
-/* ── 额度气泡：标题与大数字纵向拉长，倒计时带底部横线 ─────────────────────
+/* ── 额度气泡：标题与大数字纵向拉长 ─────────────────────────────────────
    transform 不改变排版尺寸，所以拉长量用上下外边距补回来，避免压到相邻行；
    标题以底边为原点拉伸，和角标的底边仍然对齐。 */
 .dshwv-trowline>.dshwv-mod-title{display:inline-block;transform:scaleY(var(--dshw-title-stretch,1.12));transform-origin:50% 100%;margin-top:.1em}
 .dshwv-trow.dshwv-mod-hero,.dshwv-trow.dshwv-trow-hero{transform:scaleY(var(--dshw-hero-stretch,1.12));transform-origin:50% 50%;margin-top:calc(var(--dshw-u) * 4 + .06em);margin-bottom:calc(var(--dshw-u) * 4 + .06em)}
-/* 底部横线画在固定宽度的倒计时槽位上（min-width 4.9em），所以两档倒计时的线一样长，
-   数字跳动时线也不会伸缩。渐变文字的 currentColor 是透明的，这时退回文字下划线。 */
-.dshwv-mod-countdown.dshwv-mod-underline:not(.dshwv-rgb){text-decoration:none;border-bottom:max(1.5px, calc(var(--dshw-u) * 5)) solid currentColor;padding-bottom:calc(var(--dshw-u) * 3);line-height:1.05}

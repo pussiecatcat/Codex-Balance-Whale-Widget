@@ -91,14 +91,3 @@ test('edited bubbles saved before semantic roles get their roles back', () => {
   assert.equal(modules[0].text, '我的标题', 'the user edit itself is kept');
   assert.equal(resolveBubbleConfig(config).changed, false, 'normalizing twice changes nothing');
 });
-
-test('an untouched version-1 default picks up the underlined countdowns', () => {
-  const v1 = bubbleDefaultQueue(true).map(step => ({ ...step, modules: step.modules.map(({ ul, ...module }) => module) }));
-  const { config } = resolveBubbleConfig({ v: 1, items: [], lib: [], subscriptionItems: v1, subscriptionDefaultsVersion: 1, subscriptionDefaultsEdited: false });
-  const countdowns = config.subscriptionItems.flatMap(step => step.modules).filter(module => module.role === 'countdown');
-  assert.equal(countdowns.length, 2);
-  assert.ok(countdowns.every(module => module.ul === true));
-  // The same layout saved without a version is recognised as the old default too.
-  const unversioned = resolveBubbleConfig({ v: 1, items: [], lib: [], subscriptionItems: v1 }).config;
-  assert.equal(unversioned.subscriptionDefaultsEdited, false);
-});
