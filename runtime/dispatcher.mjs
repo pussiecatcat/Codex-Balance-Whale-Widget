@@ -79,7 +79,7 @@ export function createDispatcher(options = {}) {
             '/api/display-mode': { domain: 'displayMode' },
             '/api/workshop/import': { domain: 'media', kind: 'workshop' },
           }[url.pathname];
-          if (change && ['POST', 'PUT', 'DELETE'].includes(method) && result.status < 400) onChange(change);
+          if (change && ['POST', 'PUT', 'DELETE'].includes(method) && (result?.status ?? 200) < 400) onChange(change);
           return result;
         }
         return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
