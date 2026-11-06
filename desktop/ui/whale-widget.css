@@ -142,7 +142,7 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-slotwrap{position:relative;flex:1;min-width:0}
 .dshwv-slotbtn{width:100%;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:#fff;color:#203170;font-size:12px;padding:5px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dshwv-slotbtn:hover{background:rgba(32,49,112,.08)}
-.dshwv-slotlist{position:fixed;z-index:20600;box-sizing:border-box;background:rgba(255,255,255,.98);border:1px solid rgba(32,49,112,.35);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:4px;max-height:200px;overflow-y:auto;display:none;color-scheme:light}
+.dshwv-slotlist{position:fixed;z-index:27050;box-sizing:border-box;background:rgba(255,255,255,.98);border:1px solid rgba(32,49,112,.35);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:4px;max-height:200px;overflow-y:auto;display:none;color-scheme:light}
 .dshwv-audiocropcanvas{width:300px;height:120px;display:block;margin:0 auto 10px;background:#f3f5fb;border:1px solid rgba(32,49,112,.2);border-radius:8px;cursor:crosshair;touch-action:none}
 .dshwv-audiotime{color:#203170;font-size:12px;margin:6px 0 10px}
 .dshwv-audiosliderrow{display:flex;align-items:center;gap:8px;margin:2px 0}
