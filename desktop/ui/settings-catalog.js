@@ -15,7 +15,7 @@
   // 二级设置窗口的六个固定分类。顺序即左侧导航顺序。
   const PAGES = [
     { id: 'providers', label: '服务商', hint: 'Codex 当前 API 与 DIY 服务商；点「编辑」在挂件里修改', custom: true },
-    { id: 'appearance', label: '外观与显示', hint: '角色、大小、桌面显示方式与数据显示来源' },
+    { id: 'appearance', label: '外观与显示', hint: '角色、大小、显示方式与数据来源来源' },
     { id: 'sound', label: '声音与提醒', hint: '什么时候出声、显示什么提醒' },
     { id: 'bubble', label: '气泡内容', hint: '气泡开关、形状、点击序列与模块' },
     { id: 'position', label: '位置与交互', hint: '贴边、翻转、避让与菜单按钮' },
@@ -100,7 +100,7 @@
         use: '早期用来切换用量统计口径的字段。',
         adjust: '不可修改。读和写都会归一为 ledger，界面上只读展示。',
         apply: '不适用。',
-        recommend: '不用管。显示数据来源请改「数据显示」那一项。',
+        recommend: '不用管。显示数据来源请改「数据来源」那一项。',
       },
     },
     {
@@ -198,7 +198,7 @@
     // ── UI 状态域：ui-state.json（dshw-* 字符串键）──────────────────────────
     {
       id: 'ui.accountView', page: 'appearance', tier: 1, domain: 'displayMode',
-      label: '查看数据', purpose: '决定鲸鱼点开后显示订阅额度还是 API 余额。',
+      label: '数据来源', purpose: '决定鲸鱼点开后显示订阅额度还是 API 余额。',
       type: 'select',
       options: [{ value: 'subscription', label: 'Codex 订阅' }, { value: 'api', label: 'API 余额' }],
       defaultValue: 'subscription', defaultSource: 'runtime/composition.mjs:50',
@@ -313,7 +313,7 @@
       dependsOn: ['ui.snap'], hotReload: 'immediate',
       help: {
         use: '拖动鲸鱼时会自动记住位置，这里只用来查看和复位。',
-        adjust: '直接拖动即可，或点「移回右下角」复位。',
+        adjust: '直接拖动即可；找不到时可在托盘菜单选「移回右下角」。',
         apply: '拖动结束立即保存。',
         recommend: '不需要手动设置，拖到你顺手的位置就行。',
       },
@@ -858,7 +858,7 @@
       dependsOn: ['size.bubbleOn'], hotReload: 'after-save',
       help: {
         use: '两种模式各有一套序列，切换模式不会互相覆盖。',
-        adjust: '在挂件的「自定义泡泡」编辑器里调整，序列是一串气泡模块。',
+        adjust: '在挂件的「气泡DIY」编辑器里调整，序列是一串气泡模块。',
         apply: '保存后用于下一次点击。',
         recommend: '把常用的放前面：余额、额度、状态。',
       },

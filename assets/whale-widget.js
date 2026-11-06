@@ -365,8 +365,8 @@ import {
     bubbleCustomBtn.type = 'button';
     bubbleCustomBtn.className = 'dshwv-roleimport';
     bubbleCustomBtn.style.flex = '1';
-    bubbleCustomBtn.textContent = '自定义泡泡';
-    bubbleCustomBtn.title = '打开“自定义泡泡”设置';
+    bubbleCustomBtn.textContent = '气泡DIY';
+    bubbleCustomBtn.title = '打开“气泡DIY”设置';
     bubbleCustomBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       openBubbleEditor();
@@ -669,6 +669,37 @@ import {
           }
           return null;
         }
+        function rowExact(text) {
+          return Array.prototype.slice.call(root.children).filter(function (row) {
+            return row.classList && row.classList.contains('dshwv-menu-row') && !row.classList.contains('dshwv-level1-sunk') &&
+              row.firstElementChild && row.firstElementChild.textContent.trim() === text;
+          })[0] || null;
+        }
+        // Rows arrive from several scripts at different times, so this runs on every
+        // pass. Anything it does not name stays between the groups and the footer.
+        function arrangeMenu() {
+          var groups = [
+            [root.querySelector('.whale-account-switch'), rowExact('显示方式')],
+            [rowExact('角色'), rowExact('大小')],
+            [rowExact('点击音效'), rowExact('完成提醒'), rowExact('气泡')]
+          ];
+          function separator() {
+            var line = document.createElement('div');
+            line.className = 'dshwv-menu-sep';
+            return line;
+          }
+          Array.prototype.slice.call(root.children).forEach(function (child) {
+            if (child.classList && child.classList.contains('dshwv-menu-sep')) child.remove();
+          });
+          var ordered = document.createDocumentFragment();
+          groups.forEach(function (rows, index) {
+            if (index) ordered.appendChild(separator());
+            rows.forEach(function (row) { if (row) ordered.appendChild(row); });
+          });
+          root.insertBefore(ordered, root.firstChild);
+          var footer = root.querySelector('.dshwv-menu-footer');
+          if (footer) { root.appendChild(separator()); root.appendChild(footer); }
+        }
         function setLabel(row, text) {
           if (!row || !row.firstElementChild) return;
           row.firstElementChild.textContent = text;
@@ -691,11 +722,11 @@ import {
         // 旧的整屏「API 设置」按钮由「高级设置…」取代。
         if (typeof apiSettingsBtn !== 'undefined' && apiSettingsBtn) sink(apiSettingsBtn);
 
-        if (root.dataset.compacted === '1') return;
+        if (root.dataset.compacted === '1') { arrangeMenu(); return; }
         root.dataset.compacted = '1';
 
         var modeRow = menuRow();
-        modeRow.appendChild(menuLabel('桌面显示'));
+        modeRow.appendChild(menuLabel('显示方式'));
         var modeSel = document.createElement('select');
         modeSel.id = 'dshw-desktop-display';
         modeSel.className = 'dshwv-sound';
@@ -739,48 +770,33 @@ import {
         });
         remindRow.appendChild(remindSel);
 
-        var advancedRow = menuRow();
-        advancedRow.appendChild(menuLabel('高级设置…'));
+        var footerRow = menuRow();
+        footerRow.classList.add('dshwv-menu-footer');
         var advancedBtn = document.createElement('button');
         advancedBtn.type = 'button';
         advancedBtn.className = 'dshwv-sound';
-        advancedBtn.style.flex = '1';
-        advancedBtn.textContent = '打开';
+        advancedBtn.textContent = '高级设置';
         advancedBtn.title = '打开完整设置窗口';
         advancedBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           try { window.whaleDesktop.openSettings(); } catch (err) { window.dispatchEvent(new Event('whale-open-settings')); }
         });
-        advancedRow.appendChild(advancedBtn);
+        logsOpenBtn.textContent = '运行日志';
+        sink(rowLogs);
+        footerRow.appendChild(logsOpenBtn);
+        footerRow.appendChild(advancedBtn);
 
-        var bottomRow = menuRow();
-        bottomRow.appendChild(menuLabel('位置'));
-        var moveBtn = document.createElement('button');
-        moveBtn.type = 'button';
-        moveBtn.className = 'dshwv-sound';
-        moveBtn.style.flex = '1';
-        moveBtn.textContent = '移回右下角';
-        moveBtn.title = '把鲸鱼移回桌面右下角';
-        moveBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          window.dispatchEvent(new Event('whale-reset-position'));
-        });
-        bottomRow.appendChild(moveBtn);
+        var scaleRow = rowExact('大小');
+        if (scaleRow && scaleRow.querySelector('.dshwv-number')) scaleRow.querySelector('.dshwv-number').classList.add('dshwv-scale-value');
 
-        // 方案顺序：查看数据 · 角色 · 大小 · 桌面显示 · 点击音效 · 完成提醒 · 气泡
-        var sizeRow = rowByLabel('大小');
-        var roleRow = rowByLabel('角色');
-        var anchor = sizeRow || roleRow;
-        if (anchor && anchor.parentNode === root) {
-          root.insertBefore(modeRow, anchor.nextSibling);
-          root.insertBefore(soundRow, modeRow.nextSibling);
-          root.insertBefore(remindRow, soundRow.nextSibling);
-        }
-        root.appendChild(advancedRow);
-        root.appendChild(bottomRow);
+        root.appendChild(modeRow);
+        root.appendChild(soundRow);
+        root.appendChild(remindRow);
+        root.appendChild(footerRow);
+        arrangeMenu();
         syncLevel1Controls();
       }
-      // 其余脚本（音效入口、独立桌面、素材包、数据显示）会在各自的
+      // 其余脚本（音效入口、独立桌面、素材包、数据来源）会在各自的
       // DOMContentLoaded 里往菜单追加行，所以推迟一拍再收敛一次。
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
@@ -1418,7 +1434,7 @@ import {
     bubbleCard.className = 'dshwv-bubcard';
     var bubbleTitle = document.createElement('div');
     bubbleTitle.className = 'dshwv-bubtitle';
-    bubbleTitle.textContent = '自定义泡泡';
+    bubbleTitle.textContent = '气泡DIY';
     bubbleCard.appendChild(bubbleTitle);
     var bubblePresetRow = document.createElement('div');
     bubblePresetRow.className = 'dshwv-bubpresets';

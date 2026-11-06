@@ -157,7 +157,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     point = await hitPoint(); move(point.x, point.y); await delay(120); await clickSelector('.dshwv-menu-btn');
     await wait("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})", 'menu open');
     const menu = await ev("document.querySelector('.dshwv-menu').innerText");
-    for (const label of ['角色', '音效', '自定义泡泡', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
+    for (const label of ['角色', '音效', '气泡DIY', '资源管理', 'API 设置']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /峰谷|高峰|倒计时/); checks.push('clickable menu retains original management controls');
     for (const label of ['音效与提示', '素材包导入/导出']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /音效与手感|会员额度详情|本地创意工坊|跟随 Codex/);
@@ -180,7 +180,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     point = await hitPoint(); move(point.x, point.y); await delay(150);
     if (!(await ev("document.querySelector('.dshwv-menu').checkVisibility({opacityProperty:true})"))) await clickSelector('.dshwv-menu-btn');
     const buttonByText = async (text, scope = 'document') => clickAt(await ev(`(() => {const scope=${scope};const b=[...scope.querySelectorAll('button, .dshwv-bubchip')].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.checkVisibility({opacityProperty:true}));if(!b)throw new Error('missing visible control: '+${JSON.stringify(text)});const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`));
-    await buttonByText('自定义泡泡');
+    await buttonByText('气泡DIY');
     await wait("[...document.querySelectorAll('.dshwv-bubmask')].some(e=>e.checkVisibility({opacityProperty:true}))", 'bubble editor');
     const bubbleEditorMask = "[...document.querySelectorAll('.dshwv-bubmask')].find(e=>e.checkVisibility({opacityProperty:true}))";
     const bubbleEditorOverview = await ev(`(() => {const mask=${bubbleEditorMask};return {

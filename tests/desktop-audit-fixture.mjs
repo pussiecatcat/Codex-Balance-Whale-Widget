@@ -294,7 +294,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();document.querySelector('[data-action=\"toggle-usage-records\"]').click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
-    for(const label of ['数据显示','角色','大小','桌面显示','点击音效','完成提醒','气泡','高级设置…','位置'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of ['数据来源','角色','大小','显示方式','点击音效','完成提醒','气泡','高级设置','运行日志'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('[title=\"集中管理当前导入插件的图片与音频资源\"]').click()");
@@ -302,7 +302,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.equal(await ev("document.querySelector('.dshwv-resmask').style.display"), 'flex');
     await ev("document.querySelector('.dshwv-resclose').click()");
     checks.push('resource manager loads real image and audio catalogues and closes without changing the menu');
-    await ev("document.querySelector('[title=\"打开“自定义泡泡”设置\"]').click()");
+    await ev("document.querySelector('[title=\"打开“气泡DIY”设置\"]').click()");
     await wait("document.querySelector('.dshwv-bubmask')?.style.display==='flex' && document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip')?.textContent.includes('首次点击')", 'bubble draft editor renders its first row');
     assert.ok(await ev("document.querySelectorAll('.dshwv-bubmask .dshwv-bubrow-drag').length") >= 1);
     await ev("document.querySelector('.dshwv-bubsec-first + .dshwv-bubrow .dshwv-bubchip').click()");

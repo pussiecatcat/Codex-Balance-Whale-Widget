@@ -50,7 +50,7 @@ export function createBubbleEditorController({
   function open() {
     loadConfig().then(ok => {
       if (ok || isConfigLoaded()) openWithCache();
-      else assetFailure(new Error('自定义泡泡配置读取失败'));
+      else assetFailure(new Error('气泡DIY配置读取失败'));
     });
   }
 
