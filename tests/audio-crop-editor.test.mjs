@@ -23,7 +23,4 @@ test('choosing an audio file opens the crop dialog', async () => {
   const source = fs.readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
   assert.match(source, /audioCropFileInput\.addEventListener\('change'[\s\S]{0,400}?validateAudioFile\(f\)[\s\S]{0,120}?audioCropEditor\.open\(await f\.arrayBuffer\(\), f\.name\)/,
     'the file picker has a change listener that opens the crop dialog');
-});', start));
-  assert.match(handler, /validateAudioFile\(f\)/);
-  assert.match(handler, /audioCropEditor\.open\(await f\.arrayBuffer\(\), f\.name\)/);
 });
