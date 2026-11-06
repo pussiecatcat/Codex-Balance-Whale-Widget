@@ -21,9 +21,9 @@ test('encodeWav writes a mono 16-bit PCM header and clamps samples', async () =>
 test('choosing an audio file opens the crop dialog', async () => {
   const fs = await import('node:fs');
   const source = fs.readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-  const start = source.indexOf("audioCropFileInput.addEventListener('change'");
-  assert.ok(start > 0, 'the file picker has a change listener');
-  const handler = source.slice(start, source.indexOf('});', start));
+  assert.match(source, /audioCropFileInput\.addEventListener\('change'[\s\S]{0,400}?validateAudioFile\(f\)[\s\S]{0,120}?audioCropEditor\.open\(await f\.arrayBuffer\(\), f\.name\)/,
+    'the file picker has a change listener that opens the crop dialog');
+});', start));
   assert.match(handler, /validateAudioFile\(f\)/);
   assert.match(handler, /audioCropEditor\.open\(await f\.arrayBuffer\(\), f\.name\)/);
 });
