@@ -10,6 +10,7 @@ import {
   EMPTY_CATCH_BUDGET,
   CSS_HEX_BUDGET,
   GLOBAL_SURFACE,
+  lifecycleMetrics,
   MODULE_GLOBAL_READS,
   assertRefactorBoundaries,
   collectDependencyMetrics,
@@ -223,4 +224,25 @@ test('a name in a comment or a string is not a dependency read', t => {
     'desktop/ui/features/widget/quiet.js': "// WhaleQuota and WhaleMoney are mentioned here\nexport const text = 'WhaleApiModels';\n",
   });
   assert.deepEqual(evaluate(quiet), []);
+});
+
+test('the lifecycle gate counts unowned timers, listeners and inline style writes', t => {
+  const root = fixture(t, {
+    'desktop/ui/features/widget/owned.js': [
+      'export function wire(scope, document, element) {',
+      "  scope.interval(() => {}, 1000);",
+      "  scope.on(document, 'click', () => {});",
+      "  setInterval(() => {}, 500);",
+      "  document.addEventListener('keydown', () => {});",
+      "  element.style.color = 'red';",
+      "  // setInterval(() => {}) and document.addEventListener() in a comment do not count",
+      "  const text = 'setInterval(';",
+      '  return text;',
+      '}',
+    ].join('\n'),
+  });
+  const metrics = lifecycleMetrics(root);
+  assert.equal(metrics.intervals, 1);
+  assert.equal(metrics.documentListeners, 1);
+  assert.equal(metrics.inlineStyles, 1);
 });

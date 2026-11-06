@@ -105,6 +105,28 @@ export const EMPTY_CATCH_BUDGET = { total: 269 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
+// Unowned resources are the other half of the dependency problem: a timer or a
+// document listener nobody owns outlives the feature that created it. These
+// counts only go down as modules move onto scope.
+export const LIFECYCLE_BUDGET = { intervals: 10, documentListeners: 88, inlineStyles: 481 };
+
+export function lifecycleMetrics(root = ROOT) {
+  const files = [...new Set(['desktop/ui', 'assets/whale-widget.js'].flatMap(entry => listJavaScript(root, entry)))].sort();
+  const rows = { intervals: [], documentListeners: [], inlineStyles: [] };
+  for (const relative of files) {
+    const source = stripCommentsAndStrings(read(root, relative));
+    for (const match of source.matchAll(/\bsetInterval\s*\(/g)) rows.intervals.push({ file: relative, line: lineOf(source, match.index) });
+    for (const match of source.matchAll(/\b(?:document|window)\s*\.\s*addEventListener\s*\(/g)) rows.documentListeners.push({ file: relative, line: lineOf(source, match.index) });
+    for (const match of source.matchAll(/\.style\.[A-Za-z_$][\w$]*\s*=(?!=)/g)) rows.inlineStyles.push({ file: relative, line: lineOf(source, match.index) });
+  }
+  return {
+    intervals: rows.intervals.length,
+    documentListeners: rows.documentListeners.length,
+    inlineStyles: rows.inlineStyles.length,
+    rows,
+  };
+}
+
 const CSS_HEX_FILES = ['desktop/ui/whale-widget.css', 'desktop/ui/ui.css', 'assets/whale-widget.js'];
 function cssHexMetrics(root) {
   const tokens = new Set(), raw = [];
@@ -448,6 +470,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
     dependency: collectDependencyMetrics({ root }),
     emptyCatch: emptyCatchMetrics(root),
     cssHex: cssHexMetrics(root),
+    lifecycle: lifecycleMetrics(root),
   };
 }
 
@@ -473,6 +496,12 @@ export function refactorBoundaryErrors(metrics) {
     errors.push(`CSS color tokens must not exceed the existing budget of ${CSS_HEX_BUDGET.total} (found ${metrics.cssHex.total}). Use a design token instead, and lower the budget as surfaces are migrated.`);
   }
   if (metrics.cssHex.raw?.length) errors.push('Component CSS must use --color-* tokens instead of hex literals.');
+  for (const [key, budget] of Object.entries(LIFECYCLE_BUDGET)) {
+    if (metrics.lifecycle[key] > budget) {
+      const rows = metrics.lifecycle.rows[key].slice(0, 12).map(row => `${row.file}:${row.line}`).join(', ');
+      errors.push(`Unowned ${key} must not exceed the frozen budget of ${budget} (found ${metrics.lifecycle[key]}): ${rows}`);
+    }
+  }
   return errors;
 }
 

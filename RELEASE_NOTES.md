@@ -1,12 +1,13 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-22`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-23`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
 ## 2026-11-06 架构整改
 
 - T01：架构门禁现在统计裸标识符读取、`host.` / `globalThis.` 发布和绝对说明符导入；ESLint 与 metrics 共用一份全局名单（21 个）。
+- T02：新增生命周期门禁，冻结无主 `setInterval`（10）、`document/window` 监听（88）和内联样式写入（481），此后只减不增。
 
 ## 2026-11-06 气泡细节与内置角色
 
