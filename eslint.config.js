@@ -5,6 +5,7 @@
 // (architecture boundaries, package graph, privacy, release contents) lives in
 // scripts/refactor-metrics.mjs and scripts/build-release.py.
 import globals from 'globals';
+import { GLOBAL_SURFACE } from './scripts/refactor-metrics.mjs';
 
 // A dependency wired by value — `toggle: toggle` inside a createX({...}) call —
 // reads the variable at that moment, while its `var toggle = ...` may sit
@@ -73,14 +74,7 @@ const localRules = { 'local/no-eager-use-before-init': 'error' };
 // module — and the extracted feature modules read them as bare identifiers via
 // the global object. Listing them here is deliberate: it makes the coupling
 // explicit and reviewable, and a new one must be added before lint passes.
-const appGlobals = Object.fromEntries([
-  'WhaleAccountView', 'WhaleApiModels', 'WhaleAudio',
-  'WhaleFeedback', 'WhaleFeedbackSources', 'WhaleGesture', 'WhaleLegacySoundUi',
-  'WhaleLegacyUsage', 'WhaleMediaGuard', 'WhaleMoney', 'WhaleQuota',
-  'WhaleRendering', 'WhaleSelect', 'WhaleTurnNotice', 'whaleToast',
-  'WhaleBubbleShape', 'WhaleSettingsHelp', 'WhaleSettingsPages', 'WhaleSettingsTest',
-  'WhaleStorageSync', 'WhaleWorkshopOpen',
-].map(name => [name, 'readonly']));
+const appGlobals = Object.fromEntries(GLOBAL_SURFACE.map(name => [name, 'readonly']));
 
 // Renderer code loaded with <script type="module"> or imported by the monolith.
 const rendererModules = [

@@ -197,3 +197,30 @@ test('the CSS palette ratchet counts this tree and rejects a new color token', (
   const over = { ...metrics, cssHex: { total: CSS_HEX_BUDGET.total + 1, values: [] } };
   assert.match(refactorBoundaryErrors(over).join('\n'), /CSS color tokens must not exceed/);
 });
+
+test('the gate sees bare identifier reads and host publications', t => {
+  const bare = fixture(t, {
+    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleQuota?.text();\n',
+  });
+  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleQuota/);
+
+  const host = fixture(t, {
+    'desktop/ui/new-global.js': "(function (host) { host.WhaleNewSurface = {}; })(window);\n",
+  });
+  assert.match(evaluate(host).join('\n'), /new: WhaleNewSurface/);
+});
+
+test('absolute import specifiers cannot hide a cross-feature dependency', t => {
+  const crossed = fixture(t, {
+    'desktop/ui/features/widget/a.js': "import { helper } from '/features/usage/helpers.js';\nexport const a = helper;\n",
+    'desktop/ui/features/usage/helpers.js': 'export const helper = () => 1;\n',
+  });
+  assert.match(evaluate(crossed).join('\n'), /one feature does not import another/);
+});
+
+test('a name in a comment or a string is not a dependency read', t => {
+  const quiet = fixture(t, {
+    'desktop/ui/features/widget/quiet.js': "// WhaleQuota and WhaleMoney are mentioned here\nexport const text = 'WhaleApiModels';\n",
+  });
+  assert.deepEqual(evaluate(quiet), []);
+});

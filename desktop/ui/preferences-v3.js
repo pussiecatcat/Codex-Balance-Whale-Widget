@@ -44,7 +44,7 @@ import { UI_DEFAULTS } from './services/ui-defaults.js';
       const volume = document.createElement('input'); volume.type = 'range'; volume.min = '0'; volume.max = '1'; volume.step = '.01'; volume.value = draft.events[event].volume; volume.setAttribute('aria-label', label + '音量');
       const number = document.createElement('output'); number.textContent = Math.round(volume.value * 100) + '%';
       volume.oninput = () => { draft.events[event].volume = Number(volume.value); number.textContent = Math.round(volume.value * 100) + '%'; };
-      const preview = document.createElement('button'); preview.type = 'button'; preview.textContent = '试听'; preview.onclick = () => play(event, window.WhaleFeedbackSources?.[event] || sound.urlFor({ groupId: sound.snapshot().size.soundSet || 'duck', slot: event }), 1, draft);
+      const preview = document.createElement('button'); preview.type = 'button'; preview.textContent = '试听'; preview.onclick = () => play(event, sound.urlFor({ groupId: sound.snapshot().size.soundSet || 'duck', slot: event }), 1, draft);
       row.append(select, volume, number, preview); dialog.append(row);
     }
     const actions = document.createElement('div'); actions.className = 'dialog-actions';
