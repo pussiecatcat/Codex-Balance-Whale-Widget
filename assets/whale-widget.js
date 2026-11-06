@@ -3178,8 +3178,12 @@ import {
     var pressAudio = null;
     var releaseAudio = null;
     var releasePlayed = false;
+    function forgetGroupSounds() {
+      try { if (window.WhaleAudio && window.WhaleAudio.forget) window.WhaleAudio.forget('/dsh-whale/sound/'); } catch (err) {}
+    }
     function applySoundSet() {
       try {
+        forgetGroupSounds();
         if (pressAudio) { pressAudio.pause(); pressAudio.removeAttribute('src'); pressAudio.load(); }
         if (releaseAudio) { releaseAudio.pause(); releaseAudio.removeAttribute('src'); releaseAudio.load(); }
         if (window.WhaleAudio) { window.WhaleAudio.stop('gesture'); ['press', 'release'].forEach(function (slot) { if (!audioGroupSlotEmpty(soundSet, slot)) window.WhaleAudio.warm('/dsh-whale/sound/' + slot + '.mp3?set=' + encodeURIComponent(soundSet)).catch(function () {}); }); pressAudio = null; releaseAudio = null; return; }
@@ -3492,7 +3496,7 @@ import {
     // ==== [音频组与槽面板] ====
     var audioGroupList = createAudioGroupList({
       document: document, requestJson: requestJson, url: AUDIO_URL,
-      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; forgetGroupSounds(); },
       getSoundSet: function () { return soundSet; }, setSoundSet: setSoundSet,
       getPanel: function () { return audioGroupPanel; }, closePanel: closeAudioGroupPanel,
       makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee,
@@ -3522,7 +3526,7 @@ import {
         play: audioEditPlay, cancel: audioEditCancel, save: audioEditSave,
         pressImport: audioEditPressImport, releaseImport: audioEditReleaseImport
       },
-      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; },
+      getGroups: function () { return audioGroups; }, setGroups: function (groups) { audioGroups = groups; forgetGroupSounds(); },
       getFragments: function () { return audioFragments; }, setFragments: function (fragments) { audioFragments = fragments; },
       getPress: function () { return audioEditPressVal; }, setPress: function (id) { audioEditPressVal = id; },
       getRelease: function () { return audioEditReleaseVal; }, setRelease: function (id) { audioEditReleaseVal = id; },
@@ -3560,7 +3564,7 @@ import {
       },
       requestJson: requestJson, uploadFragment: function (name, dataUrl) { return assetClient.uploadAudioFragment(name, dataUrl); },
       getFragments: function () { return audioFragments; }, setFragments: function (value) { audioFragments = value; },
-      getGroups: function () { return audioGroups; }, setGroups: function (value) { audioGroups = value; },
+      getGroups: function () { return audioGroups; }, setGroups: function (value) { audioGroups = value; forgetGroupSounds(); },
       applySlot: function (slot, id) { if (slot === 'press') audioEditPressVal = id; else audioEditReleaseVal = id; audioSlotPanel.refresh(); },
       renderGroups: renderAudioGroupPanel, refreshSlot: function () { audioSlotPanel.refresh(); },
       previewEnsure: audioEditPreviewEnsure, refreshTaskEnd: refreshTaskEndAfterAudio,

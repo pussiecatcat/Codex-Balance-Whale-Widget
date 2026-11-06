@@ -17,6 +17,19 @@ function audioFixture() {
   vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/m, ''), context);
   return { api: context.window.WhaleAudio, sources, contexts: () => contexts, idle: () => idle() };
 }
+test('forgetting group sounds decodes an edited clip again under the same URL', async () => {
+  let fetches = 0;
+  class AudioContext { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } decodeAudioData() { return Promise.resolve({ duration: 1 }); } }
+  const context = { window: { addEventListener() {} }, AudioContext, requestBytes: async () => { fetches++; return new ArrayBuffer(1); },
+    setTimeout: () => 1, clearTimeout() {} };
+  vm.runInNewContext(read('audio-engine.js').replace(/^import .*$/m, ''), context);
+  const api = context.window.WhaleAudio, url = '/dsh-whale/sound/press.mp3?set=g1';
+  await api.warm(url); await api.warm(url);
+  assert.equal(fetches, 1, 'a second play reuses the decode');
+  api.forget('/dsh-whale/sound/');
+  await api.warm(url);
+  assert.equal(fetches, 2, 'after forget the edited clip is fetched again');
+});
 test('zero volume never opens audio hardware or fetches, release interrupts a 20-second press immediately', async () => {
   const f = audioFixture(); await f.api.play({ url: '/press', volume: 0 }); assert.equal(f.contexts(), 0);
   await f.api.play({ channel: 'gesture', url: '/press', volume: .5 }); assert.equal(f.sources[0].started, true);

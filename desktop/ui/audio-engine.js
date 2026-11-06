@@ -48,5 +48,10 @@ import { requestBytes } from '/services/request.js';
   }
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); ctx?.suspend().catch(() => {}); } });
   window.addEventListener('beforeunload', () => { stop(); clearTimeout(idle); ctx?.close().catch(() => {}); });
-  window.WhaleAudio = Object.freeze({ warm, play, stop });
+  // A sound group keeps its URL when its press or release clip changes, so a cached
+  // decode would keep playing the old clip; callers drop the cache when groups change.
+  function forget(prefix = '') {
+    for (const map of [buffers, pending]) for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key);
+  }
+  window.WhaleAudio = Object.freeze({ warm, play, stop, forget });
 })();
