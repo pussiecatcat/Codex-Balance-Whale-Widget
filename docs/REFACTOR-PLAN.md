@@ -54,7 +54,7 @@
 
 | 重复位置 | 已观察到的差异 | 建议抽取的边界 |
 | --- | --- | --- |
-| [client 请求封装](../desktop/ui/client.js#L9)、[API 模型请求封装](../desktop/ui/api-models.js#L5)、[音效请求封装](../desktop/ui/sound-settings.js#L6) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
+| [共享请求封装](../desktop/ui/services/request.js)、[API 模型请求封装](../desktop/ui/api-models.js#L5)、[音效请求封装](../desktop/ui/sound-settings.js#L6) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
 | [余额响应读取](../runtime/providers.mjs#L7)、[模型响应读取](../runtime/api-models.mjs#L132)、[汇率响应读取](../runtime/fx.mjs#L31) | 字节上限、取消方式、无流响应处理不同 | 共享受限读取与取消原语，按调用方传入限制和策略 |
 | [通用 JSON 写入](../runtime/paths.mjs#L20)、[资源写入](../lib/resource-store.mjs#L28)、[UI 状态写入](../desktop/ui-state-store.cjs#L23)、[主进程 save](../desktop/main.cjs#L53) | Windows 重试、备份、flush、串行队列、错误传播各不相同 | 统一文件替换机制，保留领域仓库的备份与事务策略 |
 | [音效地址解析](../desktop/ui/sound-settings.js#L33)、[等待提示音效解析](../desktop/ui/wait-notice.js#L12) | 存在相同的 `grp:` / `frag:` / `preset:` 解析 | 共享声音引用格式与解析函数 |

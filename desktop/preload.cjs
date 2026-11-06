@@ -32,6 +32,7 @@ if (isSettingsWindow) {
       args: target && typeof target === 'object' && target.args && typeof target.args === 'object' ? target.args : {},
     }),
     resetPosition: () => ipcRenderer.invoke('whale-command', 'reset-position'),
+    restart: () => ipcRenderer.invoke('whale-command', 'restart'),
     openLogs: () => ipcRenderer.invoke('whale-command', 'open-logs'),
     onSettingsChanged: callback => {
       const listener = (_event, change) => callback(change);

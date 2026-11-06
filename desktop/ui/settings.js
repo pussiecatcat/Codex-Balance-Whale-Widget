@@ -451,7 +451,30 @@ import { soundOptions } from '/services/sound-reference.js';
       status.classList.toggle('is-ok', ready);
       main.append(title, badge, status);
       auto.append(main);
-      edit(auto, { name: 'api' });
+      const test = document.createElement('button');
+      test.type = 'button';
+      test.className = 'set-button';
+      test.textContent = '测试连接';
+      test.addEventListener('click', async () => {
+        test.disabled = true;
+        status.className = 'set-provider-status';
+        status.textContent = '正在测试…';
+        try {
+          const result = await requestJson('/api/config/probe', { method: 'POST', body: {}, timeoutMs: 20000 });
+          if (result.stale || !result.ok) throw new Error(result.error || '连接失败');
+          status.textContent = '已连接 · ' + (result.balanceLabel || result.providerName || '当前 API');
+          status.classList.add('is-ok');
+        } catch (error) {
+          status.textContent = '连接失败：' + (error?.message || '未知错误');
+          status.classList.add('is-error');
+        } finally { test.disabled = false; }
+      });
+      const editApi = document.createElement('button');
+      editApi.type = 'button';
+      editApi.className = 'set-button';
+      editApi.textContent = '编辑';
+      editApi.addEventListener('click', () => { void go('api'); });
+      auto.append(test, editApi);
       box.append(auto);
       const list = models?.models || [];
       if (!list.length) {
@@ -483,6 +506,17 @@ import { soundOptions } from '/services/sound-reference.js';
       add.textContent = '在挂件中添加服务商';
       add.addEventListener('click', () => { void openEditor({ name: 'api-model', args: { id: null } }); });
       box.append(add);
+      const restart = document.createElement('button');
+      restart.type = 'button';
+      restart.className = 'set-button';
+      restart.textContent = '重新启动小龙娘';
+      restart.addEventListener('click', async () => {
+        try {
+          const restarted = await bridge.restart?.();
+          if (restarted === false) line(box, 'set-providers-error', '无法自动重新启动，请手动退出后重新打开。');
+        } catch { line(box, 'set-providers-error', '无法自动重新启动，请手动退出后重新打开。'); }
+      });
+      box.append(restart);
       line(box, 'set-providers-hint', '密钥只读取环境变量，配置文件不保存密钥内容。测试连接与新增在挂件的「API 余额设置」里完成。');
     } catch (error) {
       if (revision !== providerRevision) return;

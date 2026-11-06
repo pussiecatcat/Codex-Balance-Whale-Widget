@@ -1,5 +1,6 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { createSettingsClient } from '/services/settings-client.js';
+import { createToast } from '/services/toast.js';
 import { UI_DEFAULTS } from '/shared/ui-defaults.js';
 import { sound } from '/services/sound.js';
 import { openOver } from '/services/layers.js';
@@ -12,13 +13,15 @@ import '/account-view.js';
 import '/workshop.js';
 import '/media-guard.js';
 import '/audio-engine.js';
-import '/client.js';
 import '/api-models.js';
 import { requestJson } from '/services/request.js';
 import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
 import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
+
+window.whaleToast = createToast({ document: document });
+
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
@@ -322,7 +325,7 @@ import {
     advancedBtn.textContent = LABELS.advanced;
     advancedBtn.addEventListener('click', function (event) {
       event.stopPropagation();
-      if (window.whaleDesktop?.openSettings) window.whaleDesktop.openSettings();
+      if (window.whaleDesktop?.openSettings) window.whaleDesktop.openSettings('providers');
       else window.dispatchEvent(new Event('whale-open-settings'));
     });
     footerRow.appendChild(advancedBtn);
@@ -2594,7 +2597,7 @@ import {
       }
       if (editor === 'resources') { openResManager(); return; }
       if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
-      if (editor === 'api') { window.dispatchEvent(new Event('whale-open-settings')); return; }
+      if (editor === 'api') { window.whaleDesktop?.openSettings?.('providers'); return; }
       if (editor === 'sound') {
         var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
         if (soundEntry) soundEntry.click();

@@ -45,6 +45,7 @@ function registerIpcHandlers({ ipcMain, host }) {
     'focus-whale': () => { host.show(); return true; },
     'open-logs': () => host.openDiagnostics(),
     'reset-position': () => host.resetPosition(),
+    restart: () => host.gestureFresh() ? host.relaunch() : false,
     'open-editor': payload => {
       const request = {
         editor: typeof payload?.editor === 'string' ? payload.editor : '',
