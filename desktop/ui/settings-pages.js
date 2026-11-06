@@ -5,6 +5,8 @@ import './settings-catalog.js';
 // 的字段按 SECTIONS 分进一张卡片，控件统一落在右侧固定宽度的列里。需要画布的
 // 复杂编辑器不在这里重写：同一个编辑器下的字段合成一张卡片，只放一个打开按钮，
 // 由设置窗口唤起鲸鱼自己的弹层。
+import { completionMode, completionPatch } from './shared/sound-model.js';
+
 (() => {
   'use strict';
 
@@ -59,13 +61,15 @@ import './settings-catalog.js';
   }
   function readValue(field, values) {
     if (field.id === 'usage.taskEndOn') {
-      const bubble = values.size?.turnCostOn !== false, sound = values.usage?.taskEnd?.on === true;
-      return bubble ? (sound ? 'both' : 'bubble') : (sound ? 'custom' : 'off');
+      return completionMode({ turnCostOn: values.size?.turnCostOn, taskEndOn: values.usage?.taskEnd?.on });
     }
     return fromStorage(field, pathValue(values[field.domain], field.key.split(' / ')[0]));
   }
   function toPatch(field, value, base) {
-    if (field.id === 'usage.taskEndOn') return { size: { turnCostOn: value !== 'off' }, usage: { taskEnd: { ...base.usage?.taskEnd, on: value === 'both' } } };
+    if (field.id === 'usage.taskEndOn') {
+      const patch = completionPatch(value);
+      return { size: { turnCostOn: patch.turnCostOn }, usage: { taskEnd: { ...base.usage?.taskEnd, on: patch.taskEndOn } } };
+    }
     // 「跟随点击音量」没有数值：恢复默认时只把 volSet 关掉，不写死一个假音量。
     if (field.id === 'usage.taskEndVol' && value === null) {
       return { usage: { taskEnd: { ...base.usage?.taskEnd, volSet: false } } };
