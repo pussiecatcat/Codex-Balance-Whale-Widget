@@ -661,7 +661,8 @@ import {
         function rowByLabel(text) {
           var rows = Array.prototype.slice.call(root.children);
           for (var i = 0; i < rows.length; i++) {
-            if (rows[i].classList && rows[i].classList.contains('dshwv-menu-row')) {
+            // The merged sound entry starts with 音效 too and must not be taken for the old row.
+            if (rows[i].classList && rows[i].classList.contains('dshwv-menu-row') && !rows[i].classList.contains('whale-sound-entry')) {
               var first = rows[i].firstElementChild;
               if (first && first.textContent && first.textContent.trim().indexOf(text) === 0) return rows[i];
             }
@@ -685,8 +686,11 @@ import {
           var ordered = document.createDocumentFragment();
           rows.forEach(function (row) { if (row) ordered.appendChild(row); });
           root.insertBefore(ordered, root.firstChild);
-          var footer = root.querySelector('.dshwv-menu-footer');
-          if (footer) root.appendChild(footer);
+          // The footer sits below the ledger button, outside the view that slides away
+          // when the ledger opens, so it is last in the menu box itself.
+          var box = root.closest('.dshwv-menu');
+          var footer = box && box.querySelector('.dshwv-menu-footer');
+          if (footer) box.appendChild(footer);
         }
         function setLabel(row, text) {
           if (!row || !row.firstElementChild) return;
