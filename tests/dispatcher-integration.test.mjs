@@ -55,13 +55,13 @@ test('media policy and the guarded script are served locally before widget start
   const { server, request } = await setup(t);
   const policy = await request('/api/media-policy'); assert.equal(policy.status, 200); assert.deepEqual(policy.payload.policy, MEDIA_POLICY);
   assert.equal((await request('/api/media-policy', 'PUT')).status, 405);
-  const script = await server.dispatch('/media-guard.js'); assert.equal(script.status, 200); assert.match(script.headers['content-type'], /javascript/); assert.match(script.body.toString(), /WhaleMediaGuard/);
-  const head = await server.dispatch('/media-guard.js', { method: 'HEAD' }); assert.equal(head.body.length, 0);
+  const script = await server.dispatch('/services/media-guard.js'); assert.equal(script.status, 200); assert.match(script.headers['content-type'], /javascript/); assert.match(script.body.toString(), /createMediaGuard/);
+  const head = await server.dispatch('/services/media-guard.js', { method: 'HEAD' }); assert.equal(head.body.length, 0);
   const html = (await server.dispatch('/widget.html')).body.toString();
   assert.equal(html.indexOf('src="/media-guard.js"'), -1, 'media-guard is imported by the widget entry, not a classic tag');
   const widgetScript = (await server.dispatch('/dsh-whale/widget.js')).body.toString();
-  assert.match(widgetScript, /import '\/media-guard\.js';/);
-  assert.ok(html.indexOf('src="/turn-notice.js"') >= 0 && html.indexOf('src="/turn-notice.js"') < html.indexOf('src="/dsh-whale/widget.js"'));
+  assert.match(widgetScript, /import WhaleMediaGuard from '\/services\/media-guard\.js';/);
+  assert.equal(html.indexOf('src="/turn-notice.js"'), -1, 'turn notice is imported by the entry, not a classic tag');
   assert.match(html, /src="\/sound-settings\.js"/);
   assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
 });

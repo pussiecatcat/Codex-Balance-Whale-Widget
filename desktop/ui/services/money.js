@@ -1,8 +1,6 @@
-import { UI_DEFAULTS } from './shared/ui-defaults.js';
-import { requestJson } from '/services/request.js';
+import { UI_DEFAULTS } from '../shared/ui-defaults.js';
+import { requestJson } from './request.js';
 
-(function (host) {
-  'use strict';
   const DECIMALS = new Intl.NumberFormat('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const supported = value => value === 'USD' || value === 'CNY';
   const normalized = value => String(value || UI_DEFAULTS.displayCurrency).toUpperCase();
@@ -10,7 +8,7 @@ import { requestJson } from '/services/request.js';
   const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(time(value + 'T00:00:00.000Z')) && new Date(value + 'T00:00:00.000Z').toISOString().slice(0, 10) === value;
 
-  function createMoneyState({ loadQuote, readPreference = () => null, savePreference = () => {}, now = Date.now } = {}) {
+export function createMoneyState({ loadQuote, readPreference = () => null, savePreference = () => {}, now = Date.now } = {}) {
     let saved;
     try { saved = readPreference(); } catch {}
     let preferredCurrency = supported(saved) ? saved : null, nativeCurrency = UI_DEFAULTS.displayCurrency, displayCurrency = UI_DEFAULTS.displayCurrency;
@@ -181,36 +179,45 @@ import { requestJson } from '/services/request.js';
       ready, refreshQuote, applyLatestQuote, bind, clearBindings, pruneBindings, refreshBindings, onChange });
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { createMoneyState };
-  else {
-    const money = createMoneyState({
-      readPreference: () => { try { return localStorage.getItem('dshw-display-currency'); } catch { return null; } },
-      savePreference: value => { try { localStorage.setItem('dshw-display-currency', value); } catch {} },
-      loadQuote: async ({ force = false, reason = 'request' } = {}) => {
-        const query = [];
-        if (force) query.push('refresh=1');
-        const cause = force && reason === 'request' ? 'manual' : reason;
-        if (cause !== 'request') query.push('reason=' + encodeURIComponent(cause));
-        const response = await requestJson('/api/fx/usd-cny' + (query.length ? '?' + query.join('&') : '')).catch(error => {
-          const value = error.payload || {};
-          for (const key of ['checkedAt', 'cooldownRemainingMs', 'retryAfterMs']) if (value[key] !== undefined) error[key] = value[key];
-          throw error;
-        });
-        return response;
-      },
-    });
-    host.WhaleMoney = money;
-    const observer = new MutationObserver(() => money.pruneBindings());
-    observer.observe(document.body, { childList: true, subtree: true });
-    const periodic = setInterval(() => money.refreshQuote({ apply: false, reason: 'timer' }), 60000);
-    const online = () => money.refreshQuote({ apply: false, reason: 'online' });
-    const visible = () => { if (!document.hidden) money.refreshQuote({ apply: false, reason: 'visibility' }); };
-    host.addEventListener?.('online', online);
-    document.addEventListener('visibilitychange', visible);
-    host.addEventListener?.('pagehide', () => {
-      clearInterval(periodic); observer.disconnect();
-      host.removeEventListener?.('online', online); document.removeEventListener('visibilitychange', visible);
-    }, { once: true });
-    money.ready();
-  }
-})(globalThis);
+export function startMoneyRuntime({
+  window: win = globalThis,
+  document: doc = globalThis.document,
+  MutationObserver: Observer = globalThis.MutationObserver,
+  setInterval: setTimer = globalThis.setInterval,
+  clearInterval: clearTimer = globalThis.clearInterval,
+  localStorage: storage = globalThis['localStorage'],
+  requestJson: request = requestJson,
+} = {}) {
+  const runtime = createMoneyState({
+    readPreference: () => { try { return storage.getItem('dshw-display-currency'); } catch { return null; } },
+    savePreference: value => { try { storage.setItem('dshw-display-currency', value); } catch { /* storage may be unavailable */ } },
+    loadQuote: async ({ force = false, reason = 'request' } = {}) => {
+      const query = [];
+      if (force) query.push('refresh=1');
+      const cause = force && reason === 'request' ? 'manual' : reason;
+      if (cause !== 'request') query.push('reason=' + encodeURIComponent(cause));
+      return request('/api/fx/usd-cny' + (query.length ? '?' + query.join('&') : '')).catch(error => {
+        const value = error.payload || {};
+        for (const key of ['checkedAt', 'cooldownRemainingMs', 'retryAfterMs']) if (value[key] !== undefined) error[key] = value[key];
+        throw error;
+      });
+    },
+  });
+  const observer = new Observer(() => runtime.pruneBindings());
+  observer.observe(doc.body, { childList: true, subtree: true });
+  const periodic = setTimer(() => runtime.refreshQuote({ apply: false, reason: 'timer' }), 60000);
+  const online = () => runtime.refreshQuote({ apply: false, reason: 'online' });
+  const visible = () => { if (!doc.hidden) runtime.refreshQuote({ apply: false, reason: 'visibility' }); };
+  win.addEventListener?.('online', online);
+  doc.addEventListener('visibilitychange', visible);
+  win.addEventListener?.('pagehide', () => {
+    clearTimer(periodic); observer.disconnect();
+    win.removeEventListener?.('online', online); doc.removeEventListener('visibilitychange', visible);
+  }, { once: true });
+  runtime.ready();
+  return runtime;
+}
+
+export let money = null;
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') money = startMoneyRuntime();
+export default money;

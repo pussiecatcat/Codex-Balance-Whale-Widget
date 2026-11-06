@@ -33,15 +33,10 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 export const GLOBAL_SURFACE = Object.freeze([
   'WhaleAccountView',
   'WhaleApiModels',
-  'WhaleAudio',
   'WhaleBubbleShape',
-  'WhaleFeedback',
-  'WhaleGesture',
   'WhaleLegacySoundUi',
   'WhaleLegacyUsage',
-  'WhaleMediaGuard',
   'WhaleMoney',
-  'WhaleQuota',
   'WhaleRendering',
   'WhaleSelect',
   'WhaleSettingsCatalog',
@@ -49,7 +44,6 @@ export const GLOBAL_SURFACE = Object.freeze([
   'WhaleSettingsPages',
   'WhaleSettingsTest',
   'WhaleStorageSync',
-  'WhaleTurnNotice',
   'WhaleWorkshopOpen',
   'whaleToast',
 ]);
@@ -62,17 +56,18 @@ export const GLOBAL_SURFACE = Object.freeze([
 export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/sound-settings/controller.js': { WhaleRendering: 1, WhaleSelect: 1 },
   'desktop/ui/features/widget/asset-helpers.js': { whaleToast: 2 },
-  'desktop/ui/features/widget/audio-crop-editor.js': { WhaleMediaGuard: 3 },
-  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
+  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1 },
   'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleMoney: 4, WhaleQuota: 2 },
-  'desktop/ui/features/widget/reminder-editor.js': { WhaleMoney: 7, WhaleTurnNotice: 2 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1, WhaleTurnNotice: 3 },
+  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleMoney: 4 },
+  'desktop/ui/features/widget/feedback.js': { whaleToast: 1 },
+  'desktop/ui/features/widget/reminder-editor.js': { WhaleMoney: 7 },
+  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2 },
   'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1, WhaleMoney: 4 },
   'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4, WhaleMoney: 3 },
   'desktop/ui/features/widget/usage-overview-view.js': { WhaleMoney: 5 },
   'desktop/ui/features/widget/usage-panel.js': { WhaleMoney: 2 },
   'desktop/ui/features/widget/usage-records-view.js': { WhaleMoney: 2 },
+  'desktop/ui/services/rendering.js': { WhaleMoney: 1, WhaleRendering: 1 },
 });
 
 // Modules that still call fetch directly rather than going through the shared
@@ -101,7 +96,7 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 263 };
+export const EMPTY_CATCH_BUDGET = { total: 261 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };

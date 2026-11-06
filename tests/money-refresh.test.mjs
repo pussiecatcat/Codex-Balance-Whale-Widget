@@ -1,13 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import vm from 'node:vm';
-import { UI_DEFAULTS } from '../desktop/ui/shared/ui-defaults.js';
 
-const source = (await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
-const box = { UI_DEFAULTS, module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 7, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
-vm.runInNewContext(source, box);
-const { createMoneyState } = box.module.exports;
+import { createMoneyState, startMoneyRuntime } from '../desktop/ui/services/money.js';
 const clockAt = Date.parse('2026-09-16T04:00:00Z');
 const quote = (rate, extra = {}) => ({ usdCny: rate, date: '2026-09-15', retrievedAt: new Date(clockAt).toISOString(), checkedAt: new Date(clockAt).toISOString(), stale: false, ...extra });
 const create = options => createMoneyState({ now: () => clockAt, ...options });
@@ -146,15 +140,15 @@ test('browser refresh requests carry force/reason and automatic events only stag
   let rate = 7, disconnected = false;
   const document = { body: {}, hidden: false,
     addEventListener(name, callback) { documentEvents.set(name, callback); }, removeEventListener(name) { documentEvents.delete(name); } };
-  const browser = { UI_DEFAULTS, Intl, Date, document,
+  const runtimeOptions = { window: null, document,
     localStorage: { getItem: () => null, setItem() {} },
     MutationObserver: class { observe() {} disconnect() { disconnected = true; } },
     addEventListener(name, callback) { browserEvents.set(name, callback); }, removeEventListener(name) { browserEvents.delete(name); },
     setInterval(callback, ms) { intervals.set(1, { callback, ms }); return 1; }, clearInterval(id) { intervals.delete(id); },
     requestJson: async (url) => { urls.push(url); return { ok: true, ...quote(rate, { retrievedAt: new Date().toISOString() }) }; },
   };
-  vm.runInNewContext(source, browser); await tick();
-  const money = browser.WhaleMoney; assert.ok(money.state().quote); assert.equal(intervals.get(1).ms, 60000);
+  runtimeOptions.window = { addEventListener: (name, cb) => browserEvents.set(name, cb), removeEventListener: name => browserEvents.delete(name) };
+  const money = startMoneyRuntime(runtimeOptions); await tick(); assert.ok(money.state().quote); assert.equal(intervals.get(1).ms, 60000);
   assert.ok(urls[0].includes('reason=startup') && !urls[0].includes('refresh=1'));
   await money.setDisplayCurrency('CNY'); const element = bind(money, 2);
   rate = 8; await money.refreshQuote({ force: true, apply: true });

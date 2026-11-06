@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createTurnNoticePoller } from '../desktop/ui/features/widget/turn-notice-poller.js';
+import WhaleTurnNotice from '../desktop/ui/shared/turn-notice.js';
 import { SessionParser, SessionReader, SessionMonitor } from '../runtime/session-monitor.mjs';
 import { WhaleService } from '../runtime/service.mjs';
 import { ConfigStore } from '../runtime/config.mjs';
@@ -186,11 +187,11 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
     fetch: () => { fetches++; return new Promise(resolve => pending.push(resolve)); },
     playTaskEndSound: () => sounds++, showCostBubble: () => bubbles++ };
   vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(new URL('../desktop/ui/turn-notice.js', import.meta.url), 'utf8'), sandbox);
-  let lastTurnNotice = null;
+  let lastTurnNotice = null, subscriptionNotices = 0, quotaSettles = 0;
   const turnNoticePoller = createTurnNoticePoller({
     window: sandbox.window, localStorage: sandbox.localStorage, fetch: sandbox.fetch,
-    WhaleTurnNotice: sandbox.WhaleTurnNotice, CustomEvent: sandbox.CustomEvent,
+    WhaleTurnNotice, CustomEvent: sandbox.CustomEvent,
+    WhaleFeedback: { play: () => {} }, WhaleQuota: { settled: () => quotaSettles++ },
     getCurrency: () => sandbox.state.currency,
     setLastTurnNotice: notice => { lastTurnNotice = notice; },
     playTaskEndSound: sandbox.playTaskEndSound,
@@ -214,9 +215,7 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
   assert.equal(sounds, 2); assert.equal(bubbles, 4);
   pollLastTurn(); await respond(notice(13, 'busy', { outcome: 'failed', completionKind: 'failed', failureKind: 'high-demand' }));
   assert.equal(sounds, 2); assert.equal(bubbles, 5);
-  let subscriptionNotices = 0, quotaSettles = 0;
   sandbox.window.WhaleAccountView = { mode: 'subscription', notice: () => subscriptionNotices++ };
-  sandbox.window.WhaleQuota = { settled: () => quotaSettles++ };
   pollLastTurn(); await respond(notice(14, 'subscription-success', { tokens: 4321 }));
   assert.equal(sounds, 3); assert.equal(bubbles, 6); assert.equal(subscriptionNotices, 1); assert.equal(quotaSettles, 1);
   assert.equal(lastTurnNotice.tokens, 4321);

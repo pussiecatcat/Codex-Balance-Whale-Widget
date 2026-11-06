@@ -1,15 +1,8 @@
 import test from 'node:test';
-import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
+import assert from 'node:assert/strict';
 import { MEDIA_POLICY, validateImage } from '../lib/media-validation.mjs';
-
-const source = fs.readFileSync(new URL('../desktop/ui/media-guard.js', import.meta.url), 'utf8').replace(/^import .*$/m, '');
-function load() {
-  const box = { module: { exports: {} }, Uint8Array, ArrayBuffer, DataView };
-  vm.runInNewContext(source, box); return box.module.exports;
-}
-const api = load();
+import api from '../desktop/ui/services/media-guard.js';
 function pngChunk(kind, value) { const b = Buffer.alloc(value.length + 12); b.writeUInt32BE(value.length); b.write(kind, 4); value.copy(b, 8); return b; }
 function png(frames = 0, width = 1, height = 1) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 6;
@@ -47,7 +40,7 @@ test('policy refresh is deduplicated and malformed responses leave the previous 
   assert.throws(() => guard.checkFile({ size: 1025 }, 'role'), /最多/);
   assert.throws(() => guard.setPolicy({ ...next, maxFrames: -1 }), /无效/);
   assert.equal(guard.policy.maxFrames, MEDIA_POLICY.maxFrames);
-  const top = load(); top.setPolicy(next); assert.equal(top.policy.roleBytes, 1024);
+  const top = api.createMediaGuard(globalThis); top.setPolicy(next); assert.equal(top.policy.roleBytes, 1024);
 });
 
 test('installed PNG and GIF assets have matching frontend and backend metadata', () => {
@@ -66,10 +59,7 @@ test('APNG inspection handles typed-array offsets and detects only complete vali
 });
 
 test('the original signed PNG chunk regression terminates with a clear error', () => {
-  const box = { module: { exports: {} }, Uint8Array, ArrayBuffer, DataView };
-  vm.createContext(box); vm.runInContext(source, box);
-  const attempt = 'module.exports.isAnimatedPng(new Uint8Array([137,80,78,71,13,10,26,10,255,255,255,244,116,69,88,116]))';
-  assert.throws(() => vm.runInContext(attempt, box, { timeout: 200 }), /PNG/);
+  assert.throws(() => api.isAnimatedPng(new Uint8Array([137,80,78,71,13,10,26,10,255,255,255,244,116,69,88,116])), /PNG/);
   assert.throws(() => api.inspectImage(Buffer.alloc(16, 65)), /有效/);
 });
 

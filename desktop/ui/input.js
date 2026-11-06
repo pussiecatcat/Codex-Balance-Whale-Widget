@@ -1,10 +1,11 @@
+import WhaleRendering from './services/rendering.js';
 import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '/features/widget/input-policy.js';
 import { createStorageSync } from '/features/widget/storage-sync.js';
 
 (() => {
   'use strict';
   function initialize() {
-  const bridge = window.whaleDesktop, rendering = window.WhaleRendering;
+  const bridge = window.whaleDesktop, rendering = WhaleRendering;
   if (!bridge || !rendering) return;
   const pet = document.querySelector('.dshwv-img'), root = document.querySelector('.dshwv-root');
   if (!pet || !root) return;

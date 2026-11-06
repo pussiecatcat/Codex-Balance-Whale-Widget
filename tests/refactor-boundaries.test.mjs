@@ -79,9 +79,9 @@ test('the dependency gate is clean on the tree as it stands, and its numbers are
 
 test('an extracted module reaching for a leftover global is refused, and so is a wider read of a frozen one', t => {
   const fresh = fixture(t, {
-    'desktop/ui/features/widget/fresh.js': 'export const label = () => window.WhaleQuota?.text();\n',
+    'desktop/ui/features/widget/fresh.js': 'export const label = () => window.WhaleMoney?.formatMoney(1);\n',
   });
-  assert.match(evaluate(fresh).join('\n'), /fresh\.js reaches for window\.WhaleQuota/);
+  assert.match(evaluate(fresh).join('\n'), /fresh\.js reaches for window\.WhaleMoney/);
 
   const wider = fixture(t, {
     'desktop/ui/features/widget/usage-alerts.js': 'const a = window.WhaleAccountView?.mode;\nconst b = window.WhaleAccountView?.mode;\n',
@@ -155,7 +155,7 @@ test('the preload bridge is allowed by name, a new window global is not', t => {
   assert.match(evaluate(published).join('\n'), /WhaleNewThing/);
 
   const known = fixture(t, {
-    'desktop/ui/thing.js': 'window.WhaleGesture = window.WhaleGesture || {};\n',
+    'desktop/ui/thing.js': 'window.WhaleMoney = window.WhaleMoney || {};\n',
   });
   assert.deepEqual(evaluate(known), [], 'republishing a name already on the surface is not a new edge');
 });
@@ -201,9 +201,9 @@ test('the CSS palette ratchet counts this tree and rejects a new color token', (
 
 test('the gate sees bare identifier reads and host publications', t => {
   const bare = fixture(t, {
-    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleQuota?.text();\n',
+    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleMoney?.formatMoney(1);\n',
   });
-  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleQuota/);
+  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleMoney/);
 
   const host = fixture(t, {
     'desktop/ui/new-global.js': "(function (host) { host.WhaleNewSurface = {}; })(window);\n",

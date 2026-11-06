@@ -1,3 +1,4 @@
+import WhaleQuota from '../../services/quota.js';
 import { TOKENS } from '../../shared/quota-format.js';
 import { statusForCode, statusView } from '../../shared/status-tones.js';
 import { fontUnits } from '../../shared/bubble-config/font-scale.js';
@@ -137,7 +138,7 @@ export function createBubbleContent(deps) {
         return { txt: apiModelText(), line: null, apiModelText: apiModelText };
       }
       if (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak') {
-        var quotaText = function () { return window.WhaleQuota?.text(mod) || '额度加载中…'; };
+        var quotaText = function () { return WhaleQuota?.text(mod) || '额度加载中…'; };
         return { txt: quotaText(), line: null, quotaText: quotaText };
       }
       if (mod.type === 'turn') {

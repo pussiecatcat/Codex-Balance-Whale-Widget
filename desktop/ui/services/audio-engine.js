@@ -1,12 +1,26 @@
-import { requestBytes } from '/services/request.js';
-import { sound } from './services/sound.js';
+import { requestBytes as defaultRequestBytes } from './request.js';
+import { sound as defaultSound } from './sound.js';
 
-(() => {
-  'use strict';
+export function createAudioEngine({
+  window: windowRef = globalThis,
+  document: documentRef = globalThis.document,
+  AudioContext: AudioContextCtor = globalThis.AudioContext,
+  requestBytes = defaultRequestBytes,
+  setTimeout: setTimer = globalThis.setTimeout,
+  clearTimeout: clearTimer = globalThis.clearTimeout,
+  sound = defaultSound,
+  idleMs = 60000,
+} = {}) {
   let ctx, idle;
   const buffers = new Map(), pending = new Map(), active = new Map(), epochs = new Map();
-  function context() { if (!ctx || ctx.state === 'closed') ctx = new AudioContext(); return ctx; }
-  function touch() { clearTimeout(idle); idle = setTimeout(() => { stop(); buffers.clear(); pending.clear(); const old = ctx; ctx = null; old?.close().catch(() => {}); }, 60000); }
+  function context() { if (!ctx || ctx.state === 'closed') ctx = new AudioContextCtor(); return ctx; }
+  function touch() {
+    clearTimer(idle);
+    idle = setTimer(() => {
+      stop(); buffers.clear(); pending.clear();
+      const old = ctx; ctx = null; old?.close().catch(() => {});
+    }, idleMs);
+  }
   async function warm(url) {
     if (!url) return null;
     touch();
@@ -19,7 +33,7 @@ import { sound } from './services/sound.js';
   function stop(channel) {
     for (const key of channel ? [channel] : [...new Set([...active.keys(), ...epochs.keys()])]) {
       epochs.set(key, (epochs.get(key) || 0) + 1);
-      for (const node of active.get(key) || []) { try { node.stop(); } catch {} }
+      for (const node of active.get(key) || []) { try { node.stop(); } catch { /* already stopped */ } }
       active.delete(key);
     }
   }
@@ -37,11 +51,12 @@ import { sound } from './services/sound.js';
         const source = c.createBufferSource(); source.buffer = buffer; source.connect(gain);
         gain.gain.value = Math.min(1, volume); nodes.push(source); source.start();
       } else {
-        // Original procedural tones: no third-party samples or network assets.
         const tones = { pearl: [660, 880], bubble: [260, 520], glass: [1046, 1318] }[preset] || [440, 660];
         gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(Math.min(1, volume) * .15, now + .012);
         gain.gain.exponentialRampToValueAtTime(.0001, now + .18);
-        for (let i = 0; i < tones.length; i++) { const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(tones[i], now); o.connect(gain); nodes.push(o); o.start(now + i * .035); o.stop(now + .19); }
+        for (let i = 0; i < tones.length; i++) {
+          const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(tones[i], now); o.connect(gain); nodes.push(o); o.start(now + i * .035); o.stop(now + .19);
+        }
       }
       active.set(channel, nodes);
       nodes[nodes.length - 1].onended = () => {
@@ -49,14 +64,14 @@ import { sound } from './services/sound.js';
         if (active.get(channel) === nodes) active.delete(channel);
         if (epochs.get(channel) === epoch) onended?.();
       };
-    } catch { onended?.(); /* Missing or unsupported audio must never block interaction. */ }
+    } catch { onended?.(); /* missing or unsupported audio must never block interaction */ }
   }
-  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); ctx?.suspend().catch(() => {}); } });
-  window.addEventListener('beforeunload', () => { stop(); clearTimeout(idle); ctx?.close().catch(() => {}); });
-  // Retained for explicit resource eviction; group URLs carry fragment identity.
   function forget(prefix = '') {
     for (const map of [buffers, pending]) for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key);
   }
-  window.WhaleAudio = Object.freeze({ warm, play, stop, forget });
-  sound.attachEngine(window.WhaleAudio);
-})();
+  const api = Object.freeze({ warm, play, stop, forget });
+  sound.attachEngine(api);
+  if (documentRef?.addEventListener) documentRef.addEventListener('visibilitychange', () => { if (documentRef.hidden) { stop(); ctx?.suspend().catch(() => {}); } });
+  windowRef?.addEventListener?.('beforeunload', () => { stop(); clearTimer(idle); ctx?.close().catch(() => {}); });
+  return api;
+}

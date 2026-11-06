@@ -1,4 +1,5 @@
 import { requestJson } from '../../services/request.js';
+import WhaleRendering from '../../services/rendering.js';
 import { buildSoundSave, createSoundDraft, restoreSoundDefaults } from './model.js';
 import { createSoundMenuEntry, createSoundSettingsView } from './view.js';
 import { sound } from '../../services/sound.js';
@@ -95,7 +96,7 @@ export class SoundSettingsController {
         onPreview: (url, volume) => this.player.play(url, volume),
         onStopPreview: () => this.player.stop(),
       });
-      this.window.WhaleRendering?.presentFor?.(350);
+      WhaleRendering.presentFor(350);
       this.entry?.setLoading(false);
     } catch (error) {
       if (this.disposed || operation.signal.aborted || error?.name === 'AbortError' || error?.kind === 'aborted') return;

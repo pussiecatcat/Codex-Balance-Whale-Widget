@@ -1,3 +1,4 @@
+import WhaleRendering from './services/rendering.js';
 (() => {
   'use strict';
   const bridge=window.whaleDesktop;
@@ -77,7 +78,7 @@
   window.addEventListener('resize',request);
   window.addEventListener('whale-shape-request',()=>{last='';publish(true);});
   for(const name of ['transitionrun','transitionend','transitioncancel','animationstart','animationend','animationcancel'])document.addEventListener(name,request,true);
-  window.WhaleRendering?.onFrame(()=>publish());
+  WhaleRendering.onFrame(()=>publish());
   if(bridge.testMode)window.__whaleShapeTest={publish:()=>publish(true),status:()=>({updates,rectangles})};
   publish(true);
 })();

@@ -1,6 +1,13 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { createSettingsClient } from '/services/settings-client.js';
 import { createToast } from '/services/toast.js';
+import { applyGesture } from '/features/widget/gesture.js';
+import WhaleRendering from '/services/rendering.js';
+import { createAudioEngine } from '/services/audio-engine.js';
+import WhaleFeedback from '/features/widget/feedback.js';
+import WhaleMoney from '/services/money.js';
+import WhaleQuota from '/services/quota.js';
+import * as WhaleTurnNotice from '/shared/turn-notice.js';
 import { UI_DEFAULTS } from '/shared/ui-defaults.js';
 import { sound } from '/services/sound.js';
 import { openOver } from '/services/layers.js';
@@ -11,7 +18,7 @@ import '/money.js';
 import '/quota.js';
 import '/account-view.js';
 import '/workshop.js';
-import '/media-guard.js';
+import WhaleMediaGuard from '/services/media-guard.js';
 import '/audio-engine.js';
 import '/api-models.js';
 import { requestJson } from '/services/request.js';
@@ -21,6 +28,8 @@ import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
 
 window.whaleToast = createToast({ document: document });
+createAudioEngine({ window: window, document: document });
+if (window.whaleDesktop?.testMode) { window.WhaleRendering = WhaleRendering; window.WhaleMoney = WhaleMoney; }
 
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
@@ -1728,7 +1737,7 @@ import {
       } catch (err) {}
       // The rounded path has a different bounding box than the ellipse.
       measureBubbleCenter();
-      try { window.WhaleRendering && window.WhaleRendering.refitBubble(); } catch (err) {}
+      try { WhaleRendering.refitBubble(); } catch (err) {}
       return bubbleShape;
     }
     // dshw-bubble-shape is mirrored to ui-state.json by the /^dshw[-v]/ rule in
@@ -2158,7 +2167,7 @@ import {
       getCurrentNotice: function () { return bubbleNoticeQueue.current; },
       closeWait: hideWaitBubble,
       isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
-      refreshQuota: function () { window.WhaleQuota?.refresh(true); },
+      refreshQuota: function () { WhaleQuota?.refresh(true); },
       startRound: function () {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
@@ -2174,7 +2183,7 @@ import {
     var bubbleNext = bubbleInteraction.bubbleNext;
     function hideBubble() {
       bubbleSceneController.clear();
-      window.WhaleQuota?.clearBindings(bubbleBox);
+      WhaleQuota?.clearBindings(bubbleBox);
       window.WhaleApiModels?.clearBindings(bubbleBox);
       costBubbleActive = false;
       bubbleNoticeQueue.clear();
@@ -2448,12 +2457,12 @@ import {
     // on the parent would deform and shake the text above it.
     function pressDown() {
       // The bubble rides along with the character; a press never changes its content.
-      if (window.WhaleGesture) window.WhaleGesture.apply(body, true, window.WhaleFeedback && window.WhaleFeedback.feel);
+      if (window.WhaleGesture) applyGesture(body, true, WhaleFeedback.feel);
       else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
       playPress();
     }
     function pressUp() {
-      if (window.WhaleGesture) window.WhaleGesture.apply(body, false, window.WhaleFeedback && window.WhaleFeedback.feel);
+      if (window.WhaleGesture) applyGesture(body, false, WhaleFeedback.feel);
       else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
       playRelease();
     }    var menuOpen = false;
@@ -2511,7 +2520,7 @@ import {
           // saved over the new value by the next drag or menu change.
           menuBtnHide = saved.menuBtnHide === true;
           applyMenuBtnHideUI(); settle(); syncLevel1Controls();
-          window.WhaleRendering.refitBubble();
+          WhaleRendering.refitBubble();
         }).catch(assetFailure);
         return;
       }
@@ -2535,7 +2544,7 @@ import {
         } catch (err) {}
       }
       if (change.values && Object.hasOwn(change.values, 'dshw-display-currency')) {
-        try { if (window.WhaleMoney) window.WhaleMoney.setDisplayCurrency(change.values['dshw-display-currency']).catch(function () { /* 汇率不可用时保持原币种 */ }); } catch (err) { /* 金额尚未渲染时由下次刷新补上 */ }
+        try { WhaleMoney.setDisplayCurrency(change.values['dshw-display-currency']).catch(function () { /* 汇率不可用时保持原币种 */ }); } catch (err) { /* 金额尚未渲染时由下次刷新补上 */ }
       }
       if (change.values && Object.hasOwn(change.values, 'dshw-bubble-shape')) {
         try {
@@ -2548,7 +2557,7 @@ import {
       if (change.values && Object.hasOwn(change.values, 'dshw-role')) {
         try { applyRole(change.values['dshw-role']); } catch (err) {}
       }
-      if (change.values && Object.hasOwn(change.values, 'dshw-v3-feedback') && window.WhaleFeedback && window.WhaleFeedback.reload) {
+      if (change.values && Object.hasOwn(change.values, 'dshw-v3-feedback') && WhaleFeedback.reload) {
         try { window.WhaleFeedback.reload(); } catch (err) {}
       }
     }); } catch (err) {}
@@ -2564,7 +2573,7 @@ import {
 
     window.addEventListener('whale-storage-reconciled', function () {
       window.WhaleBubbleShape.apply(localStorage.getItem('dshw-bubble-shape') || 'ellipse');
-      window.WhaleFeedback?.reload();
+      WhaleFeedback.reload();
     });
     // 完整设置窗口通过具体动作按钮唤起这里的原生编辑器。
     // 这些弹层闭包在 whale-widget.js 内部、依赖鲸鱼自身的 DOM 与状态，
@@ -2592,7 +2601,7 @@ import {
       if (editor === 'feedback-events') {
         // 设 置窗口的「各事件音色」直接打开按压手感/事件音色对话框，
         // 不能再走「音效与提示」合并面板，那里没有音色预设。
-        if (window.WhaleFeedback) window.WhaleFeedback.open();
+        WhaleFeedback.open();
         return;
       }
       if (editor === 'resources') { openResManager(); return; }
@@ -2601,7 +2610,7 @@ import {
       if (editor === 'sound') {
         var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
         if (soundEntry) soundEntry.click();
-        else if (window.WhaleFeedback) window.WhaleFeedback.open();
+        else WhaleFeedback.open();
       }
     });
     function snapCheck() {
@@ -3054,7 +3063,7 @@ import {
     });
     var turnNoticePoller = createTurnNoticePoller({
       window: window, localStorage: localStorage, fetch: fetch,
-      WhaleTurnNotice: WhaleTurnNotice,
+      WhaleTurnNotice: WhaleTurnNotice, WhaleFeedback: WhaleFeedback, WhaleQuota: WhaleQuota,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
       playTaskEndSound: playTaskEndSound,

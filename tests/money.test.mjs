@@ -1,15 +1,11 @@
-import { UI_DEFAULTS } from '../desktop/ui/shared/ui-defaults.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import vm from 'node:vm';
 import { createFxService, FX_URL } from '../runtime/fx.mjs';
 
-const box = { UI_DEFAULTS, module: { exports: {} }, Intl, Date, requestJson: async () => ({ usdCny: 6.7115, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false }) };
-vm.runInNewContext((await fs.readFile(new URL('../desktop/ui/money.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, ''), box);
-const { createMoneyState } = box.module.exports;
+import { createMoneyState } from '../desktop/ui/services/money.js';
 const quote = () => ({ usdCny: 6.7115, date: '2026-09-15', retrievedAt: new Date().toISOString(), stale: false });
 const create = options => createMoneyState({ loadQuote: async () => quote(), ...options });
 

@@ -131,7 +131,7 @@ test('the subscription default shows one large quota per click', () => {
 });
 
 test('fitting measures against the svg, not the path that is still scaled down', () => {
-  assert.match(fs.readFileSync(new URL('../desktop/ui/render.js', import.meta.url), 'utf8'), /path\.ownerSVGElement \|\| path\)\.getScreenCTM/);
+  assert.match(fs.readFileSync(new URL('../desktop/ui/services/rendering.js', import.meta.url), 'utf8'), /path\.ownerSVGElement \|\| path\)\.getScreenCTM/);
 });
 
 test('both subscription steps share one layout', () => {

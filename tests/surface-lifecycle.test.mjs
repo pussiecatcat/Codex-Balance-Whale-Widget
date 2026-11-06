@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { createInputHitTester } from '../desktop/ui/features/widget/input-policy.js';
 
-const shapeSource = await readFile(new URL('../desktop/ui/shape.js', import.meta.url), 'utf8');
+const shapeSource = (await readFile(new URL('../desktop/ui/shape.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
 
 function surface(classes, x = 100, y = 100) {
   const names = new Set(classes.split(' '));
@@ -56,7 +56,7 @@ function browser(nodes, { platform = 'win32' } = {}) {
     addEventListener() {},
   };
   runInNewContext(shapeSource, {
-    window, document, innerWidth: 1000, innerHeight: 800,
+    window, document, WhaleRendering: window.WhaleRendering, innerWidth: 1000, innerHeight: 800,
     requestAnimationFrame: callback => { const id = ++sequence; frames.set(id, callback); return id; },
     cancelAnimationFrame: id => frames.delete(id),
     ResizeObserver: class { observe() {} unobserve() {} },

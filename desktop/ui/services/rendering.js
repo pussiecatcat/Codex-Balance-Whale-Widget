@@ -1,9 +1,6 @@
-(() => {
-  'use strict';
-
   let frameRequest = 0, presentUntil = 0;
   const frameListeners = new Set();
-  function presentFor(ms = 0) {
+export function presentFor(ms = 0) {
     presentUntil = Math.max(presentUntil, performance.now() + ms);
     if (frameRequest) return;
     frameRequest = requestAnimationFrame(function present(now) {
@@ -60,7 +57,7 @@
     return low;
   }
 
-  function fitFrameToBubble(frame) {
+export function fitFrameToBubble(frame) {
     // A resize observer can fire after its frame was detached; there is nothing
     // to fit then, and touching closest() on null would break the batch.
     if (!frame) return 1;
@@ -115,6 +112,10 @@
       this.serial = 0;
       this.bytes = 0;
       this.stats = { decodes: 0, hits: 0, failures: 0 };
+      this.worker = null;
+    }
+    ensureWorker() {
+      if (this.worker) return this.worker;
       this.worker = new Worker('/alpha-worker.js');
       this.worker.onmessage = ({ data }) => {
         const job = this.jobs.get(data.id);
@@ -137,6 +138,7 @@
         this.stats.failures += this.jobs.size;
         this.jobs.clear();
       };
+      return this.worker;
     }
     key(src) { return new URL(src, location.href).href; }
     prepare(src) {
@@ -154,7 +156,7 @@
           entry.done = true; this.stats.failures++; resolve(null);
         }, 12000);
         this.jobs.set(id, { entry, resolve, timer });
-        this.worker.postMessage({ id, src: key });
+        this.ensureWorker().postMessage({ id, src: key });
       });
       this.entries.set(key, entry);
       this.trim();
@@ -186,7 +188,7 @@
     }
   }
 
-  class BubbleRenderer {
+export class BubbleRenderer {
     constructor(container, gifUrl) {
       this.container = container;
       this.epoch = 0;
@@ -312,14 +314,15 @@
   }
 
   const hitCache = new AlphaHitCache();
-  function mirrorScale(root) {
+export function mirrorScale(root) {
     const transform = getComputedStyle(root).transform;
     return transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
   }
   // Switching the bubble shape changes the path the content must fit inside,
   // so the visible frame has to be measured again.
-  function refitBubble() {
+export function refitBubble() {
     for (const frame of document.querySelectorAll('.dshwv-frame')) fitFrameToBubble(frame);
   }
-  window.WhaleRendering = Object.freeze({ BubbleRenderer, hitCache, mirrorScale, presentFor, refitBubble, fitFrameToBubble, onFrame: listener => { frameListeners.add(listener); return () => frameListeners.delete(listener); } });
-})();
+const WhaleRendering = Object.freeze({ BubbleRenderer, hitCache, mirrorScale, presentFor, refitBubble, fitFrameToBubble, onFrame: listener => { frameListeners.add(listener); return () => frameListeners.delete(listener); } });
+export default WhaleRendering;
+
