@@ -108,7 +108,7 @@ export const CSS_HEX_BUDGET = { total: 100 };
 // Unowned resources are the other half of the dependency problem: a timer or a
 // document listener nobody owns outlives the feature that created it. These
 // counts only go down as modules move onto scope.
-export const LIFECYCLE_BUDGET = { intervals: 10, documentListeners: 86, inlineStyles: 481 };
+export const LIFECYCLE_BUDGET = { intervals: 10, documentListeners: 85, inlineStyles: 481 };
 // scope.js implements the owned wrappers themselves; its setInterval is the API.
 const LIFECYCLE_EXEMPT = new Set(['desktop/ui/services/scope.js']);
 
