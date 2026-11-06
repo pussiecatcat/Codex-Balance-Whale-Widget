@@ -61,6 +61,8 @@ let diagnostics = ''; child.stdout.resume(); child.stderr.on('data', bytes => { 
 const timeout = setTimeout(() => child.kill(), process.env.WHALE_SURFACE_AUDIT === '1' ? 60000 : 30000);
 const [code] = await once(child, 'close'); clearTimeout(timeout);
 const reportFile = path.join(output, 'desktop-audit.json');
+// Never let an earlier green run satisfy this one after Electron crashes.
+fs.rmSync(reportFile, { force: true });
 const report = fs.existsSync(reportFile) ? JSON.parse(fs.readFileSync(reportFile, 'utf8')) : { ok: false, error: diagnostics, dataDir };
 assert.equal(code, 0, JSON.stringify({ report, diagnostics })); assert.equal(report.ok, true, JSON.stringify(report));
 const shutdown = JSON.parse(fs.readFileSync(path.join(dataDir, 'desktop-shutdown.json'), 'utf8'));
