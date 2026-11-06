@@ -272,8 +272,33 @@ function openSettingsWindow(page) {
   // 这两个守卫是 per-webContents 的，不会从挂件窗口继承，必须重新注册。
   target.webContents.setWindowOpenHandler(({ url }) => { openWebLink(url).catch(() => {}); return { action: 'deny' }; });
   target.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(uiOrigin + '/')) event.preventDefault(); });
+  // beforeunload 只负责「有未保存修改」的判断；Electron 遇到它不会自己弹框，
+  // 这里补上选择框。preventDefault 表示放行关闭。
+  target.webContents.on('will-prevent-unload', event => {
+    // 退出应用时不弹框，直接放行，避免退出被草稿卡住。
+    if (quitting) { event.preventDefault(); return; }
+    const choice = dialog.showMessageBoxSync(target, {
+      type: 'warning',
+      buttons: ['继续编辑', '放弃修改并关闭'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      title: '还有未保存的修改',
+      message: '关闭设置窗口会丢弃这些修改。',
+      detail: '「继续编辑」返回设置窗口；「放弃修改并关闭」直接关闭，草稿不会保存。',
+    });
+    if (choice === 1) event.preventDefault();
+  });
   target.once('ready-to-show', () => { if (!target.isDestroyed()) target.show(); });
-  target.on('closed', () => { if (settingsWindow === target) settingsWindow = null; });
+  target.on('closed', () => {
+    if (settingsWindow === target) settingsWindow = null;
+    // 关闭时丢弃未保存的预览：读回磁盘值再让挂件应用一次。
+    if (settingsStore) {
+      settingsStore.read(['size'])
+        .then(values => previewSettings({ domain: 'size', values: values.size }))
+        .catch(() => {});
+    }
+  });
   harness.watchRenderer(target);
   target.loadURL(uiOrigin + '/settings.html' + (page ? '#' + page : '')).catch(() => { if (settingsWindow === target) settingsWindow = null; });
   return settingsWindow;
@@ -281,6 +306,22 @@ function openSettingsWindow(page) {
 function closeSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.destroy();
   settingsWindow = null;
+}
+
+// 设置窗口点「打开编辑器」时，普通窗口会压住透明挂件，先最小化自己再点亮鲸鱼。
+function openEditorFromSettings(payload) {
+  if (!payload || !payload.editor) return false;
+  show();
+  if (settingsWindow && !settingsWindow.isDestroyed() && !settingsWindow.isMinimized()) settingsWindow.minimize();
+  return sendCommand('open-editor', { editor: payload.editor, args: payload.args || {} });
+}
+
+// 设置窗口拖动大小/音量时的临时预览：只广播给挂件，不写任何配置文件。
+function previewSettings(change) {
+  if (!change || !change.domain) return false;
+  if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return false;
+  window.webContents.send('whale-settings-preview', change);
+  return true;
 }
 async function setHost(host) {
   host = normalizeHostState(host, { platform: process.platform });
@@ -380,6 +421,8 @@ const ipcHost = {
   openDiagnostics: () => openDiagnosticsFolder(),
   sendCommand,
   openSettings: page => !!openSettingsWindow(page),
+  openEditorFromSettings,
+  previewSettings,
   settingsStore: () => settingsStore,
 };
 

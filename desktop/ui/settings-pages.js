@@ -25,6 +25,7 @@ import './settings-catalog.js';
     sound: [
       { title: '点击反馈', ids: ['size.sound', 'size.vol', 'size.soundSet', 'ui.feel'] },
       { title: '任务完成', ids: ['usage.taskEndOn', 'size.turnCostOn', 'size.turnCostCloseMs', 'usage.taskEndSel', 'usage.taskEndVol'] },
+      { title: '提问与授权', ids: ['usage.events.question', 'usage.events.approval', 'usage.waitCharClose'] },
     ],
     bubble: [
       { title: '显示', ids: ['size.bubbleOn', 'ui.bubbleShape'] },
@@ -39,28 +40,44 @@ import './settings-catalog.js';
       { title: '自定义接口字段（通常不用改）', fold: true, ids: ['api.profile', 'api.projectDir', 'api.currency', 'api.balancePath', 'api.balanceField', 'api.usedField', 'api.balanceScale', 'api.billingUsageDivisor', 'api.quotaPerUnit'] },
     ],
   };
-  const EDITOR_TYPES = ['role', 'position', 'snap', 'group', 'message', 'action'];
-  const opensEditor = field => !!field.bridged || EDITOR_TYPES.includes(field.type);
+  // 每个需要编辑器的字段都在目录里显式声明 editor；这里不再按 domain/type 猜。
+  const opensEditor = field => !!field.bridged || !!field.editor;
 
   function pathValue(object, path) {
     return path.split('.').reduce((value, key) => value?.[key], object);
+  }
+  // 存储值 = 界面值 × scale + offset（例如毫秒存、秒显示；大小按档位显示、按倍数存）。
+  // 结果收敛到 1e-9，避免 0.7 + 0.5 这类浮点误差变成 1.2000000000000002 写进配置。
+  const tidy = value => Math.round(value * 1e9) / 1e9;
+  function fromStorage(field, value) {
+    if (!field.scale || typeof value !== 'number') return value;
+    return tidy((value - (field.offset || 0)) / field.scale);
+  }
+  function toStorage(field, value) {
+    if (!field.scale || typeof value !== 'number') return value;
+    return tidy(value * field.scale + (field.offset || 0));
   }
   function readValue(field, values) {
     if (field.id === 'usage.taskEndOn') {
       const bubble = values.size?.turnCostOn !== false, sound = values.usage?.taskEnd?.on === true;
       return bubble ? (sound ? 'both' : 'bubble') : (sound ? 'custom' : 'off');
     }
-    return pathValue(values[field.domain], field.key.split(' / ')[0]);
+    return fromStorage(field, pathValue(values[field.domain], field.key.split(' / ')[0]));
   }
   function toPatch(field, value, base) {
     if (field.id === 'usage.taskEndOn') return { size: { turnCostOn: value !== 'off' }, usage: { taskEnd: { ...base.usage?.taskEnd, on: value === 'both' } } };
+    // 「跟随点击音量」没有数值：恢复默认时只把 volSet 关掉，不写死一个假音量。
+    if (field.id === 'usage.taskEndVol' && value === null) {
+      return { usage: { taskEnd: { ...base.usage?.taskEnd, volSet: false } } };
+    }
+    const stored = toStorage(field, value);
     const document = {};
     const paths = field.key.split(' / ');
     for (const keyPath of paths) {
       const parts = keyPath.split('.');
-      if (parts.length === 1) { document[keyPath] = value; continue; }
+      if (parts.length === 1) { document[keyPath] = stored; continue; }
       const [root, key] = parts;
-      document[root] = { ...(document[root] || base[field.domain]?.[root]), [key]: key === 'volSet' ? true : value };
+      document[root] = { ...(document[root] || base[field.domain]?.[root]), [key]: key === 'volSet' ? true : stored };
     }
     return { [field.domain]: document };
   }
@@ -68,16 +85,8 @@ import './settings-catalog.js';
     return readValue(field, values) ?? field.defaultValue;
   }
   function editorFor(field) {
-    if (field.domain === 'api' || field.domain === 'apiModels') return { editor: 'api', label: '打开 API 编辑器' };
-    if (field.domain === 'media') {
-      if (field.id === 'media.audio') return { editor: 'sound', label: '打开音效编辑器' };
-      if (field.id === 'media.workshop') return { editor: 'workshop', label: '打开素材包导入导出' };
-      return { editor: 'resources', label: '打开素材管理' };
-    }
-    if (field.id === 'ui.role') return { editor: 'role', label: '打开角色选择' };
-    if (field.type === 'snap' || field.type === 'position') return { editor: 'snap', label: '打开位置编辑器' };
-    if (field.page === 'sound') return { editor: 'sound', label: '打开音效编辑器' };
-    return { editor: 'bubble', label: '打开气泡编辑器' };
+    if (!field.editor) return null;
+    return field.editor;
   }
 
   function makeControl(field, context) {
@@ -88,6 +97,19 @@ import './settings-catalog.js';
     // 滑块需要把草稿值回写到自己的输入框；其它控件没有这一步。
     let syncOutput = () => {};
     const set = next => { context.change(field, next); syncOutput(); };
+
+    if (field.type === 'note') {
+      row.append(el('span', 'set-locked', field.note || '由其它设置控制'));
+      return row;
+    }
+
+    if (field.type === 'position') {
+      const reset = el('button', 'set-button', '移回右下角');
+      reset.type = 'button';
+      reset.addEventListener('click', () => { void context.resetPosition?.(); });
+      row.append(reset);
+      return row;
+    }
 
     if (field.type === 'boolean') {
       const input = el('input');
@@ -127,11 +149,30 @@ import './settings-catalog.js';
       input.step = field.step ?? 'any';
       input.value = current ?? '';
       input.setAttribute('aria-label', field.label);
+      const boundsMessage = value => {
+        if (field.min !== undefined && value < field.min) return `不能小于 ${field.min}`;
+        if (field.max !== undefined && value > field.max) return `不能大于 ${field.max}`;
+        return '';
+      };
+      input.addEventListener('input', () => { input.setCustomValidity(''); input.classList.remove('is-invalid'); });
       input.addEventListener('change', () => {
         const raw = input.value.trim();
-        if (raw === '') { set(field.defaultValue); return; }
+        if (raw === '') {
+          input.setCustomValidity(''); input.classList.remove('is-invalid');
+          set(typeof field.defaultValue === 'number' ? field.defaultValue : null);
+          return;
+        }
         const value = Number(raw);
-        if (!Number.isFinite(value)) { input.reportValidity(); return; }
+        if (!Number.isFinite(value)) {
+          input.setCustomValidity('请输入数字'); input.classList.add('is-invalid'); input.reportValidity();
+          return;
+        }
+        const message = boundsMessage(value);
+        if (message) {
+          input.setCustomValidity(message); input.classList.add('is-invalid'); input.reportValidity();
+          return;
+        }
+        input.setCustomValidity(''); input.classList.remove('is-invalid');
         set(value);
       });
       row.append(input);
@@ -142,12 +183,23 @@ import './settings-catalog.js';
     if (field.type === 'select' || field.type === 'combo') {
       const select = el('select');
       select.setAttribute('aria-label', field.label);
-      for (const option of field.options || [{ value: 'off', label: '关闭' }, { value: 'bubble', label: '仅气泡' }, { value: 'both', label: '气泡和声音' }]) {
+      const options = context.optionsFor?.(field) || field.options
+        || [{ value: 'off', label: '关闭' }, { value: 'bubble', label: '仅气泡' }, { value: 'both', label: '气泡和声音' }];
+      for (const option of options) {
         const node = el('option', null, option.label);
         node.value = option.value;
         select.append(node);
       }
-      select.value = current == null ? '' : String(current);
+      const wanted = current == null ? '' : String(current);
+      select.value = wanted;
+      // 存储里的值不在选项里（例如自定义音效组）时，保留它并标成「当前」，
+      // 不能因为下拉没有这一项就悄悄改成第一个预设。
+      if (wanted && select.value !== wanted && field.id !== 'usage.taskEndOn') {
+        const custom = el('option', null, '当前：' + wanted);
+        custom.value = wanted;
+        select.append(custom);
+        select.value = wanted;
+      }
       if (field.id === 'usage.taskEndOn' && !['off', 'bubble', 'both'].includes(select.value)) {
         // 已有非标准组合时显示「自定义」，打开页面不得擅自归一化。
         const custom = el('option', null, '自定义');
@@ -191,7 +243,9 @@ import './settings-catalog.js';
     const text = Number.isFinite(field.step) && field.step < 1
       ? value.toFixed(2).replace(/\.?0+$/, '')
       : String(value);
-    return field.unit ? text + ' ' + field.unit : text;
+    const shown = field.unit ? text + ' ' + field.unit : text;
+    // 档位这类换算单位顺带给出存储值，例如「14 档 · 1.9 倍」。
+    return field.storedUnit ? shown + ' · ' + toStorage(field, value) + ' ' + field.storedUnit : shown;
   }
 
   function renderRow(field, context) {
@@ -235,8 +289,11 @@ import './settings-catalog.js';
     const groups = new Map();
     for (const field of fields) {
       const target = editorFor(field);
-      if (!groups.has(target.editor)) groups.set(target.editor, { label: target.label, fields: [] });
-      groups.get(target.editor).fields.push(field);
+      if (!target) continue;
+      // 同一路由但参数不同（例如余额预警 vs 每日预算提醒）要分开成两行。
+      const key = target.name + ':' + JSON.stringify(target.args || {});
+      if (!groups.has(key)) groups.set(key, { target, fields: [] });
+      groups.get(key).fields.push(field);
     }
     const box = el('section', 'set-section');
     box.append(el('h3', 'set-section-title', '在编辑器中调整'));
@@ -244,13 +301,14 @@ import './settings-catalog.js';
     for (const group of groups.values()) {
       const card = el('div', 'set-card set-editor-card');
       const single = group.fields.length === 1;
-      const open = el('button', 'set-button set-editor-open', single ? group.label : '打开');
+      const label = group.target.label || ('打开' + group.target.name + '编辑器');
+      const open = el('button', 'set-button set-editor-open', single ? label : '打开');
       open.type = 'button';
-      open.setAttribute('aria-label', group.label);
+      open.setAttribute('aria-label', label);
       open.addEventListener('click', () => context.bridge(group.fields[0]));
       if (!single) {
         const head = el('div', 'set-editor-head');
-        head.append(el('strong', 'set-editor-name', group.label.replace(/^打开/, '')), open);
+        head.append(el('strong', 'set-editor-name', label.replace(/^打开/, '')), open);
         card.append(head);
       }
       for (const field of group.fields) {

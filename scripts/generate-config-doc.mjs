@@ -25,6 +25,13 @@ function loadCatalog() {
 
 const escape = value => String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
+// null 表示没有单一默认值（由编辑器或模板决定），对象写成 JSON，避免出现 [object Object]。
+function defaultText(value) {
+  if (value === null || value === undefined) return '无单一默认值，见下方说明';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return value;
+}
+
 function typeText(field) {
   const bits = [field.type];
   if (field.unit) bits.push(`单位 ${field.unit}`);
@@ -32,6 +39,9 @@ function typeText(field) {
     bits.push(`范围 ${Number.isFinite(field.min) ? field.min : '不限'} – ${Number.isFinite(field.max) ? field.max : '不限'}`);
   }
   if (Number.isFinite(field.step)) bits.push(`步长 ${field.step}`);
+  if (Number.isFinite(field.scale)) {
+    bits.push(`存储值 = 界面值 × ${field.scale}${field.offset ? ` + ${field.offset}` : ''}`);
+  }
   if (Array.isArray(field.options) && field.options.length) {
     bits.push('选项 ' + field.options.map(option => option.label).join(' / '));
   }
@@ -72,7 +82,7 @@ function render(catalog) {
       lines.push('');
       lines.push(`- **用途**：${field.purpose}`);
       lines.push(`- **类型**：${typeText(field)}`);
-      lines.push(`- **默认值**：${escape(field.defaultValue)}（来源 \`${field.defaultSource}\`）`);
+      lines.push(`- **默认值**：${escape(defaultText(field.defaultValue))}（来源 \`${field.defaultSource}\`）`);
       lines.push(`- **存储**：\`${escape(field.store)}\` 的 \`${escape(field.key)}\``);
       lines.push(`- **读取**：\`${field.read}\``);
       lines.push(`- **修改**：\`${field.write}\``);

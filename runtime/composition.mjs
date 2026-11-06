@@ -15,6 +15,7 @@ import { SoundSettingsService } from './sound-settings.mjs';
 // used to construct all of this inline, which made a routing file also the
 // place to look for service wiring; keeping the two apart means a new
 // collaborator is added here and a new endpoint is added in routes/.
+export const DISPLAY_MODE_DEFAULT = 'subscription';
 export function createComposition({
   dataDir = DATA_HOME,
   service = null,
@@ -29,7 +30,7 @@ export function createComposition({
   // One store instance backs both the Codex API settings and the DIY model
   // registry, so a save from either editor cannot overwrite the other's data.
   const displayModeFile = path.join(dataDir, 'display-mode.json');
-  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : 'subscription';
+  const displayMode = () => readJson(displayModeFile, {}).mode === 'api' ? 'api' : DISPLAY_MODE_DEFAULT;
   const providerStore = new ProviderStore({ dataDir });
   try { providerStore.migrateLegacy(); } catch { /* a broken legacy file fails when it is read */ }
   const whale = service || new WhaleService({ dataDir, store: providerStore, mode: displayMode, ...(fetchImpl ? { fetchImpl } : {}) });

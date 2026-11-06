@@ -34,7 +34,7 @@ import { UI_DEFAULTS } from './services/ui-defaults.js';
     const title = document.createElement('h2'); title.textContent = '音效、提示与手感'; dialog.append(title);
     const help = document.createElement('p'); help.textContent = '保存后生效；取消或 Esc 放弃本次修改。总音量仍控制所有事件。原音效使用现有音效组，新增预设为原创合成短音。'; dialog.append(help);
     const feelLabel = document.createElement('label'); feelLabel.textContent = '按压手感'; const feel = document.createElement('select');
-    for (const [value, text] of Object.entries({ balanced: '均衡 · 75/140ms', crisp: '清脆 · 65/125ms', soft: '柔和 · 85/155ms' })) feel.add(new Option(text, value));
+    for (const [value, text] of Object.entries({ balanced: '均衡 · 220/220ms', crisp: '清脆 · 65/125ms', soft: '柔和 · 85/155ms' })) feel.add(new Option(text, value));
     feel.value = draft.feel; feel.onchange = () => { draft.feel = feel.value; }; feelLabel.append(feel); dialog.append(feelLabel);
     for (const [event, label] of Object.entries(events)) {
       const row = document.createElement('fieldset'), legend = document.createElement('legend'); legend.textContent = label; row.append(legend);

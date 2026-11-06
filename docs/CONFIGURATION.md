@@ -23,7 +23,7 @@
 > 本节由 `node scripts/generate-config-doc.mjs` 从 `desktop/ui/settings-catalog.js` 生成，
 > 不要手工编辑。改了目录请重新运行生成器，CI 用 `--check` 校验是否过期。
 
-当前共 54 个条目，其中一级快捷菜单直接展示 7 个，需要画布、只能回到挂件里细调的有 6 个。
+当前共 60 个条目，其中一级快捷菜单直接展示 7 个，需要画布、只能回到挂件里细调的有 7 个。
 
 ## 索引
 
@@ -58,7 +58,13 @@
 | `usage.alertMsg` | 提醒文字 | API 与用量 | 二级 | usage | `alert.msg / budget.msg` |
 | `usage.alertAutoClose` | 预警自动关闭 | API 与用量 | 二级 | usage | `alert.autoClose / budget.autoClose` |
 | `usage.alertTtlSec` | 预警停留秒数 | API 与用量 | 二级 | usage | `alert.ttlSec / budget.ttlSec` |
-| `usage.reminderModules` | 提醒气泡内容与样式 | API 与用量 | 二级 | usage | `<domain>.lines` |
+| `usage.reminderModules` | 任务用量提示内容 | API 与用量 | 二级 | usage | `events.turnCost.lines` |
+| `usage.alertModules` | 余额预警内容 | API 与用量 | 二级 | usage | `alert.lines / alert.below` |
+| `usage.budgetModules` | 每日预算提醒内容 | API 与用量 | 二级 | usage | `budget.lines / budget.amount` |
+| `usage.events.question` | 提问提示 | 声音与提醒 | 二级 | usage | `events.question.<field>` |
+| `usage.events.approval` | 授权提示 | 声音与提醒 | 二级 | usage | `events.approval.<field>` |
+| `usage.waitCharClose` | 点按角色关闭提示 | 声音与提醒 | 二级 | usage | `wait.charClose` |
+| `sound.panel` | 提示与音效面板 | 声音与提醒 | 二级 | size | `—` |
 | `api.provider` | 余额接口 | API 与用量 | 二级 | api | `provider` |
 | `api.baseUrl` | API 地址 | API 与用量 | 二级 | api | `baseUrl` |
 | `api.keyEnv` | 密钥环境变量名 | API 与用量 | 二级 | api | `keyEnv` |
@@ -93,20 +99,20 @@
 #### `size.scale` — 大小
 
 - **用途**：调整鲸鱼在桌面上的整体大小。
-- **类型**：range，单位 倍，范围 0.6 – 2.5，步长 0.1
-- **默认值**：1（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale`）
+- **类型**：range，单位 档，范围 1 – 20，步长 1，存储值 = 界面值 × 0.1 + 0.5
+- **默认值**：5（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.scale`）
 - **存储**：`.dshw-size.json` 的 `scale`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
-- **空值**：最小 0.6
+- **空值**：缺省按 5 档（1.0 倍）处理
 - **生效**：立即生效
 
 **`.help`**
 
 - 有什么用：缩放角色图片本身，不改变气泡、菜单和文字的清晰度策略。
-- 怎么调：0.6 到 2.5，步长 0.1。滑块只显示「小—大」，精确值在完整设置里输入。旧菜单的 1–20 刻度只是显示映射，底层存的是倍数。
-- 什么时候生效：拖动即时生效并立即保存。
-- 适合怎么选：笔记本和外接屏混用时，1080p 屏建议 1.2–1.4，4K 屏建议 1.6–1.8。
+- 怎么调：1 到 20 档，每档 0.1 倍：1 档 = 0.6 倍，5 档 = 1.0 倍，20 档 = 2.5 倍。菜单和设置窗口用同一套档位，配置里保存倍数。
+- 什么时候生效：拖动时挂件立即预览；点「保存更改」后写入配置。
+- 适合怎么选：笔记本和外接屏混用时，1080p 屏建议 7–9 档（1.2–1.4 倍），4K 屏建议 11–13 档（1.6–1.8 倍）。
 
 #### `size.usageMode` — 用量来源（旧字段）
 
@@ -130,7 +136,7 @@
 
 - **用途**：决定鲸鱼点开后显示订阅额度还是 API 余额。
 - **类型**：select，选项 Codex 订阅 / API 余额
-- **默认值**：subscription（来源 `runtime/composition.mjs#createComposition`）
+- **默认值**：subscription（来源 `runtime/composition.mjs#DISPLAY_MODE_DEFAULT`）
 - **存储**：`display-mode.json` 的 `mode`
 - **读取**：`GET /api/display-mode`
 - **修改**：`POST /api/display-mode`
@@ -141,14 +147,14 @@
 
 - 有什么用：这是显示来源的切换，不改变你的账号登录状态，也不改变 API 配置。
 - 怎么调：二选一。选 Codex 订阅看 5 小时与周额度；选 API 余额看你配置的接口余额。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：用订阅账号就选 Codex 订阅；用 API key 计费就选 API 余额。
 
 #### `ui.role` — 角色
 
 - **用途**：选择鲸鱼当前使用的形象。
 - **类型**：role
-- **默认值**：默认角色（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId`）
+- **默认值**：default（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.roleId`）
 - **存储**：`ui-state.json` 的 `dshw-role`
 - **读取**：`GET /dsh-whale/roles.json`
 - **修改**：`POST /dsh-whale/role-pin.json + ui-state.json`
@@ -177,7 +183,7 @@
 
 - 有什么用：只改显示，不改账本。换算用的是参考汇率，账目本身保持原币种。
 - 怎么调：二选一。选人民币时会用缓存的美元兑人民币汇率。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：按你习惯的币种看；核对账单时切回原币种。
 
 ### 声音与提醒（`sound`）
@@ -199,7 +205,7 @@
 
 - 有什么用：只管点击鲸鱼本身的手感音，不管任务完成、余额预警的提示音。
 - 怎么调：开关。关掉后各事件仍有自己的音色和音量设置，只是按下与松开不发声。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：在会议室或共享空间关掉；其余情况保留，它也是「鲸鱼在响应」的反馈。
 
 #### `size.vol` — 点击音量
@@ -218,7 +224,7 @@
 
 - 有什么用：总音量。它会乘到每个事件自己的独立音量上，不是二选一。
 - 怎么调：0 到 1，步长 0.01。实际响度 = 本项 × 对应事件的独立音量 × 事件是否静音。
-- 什么时候生效：立即生效。
+- 什么时候生效：拖动时挂件立即预览；点「保存更改」后写入配置。
 - 适合怎么选：先用 0.9；要单独调某个事件时只改那一个事件，不要动这里。
 - 例子：点击音量 0.9、按下独立音量 0.8，按下实际输出 0.72。
 
@@ -238,17 +244,17 @@
 
 - 有什么用：决定「现有音效」这一档具体放什么声音。
 - 怎么调：下拉列出全部内置音效组和你导入的音效组。切换后立刻用当前音量试听。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：先用内置组；导入自定义组后在素材管理里试听再选。
 
 #### `size.turnCostOn` — 任务结束后显示用量
 
-- **用途**：一轮任务结束后弹出本轮用量气泡。
-- **类型**：boolean
+- **用途**：一轮任务结束后弹出本轮用量气泡；它是「完成提醒」里气泡那一半。
+- **类型**：note
 - **默认值**：true（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostOn`）
 - **存储**：`.dshw-size.json` 的 `turnCostOn`
 - **读取**：`GET /api/sound-settings`
-- **修改**：`POST /api/sound-settings`
+- **修改**：`通过「完成提醒」写入`
 - **依赖**：`size.bubbleOn`
 - **空值**：缺省按 true 处理
 - **生效**：立即生效
@@ -256,14 +262,14 @@
 **`.help`**
 
 - 有什么用：订阅模式显示本轮 token，API 模式显示本轮观测到的消耗。
-- 怎么调：开关。依赖「显示气泡」开着才有意义。
-- 什么时候生效：立即生效。
+- 怎么调：不再单独开关。要关掉用量气泡，把「完成提醒」改成「关闭」；只关声音就选「仅气泡」。
+- 什么时候生效：随「完成提醒」一起保存。
 - 适合怎么选：长任务密集时打开，跑批时关掉。
 
 #### `size.turnCostCloseMs` — 任务用量提示显示多久
 
 - **用途**：控制任务结束用量气泡的停留时间。
-- **类型**：number，单位 秒，范围 0 – 3600，步长 1
+- **类型**：number，单位 秒，范围 0 – 3600，步长 1，存储值 = 界面值 × 1000
 - **默认值**：5（来源 `runtime/size-settings.mjs#SIZE_SETTINGS_DEFAULTS.turnCostCloseMs`）
 - **存储**：`.dshw-size.json` 的 `turnCostCloseMs`
 - **读取**：`GET /api/sound-settings`
@@ -275,8 +281,8 @@
 **`.help`**
 
 - 有什么用：用量气泡自动消失前的停留时间。
-- 怎么调：0 到 3600 秒，0 表示不自动关闭、由你手动关掉。存储单位是毫秒。
-- 什么时候生效：立即生效。
+- 怎么调：0 到 3600 秒，0 表示不自动关闭、由你手动关掉。界面按秒输入，配置里按毫秒保存。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：先用 5 秒；数字多到来不及看就调到 10 秒以上，或者选 0 手动关。
 - 例子：填 8 秒，底层保存 8000。
 
@@ -294,8 +300,8 @@
 **`.help`**
 
 - 有什么用：只影响鲸鱼被按下时的回弹速度，不改变音量。
-- 怎么调：三档：均衡约 75/140 毫秒、清脆约 65/125 毫秒、柔和约 85/155 毫秒（按下 / 松开）。
-- 什么时候生效：立即生效。
+- 怎么调：三档：均衡约 220/220 毫秒（与原版一致）、清脆约 65/125 毫秒、柔和约 85/155 毫秒（按下 / 松开）。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：默认用均衡；觉得反应慢换清脆，觉得太生硬换柔和。
 
 #### `ui.feedbackEvent` — 各事件音色与独立音量
@@ -319,7 +325,7 @@
 
 - 有什么用：让不同事件用不同声音，提示「完成」和「拥挤失败」听得出来。
 - 怎么调：每个事件两行：音色可选「现有音效」（仅按下/松开/完成）或珍珠、水泡、风铃、静音；独立音量 0 到 1。
-- 什么时候生效：立即生效。
+- 什么时候生效：在编辑器里保存后立即生效。
 - 适合怎么选：按下与松开用「现有音效」+ 0.8；完成提示用风铃；拥挤失败保持静音或用水泡。
 - 例子：按下独立音量 0.8、点击音量 0.9 → 实际输出 0.72；选了静音则强制为 0。
 
@@ -327,7 +333,7 @@
 
 - **用途**：任务结束后用气泡、声音或两者一起提醒。
 - **类型**：combo
-- **默认值**：仅气泡（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.on`）
+- **默认值**：bubble（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.on`）
 - **存储**：`usage-settings.json + .dshw-size.json` 的 `taskEnd.on / turnCostOn`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -340,7 +346,7 @@
 
 - 有什么用：决定一轮任务跑完后你会被怎么通知。这是常用组合，一个下拉就够了。
 - 怎么调：三选一：关闭（都不提示）、仅气泡（只显示用量）、气泡和声音（都开）。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：专注写代码时选「气泡和声音」；跑长批处理时选「关闭」。
 
 #### `usage.taskEndSel` — 完成提示音
@@ -359,14 +365,14 @@
 
 - 有什么用：决定「完成了」这一声长什么样。
 - 怎么调：下拉会列出全部音效组（点按）、内置预设和你导入的音频片段。值分三类：grp:音效组、preset:内置、frag:自定义片段。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：和按下音区分开，选一个音色差异大的，比如风铃。
 
 #### `usage.taskEndVol` — 完成提示音量
 
 - **用途**：单独调节任务完成音的响度。
 - **类型**：range，单位 百分比，范围 0 – 1，步长 0.01
-- **默认值**：跟随点击音量（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.vol`）
+- **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().taskEnd.vol`）
 - **存储**：`usage-settings.json` 的 `taskEnd.vol / taskEnd.volSet`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -377,9 +383,93 @@
 **`.help`**
 
 - 有什么用：完成提示通常应该比点击音更轻或更重，这个开关就是单独调它。
-- 怎么调：拖动即设为独立音量；打开独立后不再跟随点击音量。实际输出 = 完成音量 × 0（静音时）。
-- 什么时候生效：立即生效。
+- 怎么调：拖动即设为独立音量；打开独立后不再跟随点击音量。实际输出 = 完成音量 ×（事件是否静音）。
+- 什么时候生效：点「保存更改」后用于下一次完成提示。
 - 适合怎么选：先保持跟随；觉得完成提示太吵再单独调到 0.5 左右。
+
+#### `usage.events.question` — 提问提示
+
+- **用途**：Codex 停下来等你回答时，是否冒泡和响铃。
+- **类型**：group
+- **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().events.question`）
+- **存储**：`usage-settings.json` 的 `events.question.<field>`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`POST /api/sound-settings`
+- **依赖**：`size.bubbleOn`
+- **空值**：缺省按开启、冒泡、静音处理
+- **生效**：保存后用于下一次
+  - 子字段 `on` — 启用
+  - 子字段 `bubbleOn` — 冒泡
+  - 子字段 `soundOn` — 提示音
+  - 子字段 `lines` — 气泡内容
+
+**`.help`**
+
+- 有什么用：Codex 等你回答问题时提醒你，避免对话一直挂着。
+- 怎么调：启用、冒泡、提示音三个开关，加一组气泡内容。{session} 表示当前对话。
+- 什么时候生效：在编辑器里保存后用于下一次提问。
+- 适合怎么选：保持开启和冒泡，提示音按工作环境决定。
+
+#### `usage.events.approval` — 授权提示
+
+- **用途**：Codex 需要你批准操作时，是否冒泡和响铃。
+- **类型**：group
+- **默认值**：无单一默认值，见下方说明（来源 `runtime/ledger.mjs#usageDefaults().events.approval`）
+- **存储**：`usage-settings.json` 的 `events.approval.<field>`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`POST /api/sound-settings`
+- **依赖**：`size.bubbleOn`
+- **空值**：缺省按开启、冒泡、静音处理
+- **生效**：保存后用于下一次
+  - 子字段 `on` — 启用
+  - 子字段 `bubbleOn` — 冒泡
+  - 子字段 `soundOn` — 提示音
+  - 子字段 `lines` — 气泡内容
+
+**`.help`**
+
+- 有什么用：Codex 真正需要你批准时才出现，自动批准的操作不会触发。
+- 怎么调：启用、冒泡、提示音三个开关，加一组气泡内容。{session} 表示当前对话。
+- 什么时候生效：在编辑器里保存后用于下一次授权。
+- 适合怎么选：保持开启；跑批时至少保留冒泡，不然会一直卡在授权上。
+
+#### `usage.waitCharClose` — 点按角色关闭提示
+
+- **用途**：提问或授权气泡是否也能点鲸鱼本身收起来。
+- **类型**：boolean
+- **默认值**：false（来源 `runtime/ledger.mjs#usageDefaults().wait.charClose`）
+- **存储**：`usage-settings.json` 的 `wait.charClose`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`POST /api/sound-settings`
+- **依赖**：`size.bubbleOn`
+- **空值**：缺省按 false 处理
+- **生效**：立即生效
+
+**`.help`**
+
+- 有什么用：等待提问 / 授权的气泡默认点气泡就能收起；打开后点角色也可以。
+- 怎么调：开关。同一条提醒挂起后不会自己弹回，回答或批准后才会恢复。
+- 什么时候生效：点「保存更改」后立即生效。
+- 适合怎么选：习惯点鲸鱼而不是点气泡时打开。
+
+#### `sound.panel` — 提示与音效面板
+
+- **用途**：在挂件里集中调整提问、授权、每轮消耗和任务结束提示。
+- **类型**：action
+- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/sound-settings/controller.js#startSoundSettings`）
+- **存储**：`（即时操作，不落配置）` 的 `—`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`面板内保存`
+- **空值**：—
+- **生效**：保存后用于下一次
+- **细调位置**：复杂编辑器仍在挂件自身的弹层中打开，本页只显示参数摘要与「回到挂件细调」
+
+**`.help`**
+
+- 有什么用：这是日常用的合并面板，提问、授权、每轮消耗和任务结束提示都在同一处。
+- 怎么调：点按钮在鲸鱼旁边打开；里面的保存会同时写入大小与提醒两个配置域。
+- 什么时候生效：面板里点保存后立即生效。
+- 适合怎么选：只想改提示内容时用它；要连大小、音效组一起调再用上面几项。
 
 ### 气泡内容（`bubble`）
 
@@ -400,7 +490,7 @@
 
 - 有什么用：关掉后余额、任务完成、余额预警这些气泡都不再出现，点击鲸鱼也不会弹。
 - 怎么调：开关。关闭不会改动你已经编辑好的气泡内容，重新打开即可恢复显示。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：只想少打扰但仍要看关键数字时，用「完成提醒」选「仅气泡」比直接关掉更合适。
 
 #### `ui.bubbleShape` — 气泡形状
@@ -418,14 +508,14 @@
 
 - 有什么用：两种形状外框一样大，区别在于内部能放下多少内容。
 - 怎么调：二选一。椭圆更圆润；圆角方形内接矩形更大，气泡内容多时不会溢出到外面。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：气泡里有两个以上额度卡片或长文本时选圆角方形。
 
 #### `bubble.sequences` — 气泡点击序列
 
 - **用途**：点击鲸鱼时依次弹出哪些气泡。
 - **类型**：
-- **默认值**：由内置默认序列决定（来源 `desktop/ui/features/widget/default-content.js#bubbleDefaultQueue`）
+- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/widget/default-content.js#bubbleDefaultQueue`）
 - **存储**：`.dshw-bubble.json` 的 `items / subscriptionItems`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -447,7 +537,7 @@
 
 - **用途**：可以复用的气泡内容片段。
 - **类型**：
-- **默认值**：空（来源 `desktop/ui/features/widget/bubble-editor-model.js#loadBubbleEditorDraft`）
+- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/widget/bubble-editor-model.js#loadBubbleEditorDraft`）
 - **存储**：`.dshw-bubble.json` 的 `lib`
 - **读取**：`GET /dsh-whale/bubble.json`
 - **修改**：`POST /dsh-whale/bubble.json`
@@ -525,7 +615,7 @@
 
 - 有什么用：让鲸鱼只显示角色本身，不显示左上角的菜单按钮。
 - 怎么调：开关。隐藏后仍可通过右键鲸鱼打开菜单，菜单不会失联。
-- 什么时候生效：立即生效。
+- 什么时候生效：点「保存更改」后立即生效。
 - 适合怎么选：觉得按钮碍眼时打开。
 
 #### `ui.pos` — 挂件位置
@@ -543,15 +633,15 @@
 **`.help`**
 
 - 有什么用：拖动鲸鱼时会自动记住位置，这里只用来查看和复位。
-- 怎么调：直接拖动即可；找不到时可在托盘菜单选「移回右下角」。
-- 什么时候生效：拖动结束立即保存。
+- 怎么调：直接拖动即可；找不到时点下面的「移回右下角」，或从托盘菜单复位。
+- 什么时候生效：拖动结束立即保存；复位按钮即时生效。
 - 适合怎么选：不需要手动设置，拖到你顺手的位置就行。
 
 #### `ui.snap` — 自动贴边与翻转
 
 - **用途**：控制鲸鱼靠近屏幕边缘时的吸附范围和朝向翻转。
 - **类型**：snap
-- **默认值**：比例模式：左右 10%、下 15%、上 0%；翻转线 50%（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap`）
+- **默认值**：{"mode":"ratio","ratio":{"L":10,"T":0,"R":10,"B":15,"F":50},"px":{"L":80,"T":0,"R":80,"B":80,"F":-1}}（来源 `desktop/ui/services/ui-defaults.js#UI_DEFAULTS.snap`）
 - **存储**：`ui-state.json` 的 `dshw-snap`
 - **读取**：`localStorage 读取`
 - **修改**：`localStorage → whale-save-storage`
@@ -563,7 +653,7 @@
 
 - 有什么用：拖到靠近边缘时自动吸附摆正，走到屏幕另一半时自动翻转朝向。
 - 怎么调：三档模式：按比例、按像素、关闭。比例模式下左右各 10%、下 15%、上 0%；像素模式下左右各 80 像素、四边翻转线为 -1（即默认不翻转）。翻转线 F 表示走到屏幕宽度的百分之几时翻面。
-- 什么时候生效：立即生效。
+- 什么时候生效：在编辑器里保存后立即生效。
 - 适合怎么选：多显示器或经常拖到边角时用比例模式；希望完全手动控制就关闭。
 - 例子：比例模式下把左边吸附设为 20，鲸鱼在屏幕左侧 20% 范围内会贴左边。
 
@@ -575,7 +665,7 @@
 
 - **用途**：鲸鱼形象图片库。
 - **类型**：
-- **默认值**：内置角色（来源 `lib/widget-host.mjs#ROLE_DEFAULT_ID`）
+- **默认值**：无单一默认值，见下方说明（来源 `lib/widget-host.mjs#ROLE_DEFAULT_ID`）
 - **存储**：`whale-roles/roles.json` 的 `roles[<id>]`
 - **读取**：`GET /dsh-whale/roles.json`
 - **修改**：`POST /dsh-whale/role-pin.json / role-delete.json`
@@ -600,7 +690,7 @@
 
 - **用途**：音效组和音频片段库。
 - **类型**：
-- **默认值**：内置 duck / fx1（来源 `lib/widget-host.mjs#PRESET_GROUPS`）
+- **默认值**：无单一默认值，见下方说明（来源 `lib/widget-host.mjs#PRESET_GROUPS`）
 - **存储**：`whale-audio/audio.json` 的 `groups / fragments`
 - **读取**：`GET /dsh-whale/audio.json`
 - **修改**：`POST /dsh-whale/audio.json`
@@ -624,7 +714,7 @@
 
 - **用途**：气泡里可以引用的图片库。
 - **类型**：
-- **默认值**：内置图片（来源 `lib/widget-host.mjs#DEFAULT_BUBBLE_IMGS`）
+- **默认值**：无单一默认值，见下方说明（来源 `lib/widget-host.mjs#DEFAULT_BUBBLE_IMGS`）
 - **存储**：`whale-bubble-imgs/bubble-imgs.json` 的 `bubbleImgs[<id>]`
 - **读取**：`GET /dsh-whale/bubble-imgs.json`
 - **修改**：`POST /dsh-whale/bubble-img-upload.json`
@@ -647,7 +737,7 @@
 
 - **用途**：把角色、图片、音频打包带走或迁移。
 - **类型**：action
-- **默认值**：—（来源 `lib/workshop.mjs#WORKSHOP_MAX_BYTES`）
+- **默认值**：无单一默认值，见下方说明（来源 `lib/workshop.mjs#WORKSHOP_MAX_BYTES`）
 - **存储**：`（即时操作，不落配置）` 的 `—`
 - **读取**：`GET /api/workshop/export`
 - **修改**：`POST /api/workshop/import`
@@ -746,7 +836,7 @@
 
 - **用途**：自定义预警与预算提醒的文案。
 - **类型**：message
-- **默认值**：余额已低于 {currency}{below} / 今日已观测用量达到 {currency}{amount}（来源 `runtime/ledger.mjs#usageDefaults`）
+- **默认值**：余额已低于 {currency}{below}（来源 `runtime/ledger.mjs#usageDefaults().alert.msg`）
 - **存储**：`usage-settings.json` 的 `alert.msg / budget.msg`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
@@ -756,8 +846,8 @@
 **`.help`**
 
 - 有什么用：改你在提醒里看到的句子。
-- 怎么调：纯文本。变量：{currency} 币种符号、{below} 余额阈值、{amount} 预算阈值。
-- 什么时候生效：保存后用于下一次提醒。
+- 怎么调：纯文本。余额预警默认是「余额已低于 {currency}{below}」，预算提醒默认是「今日已观测用量达到 {currency}{amount}」。变量：{currency} 币种符号、{below} 余额阈值、{amount} 预算阈值。
+- 什么时候生效：在编辑器里保存后用于下一次提醒。
 - 适合怎么选：保留 {currency} 和阈值变量，只改固定文字。
 - 例子：余额快没了：{currency}{below}，赶紧续费
 
@@ -799,28 +889,71 @@
 - 什么时候生效：保存后用于下一次提醒。
 - 适合怎么选：6 秒偏短，建议 8–10 秒。
 
-#### `usage.reminderModules` — 提醒气泡内容与样式
+#### `usage.reminderModules` — 任务用量提示内容
 
-- **用途**：自定义任务用量、余额预警、预算提醒三类气泡的模块。
+- **用途**：自定义每轮任务结束后用量气泡的模块和显示条件。
 - **类型**：group
-- **默认值**：任务用量 3 行、余额预警 4 行、预算提醒 2 行（来源 `runtime/ledger.mjs#usageDefaults`）
-- **存储**：`usage-settings.json` 的 `<domain>.lines`
+- **默认值**：任务用量 3 行（来源 `runtime/ledger.mjs#usageDefaults().turnCost.lines`）
+- **存储**：`usage-settings.json` 的 `events.turnCost.lines`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`POST /api/sound-settings`
 - **依赖**：`size.bubbleOn`
 - **空值**：提交空数组表示清空该组
 - **生效**：保存后用于下一次
-  - 子字段 `turnCost.lines` — 任务用量提示
-  - 子字段 `alert.lines` — 余额预警
-  - 子字段 `budget.lines` — 每日预算提醒
+  - 子字段 `turnCost.lines` — 气泡内容
+  - 子字段 `turnCost.bubbleOn` — 是否冒泡
 
 **`.help`**
 
-- 有什么用：改提醒气泡里显示哪些内容、按什么样式排。
-- 怎么调：每一行是一个模块，类型有文字、图片、链接。文字支持变量 {turn_title}、{turn_primary}、{turn_detail}、{currency}、{below}、{amount}。数组是整体替换的：提交新的行会覆盖该组原有的全部行。
-- 什么时候生效：保存后用于下一次该类提醒。
+- 有什么用：改每轮结束时用量气泡里显示哪些内容、按什么样式排。
+- 怎么调：每一行是一个模块，类型有文字、图片、链接。可用变量 {turn_title}、{turn_primary}、{turn_detail}。数组是整体替换的：提交新的行会覆盖该组原有的全部行。
+- 什么时候生效：在编辑器里保存后用于下一次任务完成提示。
 - 适合怎么选：先只调颜色和字号，别动行数；行数变了容易放不下。
 - 例子：把任务用量第一行改成 {turn_title} 之外的内容，其余两行保持不动。
+
+#### `usage.alertModules` — 余额预警内容
+
+- **用途**：自定义余额低于阈值时的提醒气泡和触发阈值。
+- **类型**：group
+- **默认值**：余额预警 4 行（来源 `runtime/ledger.mjs#usageDefaults().alert.lines`）
+- **存储**：`usage-settings.json` 的 `alert.lines / alert.below`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`POST /api/sound-settings`
+- **依赖**：`usage.alertOn`、`size.bubbleOn`
+- **空值**：提交空数组表示清空该组
+- **生效**：保存后用于下一次
+  - 子字段 `alert.lines` — 气泡内容
+  - 子字段 `alert.below` — 触发阈值
+
+**`.help`**
+
+- 有什么用：余额快用完时弹什么、写什么、链接到哪里。
+- 怎么调：每一行是一个模块；阈值和「余额预警阈值」是同一个设置，在这里改也会同步过去。可用变量 {currency}、{below}。
+- 什么时候生效：在编辑器里保存后用于下一次余额预警。
+- 适合怎么选：保留充值链接那一行，余额不够时能直接点过去。
+- 例子：把图片行删掉，只留标题、金额和链接。
+
+#### `usage.budgetModules` — 每日预算提醒内容
+
+- **用途**：自定义当天用量超过预算时的提醒气泡和阈值。
+- **类型**：group
+- **默认值**：预算提醒 2 行（来源 `runtime/ledger.mjs#usageDefaults().budget.lines`）
+- **存储**：`usage-settings.json` 的 `budget.lines / budget.amount`
+- **读取**：`GET /api/sound-settings`
+- **修改**：`POST /api/sound-settings`
+- **依赖**：`usage.budgetOn`、`size.bubbleOn`
+- **空值**：提交空数组表示清空该组
+- **生效**：保存后用于下一次
+  - 子字段 `budget.lines` — 气泡内容
+  - 子字段 `budget.amount` — 触发阈值
+
+**`.help`**
+
+- 有什么用：一天花超预算时看到什么。
+- 怎么调：每一行是一个模块；阈值和「每日预算阈值」是同一个设置，在这里改也会同步过去。可用变量 {currency}、{amount}。
+- 什么时候生效：在编辑器里保存后用于下一次用量观测。
+- 适合怎么选：只留两行：标题和金额，出现频率低，不必占太多屏幕。
+- 例子：把金额行放到第一行，标题缩到最小。
 
 #### `api.provider` — 余额接口
 
@@ -845,7 +978,7 @@
 
 - **用途**：指定余额接口的根地址。
 - **类型**：url
-- **默认值**：留空表示沿用 Codex 当前配置（来源 `runtime/config.mjs#DEFAULT_CONFIG.baseUrl`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.baseUrl`）
 - **存储**：`providers.json → codexApi` 的 `baseUrl`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -864,7 +997,7 @@
 
 - **用途**：告诉挂件从哪个已有环境变量读取密钥。
 - **类型**：text
-- **默认值**：留空使用 Codex 的现有密钥（来源 `runtime/config.mjs#DEFAULT_CONFIG.keyEnv`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.keyEnv`）
 - **存储**：`providers.json → codexApi` 的 `keyEnv`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -884,7 +1017,7 @@
 
 - **用途**：指定读取哪一个 Codex profile。
 - **类型**：text
-- **默认值**：默认方案（来源 `runtime/config.mjs#DEFAULT_CONFIG.profile`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.profile`）
 - **存储**：`providers.json → codexApi` 的 `profile`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -903,7 +1036,7 @@
 
 - **用途**：从指定目录里的 .codex/config.toml 读取配置。
 - **类型**：text
-- **默认值**：留空读取当前配置（来源 `runtime/config.mjs#DEFAULT_CONFIG.projectDir`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.projectDir`）
 - **存储**：`providers.json → codexApi` 的 `projectDir`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -942,7 +1075,7 @@
 
 - **用途**：自定义接口里余额数据的请求路径。
 - **类型**：text
-- **默认值**：由服务商模板决定（来源 `runtime/config.mjs#DEFAULT_CONFIG.balancePath`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.balancePath`）
 - **存储**：`providers.json → codexApi` 的 `balancePath`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -982,7 +1115,7 @@
 
 - **用途**：指定累计已用金额在返回 JSON 里的位置。
 - **类型**：text
-- **默认值**：留空表示不读取累计消耗（来源 `runtime/config.mjs#DEFAULT_CONFIG.usedField`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.usedField`）
 - **存储**：`providers.json → codexApi` 的 `usedField`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -1060,7 +1193,7 @@
 
 - **用途**：点提醒气泡里的链接时打开的页面。
 - **类型**：url
-- **默认值**：留空使用当前服务商（来源 `runtime/config.mjs#DEFAULT_CONFIG.dashboardUrl`）
+- **默认值**：（来源 `runtime/config.mjs#DEFAULT_CONFIG.dashboardUrl`）
 - **存储**：`providers.json → codexApi` 的 `dashboardUrl`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config`
@@ -1117,7 +1250,7 @@
 
 - **用途**：按模型单价把本轮 token 换算成金额。
 - **类型**：group
-- **默认值**：空表示不估算，按观测到的扣费显示（来源 `runtime/config.mjs#DEFAULT_CONFIG.models`）
+- **默认值**：{}（来源 `runtime/config.mjs#DEFAULT_CONFIG.models`）
 - **存储**：`providers.json → codexApi` 的 `models.<model>`
 - **读取**：`GET /api/config（只返回已配置标记）`
 - **修改**：`PUT /api/config（pricingUpdate）`
@@ -1142,7 +1275,7 @@
 
 - **用途**：为每个 API 模型单独配置接口、提醒、价格和额度。
 - **类型**：group
-- **默认值**：由所选服务商模板提供（来源 `runtime/api-models.mjs#API_TEMPLATES`）
+- **默认值**：无单一默认值，见下方说明（来源 `runtime/api-models.mjs#API_TEMPLATES`）
 - **存储**：`providers.json → diyModels` 的 `models[<id>].<field>`
 - **读取**：`GET /api/models`
 - **修改**：`PUT /api/models`
@@ -1184,7 +1317,7 @@
 
 - **用途**：当接口不返回剩余额度时，由你手填一个数字。
 - **类型**：group
-- **默认值**：未设置（来源 `runtime/api-models.mjs#ApiModelRegistry`）
+- **默认值**：无单一默认值，见下方说明（来源 `runtime/api-models.mjs#ApiModelRegistry`）
 - **存储**：`providers.json → diyModels` 的 `manualQuota`
 - **读取**：`GET /api/models`
 - **修改**：`PUT /api/models`

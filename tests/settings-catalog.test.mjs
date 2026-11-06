@@ -104,6 +104,23 @@ test('provider settings describe the merged provider store', () => {
   }
 });
 
+// 只对「值控件」逐字段比对：组、编辑器入口、位置等条目的 defaultValue 是给人看的摘要
+// 或 null（由编辑器/模板决定），对不上运行时对象是预期的。
+const VALUE_TYPES = new Set(['number', 'range', 'boolean', 'select', 'text']);
+test('value controls default to exactly what the runtime source exports', async () => {
+  for (const field of loadCatalog().fields) {
+    const expected = await resolveDefaultSource(field.defaultSource);
+    if (!VALUE_TYPES.has(field.type) || field.defaultValue === null || field.defaultValue === undefined) continue;
+    if (typeof expected === 'number' && field.scale) {
+      const stored = Math.round((field.defaultValue * field.scale + (field.offset || 0)) * 1e9) / 1e9;
+      assert.equal(stored, expected, `${field.id} 的界面默认值换算后与 ${field.defaultSource} 不一致`);
+      continue;
+    }
+    if (typeof field.defaultValue !== typeof expected) continue;
+    assert.equal(field.defaultValue, expected, `${field.id} 的 defaultValue 与 ${field.defaultSource} 不一致`);
+  }
+});
+
 test('dynamic entries enumerate their sub-fields instead of standing in for a whole editor', () => {
   const catalog = loadCatalog();
   for (const field of catalog.fields.filter(f => f.pattern)) {
@@ -113,6 +130,36 @@ test('dynamic entries enumerate their sub-fields instead of standing in for a wh
   }
 });
 
+test('editor routes are explicit and every one exists in the widget', async () => {
+  const { EDITOR_ROUTES } = await import(pathToFileURL(path.join(root, 'desktop/ui/features/widget/editor-routes.js')).href);
+  const needsEditor = field => !!field.bridged || !!field.editor
+    || ['role', 'snap', 'group', 'message', 'action'].includes(field.type);
+  for (const field of loadCatalog().fields) {
+    if (!needsEditor(field)) continue;
+    assert.ok(field.editor && field.editor.name, `${field.id} 需要编辑器，但没有显式声明 editor.name`);
+    assert.ok(EDITOR_ROUTES.includes(field.editor.name),
+      `${field.id} 的编辑器 ${field.editor.name} 没有在挂件的 EDITOR_ROUTES 里注册`);
+  }
+});
+
+test('default values use the type the control expects', () => {
+  for (const field of loadCatalog().fields) {
+    if (field.defaultValue === null || field.defaultValue === undefined) continue;
+    if (field.type === 'number' || field.type === 'range') {
+      assert.equal(typeof field.defaultValue, 'number', `${field.id} 是数字控件，默认值必须是数字`);
+      if (field.min !== undefined) assert.ok(field.defaultValue >= field.min, `${field.id} 默认值低于 min`);
+      if (field.max !== undefined) assert.ok(field.defaultValue <= field.max, `${field.id} 默认值高于 max`);
+    }
+    if (field.type === 'boolean') assert.equal(typeof field.defaultValue, 'boolean', `${field.id} 是勾选框，默认值必须是布尔值`);
+    if (field.type === 'select' && !field.optionsSource && Array.isArray(field.options)) {
+      const values = field.options.map(option => option.value);
+      assert.ok(values.includes(field.defaultValue), `${field.id} 的默认值不在选项里（${field.defaultValue}）`);
+    }
+    if (field.type === 'combo') {
+      assert.ok(['off', 'bubble', 'both'].includes(field.defaultValue), `${field.id} 的组合默认值非法（${field.defaultValue}）`);
+    }
+  }
+});
 test('the level-1 tier exposes the everyday controls the UX plan requires', () => {
   const ids = loadCatalog().tier1().map(field => field.id);
   for (const required of [
@@ -175,8 +222,9 @@ test('nested settings preserve sibling fields and editor destinations are explic
   assert.equal(pages.readValue(field, values), 'old');
   const patch = JSON.parse(JSON.stringify(pages.toPatch(field, 'preset:duck:press', values)));
   assert.deepEqual(patch.usage.taskEnd, { on: true, sel: 'preset:duck:press', vol: .4 });
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('api.models')).editor, 'api');
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.audio')).editor, 'sound');
-  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get(id)).editor, 'resources');
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.workshop')).editor, 'workshop');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('api.models')).name, 'api');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.audio')).name, 'sound');
+  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get(id)).name, 'resources');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.workshop')).name, 'workshop');
+  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('ui.pos')), null, '位置字段只提供复位按钮，不打开编辑器');
 });

@@ -70,6 +70,27 @@ test('combined sound settings validates references and serializes concurrent wri
   assert.equal(results.filter(result => result.status === 'rejected' && result.reason.code === 'SETTINGS_CONFLICT').length, 1);
 });
 
+test('a size-only save does not fail on an unrelated invalid usage reference', async t => {
+  const { root, whale, usageFile } = fixture(t);
+  // 旧版或手改留下的坏引用只影响「提醒」相关保存，不应连累「大小」。
+  fs.writeFileSync(usageFile, JSON.stringify({ taskEnd: { on: false, sel: 'broken-reference' } }));
+  const service = new SoundSettingsService({ dataDir: root, whale });
+  const snapshot = await service.load();
+  assert.equal(snapshot.usage.taskEnd.sel, 'broken-reference');
+  const sizeOnly = {
+    schemaVersion: 1,
+    revision: snapshot.revision,
+    size: { ...snapshot.size, vol: .5 },
+    usage: snapshot.usage,
+  };
+  const saved = await service.save(sizeOnly);
+  assert.equal(saved.size.vol, .5);
+  // 真正改到提醒引用时仍然拒绝，并指出是哪一项。
+  const broken = command(saved, { usage: { taskEnd: { ...saved.usage.taskEnd, sel: 'bad' } } });
+  await assert.rejects(service.save(broken), error =>
+    error.code === 'INVALID_SOUND_REFERENCE' && /任务结束提示音/.test(error.message));
+});
+
 test('a normal second-file failure rolls both files back and removes the journal', async t => {
   const { root, whale, sizeFile, usageFile } = fixture(t);
   const beforeSize = jsonFile(sizeFile), beforeUsage = jsonFile(usageFile);

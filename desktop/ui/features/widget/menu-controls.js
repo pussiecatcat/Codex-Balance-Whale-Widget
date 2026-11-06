@@ -10,14 +10,14 @@ export function createMenuControls({
   scaleInput.max = String(maxScale);
   scaleInput.step = '0.1';
   scaleInput.className = 'dshwv-range';
-  scaleInput.value = '1.5';
+  scaleInput.value = '1';
   const scaleNumber = document.createElement('input');
   scaleNumber.type = 'number';
   scaleNumber.min = '1';
   scaleNumber.max = '20';
   scaleNumber.step = '1';
   scaleNumber.className = 'dshwv-number';
-  scaleNumber.value = '10';
+  scaleNumber.value = '5'; // 1–20 档；5 档 = 1.0 倍，与设置窗口同一套档位
   scaleInput.addEventListener('pointerdown', () => { positioner.style.transition = 'none'; });
   scaleInput.addEventListener('input', () => { setScale(scaleInput.value); });
   scaleInput.addEventListener('change', () => {

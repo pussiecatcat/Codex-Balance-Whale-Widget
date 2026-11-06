@@ -27,6 +27,11 @@ export function createRoleManager(deps) {
       close();
       return;
     }
+    open();
+  }
+
+  // 设置窗口用「打开」而不是「切换」：菜单没开时也能定位，重复点不会关掉。
+  function open() {
     try {
       const bounds = roleButton.getBoundingClientRect();
       const area = viewport();
@@ -193,6 +198,6 @@ export function createRoleManager(deps) {
   }
 
   window.addEventListener('whale-role-fallback', recover);
-  return Object.freeze({ apply, close, toggle, render, load, replace, useImported, handleDeleted,
+  return Object.freeze({ apply, close, open, toggle, render, load, replace, useImported, handleDeleted,
     current: () => ({ ...current }), roles: () => roles.map(role => ({ ...role })) });
 }

@@ -17,7 +17,11 @@ if (isSettingsWindow) {
     readSettings: domains => ipcRenderer.invoke('whale-settings-read', { domains }),
     writeSettings: request => ipcRenderer.invoke('whale-settings-write', request),
     previewSettings: request => ipcRenderer.invoke('whale-settings-preview', request),
-    focusWhale: editor => ipcRenderer.invoke('whale-command', editor ? 'open-editor' : 'focus-whale', { editor }),
+    focusWhale: target => ipcRenderer.invoke('whale-command', target ? 'open-editor' : 'focus-whale', {
+      editor: typeof target === 'string' ? target : String(target?.name || ''),
+      args: target && typeof target === 'object' && target.args && typeof target.args === 'object' ? target.args : {},
+    }),
+    resetPosition: () => ipcRenderer.invoke('whale-command', 'reset-position'),
     openLogs: () => ipcRenderer.invoke('whale-command', 'open-logs'),
     onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
     onNavigate: callback => ipcRenderer.on('whale-settings-navigate', (_event, target) => callback(target)),
@@ -49,9 +53,10 @@ ipcRenderer.on('whale-command', (_event, command, payload) => {
     settings: 'whale-open-settings',
     'reset-position': 'whale-reset-position',
   };
-  if (command === 'open-editor') window.dispatchEvent(new CustomEvent('whale-open-editor', { detail: { editor: payload?.editor || '' } }));
+  if (command === 'open-editor') window.dispatchEvent(new CustomEvent('whale-open-editor', { detail: { editor: payload?.editor || '', args: payload?.args || {} } }));
   else if (events[command]) window.dispatchEvent(new Event(events[command]));
 });
+ipcRenderer.on('whale-settings-preview', (_event, change) => window.dispatchEvent(new CustomEvent('whale-settings-preview', { detail: change })));
 
 ipcRenderer.on('whale-desktop-mode', (_event, mode) => window.dispatchEvent(new CustomEvent('whale-desktop-mode', { detail: mode })));
 ipcRenderer.on('whale-desktop-mode-changing', () => window.dispatchEvent(new Event('whale-mode-changing')));

@@ -122,8 +122,9 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     WhaleSettingsTest.state.page = 'appearance';
     return true;
   })()`);
-  const scaleInput = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); const input=row?.querySelector("input[type=range]"); if(!input) return null; input.value="1.9"; input.dispatchEvent(new Event("change",{bubbles:true})); return input.value; })()');
-  check(scaleInput === '1.9', '大小滑块可以修改（1.9）');
+  const scaleInput = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); const input=row?.querySelector("input[type=range]"); if(!input) return null; input.value="14"; input.dispatchEvent(new Event("change",{bubbles:true})); return input.value; })()');
+  // 设置窗口与菜单同为 1–20 档：14 档 = 1.9 倍。
+  check(scaleInput === '14', '大小滑块可以修改（14 档 = 1.9 倍）');
   check(await ev('document.getElementById("set-dirty").hidden === false'), '出现「有未保存的修改」提示');
   check(await ev('document.getElementById("set-save").disabled === false'), '保存按钮可用');
   await shoot('03-dirty');
@@ -139,19 +140,70 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
   }
   check(Math.abs(reread.scale - 1.9) < 0.001, '通过 size.json 接口回读一致');
   await shoot('04-saved');
-  for (const value of [2.1, 1.9]) {
-    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input'); i.value='${value}'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
+  for (const [step, value] of [[16, 2.1], [14, 1.9]]) {
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input'); i.value='${step}'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
     await waitFor('!WhaleSettingsTest.state.saving && document.getElementById("set-dirty").hidden', '连续保存');
     check(Math.abs((await dispatcher.soundSettings.load()).size.scale-value)<0.001, '带保存基线再次保存大小 '+value+' 成功');
     await wait(async () => await window.webContents.executeJavaScript(`window.__whaleRenderTest.status().scale === ${value}`), '挂件即时应用大小');
     check(true, '保存后挂件立即应用大小 '+value);
   }
 
+  // ── 拖动预览（B1）：input 只改挂件显示，不写盘 ──────────────────────
+  {
+    const savedScale = (await dispatcher.soundSettings.load()).size.scale;
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='15'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await wait(async () => await window.webContents.executeJavaScript('window.__whaleRenderTest.status().scale === 2'), '挂件预览大小');
+    check(true, '拖动滑块时挂件立即预览 15 档（2.0 倍）');
+    const onDisk = JSON.parse(fs.readFileSync(path.join(dataDir, '.dshw-size.json'), 'utf8')).scale;
+    check(Math.abs(onDisk - savedScale) < 0.001, '拖动预览没有写盘（磁盘仍是 ' + onDisk + '）');
+    // 松手才提交草稿；提交后「撤销修改」才可用。
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); i.value='15'; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await waitFor('document.getElementById("set-revert").disabled === false', '撤销按钮可用');
+    await ev('document.getElementById("set-revert").click()');
+    await wait(async () => await window.webContents.executeJavaScript(`window.__whaleRenderTest.status().scale === ${savedScale}`), '撤销后挂件恢复');
+    check(true, '撤销后挂件恢复到已保存的大小 ' + savedScale);
+  }
+
+  // ── 草稿判断（A2）：改回原样不算未保存 ──────────────────────────────
+  {
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.scale'); const i=r.querySelector('input[type=range]'); const original=i.value; i.value='7'; i.dispatchEvent(new Event('change',{bubbles:true})); i.value=original; i.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    check(await ev('WhaleSettingsTest.anyPageDirty() === false'), '把值改回原样后不再算未保存修改');
+    check(await ev('document.getElementById("set-dirty").hidden === true'), '改回原样后顶部未保存提示消失');
+  }
+
+  // ── 读取失败（A3）：显示错误和重试，而不是静默不动 ──────────────────
+  {
+    await ev(`WhaleSettingsTest.renderLoadError('sound', new Error('模拟读取失败'))`);
+    const text = await ev('document.querySelector(".set-notice.error")?.textContent || ""');
+    check(text.includes('模拟读取失败'), '读取失败时内容区显示具体错误');
+    const retry = await ev('[...document.querySelectorAll(".set-notice.error button")].some(b=>b.textContent==="重试")');
+    check(retry, '读取失败时提供「重试」按钮');
+    const current = await ev(`document.querySelector('#set-nav [aria-current="true"]')?.textContent || ''`);
+    check(current.startsWith('声音与提醒'), '读取失败时左侧导航仍标出目标分类');
+    await ev('document.querySelector(".set-notice.error button").click()');
+    await waitFor('(document.querySelector(".set-notice.error")?.hidden !== false) && document.querySelectorAll(".set-row").length > 0', '重试后恢复');
+    check(true, '点重试后重新加载当前分类');
+  }
+
+  // ── 单位换算（A1）：毫秒存储按秒显示和写入 ──────────────────────────
+  {
+    await ev('WhaleSettingsTest.go("sound")');
+    await waitFor('WhaleSettingsTest.state.page === "sound"', '切到声音分类');
+    const shown = await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.turnCostCloseMs'); return r?.querySelector('input[type=number]')?.value; })()`);
+    check(shown === '9', '存储 9000 毫秒时输入框显示 9 秒（实际 ' + shown + '）');
+    await ev(`(() => { const r=[...document.querySelectorAll('.set-row')].find(r=>r.querySelector('.set-id')?.textContent==='size.turnCostCloseMs'); const i=r.querySelector('input[type=number]'); i.value='8'; i.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('set-save').click(); })()`);
+    await waitFor('!WhaleSettingsTest.state.saving && document.getElementById("set-dirty").hidden', '毫秒字段保存');
+    const stored = (await dispatcher.soundSettings.load()).size.turnCostCloseMs;
+    check(stored === 8000, '填 8 秒保存为 8000 毫秒（实际 ' + stored + '）');
+    await ev('WhaleSettingsTest.go("appearance")');
+    await waitFor('WhaleSettingsTest.state.page === "appearance"', '回到外观分类');
+  }
+
 
   // ── 撤销：回到磁盘上的值 ────────────────────────────────────────────
   await ev('document.getElementById("set-revert").click()');
   const reverted = await ev('(() => { const rows=[...document.querySelectorAll(".set-row")]; const row=rows.find(r=>r.querySelector(".set-id")?.textContent==="size.scale"); return row?.querySelector("input[type=range]").value; })()');
-  check(reverted === '1.9', '撤销后回到已保存的值，而不是默认值');
+  check(reverted === '14', '撤销后回到已保存的值（14 档），而不是默认值');
   check(await ev('document.getElementById("set-dirty").hidden === true'), '撤销后没有未保存标记');
 
   // ── 私有字段不泄露 ──────────────────────────────────────────────────
@@ -312,6 +364,9 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     { page:'media', id:'media.workshop', editor:'workshop', selector:'dialog[open]' },
     { page:'media', id:'media.audio', editor:'sound', selector:'[data-feature="sound-settings-dialog"]' },
     { page:'api', id:'api.models', editor:'api', selector:'dialog[open]' },
+    { page:'sound', id:'usage.events.question', editor:'reminder', selector:'.dshwv-bubmask' },
+    { page:'api', id:'api.customModels', editor:'api-model', selector:'dialog.api-model-card[open]' },
+    { page:'sound', id:'ui.feedbackEvent', editor:'feedback-events', selector:'dialog.whale-v3-dialog[open]' },
   ]) {
     await ev(`WhaleSettingsTest.go(${JSON.stringify(entry.page)})`);
     check(!(await ev('document.body.textContent')).includes('回到挂件细调'), '分类 '+entry.page+' 使用具体动作名称');

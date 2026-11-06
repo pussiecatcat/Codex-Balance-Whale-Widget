@@ -186,6 +186,7 @@ button, input, select { font: inherit; }
   cursor: pointer;
 }
 .set-row-control input:hover, .set-row-control select:hover { border-color: var(--ink-soft); }
+.set-row-control input.is-invalid { border-color: var(--danger); outline: 2px solid var(--danger); outline-offset: -1px; }
 .set-row-control input:focus-visible, .set-row-control select:focus-visible, .set-button:focus-visible {
   outline: 2px solid var(--focus); outline-offset: 1px;
 }
