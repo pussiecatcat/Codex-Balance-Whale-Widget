@@ -26,7 +26,6 @@ import { UI_DEFAULTS } from './services/ui-defaults.js';
     localStorage.setItem(key, JSON.stringify(next));
     settings = next;
     sound.reload({ feedback: settings });
-    window.dispatchEvent(new CustomEvent('whale-feedback-applied', { detail: clone(settings) }));
     return clone(settings);
   }
   function open() {

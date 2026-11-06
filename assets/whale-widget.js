@@ -8,7 +8,6 @@ import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import '/money.js';
 import '/quota.js';
 import '/account-view.js';
-import '/insights.js';
 import '/workshop.js';
 import '/media-guard.js';
 import '/audio-engine.js';
@@ -2328,7 +2327,6 @@ import {
       getState: function () { return state; },
       getAccountView: function () { return window.WhaleAccountView; },
       setNativeCurrency: function (currency) { WhaleMoney.setNativeCurrency(currency); },
-      onBalance: function (data) { window.dispatchEvent(new CustomEvent('whale-balance', { detail: data })); },
       checkAlerts: function (balance, today) { checkUsageAlerts(balance, today); },
       requireSaved: requireSaved, onError: assetFailure,
       getSizeSettings: function () { return {
@@ -2928,15 +2926,6 @@ import {
       var detail=event.detail || {};
       usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
     });
-    window.addEventListener('whale-edit-sound-prompt', function (event) {
-      var detail = event.detail || {};
-      if (detail.key !== 'question' && detail.key !== 'approval') return;
-      usageAlertBudgetEditor(detail.key, detail.save, detail.config);
-    });
-    window.addEventListener('whale-edit-sound-turn-cost', function (event) {
-      var detail = event.detail || {};
-      usageAlertBudgetEditor('turnCost', detail.save, detail.config);
-    });
     var legacySoundUi = Object.freeze({
       mountMenuEntry: function (node) {
         return compactMenu.register({ id: 'sound', element: node });
@@ -3058,7 +3047,7 @@ import {
     });
     var turnNoticePoller = createTurnNoticePoller({
       window: window, localStorage: localStorage, fetch: fetch,
-      WhaleTurnNotice: WhaleTurnNotice, CustomEvent: CustomEvent,
+      WhaleTurnNotice: WhaleTurnNotice,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
       playTaskEndSound: playTaskEndSound,
@@ -3084,7 +3073,6 @@ import {
       window.__dshWhaleWidgetLoading = false;
       window.__dshWhaleInit = false;
       window.__dshWhaleInitLoading = false;
-      window.dispatchEvent(new CustomEvent('whale-widget-failed', { detail: { message: String(err && err.message || err) } }));
       console.error('Whale widget initialization failed', err);
     }
   }

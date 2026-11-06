@@ -46,10 +46,3 @@ export async function launchDesktop({ dataDir = DATA_HOME, mode = null } = {}) {
   if (mode) await bridgeRequest('/api/desktop-mode', { method: 'POST', body: { mode }, dataDir });
   return bridgeRequest('/api/show', { method: 'POST', dataDir });
 }
-export function supervisorStatus(dataDir = DATA_HOME) {
-  const config = readJson(path.join(dataDir, 'follow-config.json'), {});
-  const installed = process.platform === 'darwin'
-    ? config.platform === 'darwin' && config.enabled === true && !!config.label
-    : config.taskName === 'Codex API Balance Whale';
-  return { installed, ...readJson(path.join(dataDir, 'supervisor-state.json'), {}) };
-}

@@ -1,6 +1,6 @@
 // Poll completed turns once, persist the cursor, and deliver fresh notices to the widget.
 export function createTurnNoticePoller(deps) {
-  const { window, localStorage, fetch: fetchImpl, WhaleTurnNotice, CustomEvent,
+  const { window, localStorage, fetch: fetchImpl, WhaleTurnNotice,
     getCurrency, setLastTurnNotice, playTaskEndSound, getFeedbackVolume,
     showCostBubble, now = Date.now } = deps;
   const LAST_TURN_URL = '/dsh-whale/last-turn.json';
@@ -38,7 +38,6 @@ export function createTurnNoticePoller(deps) {
         const notice = WhaleTurnNotice.snapshot(d, getCurrency());
         setLastTurnNotice(notice);
         if (!fresh) return;
-        window.dispatchEvent(new CustomEvent('whale-turn-notice', { detail: notice }));
         if (notice.completionKind === 'success') playTaskEndSound();
         else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && window.WhaleFeedback) {
           window.WhaleFeedback.play(notice.completionKind, '', getFeedbackVolume());

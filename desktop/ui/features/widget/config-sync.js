@@ -59,14 +59,14 @@ export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, l
           state.balanceScope = data.balanceScope || '';
           state.stale = !!data.stale;
           root.title = (data.balanceLabel || 'API 可用余额') + (data.stale ? '（上次成功数据）' : '');
-          onBalance(data);
+          onBalance?.(data);
           checkAlerts(nb, state.todayUsage);
           state.status = 'ok';
         } else {
           state.status = 'error';
           state.code = data && data.code || 'ERROR';
           state.message = data && data.error ? String(data.error) : '获取失败';
-          onBalance(data || { ok: false });
+          onBalance?.(data || { ok: false });
         }
       }).catch(function () {
         state.status = 'error';

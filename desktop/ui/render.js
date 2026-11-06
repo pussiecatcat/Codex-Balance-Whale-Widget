@@ -298,7 +298,7 @@
         if (epoch === this.epoch) {
           this.cancel();
           // A failed decode keeps the last complete frame instead of blanking it.
-          this.container.dispatchEvent(new CustomEvent('whale-frame-error', { detail: { message: error.message } }));
+          console.error('[render] frame failed', error);
         }
         return false;
       }

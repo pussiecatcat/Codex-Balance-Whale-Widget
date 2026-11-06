@@ -45,7 +45,6 @@ if (isSettingsWindow) {
   },
   testMode: process.argv.includes('--whale-render-test'),
 });
-ipcRenderer.on('whale-settings', () => window.dispatchEvent(new Event('whale-open-settings')));
 ipcRenderer.on('whale-command', (_event, command, payload) => {
   const events = {
     balance: 'whale-refresh',
