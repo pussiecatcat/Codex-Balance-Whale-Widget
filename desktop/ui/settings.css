@@ -361,6 +361,7 @@ button, input, select { font: inherit; }
 .set-provider-badge { padding: 0 6px; border-radius: 4px; background: var(--tint-strong); color: var(--ink); font-size: 11px; line-height: 17px; }
 .set-provider-meta, .set-provider-status { color: var(--muted); font-size: 12px; }
 .set-provider-status.is-ok { color: var(--ok); }
+.set-provider-status.is-error { color: var(--danger); }
 .set-providers .set-button { flex: 0 0 auto; }
 .set-providers > .set-button.primary { align-self: stretch; height: 34px; border: 1px dashed var(--edge); background: transparent; color: var(--ink); }
 .set-providers > .set-button.primary:hover { background: var(--tint); border-color: var(--ink-soft); }
