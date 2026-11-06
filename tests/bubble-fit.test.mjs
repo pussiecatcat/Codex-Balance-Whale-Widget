@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bubbleDefaultSubscriptionQueue } from '../desktop/ui/features/widget/default-content.js';
+import { bubbleDefaultSubscriptionQueue, bubbleLegacySubscriptionDefault } from '../desktop/ui/features/widget/default-content.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const widgetSource = fs.readFileSync(path.join(root, 'assets/whale-widget.js'), 'utf8');
@@ -126,6 +126,25 @@ test('the subscription default shows one large quota per click', () => {
     'layout D uses a large number, not the two-column meter cards');
   assert.deepEqual(quotas(steps[0]).map(module => module.size), [20, 4]);
   assert.deepEqual(quotas(steps[1]).map(module => module.size), [20, 4]);
+});
+
+test('both subscription steps share one layout', () => {
+  const shape = step => step.modules.map(({ type, size, row, bold }) => [type, size, row, bold]);
+  const [short, weekly] = bubbleDefaultSubscriptionQueue();
+  assert.deepEqual(shape(short), shape(weekly));
+  assert.deepEqual(short.modules.map(module => module.text || module.tpl),
+    ['5 小时额度', '{quota_left_round}', '距离充值', '{quota_reset}']);
+});
+
+test('the earlier single-window default migrates to the aligned layout', () => {
+  const step = label => ({ kind: 'custom', modules: [
+    { type: 'text', text: label + '剩余', size: 4 },
+    { type: 'quota', windowDurationMins: 300, size: 20, tpl: '{quota_left_round}' },
+    { type: 'quota', windowDurationMins: 300, size: 3, tpl: '{quota_reset_short}后重置' },
+    { type: 'source', size: 2, tpl: '{source_line}' },
+  ] });
+  assert.equal(bubbleLegacySubscriptionDefault([step('5 小时'), step('每周')]), true);
+  assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
 });
 
 test('the previous stacked default is still detected and migrated', () => {

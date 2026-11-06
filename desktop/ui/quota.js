@@ -79,7 +79,7 @@ import { statusView } from '/features/widget/status-tones.js';
   function quotaText(module, subscription, now = Date.now()) {
     const state = quotaState(module, subscription, now);
     const result = fill(module?.tpl || '{quota_label}剩余 {quota_left} · {quota_reset}', state.map);
-    return result + (state.expired ? '（上次数据，待同步）' : '');
+    return result + (state.expired && !module?.quietStale ? '（上次数据，待同步）' : '');
   }
   function planName(type) {
     const key = String(type || '').toLowerCase();

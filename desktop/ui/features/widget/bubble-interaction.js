@@ -3,7 +3,7 @@
 export function createBubbleInteraction(deps) {
   const {
     isEnabled, getScene, isShown, getCurrentNotice, closeWait,
-    isSubscription, refreshQuota, startRound, shouldAdvanceOnCharacter, canAdvance, showNext,
+    isSubscription, refreshQuota, startRound, isAtRoundStart, shouldAdvanceOnCharacter, canAdvance, showNext,
     closeCost, closeAlert, closeBubble,
   } = deps;
 
@@ -23,8 +23,10 @@ export function createBubbleInteraction(deps) {
         else closeBubble();
         return;
       }
-      // With the option off, every character click begins again at the first
-      // item. The bubble itself remains the way to move forward in that mode.
+      // With the option off, a character click returns to the first item, and
+      // the bubble remains the way to move forward. Already on the first item,
+      // only the character reacts: repainting the same content looks like a jump.
+      if (isShown() && isAtRoundStart?.() === true) return;
       startRound();
     } catch (error) {}
   }

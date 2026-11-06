@@ -25,7 +25,7 @@
 /* Translation, mirror and pressed-body transforms remain on separate layers. */
 .dshwv-position{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:9999;transition:transform .16s ease;will-change:transform}
 .desktop .dshwv-root{position:absolute;left:0;top:0;right:auto;bottom:auto;transition:transform .3s ease!important;isolation:isolate}
-.desktop .dshwv-body{will-change:transform}
+.desktop .dshwv-img{will-change:transform}
 .desktop .dshwv-img{image-rendering:auto;backface-visibility:hidden}
 .desktop .dshwv-pop svg{shape-rendering:geometricPrecision}
 /* The bubble body is a drawn path, so the content box must stay inside the

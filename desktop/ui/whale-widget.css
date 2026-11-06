@@ -31,8 +31,8 @@
 .dshwv-root{position:fixed;right:0;bottom:0;--dshw-scale:1;--dshw-base:clamp(122px,calc(min(250px,min(100vw,100vh) * 0.28) * var(--dshw-scale)),625px);width:var(--dshw-base);height:var(--dshw-base);pointer-events:none;user-select:none;-webkit-user-select:none;z-index:9999;font-family:inherit;transition:none}
 .dshwv-root.dshwv-left{transform:scaleX(-1)}
 .dshwv-root.dshwv-dragging{cursor:grabbing;transition:none}
-.dshwv-body{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:50% 100%;transition:transform var(--motion-base) var(--motion-spring)}
-.dshwv-img{position:absolute;right:0;bottom:0;width:59.45%;height:59.45%;display:block;pointer-events:none;-webkit-user-drag:none;user-select:none;object-fit:contain;object-position:right bottom}
+.dshwv-body{position:absolute;left:0;top:0;width:100%;height:100%}
+.dshwv-img{position:absolute;right:0;bottom:0;width:59.45%;height:59.45%;display:block;transform-origin:50% 100%;transition:transform var(--motion-base) var(--motion-spring);pointer-events:none;-webkit-user-drag:none;user-select:none;object-fit:contain;object-position:right bottom}
 .dshwv-pop{position:absolute;left:0;top:0;width:100%;aspect-ratio:1026/700;pointer-events:none;z-index:1;--dshw-u:calc(var(--dshw-base) / 1026)}
 html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 !important;border-radius:0 !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
 .dshwv-pop svg{display:block;width:100%;height:100%;pointer-events:none}
@@ -49,7 +49,7 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-pop .dshwv-bshape{transition-delay:.1s}
 .dshwv-pop .dshwv-b1{transition-delay:.2s}
 .dshwv-pop .dshwv-b2{transition-delay:.3s}
-.dshwv-text{position:absolute;left:var(--dshw-vx,44.25%);top:var(--dshw-vy,36%);width:66%;height:64%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#536ba9;line-height:1.15;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--motion-fast) ease}
+.dshwv-text{position:absolute;left:var(--dshw-vx,44.25%);top:var(--dshw-vy,36%);width:66%;height:64%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#536ba9;line-height:1.15;white-space:nowrap;font-family:Consolas,"Microsoft YaHei UI","Microsoft YaHei",monospace;font-variant-numeric:tabular-nums;pointer-events:none;opacity:0;transition:opacity var(--motion-fast) ease}
 .dshwv-pop.dshwv-pop-open .dshwv-text{opacity:1;transition:opacity var(--motion-fast) ease .36s}
 .dshwv-root.dshwv-left .dshwv-text{transform:translate(-50%,-50%) scaleX(-1)}
 .dshwv-text .dshwv-trow{flex:0 0 auto;margin:calc(var(--dshw-u) * 2) 0}
@@ -242,9 +242,9 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-qcolorhost .dshwv-bubmini{width:auto;height:20px;font-size:11px;opacity:.85;padding:0 6px}
 .dshwv-usagepanel{position:fixed;z-index:26020;background:#fff;border:1px solid rgba(32,49,112,.35);border-radius:10px;box-shadow:0 8px 22px rgba(15,23,42,.22);padding:10px 12px;color-scheme:light;max-height:70vh;overflow-y:auto}
 .dshwv-menuview{display:block}
-.dshwv-usage-sub{display:none;max-height:min(70vh,560px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px;width:100%;box-sizing:border-box;background:transparent;font-variant-numeric:tabular-nums}
+.dshwv-usage-sub{display:none;max-height:min(70vh,560px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px;width:100%;box-sizing:border-box;background:transparent;font-family:Consolas,"Microsoft YaHei UI","Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
 .dshwv-usage-sub button,.dshwv-usage-sub input,.dshwv-usage-sub select,.dshwv-usage-sub textarea{font-family:inherit;font-variant-numeric:tabular-nums}
-.dshwv-menu.dshwv-ledger-open [data-account-api="true"] button{font-variant-numeric:tabular-nums}
+.dshwv-menu.dshwv-ledger-open [data-account-api="true"] button{font-family:Consolas,"Microsoft YaHei UI","Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
 .dshwv-usage-back{border:none;background:none;color:#203170;font-size:12px;font-weight:600;cursor:pointer;padding:0 0 2px;text-align:left;width:100%}
 .dshwv-usage-back:hover{color:#2f4488;text-decoration:underline}
 .dshwv-usagebody{display:flex;flex-direction:column;gap:2px;color:#203170;font-family:inherit;font-size:12px;font-weight:400;line-height:normal;letter-spacing:normal;min-width:0;overflow-x:hidden;font-variant-numeric:tabular-nums}

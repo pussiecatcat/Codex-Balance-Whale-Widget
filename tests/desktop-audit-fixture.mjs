@@ -43,8 +43,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
         if(target?.closest('.dshwv-menu-btn,.dshwv-pop'))continue;
         if(WhaleRendering.hitCache.hit(img,x,y,flipped))candidates.push({x,y});
       }
-      const css=body.style.cssText,transform=body.style.transform;body.style.transition='none';body.style.transform='scaleY(0.88) scaleX(1.05)';
-      const result=candidates.find(p=>!WhaleRendering.hitCache.hit(img,p.x,p.y,flipped));body.style.transform=transform;void body.offsetWidth;body.style.cssText=css;
+      const css=img.style.cssText,transform=img.style.transform;img.style.transition='none';img.style.transform='scaleY(0.88) scaleX(1.05)';
+      const result=candidates.find(p=>!WhaleRendering.hitCache.hit(img,p.x,p.y,flipped));img.style.transform=transform;void img.offsetWidth;img.style.cssText=css;
       document.addEventListener('pointerdown',e=>{window.__auditPointer=e.pointerId;},true);
       return result;
     })()`);

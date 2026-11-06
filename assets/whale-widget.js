@@ -2810,6 +2810,7 @@ import {
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
       },
+      isAtRoundStart: function () { return bubbleRoundOn && bubbleSeqIdx === 1; },
       shouldAdvanceOnCharacter: function () {
         return window.WhaleAccountView?.mode === 'subscription'
           ? bubbleCfg?.subscriptionTapAdvance === true
@@ -3220,14 +3221,16 @@ import {
       if (!soundOn || !releaseAudio) return;
       try { if (pressAudio) pressAudio.pause(); releaseAudio.currentTime = 0; releaseAudio.play().catch(function () {}); } catch (err) {}
     }
+    // Only the character squishes. The bubble shares the same parent, so a transform
+    // on the parent would deform and shake the text above it.
     function pressDown() {
-      if (window.WhaleGesture) window.WhaleGesture.apply(body, true, window.WhaleFeedback && window.WhaleFeedback.feel);
-      else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
+      if (window.WhaleGesture) window.WhaleGesture.apply(img, true, window.WhaleFeedback && window.WhaleFeedback.feel);
+      else { img.style.transitionDuration = '75ms'; img.style.transform = SQUISH; }
       playPress();
     }
     function pressUp() {
-      if (window.WhaleGesture) window.WhaleGesture.apply(body, false, window.WhaleFeedback && window.WhaleFeedback.feel);
-      else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
+      if (window.WhaleGesture) window.WhaleGesture.apply(img, false, window.WhaleFeedback && window.WhaleFeedback.feel);
+      else { img.style.transitionDuration = '140ms'; img.style.transform = 'scaleY(1) scaleX(1)'; }
       playRelease();
     }    var menuOpen = false;
     var menuPositionFrame = 0;

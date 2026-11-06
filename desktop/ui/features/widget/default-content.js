@@ -40,23 +40,36 @@ export function bubbleDefaultQuotaCards() {
   ] }];
 }
 
-function bubbleSingleQuotaStep(minutes, label) {
-  // Layout D: one large number per click, with the other window available on
-  // the next click. No cards, no meter, no plan header.
+function bubbleSingleQuotaStep(minutes, label, countdown) {
+  // One window per click. Both steps use the same three rows and the same
+  // sizes, so moving between them changes only the values, never the layout.
+  // An expired reading is marked once, on the countdown row.
   return { kind: 'custom', modules: [
-    // 层次与 API 余额气泡一致：标题 8、靛蓝大数字 20、说明 4、来源 2。
-    { type: 'text', text: label + '剩余', size: 8, bold: true },
-    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', tpl: '{quota_left_round}' },
-    { type: 'quota', windowDurationMins: minutes, size: 4, tpl: '{quota_reset_short}后重置' },
-    { type: 'source', size: 2, tpl: '{source_line}' }
+    { type: 'text', text: label, size: 8, bold: true },
+    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', quietStale: true, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离充值', size: 2, bold: true, color: '#ffffff', bgRgb: 'bamboo', fontFamily: '"Microsoft YaHei UI","Microsoft YaHei",sans-serif', row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, ul: true, color: '#2fa24c', tpl: countdown, row: 1 }
   ] };
 }
 
 export function bubbleDefaultSubscriptionQueue() {
-  return [bubbleSingleQuotaStep(300, '5 小时'), bubbleSingleQuotaStep(10080, '每周')];
+  return [
+    bubbleSingleQuotaStep(300, '5 小时额度', '{quota_reset}'),
+    // The full weekly countdown is wide enough to shrink the whole bubble, which
+    // is what made the two steps jump. The short form keeps them the same size.
+    bubbleSingleQuotaStep(10080, '每周额度', '{quota_reset_short}'),
+  ];
 }
 export function bubbleLegacySubscriptionDefault(items) {
   try {
+    // The earlier one-window-per-click layout carried a source row and a plain
+    // reset line, so its two steps did not line up.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 4 && parts[0].type === 'text' && /剩余$/.test(String(parts[0].text || '')) &&
+        parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
+        parts[2].type === 'quota' && parts[2].tpl === '{quota_reset_short}后重置' && parts[3].type === 'source';
+    })) return true;
     if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
     var modules = items[0].modules;
     if (modules.some(function (m) { return m && m.type === 'quota' && String(m.tpl || '').indexOf('{quota_source}') >= 0; })) return true;

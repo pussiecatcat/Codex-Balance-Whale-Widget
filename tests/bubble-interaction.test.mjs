@@ -70,3 +70,14 @@ test('clicking the bubble itself still advances and closes independently of the 
   final.interaction.bubbleNext();
   assert.equal(final.calls.closeBubble, 1);
 });
+
+test('clicking the pet on the first bubble leaves that bubble alone', () => {
+  const calls = { startRound: 0 };
+  const interaction = createBubbleInteraction({
+    isEnabled: () => true, getScene: () => ({ kind: 'custom' }), isShown: () => true,
+    isSubscription: () => false, shouldAdvanceOnCharacter: () => false, isAtRoundStart: () => true,
+    startRound: () => { calls.startRound++; },
+  });
+  interaction.whaleClick();
+  assert.equal(calls.startRound, 0);
+});
