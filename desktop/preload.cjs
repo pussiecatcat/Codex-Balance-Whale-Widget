@@ -17,17 +17,41 @@ if (isSettingsWindow) {
     readSettings: domains => ipcRenderer.invoke('whale-settings-read', { domains }),
     writeSettings: request => ipcRenderer.invoke('whale-settings-write', request),
     previewSettings: request => ipcRenderer.invoke('whale-settings-preview', request),
+    settings: {
+      read: domains => ipcRenderer.invoke('whale-settings-read', { domains }),
+      write: request => ipcRenderer.invoke('whale-settings-write', request),
+      preview: request => ipcRenderer.invoke('whale-settings-preview', request),
+      onChanged: callback => {
+        const listener = (_event, change) => callback(change);
+        ipcRenderer.on('whale-settings-changed', listener);
+        return () => ipcRenderer.removeListener('whale-settings-changed', listener);
+      },
+    },
     focusWhale: target => ipcRenderer.invoke('whale-command', target ? 'open-editor' : 'focus-whale', {
       editor: typeof target === 'string' ? target : String(target?.name || ''),
       args: target && typeof target === 'object' && target.args && typeof target.args === 'object' ? target.args : {},
     }),
     resetPosition: () => ipcRenderer.invoke('whale-command', 'reset-position'),
     openLogs: () => ipcRenderer.invoke('whale-command', 'open-logs'),
-    onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
+    onSettingsChanged: callback => {
+      const listener = (_event, change) => callback(change);
+      ipcRenderer.on('whale-settings-changed', listener);
+      return () => ipcRenderer.removeListener('whale-settings-changed', listener);
+    },
     onNavigate: callback => ipcRenderer.on('whale-settings-navigate', (_event, target) => callback(target)),
   });
 } else contextBridge.exposeInMainWorld('whaleDesktop', {
   platform: process.platform,
+  settings: {
+    read: domains => ipcRenderer.invoke('whale-settings-read', { domains }),
+    write: request => ipcRenderer.invoke('whale-settings-write', request),
+    preview: request => ipcRenderer.invoke('whale-settings-preview', request),
+    onChanged: callback => {
+      const listener = (_event, change) => callback(change);
+      ipcRenderer.on('whale-settings-changed', listener);
+      return () => ipcRenderer.removeListener('whale-settings-changed', listener);
+    },
+  },
   ready: () => ipcRenderer.send('whale-ready'),
   keyboardFocus: value => ipcRenderer.send('whale-keyboard-focus', !!value),
   interactive: value => ipcRenderer.send('whale-interactive', !!value),
@@ -37,7 +61,11 @@ if (isSettingsWindow) {
   save: patch => ipcRenderer.invoke('whale-save-storage', patch),
   command: command => ipcRenderer.invoke('whale-command', command),
   openSettings: page => ipcRenderer.invoke('whale-command', 'open-settings', page),
-  onSettingsChanged: callback => ipcRenderer.on('whale-settings-changed', (_event, change) => callback(change)),
+  onSettingsChanged: callback => {
+    const listener = (_event, change) => callback(change);
+    ipcRenderer.on('whale-settings-changed', listener);
+    return () => ipcRenderer.removeListener('whale-settings-changed', listener);
+  },
   openExternal: value => {
     if (!trustedClickAt || Date.now() - trustedClickAt > 1000 || !navigator.userActivation.isActive || typeof value !== 'string') return Promise.resolve(false);
     trustedClickAt = 0;

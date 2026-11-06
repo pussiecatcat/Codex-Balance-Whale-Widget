@@ -89,18 +89,30 @@ function registerIpcHandlers({ ipcMain, host }) {
     return handler ? handler(payload) : false;
   });
   // 设置窗口专用：读写配置。它走主进程的 SettingsStore，挂件和设置页共用一条写路径。
+  // The widget may write the same key/value domains it already changed through
+  // the HTTP route; API credentials and the settings-only domains stay with the
+  // settings window.
+  const WIDGET_DOMAINS = new Set(['size', 'usage', 'completion', 'ui', 'displayMode']);
+  const settingsAllowed = (event, domain) => {
+    const role = roleOf(event);
+    if (!fromRole(event, role)) return false;
+    if (role === 'settings') return true;
+    return role === 'widget' && WIDGET_DOMAINS.has(domain);
+  };
   ipcMain.handle('whale-settings-read', async (event, request) => {
-    if (!fromRole(event, 'settings') || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
-    try { return { ok: true, values: await host.settingsStore().read(request?.domains || 'size') }; }
+    const domains = request?.domains || 'size';
+    const list = Array.isArray(domains) ? domains : [domains];
+    if (!list.every(domain => settingsAllowed(event, domain)) || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
+    try { return { ok: true, values: await host.settingsStore().read(domains) }; }
     catch (error) { return { ok: false, error: error?.message || '读取设置失败' }; }
   });
   ipcMain.handle('whale-settings-write', async (event, request) => {
-    if (!fromRole(event, 'settings') || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
+    if (!settingsAllowed(event, request?.domain) || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
     try { return await host.settingsStore().save(request || {}); }
     catch (error) { return { ok: false, error: error?.message || '保存设置失败' }; }
   });
   ipcMain.handle('whale-settings-preview', async (event, request) => {
-    if (!fromRole(event, 'settings') || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
+    if (!settingsAllowed(event, request?.domain) || !host.settingsStore()) return { ok: false, error: '设置未就绪' };
     try {
       const result = await host.settingsStore().preview(request || {});
       // 预览不落盘：算出的合并值交给挂件临时应用（目前只有大小和音量会响应）。

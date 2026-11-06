@@ -7,7 +7,7 @@ export function savedAnchor({ state, viewport, width, height, rightGap = 0 }) {
     vAnchor: top <= bottom ? 'top' : 'bottom', vDist: Math.max(0, Math.round(Math.min(top, bottom))) };
 }
 
-export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, localStorage,
+export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, localStorage, settingsClient,
   getState, getAccountView, setNativeCurrency, onBalance, checkAlerts, requireSaved,
   onError, getSizeSettings, getPosition, timeoutMs = 25000 }) {
   let busy = false;
@@ -80,10 +80,17 @@ export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, l
 
   function save() {
     const size = getSizeSettings();
-    const operation = updateSoundSettings(current => ({ size: { ...current.size, ...size }, usage: current.usage }));
+    // Widget drags are the user's latest intent, so the size domain is written
+    // through the same SettingsStore as the settings window and forced past a
+    // concurrent edit. The store publishes the change bus message.
+    const operation = settingsClient
+      ? settingsClient.write({ domain: 'size', changes: size, force: true })
+        .then(result => { requireSaved(result); return result; })
+        .catch(error => { onError(error); return null; })
+      : updateSoundSettings(current => ({ size: { ...current.size, ...size }, usage: current.usage }));
     try { localStorage.setItem('dshw-pos', JSON.stringify(savedAnchor(getPosition()))); }
     catch (error) { onError(error); }
     return operation;
   }
-  return { refresh, save, updateSoundSettings, get busy() { return busy; } };
+  return { refresh, save, get busy() { return busy; } };
 }

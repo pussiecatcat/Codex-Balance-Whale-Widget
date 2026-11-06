@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConfigSync, savedAnchor } from '../desktop/ui/features/widget/config-sync.js';
 
-function fixture(requestJson) {
+function fixture(requestJson, settingsClient = null) {
   const state = { balance: null, left: 150, top: 100 };
   const notices = [], errors = [], stored = new Map();
   const root = {};
   const sync = createConfigSync({ requestJson, settingsUrl: '/settings', balanceUrl: '/balance',
-    root, localStorage: { setItem: (key, value) => stored.set(key, value) }, getState: () => state,
+    root, localStorage: { setItem: (key, value) => stored.set(key, value) }, settingsClient, getState: () => state,
     getAccountView: () => ({ mode: 'api' }), setNativeCurrency() {}, onBalance: value => notices.push(value),
     checkAlerts() {}, requireSaved: value => assert.equal(value.ok, true), onError: error => errors.push(error),
     getSizeSettings: () => ({ scale: 1.5 }),
@@ -56,4 +56,14 @@ test('the widget mirrors every size key it writes back after another window save
   for (const assignment of ['applySoundSettingsSnapshot(snapshot)', 'state.scale =', 'bubbleOn =', 'scrollGapOn =', 'scrollGapPx =', 'menuBtnHide =']) {
     assert.ok(handler.includes(assignment), 'missing ' + assignment);
   }
+});
+
+test('save writes the size domain through the shared settings client instead of the old route', async () => {
+  const writes = [];
+  const client = { write: async request => { writes.push(request); return { ok: true, values: request.changes }; } };
+  const f = fixture(async () => { throw new Error('the old PUT route must not be called'); }, client);
+  const result = await f.sync.save();
+  assert.equal(result.ok, true);
+  assert.deepEqual(writes, [{ domain: 'size', changes: { scale: 1.5 }, force: true }]);
+  assert.equal(f.errors.length, 0);
 });

@@ -37,6 +37,7 @@ export class SoundSettingsController {
     this.document = options.documentRef || this.window.document;
     this.legacy = options.legacy;
     this.request = options.request || requestJson;
+    this.settings = options.settings || null;
     this.createMenuEntry = options.createMenuEntry || createSoundMenuEntry;
     this.createView = options.createView || createSoundSettingsView;
     this.sound = options.sound || sound;
@@ -107,9 +108,20 @@ export class SoundSettingsController {
   async save() {
     const savingView = this.view;
     const command = buildSoundSave(this.bundle, this.draft);
-    const saved = await this.request(SETTINGS_URL, {
-      method: 'PUT', body: command, signal: this.abortController.signal,
-    });
+    let saved;
+    if (this.settings) {
+      // The settings window writes these two domains through SettingsStore;
+      // the panel uses the same path so it cannot bypass the change bus.
+      const size = await this.settings.write({ domain: 'size', changes: command.size, force: true });
+      if (!size?.ok) throw new Error(size?.error || '音效设置保存失败');
+      const usage = await this.settings.write({ domain: 'usage', changes: command.usage, force: true });
+      if (!usage?.ok) throw new Error(usage?.error || '音效设置保存失败');
+      saved = { ok: true, size: size.values || command.size, usage: usage.values || command.usage };
+    } else {
+      saved = await this.request(SETTINGS_URL, {
+        method: 'PUT', body: command, signal: this.abortController.signal,
+      });
+    }
     if (this.disposed) return saved;
     const ownsView = this.view === savingView;
     if (ownsView) this.bundle = saved;

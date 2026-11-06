@@ -49,8 +49,8 @@ function resolveAssetFile(pathname) {
 export function createDispatcher(options = {}) {
   // dataDir and the service overrides ride through to createComposition, which
   // owns their defaults.
-  const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}) } = options;
-  const app = createComposition(options);
+  const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}), onChange = () => {} } = options;
+  const app = createComposition({ ...options, onChange });
   const faults = createFaultLog();
   const runtimeLog = createRuntimeLog({ dataDir: app.dataDir });
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
@@ -71,7 +71,17 @@ export function createDispatcher(options = {}) {
       const endpoint = routes.get(url.pathname);
       if (endpoint) {
         const handler = endpoint.handlers[method];
-        if (handler) return await handler({ body: bytes, url });
+        if (handler) {
+          const result = await handler({ body: bytes, url });
+          const change = {
+            '/api/models': { domain: 'apiModels' },
+            '/api/config': { domain: 'api' },
+            '/api/display-mode': { domain: 'displayMode' },
+            '/api/workshop/import': { domain: 'media', kind: 'workshop' },
+          }[url.pathname];
+          if (change && ['POST', 'PUT', 'DELETE'].includes(method) && result.status < 400) onChange(change);
+          return result;
+        }
         return jsonResult(405, endpoint.methodNotAllowed ?? { ok: false });
       }
 

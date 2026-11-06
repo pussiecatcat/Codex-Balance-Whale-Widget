@@ -55,8 +55,14 @@ import { requestJson } from '/services/request.js';
     if (!validMode(next) || switching) return false;
     modeRevision++; switching = true; updateButtons(); if (status) status.textContent = '正在保存…';
     try {
-      const result = await requestJson('/api/display-mode', { method: 'POST', body: { mode: next } });
-      if ((result.mode || result.displayMode) !== next) throw Error('模式未保存，请重试');
+      const bridge = window.whaleDesktop;
+      if (bridge?.settings?.write) {
+        const result = await bridge.settings.write({ domain: 'displayMode', changes: { mode: next }, force: true });
+        if (!result?.ok) throw Error(result?.error || '模式未保存，请重试');
+      } else {
+        const result = await requestJson('/api/display-mode', { method: 'POST', body: { mode: next } });
+        if ((result.mode || result.displayMode) !== next) throw Error('模式未保存，请重试');
+      }
       commit(next); if (status) status.textContent = next === 'subscription' ? '已切换。点击下方按钮查看额度。' : '已切换为 API 余额模式。'; return true;
     } catch (e) { if (status) status.textContent = e.message || '切换失败，请重试'; return false; }
     finally { switching = false; updateButtons(); }

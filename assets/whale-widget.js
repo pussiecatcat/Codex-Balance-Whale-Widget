@@ -1,4 +1,5 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
+import { createSettingsClient } from '/services/settings-client.js';
 import { UI_DEFAULTS } from '/shared/ui-defaults.js';
 import { sound } from '/services/sound.js';
 import { openOver } from '/services/layers.js';
@@ -107,10 +108,6 @@ import {
     var assetClient = createAssetClient();
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
-
-    function updateSoundSettings(mutate, onSaved, attempt) {
-      return configSync.updateSoundSettings(mutate, onSaved, attempt);
-    }
 
     // ==== [素材与媒体工具] ====
     var assetHelpers = createAssetHelpers({ window: window, FileReader: FileReader });
@@ -269,10 +266,11 @@ import {
     var USAGE_REC_URL = '/dsh-whale/usage-records.json';
 
     // ==== [用量面板与设置] ====
+    var settingsClient = window.whaleDesktop && window.whaleDesktop.settings ? createSettingsClient({ bridge: window.whaleDesktop }) : null;
     var usagePanelApi = createUsagePanel({
       document: document, requestJson: requestJson, settingsUrl: SETTINGS_URL, recordsUrl: USAGE_REC_URL,
       assetWarning: assetWarning, assetFailure: assetFailure, WhaleMoney: WhaleMoney,
-      updateSoundSettings: updateSoundSettings,
+      settingsClient: settingsClient,
       getPanel: function () { return usagePanel; }, getMain: function () { return usageMainEl; },
       fill: function (d) { fillUsagePanel(d); }, getState: function () { return state; },
       refreshBalance: function (manual) { refresh(manual); },
@@ -2322,7 +2320,7 @@ import {
     }
     // ==== [刷新与配置保存] ====
     var configSync = createConfigSync({
-      requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL,
+      requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL, settingsClient: settingsClient,
       root: root, localStorage: localStorage, timeoutMs: FETCH_TIMEOUT_MS,
       getState: function () { return state; },
       getAccountView: function () { return window.WhaleAccountView; },
@@ -2489,6 +2487,12 @@ import {
     // 真正执行一次，否则要等重载才生效。
     var settingsApplyEpoch = 0;
     try { window.whaleDesktop.onSettingsChanged(function (change) {
+      if (change && change.domain === 'bubble') { loadBubbleCfg(); return; }
+      if (change && change.domain === 'apiModels') { try { window.WhaleApiModels?.load?.(true); } catch (err) { /* a failed reload keeps the previous list */ } return; }
+      if (change && change.domain === 'media') {
+        try { if (change.kind === 'roles') loadRoles(); else if (change.kind === 'audio') loadAudio(); } catch (err) { /* a failed reload keeps the previous lists */ }
+        return;
+      }
       if (change && ['size', 'usage', 'completion'].includes(change.domain)) {
         var ownSettingsEpoch = ++settingsApplyEpoch;
         requestJson(SETTINGS_URL).then(function (snapshot) {
