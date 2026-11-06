@@ -14,7 +14,6 @@ function fixture({ scene = null, shown = false, notice = null, canAdvance = fals
     isSubscription: () => true,
     refreshQuota: () => { calls.refreshQuota++; },
     startRound: () => { calls.startRound++; },
-    shouldAdvanceOnCharacter: () => advanceOnCharacter === true,
     canAdvance: () => canAdvance,
     showNext: () => { calls.showNext++; },
     closeCost: () => {},
@@ -32,36 +31,27 @@ test('a character click with no bubble open starts at the first bubble and refre
   assert.deepEqual(fx.calls, { ...idle, refreshQuota: 1, startRound: 1 });
 });
 
-// The current code refreshes subscription quota on every queue click, open or not.
-test('with character advancement off, clicking the pet returns an open queue to its first bubble', () => {
-  const fx = fixture({ shown: true, canAdvance: true, advanceOnCharacter: false });
-  fx.interaction.whaleClick();
-  assert.deepEqual(fx.calls, { ...idle, refreshQuota: 1, startRound: 1 });
-});
-
-test('with character advancement on, clicking the pet advances and then closes the final bubble', () => {
-  const middle = fixture({ shown: true, canAdvance: true, advanceOnCharacter: true });
-  middle.interaction.whaleClick();
-  assert.deepEqual(middle.calls, { ...idle, refreshQuota: 1, showNext: 1 });
-
-  const final = fixture({ shown: true, canAdvance: false, advanceOnCharacter: true });
-  final.interaction.whaleClick();
-  assert.deepEqual(final.calls, { ...idle, refreshQuota: 1, closeBubble: 1 });
+test('clicking the pet never switches or closes an open bubble', () => {
+  for (const canAdvance of [true, false]) {
+    const fx = fixture({ shown: true, canAdvance });
+    fx.interaction.whaleClick();
+    assert.deepEqual(fx.calls, { ...idle, refreshQuota: 1 });
+  }
 });
 
 test('wait, cost and alert scenes keep their existing character-click rules', () => {
-  const waiting = fixture({ scene: { kind: 'wait' }, notice: { id: 'n1', closeOnRole: true }, advanceOnCharacter: true });
+  const waiting = fixture({ scene: { kind: 'wait' }, notice: { id: 'n1', closeOnRole: true } });
   waiting.interaction.whaleClick();
   assert.deepEqual(waiting.calls.closeWait, [[true, 'n1']]);
 
   for (const kind of ['cost', 'alert']) {
-    const fx = fixture({ scene: { kind }, shown: true, advanceOnCharacter: true });
+    const fx = fixture({ scene: { kind }, shown: true });
     fx.interaction.whaleClick();
     assert.deepEqual(fx.calls, idle);
   }
 });
 
-test('clicking the bubble itself still advances and closes independently of the character option', () => {
+test('clicking the bubble itself still advances and closes ', () => {
   const middle = fixture({ shown: true, canAdvance: true });
   middle.interaction.bubbleNext();
   assert.equal(middle.calls.showNext, 1);
@@ -69,15 +59,4 @@ test('clicking the bubble itself still advances and closes independently of the 
   const final = fixture({ shown: true, canAdvance: false });
   final.interaction.bubbleNext();
   assert.equal(final.calls.closeBubble, 1);
-});
-
-test('clicking the pet on the first bubble leaves that bubble alone', () => {
-  const calls = { startRound: 0 };
-  const interaction = createBubbleInteraction({
-    isEnabled: () => true, getScene: () => ({ kind: 'custom' }), isShown: () => true,
-    isSubscription: () => false, shouldAdvanceOnCharacter: () => false, isAtRoundStart: () => true,
-    startRound: () => { calls.startRound++; },
-  });
-  interaction.whaleClick();
-  assert.equal(calls.startRound, 0);
 });

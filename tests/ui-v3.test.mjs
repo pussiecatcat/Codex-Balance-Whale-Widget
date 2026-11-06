@@ -28,6 +28,17 @@ test('gesture presets separate press from rebound without changing root flip', (
   window.WhaleGesture.apply(body, true, 'crisp'); assert.match(body.style.transition, /65ms/); assert.match(body.style.transform, /0.9/);
   window.WhaleGesture.apply(body, false, 'crisp'); assert.match(body.style.transition, /125ms/); assert.equal(body.style.transform, 'scaleY(1) scaleX(1)');
 });
+test('repeated presses lean opposite ways and settle back to rest', () => {
+  const window = {}; const settles = []; vm.runInNewContext(read('gesture.js'), { window });
+  const body = { style: {}, animate: frames => { settles.push(frames); return { cancel() {} }; } };
+  window.WhaleGesture.apply(body, true, 'crisp'); const first = body.style.transform;
+  window.WhaleGesture.apply(body, false, 'crisp');
+  window.WhaleGesture.apply(body, true, 'crisp'); const second = body.style.transform;
+  assert.match(first, /rotate\(-3deg\)/);
+  assert.match(second, /rotate\(3deg\)/);
+  assert.equal(settles.length, 1);
+  assert.match(settles[0].at(-1).transform, /rotate\(0deg\) scaleY\(1\) scaleX\(1\)/);
+});
 test('late decoding cannot resurrect a cancelled gesture', async () => {
   const f = audioFixture(); const playing = f.api.play({ channel: 'gesture', url: '/press' }); f.api.stop('gesture'); await playing; assert.equal(f.sources.length, 0);
 });

@@ -185,13 +185,11 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     const bubbleEditorMask = "[...document.querySelectorAll('.dshwv-bubmask')].find(e=>e.checkVisibility({opacityProperty:true}))";
     const bubbleEditorOverview = await ev(`(() => {const mask=${bubbleEditorMask};return {
       text:mask.innerText,
-      checked:mask.querySelector('.dshwv-bubadvance-check').checked,
       weights:[...mask.querySelectorAll('.dshwv-choicegrp')].map(group=>{const g=group.getBoundingClientRect(),w=group.querySelector('.dshwv-winput').getBoundingClientRect();return{value:group.querySelector('.dshwv-winput').value,rightGap:Math.round(g.right-w.right),centerGap:Math.round(Math.abs((g.top+g.bottom-w.top-w.bottom)/2))};})
     };})()`);
     assert.match(bubbleEditorOverview.text, /首次点击弹出内容/);
     assert.match(bubbleEditorOverview.text, /再次点击弹出内容/);
     assert.match(bubbleEditorOverview.text, /点按角色推进泡泡队列/);
-    assert.equal(bubbleEditorOverview.checked, false);
     assert.deepEqual(bubbleEditorOverview.weights.map(weight => weight.value), ['10', '1']);
     assert.ok(bubbleEditorOverview.weights.every(weight => weight.rightGap >= 3 && weight.rightGap <= 5 && weight.centerGap <= 1));
     checks.push('bubble editor matches the reference labels, anchored weights and queue checkbox');
@@ -205,11 +203,8 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     };
     await buttonByText('取消', currentMask); await dismissFixtureConfirm();
     checks.push('bubble module editor retains the restored original peak-period module');
-    await clickSelector('.dshwv-bubadvance-check');
-    assert.equal(await ev("document.querySelector('.dshwv-bubadvance-check').checked"), true);
     await buttonByText('保存', bubbleEditorMask); await dismissFixtureConfirm();
     await wait(`!(${bubbleEditorMask})`, 'bubble editor saves and closes');
-    assert.equal(await ev("fetch('/dsh-whale/bubble.json',{cache:'no-store'}).then(r=>r.json()).then(d=>d.config.tapAdvance)"), true);
     await ev(`window.__whaleRenderTest.close(); window.__whaleRenderTest.queue([
       {kind:'custom',modules:[{type:'text',text:'队列第一项'}]},
       {kind:'custom',modules:[{type:'text',text:'队列第二项'}]}

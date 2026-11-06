@@ -5,7 +5,7 @@ import { bubblePresetItems } from './default-content.js';
 // item editor and the reminder editor swap the same fields while their dialogs
 // are open; this module only drives the sequence-level operations.
 export function createBubbleEditorController({
-  state, view, getMask, getAdvance, getMode,
+  state, view, getMask, getMode,
   getConfig, isConfigLoaded, loadConfig, saveConfig, draftOf, draftSave, defaultQueue,
   showConfirm, assetFailure, closeRolePanel, closeAudioGroupPanel,
 }) {
@@ -39,7 +39,6 @@ export function createBubbleEditorController({
       state.lib = draft.library;
       state.items = draft.items;
       state.tapAdvance = draft.tapAdvance;
-      getAdvance().setValue(state.tapAdvance);
       state.editorSnap = JSON.stringify([state.items, state.lib, state.tapAdvance]);
       render();
       getMask().style.display = 'flex';
@@ -56,7 +55,6 @@ export function createBubbleEditorController({
 
   function close() {
     getMask().style.display = 'none';
-    getAdvance().hideHelp();
     state.editorSnap = null;
   }
 
@@ -64,7 +62,6 @@ export function createBubbleEditorController({
     showConfirm(editingSubscription ? '恢复为默认 Codex 订阅气泡?' : '恢复为默认序列(首次=余额内容,再次=上轮用量)?', () => {
       state.items = defaultQueue(editingSubscription);
       state.tapAdvance = false;
-      getAdvance().setValue(false);
       render();
     });
   }

@@ -15,7 +15,6 @@ import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
-import { createBubbleAdvanceControl } from '/features/widget/bubble-advance-control.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
 import { createAssetHelpers } from '/features/widget/asset-helpers.js';
 import { createRoleCropEditor } from '/features/widget/role-crop-editor.js';
@@ -978,7 +977,6 @@ import {
     });
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
-    var bubbleAdvanceControl = null;
     function bubbleDefaultQueue(subscriptionMode) {
       if (typeof subscriptionMode !== 'boolean') subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
       return buildBubbleDefaultQueue(subscriptionMode);
@@ -1001,7 +999,7 @@ import {
     });
     var bubbleEditorApi = createBubbleEditorController({
       state: bubbleEditorState, view: bubbleEditorView,
-      getMask: function () { return bubbleMask; }, getAdvance: function () { return bubbleAdvanceControl; },
+      getMask: function () { return bubbleMask; },
       getMode: function () { return window.WhaleAccountView?.mode; },
       getConfig: function () { return bubbleCfg; }, isConfigLoaded: function () { return bubbleCfgLoaded; },
       loadConfig: loadBubbleCfg, saveConfig: saveBubbleCfg,
@@ -1485,11 +1483,6 @@ import {
     bubbleAddBtn.textContent = '+ 添加下一条';
     bubbleAddBtn.addEventListener('click', bubbleAddMore);
     bubbleCard.appendChild(bubbleAddBtn);
-    bubbleAdvanceControl = createBubbleAdvanceControl({
-      document: document,
-      onChange: function (value) { bubbleEditorState.tapAdvance = value; }
-    });
-    bubbleCard.appendChild(bubbleAdvanceControl.element);
     var bubbleBtns = document.createElement('div');
     bubbleBtns.className = 'dshwv-bubbtns';
     function bubbleBtn(label, cls, fn) {
@@ -2819,12 +2812,6 @@ import {
         bubbleRoundOn = true;
         bubbleSeqIdx = 0;
         bubbleShowSeqNext();
-      },
-      isAtRoundStart: function () { return bubbleRoundOn && bubbleSeqIdx === 1; },
-      shouldAdvanceOnCharacter: function () {
-        return window.WhaleAccountView?.mode === 'subscription'
-          ? bubbleCfg?.subscriptionTapAdvance === true
-          : bubbleCfg?.tapAdvance === true;
       },
       canAdvance: function () { return bubbleRoundOn && bubbleSeqIdx < bubbleSeq.length; },
       showNext: bubbleShowSeqNext,

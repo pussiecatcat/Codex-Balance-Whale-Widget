@@ -335,12 +335,6 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-bubbtn-no{background:rgba(32,49,112,.1);color:#203170}
 .dshwv-bubbtn-no:hover{background:rgba(32,49,112,.2)}
 .dshwv-bubhint{font-size:11px;color:var(--text-hint);text-align:left;margin-top:6px}
-.dshwv-bubadvance{display:flex;align-items:center;gap:7px;margin:14px 0 0;padding:11px 4px 1px;border-top:1px solid rgba(32,49,112,.14);text-align:left;color:#203170}
-.dshwv-bubadvance-label{display:inline-flex;align-items:flex-start;gap:8px;min-width:0;font-size:13px;line-height:1.35;cursor:pointer;user-select:none}
-.dshwv-bubadvance-check{margin:0;width:17px;height:17px}
-.dshwv-bubadvance-text{display:flex;flex-direction:column;gap:1px}
-.dshwv-bubadvance-text strong{font-weight:600}
-.dshwv-bubadvance-text small{color:#5a6a92;font-size:11.5px;line-height:1.4}
 .dshwv-bubpair{flex:none;height:26px;padding:0 8px;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170;font-size:12px;white-space:nowrap;cursor:pointer}
 .dshwv-bubpair:hover{background:rgba(32,49,112,.16)}
 .dshwv-bubpresets-label{margin:0 0 6px;color:#5a6a92;font-size:12px;text-align:left}
