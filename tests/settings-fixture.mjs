@@ -272,7 +272,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     for (const label of ['数据来源', '角色', '大小', '显示方式', '音效与提示', '气泡']) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
-    for (const label of ['运行日志', '高级设置']) {
+    for (const label of ['高级设置']) {
       check(menu.some(text => text.includes(label)), '一级菜单底部有「' + label + '」');
     }
     const movedDown = await menuEv(`(() => {

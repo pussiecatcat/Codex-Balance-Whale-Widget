@@ -294,7 +294,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();document.querySelector('[data-action=\"toggle-usage-records\"]').click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
-    for(const label of ['数据来源','角色','大小','显示方式','音效与提示','气泡','高级设置','运行日志'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of ['数据来源','角色','大小','显示方式','音效与提示','气泡','高级设置'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('[title=\"集中管理当前导入插件的图片与音频资源\"]').click()");

@@ -75,11 +75,10 @@ html .dshwv-pop, html .dshwv-pop svg{background:transparent !important;border:0 
 .dshwv-menu-row{display:flex;align-items:center;gap:8px;margin:5px 0;color:#203170;font-size:12px;white-space:nowrap}
 .dshwv-range{flex:1;min-width:0;accent-color:#203170}
 .dshwv-number{width:44px;border:1px solid rgba(32,49,112,.4);border-radius:6px;padding:2px 4px;font-size:12px;color:#203170;background:#fff;box-sizing:border-box}
-.dshwv-number.dshwv-scale-value{width:40px;height:24px;padding:0;border-color:rgba(47,107,255,.45);background:rgba(47,107,255,.08);color:#2f6bff;font:700 13px/1 "JetBrains Mono",Consolas,monospace;text-align:center;transition:background-color .12s ease,border-color .12s ease}
-.dshwv-number.dshwv-scale-value:hover,.dshwv-number.dshwv-scale-value:focus{background:rgba(47,107,255,.14);border-color:#2f6bff;outline:none}
+.dshwv-number.dshwv-scale-value{color:#7dffb3;font-weight:700;text-align:center}
 .dshwv-number.dshwv-scale-value::-webkit-inner-spin-button,.dshwv-number.dshwv-scale-value::-webkit-outer-spin-button{appearance:none;margin:0}
 .whale-sound-entry>button{flex:1;min-width:0}
-.dshwv-menu-footer>button{flex:1;height:24px;padding:0}
+.dshwv-menu-footer>button{flex:1;height:24px;padding:0;border-style:dashed}
 .dshwv-number:disabled{opacity:.4;background:rgba(32,49,112,.06);cursor:not-allowed}
 .dshwv-sound:disabled{opacity:.45;cursor:not-allowed}
 .dshwv-sound{flex:1;border:1px solid rgba(32,49,112,.4);border-radius:6px;background:rgba(32,49,112,.08);color:#203170;font-size:12px;padding:3px 0;cursor:pointer;transition:background-color .12s ease}

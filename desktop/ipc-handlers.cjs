@@ -43,6 +43,7 @@ function registerIpcHandlers({ ipcMain, host }) {
   // 设置窗口唯一被允许的通用命令：点亮鲸鱼并唤起它自己的编辑器弹层。
   const settingsCommands = {
     'focus-whale': () => { host.show(); return true; },
+    'open-logs': () => host.openDiagnostics(),
     'open-editor': payload => { host.show(); return host.sendCommand('open-editor', { editor: typeof payload?.editor === 'string' ? payload.editor : '' }); },
   };
 

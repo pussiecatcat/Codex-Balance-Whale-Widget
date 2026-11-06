@@ -15,7 +15,7 @@
   // 二级设置窗口的六个固定分类。顺序即左侧导航顺序。
   const PAGES = [
     { id: 'providers', label: '服务商', hint: 'Codex 当前 API 与 DIY 服务商；点「编辑」在挂件里修改', custom: true },
-    { id: 'appearance', label: '外观与显示', hint: '角色、大小、显示方式与数据来源来源' },
+    { id: 'appearance', label: '外观与显示', hint: '角色、大小、显示方式与数据来源' },
     { id: 'sound', label: '声音与提醒', hint: '什么时候出声、显示什么提醒' },
     { id: 'bubble', label: '气泡内容', hint: '气泡开关、形状、点击序列与模块' },
     { id: 'position', label: '位置与交互', hint: '贴边、翻转、避让与菜单按钮' },

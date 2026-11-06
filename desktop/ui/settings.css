@@ -57,6 +57,8 @@ button, input, select { font: inherit; }
 .set-top .set-dirty { color: var(--warn); font-size: 12px; white-space: nowrap; }
 .set-top .set-dirty[hidden] { display: none; }
 .set-top .set-build { margin-left: auto; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
+.set-top .set-logs { align-self: center; height: 24px; padding: 0 9px; font-size: 12px; }
+.set-top { align-items: center; }
 
 /* ── 主体：左侧分类，右侧内容 ─────────────────────────────────────────── */
 .set-body { display: flex; flex: 1 1 auto; min-height: 0; }

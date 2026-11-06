@@ -398,6 +398,8 @@ import { requestJson } from '/services/request.js';
 
   // ── 启动 ────────────────────────────────────────────────────────────────
 
+  document.getElementById('set-logs')?.addEventListener('click', () => { bridge.openLogs?.(); });
+
   // Shows which build is running, so a stale install is visible at a glance.
   requestJson('/api/status').then(info => {
     const build = document.getElementById('set-build');

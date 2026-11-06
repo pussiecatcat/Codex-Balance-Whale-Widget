@@ -781,9 +781,7 @@ import {
           e.stopPropagation();
           try { window.whaleDesktop.openSettings(); } catch (err) { window.dispatchEvent(new Event('whale-open-settings')); }
         });
-        logsOpenBtn.textContent = '运行日志';
         sink(rowLogs);
-        footerRow.appendChild(logsOpenBtn);
         footerRow.appendChild(advancedBtn);
 
         var scaleRow = rowExact('大小');
