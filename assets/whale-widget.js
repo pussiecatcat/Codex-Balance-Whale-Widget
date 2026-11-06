@@ -564,7 +564,7 @@ import {
     var rowLogs = menuRow();
     var logsOpenBtn = document.createElement('button');
     logsOpenBtn.type = 'button';
-    logsOpenBtn.className = 'dshwv-roleimport';
+    logsOpenBtn.className = 'dshwv-sound';
     logsOpenBtn.style.flex = '1';
     logsOpenBtn.textContent = '打开';
     logsOpenBtn.title = '打开运行日志目录（runtime.log）；反馈问题时请附上最近一段';
@@ -743,7 +743,7 @@ import {
         advancedRow.appendChild(menuLabel('高级设置…'));
         var advancedBtn = document.createElement('button');
         advancedBtn.type = 'button';
-        advancedBtn.className = 'dshwv-roleimport';
+        advancedBtn.className = 'dshwv-sound';
         advancedBtn.style.flex = '1';
         advancedBtn.textContent = '打开';
         advancedBtn.title = '打开完整设置窗口';
@@ -757,7 +757,7 @@ import {
         bottomRow.appendChild(menuLabel('位置'));
         var moveBtn = document.createElement('button');
         moveBtn.type = 'button';
-        moveBtn.className = 'dshwv-roleimport';
+        moveBtn.className = 'dshwv-sound';
         moveBtn.style.flex = '1';
         moveBtn.textContent = '移回右下角';
         moveBtn.title = '把鲸鱼移回桌面右下角';

@@ -81,6 +81,9 @@ export function createBubbleRowsView(deps) {
         // Small modules must stay readable when the widget is scaled down.
         var minimum = bubbleFontFloor(fSize);
         row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize) + '))';
+        // A countdown changes width with its value, and the widest row decides the
+        // fit scale, so without a fixed slot two quota steps render at different sizes.
+        if (m.type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(m.tpl || ''))) row.style.minWidth = '5.4em';
         if (whaleMoneyTemplates.has(m)) row.style.lineHeight = '1.4';
         if (fBold) row.style.fontWeight = m.type === 'balance' ? '900' : '700'; else if (m.type === 'balance') row.style.fontWeight = '800';
         if (fItalic) row.style.fontStyle = 'italic';
@@ -224,6 +227,15 @@ export function createBubbleRowsView(deps) {
               pe.style.overflowWrap = 'anywhere';
               pe.style.wordBreak = 'break-word';
               pe.style.maxWidth = '';
+            }
+            // min-width has no effect on an inline box. The line stays whole, because
+            // wrapping the countdown under its label would change the row height too.
+            if (pe.style.minWidth) {
+              pe.style.display = 'inline-block';
+              pe.style.textAlign = 'center';
+              para.style.maxWidth = '';
+              para.style.whiteSpace = 'nowrap';
+              for (var q = 0; q < chunk.length; q++) chunk[q].el.style.whiteSpace = 'nowrap';
             }
             para.appendChild(pe);
             enableLinkRun(pr);

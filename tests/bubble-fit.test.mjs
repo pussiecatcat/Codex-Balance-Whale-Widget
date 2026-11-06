@@ -184,3 +184,7 @@ test('no custom property on <html> may reference --dshw-u', () => {
       'html.desktop must only carry plain design-unit numbers: ' + block.slice(0, 90));
   }
 });
+
+test('a countdown-only row keeps one width so quota steps share a fit scale', () => {
+  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '5\.4em'/);
+});

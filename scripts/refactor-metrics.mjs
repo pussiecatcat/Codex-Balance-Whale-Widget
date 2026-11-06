@@ -97,7 +97,7 @@ export const EMPTY_CATCH_BUDGET = { total: 302 };
 // A design token pass only pays off if the raw palette stops growing. The
 // budget counts distinct hex values across the two stylesheets and the widget
 // entry; migrate a surface, then lower the number.
-export const CSS_HEX_BUDGET = { total: 105 };
+export const CSS_HEX_BUDGET = { total: 104 };
 const CSS_HEX_FILES = ['desktop/ui/whale-widget.css', 'desktop/ui/ui.css', 'assets/whale-widget.js'];
 function cssHexMetrics(root) {
   const values = new Set();
