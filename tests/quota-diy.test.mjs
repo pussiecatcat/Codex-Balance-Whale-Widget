@@ -44,8 +44,8 @@ test('DIY quota module counts down independently and labels missing or stale dat
     { windowDurationMins: 10080, usedPercent: 43, resetsAt: now + 2 * 86400000 },
   ] };
   assert.equal(countdown(now + 3661000, now), '01:01:01');
-  assert.equal(countdownShort(now + 3661000, now), '1小时 01分');
-  assert.equal(countdownShort(now + 2 * 86400000 + 3600000, now), '2天 01小时');
+  assert.equal(countdownShort(now + 3661000, now), '1h 01m');
+  assert.equal(countdownShort(now + 2 * 86400000 + 3600000, now), '2d 01h');
   assert.equal(quotaBar(60), '━━━━━───');
   assert.match(resetAt(now + 3661000), /\d/);
   assert.equal(quotaText({ type: 'quota', windowDurationMins: 300,
@@ -53,7 +53,7 @@ test('DIY quota module counts down independently and labels missing or stale dat
     '5 小时 60.0% · 01:01:01 · Codex 实时查询');
   assert.equal(quotaText({ type: 'quota', windowDurationMins: 300,
     tpl: '{quota_left_round} · {quota_reset_short} · {quota_bar}' }, subscription, now),
-    '60% · 1小时 01分 · ━━━━━───');
+    '60% · 1h 01m · ━━━━━───');
   assert.match(quotaText({ type: 'quota', windowDurationMins: 10080 }, subscription, now), /57\.0% · 2天 00:00:00/);
   assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, { windows: [] }, now), /未观测/);
   assert.match(quotaText({ type: 'quota', windowDurationMins: 300 }, {

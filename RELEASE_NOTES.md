@@ -1,10 +1,12 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-1`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-2`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
 ## 2026-11-05 后续整改
+
+- 额度气泡标题改为 `Codex 额度`，用深蓝标签 `5h` / `7d` 区分窗口；简洁倒计时改为 `3d 06h`、`3h 12m`、`12m`。
 
 - 订阅默认气泡改为「单数字、逐次点击」：第一屏 5 小时，第二屏每周，主数字更大；原双卡布局保留为「潮汐卡片」预设，已保存的序列不变。
 - 移除自动深色模式，挂件与设置恢复蓝白配色；正文对比度按 4.5:1 校验，CSS 色值预算从 138 降到 111。

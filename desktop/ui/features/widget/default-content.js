@@ -40,25 +40,22 @@ export function bubbleDefaultQuotaCards() {
   ] }];
 }
 
-function bubbleSingleQuotaStep(minutes, label, countdown) {
+const BUBBLE_CHIP_FONT = '"Microsoft YaHei UI","Microsoft YaHei",sans-serif';
+function bubbleSingleQuotaStep(minutes, badge) {
   // One window per click. Both steps use the same three rows and the same
   // sizes, so moving between them changes only the values, never the layout.
   // An expired reading is marked once, on the countdown row.
   return { kind: 'custom', modules: [
-    { type: 'text', text: label, size: 8, bold: true },
+    { type: 'text', text: 'Codex 额度', size: 8, bold: true, row: 1 },
+    { type: 'text', text: badge, size: 2, bold: true, color: '#ffffff', bg: '#203170', fontFamily: BUBBLE_CHIP_FONT, row: 1 },
     { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', quietStale: true, tpl: '{quota_left_round}' },
-    { type: 'text', text: '距离充值', size: 2, bold: true, color: '#ffffff', bgRgb: 'bamboo', fontFamily: '"Microsoft YaHei UI","Microsoft YaHei",sans-serif', row: 1 },
-    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, ul: true, color: '#2fa24c', tpl: countdown, row: 1 }
+    { type: 'text', text: '距离充值', size: 2, bold: true, color: '#ffffff', bgRgb: 'bamboo', fontFamily: BUBBLE_CHIP_FONT, row: 2 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, ul: true, color: '#2fa24c', tpl: '{quota_reset_short}', row: 2 }
   ] };
 }
 
 export function bubbleDefaultSubscriptionQueue() {
-  return [
-    bubbleSingleQuotaStep(300, '5 小时额度', '{quota_reset}'),
-    // The full weekly countdown is wide enough to shrink the whole bubble, which
-    // is what made the two steps jump. The short form keeps them the same size.
-    bubbleSingleQuotaStep(10080, '每周额度', '{quota_reset_short}'),
-  ];
+  return [bubbleSingleQuotaStep(300, '5h'), bubbleSingleQuotaStep(10080, '7d')];
 }
 export function bubbleLegacySubscriptionDefault(items) {
   try {
@@ -69,6 +66,14 @@ export function bubbleLegacySubscriptionDefault(items) {
       return parts.length === 4 && parts[0].type === 'text' && /剩余$/.test(String(parts[0].text || '')) &&
         parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
         parts[2].type === 'quota' && parts[2].tpl === '{quota_reset_short}后重置' && parts[3].type === 'source';
+    })) return true;
+    // The layout before the title badge named each window in its own title.
+    if (Array.isArray(items) && items.length === 2 && items.every(function (item, index) {
+      var parts = item && Array.isArray(item.modules) ? item.modules : [];
+      return parts.length === 4 && parts[0].type === 'text' && parts[0].text === (index ? '每周额度' : '5 小时额度') &&
+        parts[1].type === 'quota' && parts[1].tpl === '{quota_left_round}' &&
+        parts[2].type === 'text' && parts[2].text === '距离充值' &&
+        parts[3].type === 'quota' && /^\{quota_reset(_short)?\}$/.test(String(parts[3].tpl || ''));
     })) return true;
     if (!Array.isArray(items) || items.length !== 1 || !Array.isArray(items[0].modules)) return false;
     var modules = items[0].modules;

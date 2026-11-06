@@ -137,7 +137,8 @@ test('both subscription steps share one layout', () => {
   const [short, weekly] = bubbleDefaultSubscriptionQueue();
   assert.deepEqual(shape(short), shape(weekly));
   assert.deepEqual(short.modules.map(module => module.text || module.tpl),
-    ['5 小时额度', '{quota_left_round}', '距离充值', '{quota_reset}']);
+    ['Codex 额度', '5h', '{quota_left_round}', '距离充值', '{quota_reset_short}']);
+  assert.equal(weekly.modules[1].text, '7d');
 });
 
 test('the earlier single-window default migrates to the aligned layout', () => {
@@ -149,6 +150,19 @@ test('the earlier single-window default migrates to the aligned layout', () => {
   ] });
   assert.equal(bubbleLegacySubscriptionDefault([step('5 小时'), step('每周')]), true);
   assert.equal(bubbleLegacySubscriptionDefault(bubbleDefaultSubscriptionQueue()), false);
+});
+
+test('the layout with a title per window migrates to the badge layout', () => {
+  const step = (label, minutes, countdown) => ({ kind: 'custom', modules: [
+    { type: 'text', text: label, size: 8, bold: true },
+    { type: 'quota', windowDurationMins: minutes, size: 20, rgb: 'indigo', quietStale: true, tpl: '{quota_left_round}' },
+    { type: 'text', text: '距离充值', size: 2, bold: true, row: 1 },
+    { type: 'quota', windowDurationMins: minutes, size: 4, bold: true, ul: true, tpl: countdown, row: 1 },
+  ] });
+  const previous = [step('5 小时额度', 300, '{quota_reset}'), step('每周额度', 10080, '{quota_reset_short}')];
+  assert.equal(bubbleLegacySubscriptionDefault(previous), true);
+  previous[0].modules[0].text = '我的额度';
+  assert.equal(bubbleLegacySubscriptionDefault(previous), false, 'an edited title is the user\'s own and stays');
 });
 
 test('the previous stacked default is still detected and migrated', () => {
@@ -186,5 +200,5 @@ test('no custom property on <html> may reference --dshw-u', () => {
 });
 
 test('a countdown-only row keeps one width so quota steps share a fit scale', () => {
-  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '5\.4em'/);
+  assert.match(rowsViewSource, /\{quota_reset\(_short\)\?\\\}\$\/\.test\(String\(m\.tpl \|\| ''\)\)\) row\.style\.minWidth = '4\.2em'/);
 });

@@ -24,9 +24,9 @@ import { statusView } from '/features/widget/status-tones.js';
     const days = Math.floor(seconds / 86400); seconds %= 86400;
     const hours = Math.floor(seconds / 3600); seconds %= 3600;
     const minutes = Math.floor(seconds / 60);
-    if (days) return `${days}天 ${String(hours).padStart(2, '0')}小时`;
-    if (hours) return `${hours}小时 ${String(minutes).padStart(2, '0')}分`;
-    return `${Math.max(1, minutes)}分钟`;
+    if (days) return `${days}d ${String(hours).padStart(2, '0')}h`;
+    if (hours) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+    return `${Math.max(1, minutes)}m`;
   }
   function resetAt(reset) {
     const time = timeValue(reset);
