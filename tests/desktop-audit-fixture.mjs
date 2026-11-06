@@ -82,24 +82,24 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     // Feedback controls are exercised through the combined compact sound panel.
     await ev("window.__whaleRenderTest.close();document.querySelector('.dshwv-menu-btn').click()");
     await wait("document.querySelector('.dshwv-menu').classList.contains('dshwv-menu-open')", 'compact menu opens for sound settings');
-    await ev("(async()=>{window.__soundBefore=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size);[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()})()");
+    await ev("(async()=>{window.__soundBefore=await fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size);[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()})()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings opens');
     await ev("(()=>{const e=document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));})()");
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await wait("!document.querySelector('.whale-sound-mask')", 'Escape dismisses the combined sound draft');
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol===window.__soundBefore.vol)"), true);
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
+    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for save');
     await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='0';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click();})()");
     await wait("!document.querySelector('.whale-sound-mask')", 'combined sound settings save');
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol)"), 0);
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
+    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
     await wait("!!document.querySelector('.whale-sound-mask .whale-sound-volume-row input[type=range]')", 'combined sound settings reopens for cancel');
     await ev("(()=>{const d=document.querySelector('.whale-sound-card'),e=d.querySelector('.whale-sound-volume-row input[type=range]');e.value='.5';e.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='取消').click();})()");
     assert.equal(await ev("fetch('/api/sound-settings',{cache:'no-store'}).then(r=>r.json()).then(d=>d.size.vol)"), 0);
     checks.push('combined sound panel saves independent event volume and discards Cancel and Escape drafts');
-    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='全局设置').click()");
+    await ev("[...document.querySelectorAll('.dshwv-menu button')].find(b=>b.textContent==='音效/提示泡泡设置').click()");
     await wait("!!document.querySelector('.whale-sound-mask')", 'combined sound settings opens for screenshot');
     assert.equal(await ev("document.querySelectorAll('.whale-sound-card>.whale-sound-block').length"), 4);
     assert.equal(await ev("[...document.querySelectorAll('.whale-sound-card>.whale-sound-block')].find(b=>b.querySelector('.whale-sound-block-title')?.textContent==='每轮消耗提示').querySelector('.whale-sound-wide-action').textContent"), '编辑提示内容');
@@ -294,7 +294,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     fs.writeFileSync(path.join(output,'usage-history.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.dshwv-usage-close').click();document.querySelector('[data-action=\"toggle-usage-records\"]').click()"); await delay(300);
     const settingsInventory=await ev("document.querySelector('.dshwv-menuview').innerText");
-    for(const label of ['数据来源','角色','大小','显示方式','点击音效','完成提醒','气泡','高级设置','运行日志'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
+    for(const label of ['数据来源','角色','大小','显示方式','音效与提示','气泡','高级设置','运行日志'])assert.ok(settingsInventory.includes(label),'retained setting entry: '+label);
     for(const removed of ['音效与手感','会员额度详情','本地创意工坊'])assert.ok(!settingsInventory.includes(removed),'removed duplicate setting: '+removed);
     fs.writeFileSync(path.join(output,'compact-settings.png'),(await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('[title=\"集中管理当前导入插件的图片与音频资源\"]').click()");

@@ -1,12 +1,13 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-6`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-7`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
 ## 2026-11-05 后续整改
 
 - 额度气泡标题改为 `Codex 额度消耗`，大数字显示已用百分比，用深蓝标签 `5h` / `7d` 区分窗口；底部改为「距离重置」，5 小时显示 `03:12:45`，7 天显示 `03d 07h`。
+- 菜单收窄；声音入口改回原版的一行「音效与提示」，点击音效和完成提醒收进面板。
 - 菜单按用途分组：「数据来源」「显示方式」改名，「自定义泡泡」改为「气泡DIY」，大小数字改为居中的亮蓝色；「运行日志」和「高级设置」合到底部，「移回右下角」移到托盘菜单。
 - 标题略微放大，缩小后的标签与标题底部对齐；百分比放大并改用 ExtraBold。
 - 等宽数字改用内置的 JetBrains Mono 子集（SIL OFL 1.1，许可见 `desktop/ui/fonts/OFL.txt`）。

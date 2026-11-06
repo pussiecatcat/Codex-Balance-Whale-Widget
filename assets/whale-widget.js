@@ -681,7 +681,7 @@ import {
           var groups = [
             [root.querySelector('.whale-account-switch'), rowExact('显示方式')],
             [rowExact('角色'), rowExact('大小')],
-            [rowExact('点击音效'), rowExact('完成提醒'), rowExact('气泡')]
+            [rowExact('音效与提示'), rowExact('气泡')]
           ];
           function separator() {
             var line = document.createElement('div');
@@ -713,7 +713,7 @@ import {
           row.classList.add('dshwv-level1-sunk');
         }
         // 下沉到完整设置窗口的行：一行都不留在日常菜单里。
-        ['音效', '音量', '每轮消耗提示', '任务结束音效', '音效与提示', '气泡形状',
+        ['音效', '音量', '每轮消耗提示', '任务结束音效', '气泡形状',
           '避让滚动条', '吸附与翻转', '隐藏菜单按钮', '资源管理', '显示币种', '参考汇率',
           '峰谷时段', '素材包导入/导出', '进入独立桌面', '改为跟随 Codex'].forEach(function (text) {
           sink(rowByLabel(text));
@@ -792,6 +792,9 @@ import {
         root.appendChild(modeRow);
         root.appendChild(soundRow);
         root.appendChild(remindRow);
+        // 这两项由「音效与提示」面板和设置窗口接管；控件仍保留，因为回填配置要写它们。
+        sink(soundRow);
+        sink(remindRow);
         root.appendChild(footerRow);
         arrangeMenu();
         syncLevel1Controls();

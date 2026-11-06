@@ -269,7 +269,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     await waitWidget('!!document.querySelector(".dshwv-menuview")', '挂件菜单');
 
     const menu = await menuEv('(() => { const m=document.querySelector(".dshwv-menuview"); return [...m.children].filter(n=>!n.hidden && getComputedStyle(n).display!=="none").map(n=>(n.textContent||"").trim().slice(0,14)); })()');
-    for (const label of ['数据来源', '角色', '大小', '显示方式', '点击音效', '完成提醒', '气泡']) {
+    for (const label of ['数据来源', '角色', '大小', '显示方式', '音效与提示', '气泡']) {
       check(menu.some(text => text.startsWith(label)), '一级菜单显示「' + label + '」');
     }
     for (const label of ['运行日志', '高级设置']) {

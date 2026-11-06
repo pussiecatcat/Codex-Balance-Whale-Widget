@@ -161,7 +161,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.doesNotMatch(menu, /峰谷|高峰|倒计时/); checks.push('clickable menu retains original management controls');
     for (const label of ['音效与提示', '素材包导入/导出']) assert.ok(menu.includes(label), label);
     assert.doesNotMatch(menu, /音效与手感|会员额度详情|本地创意工坊|跟随 Codex/);
-    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='全局设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    const soundSettings = await ev("(() => {const b=[...document.querySelectorAll('.dshwv-menu button')].find(e=>e.textContent.trim()==='音效/提示泡泡设置');const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
     await clickAt(soundSettings); await wait("document.querySelector('.whale-sound-mask')?.checkVisibility({opacityProperty:true})", 'merged sound settings');
     const soundPanel = await ev("document.querySelector('.whale-sound-card').textContent");
     for (const label of ['按压音效', '每轮消耗提示', '提问提示', '授权提示', '新建音效组', '编辑提示内容', '点按角色关闭提示气泡']) assert.match(soundPanel, new RegExp(label));

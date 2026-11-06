@@ -12,7 +12,7 @@ export function createSoundMenuEntry({ documentRef = document, onOpen }) {
   const root = element(documentRef, null, 'div', '', 'dshwv-menu-row whale-sound-entry');
   root.dataset.feature = 'sound-settings';
   element(documentRef, root, 'span', '音效与提示');
-  const button = element(documentRef, root, 'button', '全局设置', 'dshwv-roleimport');
+  const button = element(documentRef, root, 'button', '音效/提示泡泡设置', 'dshwv-roleimport');
   button.type = 'button';
   button.dataset.action = 'open-sound-settings';
   button.addEventListener('click', onOpen);
@@ -20,7 +20,7 @@ export function createSoundMenuEntry({ documentRef = document, onOpen }) {
     element: root,
     setLoading(loading, error = '') {
       button.disabled = loading;
-      button.textContent = error ? '读取失败，重试' : loading ? '读取中…' : '全局设置';
+      button.textContent = error ? '读取失败，重试' : loading ? '读取中…' : '音效/提示泡泡设置';
       button.title = error;
     },
     destroy() { button.removeEventListener('click', onOpen); root.remove(); },
