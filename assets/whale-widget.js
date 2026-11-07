@@ -1,5 +1,6 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { createSettingsClient } from '/services/settings-client.js';
+import { createScope } from '/services/scope.js';
 import { createToast } from '/services/toast.js';
 import { applyGesture } from '/features/widget/gesture.js';
 import WhaleRendering from '/services/rendering.js';
@@ -22,7 +23,8 @@ import '/shape.js';
 import '/input.js';
 import '/workshop.js';
 import WhaleMediaGuard from '/services/media-guard.js';
-import '/api-models.js';
+import { createApiModelsStore } from '/features/widget/api-models/store.js';
+import { createApiModelsEditor } from '/features/widget/api-models/editor.js';
 import { requestJson } from '/services/request.js';
 import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
@@ -283,6 +285,16 @@ import {
     var settingsClient = window.whaleDesktop && window.whaleDesktop.settings ? createSettingsClient({ bridge: window.whaleDesktop }) : null;
     var accountView = createAccountView({ document: document, window: window, bridge: window.whaleDesktop, toast: function (message) { if (window.whaleToast) window.whaleToast(message); } });
     accountView.init(); if (window.whaleDesktop?.testMode) window.__whaleAccount = accountView;
+    var apiModels = createApiModelsStore({ request: function (url, options) { return requestJson(url, options); }, quota: WhaleQuota, money: WhaleMoney, storage: localStorage,
+      onAlert: function (detail) { showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 }); },
+      onChanged: function () { if (usageNavigation && usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true); } });
+    var apiModelsEditor = createApiModelsEditor({ document: document, window: window, store: apiModels,
+      request: function (url, method, body) { return requestJson(url, { method: method, body: body }); },
+      toast: function (message) { if (window.whaleToast) window.whaleToast(message); },
+      openBubbleEditor: function (detail) { usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config); },
+      onBalanceReconcile: function () { usageReconcileEditor(); } });
+    apiModelsEditor.init(); apiModels.start(createScope('api-models'));
+    if (window.whaleDesktop?.testMode) window.__whaleApiModels = apiModels;
     var usagePanelApi = createUsagePanel({
       document: document, requestJson: requestJson, settingsUrl: SETTINGS_URL, recordsUrl: USAGE_REC_URL,
       assetWarning: assetWarning, assetFailure: assetFailure, WhaleMoney: WhaleMoney,
@@ -394,18 +406,13 @@ import {
       usageMainEl = usageShell.build(buildUsageModelArea);
     }
     var usageModelsView = createUsageModelsView({
-      document: document, window: window, WhaleMoney: WhaleMoney,
+      document: document, window: window, WhaleMoney: WhaleMoney, apiModels: apiModels,
+      openEditor: function (id) { apiModelsEditor.open(id); },
       getPanel: function () { return usagePanel; }
     });
     var renderUsageModels = usageModelsView.render;
     var buildUsageModelArea = usageModelsView.build;
     var usageAlertBudgetEditor = null;
-    window.addEventListener('whale-api-model-changed', function () {
-      if (usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true);
-    });
-    window.addEventListener('whale-open-balance-reconcile', function () {
-      usageReconcileEditor();
-    });
     // ==== [资源管理器（角色 / 气泡图 / 音频）] ====
     var resourceManager = createResourceManager({
       document: document, client: assetClient, confirm: showConfirm,
@@ -637,7 +644,8 @@ import {
       qeditEnsure: function () { return qeditEnsure(); },
       renderBubblePv: function () { return renderBubblePv(); },
       getPreviewElement: function () { return bubbleEditorState.pvPrevEl; },
-      bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); }
+      bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); },
+      apiModels: apiModels
     });
     var openQuickTextEditor = bubbleQuickEditors.openText;
     var openQuickModuleEditor = bubbleQuickEditors.openModule;
@@ -2141,7 +2149,7 @@ import {
       getMode: function () { return accountView && accountView.mode; },
       getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
       whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
-      bubbleCloneModule: bubbleCloneModule
+      bubbleCloneModule: bubbleCloneModule, apiModels: apiModels
     });
     var bubbleModuleFontU = bubbleContent.fontU;
     var bubbleTokenValue = bubbleContent.tokenValue;
@@ -2159,7 +2167,7 @@ import {
       getBubbleTarget: function () { return bubbleTarget; },
       getSceneController: function () { return bubbleSceneController; },
       getVisuals: function () { return { gifEl: gifEl, labelEl: labelEl, amountEl: amountEl, hintEl: hintEl }; },
-      getRoot: function () { return root; }, getBubbleBox: function () { return bubbleBox; }
+      getRoot: function () { return root; }, getBubbleBox: function () { return bubbleBox; }, apiModels: apiModels
     });
     var bubbleRenderModules = bubbleRowsView.render;
     var bubblePreviewInto = bubbleRowsView.preview;
@@ -2187,7 +2195,7 @@ import {
     function hideBubble() {
       bubbleSceneController.clear();
       WhaleQuota?.clearBindings(bubbleBox);
-      window.WhaleApiModels?.clearBindings(bubbleBox);
+      apiModels.clearBindings(bubbleBox);
       costBubbleActive = false;
       bubbleNoticeQueue.clear();
       bubbleRoundOn = false;
@@ -2503,7 +2511,7 @@ import {
     var settingsApplyEpoch = 0;
     try { window.whaleDesktop.onSettingsChanged(function (change) {
       if (change && change.domain === 'bubble') { loadBubbleCfg(); return; }
-      if (change && change.domain === 'apiModels') { try { window.WhaleApiModels?.load?.(true); } catch (err) { /* a failed reload keeps the previous list */ } return; }
+      if (change && change.domain === 'apiModels') { try { apiModels.load(true).catch(function () {}); } catch (err) { /* a failed reload keeps the previous list */ } return; }
       if (change && change.domain === 'media') {
         try { if (change.kind === 'roles') loadRoles(); else if (change.kind === 'audio') loadAudio(); } catch (err) { /* a failed reload keeps the previous lists */ }
         return;
@@ -2534,7 +2542,7 @@ import {
       if (change && change.domain === 'api') {
         // 接口地址、刷新间隔等改动后立刻拉一次余额，不必等下一个周期。
         try { refresh(); } catch (err) { /* 失败会走余额区域自己的错误态 */ }
-        try { if (window.WhaleApiModels && window.WhaleApiModels.load) window.WhaleApiModels.load(true).catch(function () { /* 列表打开时会重试 */ }); } catch (err) { /* 模型模块未加载时忽略 */ }
+        try { apiModels.load(true).catch(function () { /* 列表打开时会重试 */ }); } catch (err) { /* 模型模块未加载时忽略 */ }
         return;
       }
       if (!change || change.domain !== 'ui' || !Array.isArray(change.keys)) return;
@@ -2597,8 +2605,8 @@ import {
         return;
       }
       if (editor === 'api-model') {
-        // DIY 模型的编辑器在 api-models.js；带 id 是编辑，null 是新建。
-        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: args.id == null ? null : String(args.id) } }));
+        // DIY 模型的编辑器由 API 模型编辑器拥有；带 id 是编辑，null 是新建。
+        apiModelsEditor.open(args.id == null ? null : String(args.id));
         return;
       }
       if (editor === 'feedback-events') {
@@ -2937,14 +2945,6 @@ import {
         setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
         usagePanelApi.save({ turnCost: settings.turnCost });
       });
-    });
-    window.addEventListener('whale-api-model-alert', function (event) {
-      var detail = event.detail || ({});
-      showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 });
-    });
-    window.addEventListener('whale-edit-api-reminder', function (event) {
-      var detail=event.detail || {};
-      usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
     });
     var legacySoundUi = Object.freeze({
       mountMenuEntry: function (node) {

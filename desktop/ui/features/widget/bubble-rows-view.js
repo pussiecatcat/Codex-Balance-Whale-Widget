@@ -14,7 +14,7 @@ export function bubbleFontFloor(level, module) {
 export function createBubbleRowsView(deps) {
   const { document, window, WhaleMoney, bubbleSnapshot, bubbleModuleFontU,
     bubbleRowsOf, bubbleIsImgMod, whaleMoneyTemplates, getBubbleTarget, getSceneController,
-    getVisuals, getRoot, getBubbleBox } = deps;
+    getVisuals, getRoot, getBubbleBox, apiModels = null } = deps;
     function bubbleMarqueeDur() {
       return Math.round(1500 + Math.random() * 3000) + 'ms';
     }
@@ -35,7 +35,7 @@ export function createBubbleRowsView(deps) {
         try {
           WhaleMoney.clearBindings(old[i]);
           WhaleQuota.clearBindings(old[i]);
-          window.WhaleApiModels?.clearBindings(old[i]);
+          apiModels?.clearBindings(old[i]);
           parentEl.removeChild(old[i]);
         } catch (err) {}
       }
@@ -86,7 +86,7 @@ export function createBubbleRowsView(deps) {
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
         if (rowContent.quotaText) WhaleQuota.bind(tx, m);
-        if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
+        if (rowContent.apiModelText) apiModels?.bind(tx, m);
         // Small modules must stay readable when the widget is scaled down.
         var minimum = bubbleFontFloor(fSize, m);
         row.style.fontSize = 'max(' + minimum + 'px, calc(var(--dshw-u) * ' + bubbleModuleFontU(fSize, m) + '))';

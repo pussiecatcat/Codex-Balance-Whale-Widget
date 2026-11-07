@@ -31,7 +31,6 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 // A name appearing that is not here is a new compatibility surface, which is
 // exactly what the dependency gate exists to stop.
 export const GLOBAL_SURFACE = Object.freeze([
-  'WhaleApiModels',
   'WhaleBubbleShape',
   'WhaleLegacySoundUi',
   'WhaleLegacyUsage',
@@ -53,11 +52,7 @@ export const GLOBAL_SURFACE = Object.freeze([
 export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/sound-settings/controller.js': { WhaleSelect: 1 },
   'desktop/ui/features/widget/asset-helpers.js': { whaleToast: 2 },
-  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1 },
-  'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2 },
   'desktop/ui/features/widget/feedback.js': { whaleToast: 1 },
-  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
 });
 
 // Modules that still call fetch directly rather than going through the shared

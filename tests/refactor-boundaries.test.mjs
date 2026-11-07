@@ -79,23 +79,23 @@ test('the dependency gate is clean on the tree as it stands, and its numbers are
 
 test('an extracted module reaching for a leftover global is refused, and so is a wider read of a frozen one', t => {
   const fresh = fixture(t, {
-    'desktop/ui/features/widget/fresh.js': 'export const label = () => window.WhaleApiModels?.formatMoney(1);\n',
+    'desktop/ui/features/widget/fresh.js': 'export const label = () => window.WhaleWorkshopOpen?.call(null);\n',
   });
-  assert.match(evaluate(fresh).join('\n'), /fresh\.js reaches for window\.WhaleApiModels/);
+  assert.match(evaluate(fresh).join('\n'), /fresh\.js reaches for window\.WhaleWorkshopOpen/);
 
   const wider = fixture(t, {
-    'desktop/ui/features/widget/usage-alerts.js': 'const a = window.WhaleAccountView?.mode;\nconst b = window.WhaleAccountView?.mode;\n',
+    'desktop/ui/features/widget/feedback.js': 'const a = window.whaleToast;\nconst b = window.whaleToast;\n',
   });
-  assert.match(evaluate(wider).join('\n'), /usage-alerts\.js reads window\.WhaleAccountView 2 times, above the frozen 1/);
+  assert.match(evaluate(wider).join('\n'), /feedback\.js reads window\.whaleToast 2 times, above the frozen 1/);
 });
 
 test('a module that stopped reading a global lowers the baseline instead of failing the gate', t => {
   const quiet = fixture(t, {
-    'desktop/ui/features/widget/usage-alerts.js': 'export const mode = view => view.mode;\n',
+    'desktop/ui/features/widget/feedback.js': 'export const mode = view => view.mode;\n',
   });
   const metrics = collectDependencyMetrics({ root: quiet });
   assert.deepEqual(dependencyErrors(metrics), [], 'migrating the last read is not a violation');
-  assert.ok(metrics.staleReads.some(item => item.file.endsWith('usage-alerts.js') && item.global === 'WhaleAccountView'),
+  assert.ok(metrics.staleReads.some(item => item.file.endsWith('feedback.js') && item.global === 'whaleToast'),
     'and the now-stale baseline entry is reported so it can be taken out');
 });
 
@@ -155,7 +155,7 @@ test('the preload bridge is allowed by name, a new window global is not', t => {
   assert.match(evaluate(published).join('\n'), /WhaleNewThing/);
 
   const known = fixture(t, {
-    'desktop/ui/thing.js': 'window.WhaleApiModels = window.WhaleApiModels || {};\n',
+    'desktop/ui/thing.js': 'window.WhaleWorkshopOpen = window.WhaleWorkshopOpen || {};\n',
   });
   assert.deepEqual(evaluate(known), [], 'republishing a name already on the surface is not a new edge');
 });
@@ -201,9 +201,9 @@ test('the CSS palette ratchet counts this tree and rejects a new color token', (
 
 test('the gate sees bare identifier reads and host publications', t => {
   const bare = fixture(t, {
-    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleApiModels?.formatMoney(1);\n',
+    'desktop/ui/features/widget/bare.js': 'export const text = () => WhaleWorkshopOpen?.call(null);\n',
   });
-  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleApiModels/);
+  assert.match(evaluate(bare).join('\n'), /bare\.js reaches for .*WhaleWorkshopOpen/);
 
   const host = fixture(t, {
     'desktop/ui/new-global.js': "(function (host) { host.WhaleNewSurface = {}; })(window);\n",
