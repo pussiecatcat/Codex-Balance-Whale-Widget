@@ -1,4 +1,5 @@
 import './settings-catalog.js';
+import './settings-help.js';
 import './settings-pages.js';
 // 小龙娘完整设置窗口的控制器。
 //
@@ -8,6 +9,9 @@ import './settings-pages.js';
 //   values    最近一次从主进程读到的真实值
 // 保存时只提交 draft 与 baseline 的差异，并且只发给该字段所属的存储域。
 import { requestJson } from '/services/request.js';
+import '/settings-catalog.js';
+import '/settings-help.js';
+import '/settings-pages.js';
 import { soundOptions } from '/services/sound-reference.js';
 
 (() => {

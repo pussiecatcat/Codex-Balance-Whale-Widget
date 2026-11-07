@@ -62,7 +62,8 @@ test('media policy and the guarded script are served locally before widget start
   const widgetScript = (await server.dispatch('/dsh-whale/widget.js')).body.toString();
   assert.match(widgetScript, /import WhaleMediaGuard from '\/services\/media-guard\.js';/);
   assert.equal(html.indexOf('src="/turn-notice.js"'), -1, 'turn notice is imported by the entry, not a classic tag');
-  assert.match(html, /src="\/sound-settings\.js"/);
+  assert.match(widgetScript, /import '\/sound-settings\.js';/);
+  assert.match(widgetScript, /import '\/wait-notice\.js';/);
   assert.doesNotMatch(html, /src="\/dashboard\.js"/, 'desktop menu keeps the original compact layout');
 });
 
