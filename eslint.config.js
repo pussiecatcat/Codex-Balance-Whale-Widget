@@ -80,11 +80,8 @@ const appGlobals = Object.fromEntries(GLOBAL_SURFACE.map(name => [name, 'readonl
 const rendererModules = [
   'desktop/ui/settings-catalog.js',
   'desktop/ui/settings-pages.js',
+  'desktop/ui/settings-help.js',
   'assets/whale-widget.js',
-  'desktop/ui/workshop.js',
-  'desktop/ui/select-enhancer.js',
-  'desktop/ui/shape.js',
-  'desktop/ui/input.js',
   'desktop/ui/settings.js',
   'desktop/ui/features/**/*.js',
   'desktop/ui/services/**/*.js',
@@ -94,7 +91,8 @@ const rendererModules = [
 // Every desktop/ui script is an ES module now; the classic branch below is kept
 // so a new classic file has to be registered deliberately instead of inheriting
 // global script semantics by accident.
-const classicEntries = ['desktop/ui/settings-catalog.js', 'desktop/ui/settings-pages.js', 'desktop/ui/workshop.js', 'desktop/ui/select-enhancer.js', 'desktop/ui/shape.js', 'desktop/ui/input.js', 'desktop/ui/settings.js'];
+const classicEntries = [];
+const moduleRootFiles = ['desktop/ui/settings-catalog.js', 'desktop/ui/settings-pages.js', 'desktop/ui/settings-help.js', 'desktop/ui/settings.js'];
 
 const browserGlobals = { ...globals.browser, ...appGlobals };
 
@@ -166,7 +164,7 @@ export default [
     // sourceType must stay "script" or every cross-file reference reads as
     // undefined. "module" covers the UMD branch that exposes these to Node tests.
     files: ['desktop/ui/*.js'],
-    ignores: classicEntries,
+    ignores: [...classicEntries, ...moduleRootFiles],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',

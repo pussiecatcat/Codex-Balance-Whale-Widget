@@ -42,7 +42,7 @@
 
 ### B. 设置的归属和提交边界分散——最高优先级
 
-**证据一：** [renderer 定期保存](../desktop/ui/input.js#L120)每 800 毫秒检查 localStorage 快照，经 preload 和主进程交给 [UiStateStore](../desktop/ui-state-store.cjs#L3)。同时，[dispatcher](../runtime/dispatcher.mjs#L115)保留了对同一个 `ui-state.json` 的直接读写路由，主进程则持有自己的内存副本。
+**证据一：** [renderer 定期保存](../desktop/ui/services/pointer-input.js)每 800 毫秒检查 localStorage 快照，经 preload 和主进程交给 [UiStateStore](../desktop/ui-state-store.cjs#L3)。同时，[dispatcher](../runtime/dispatcher.mjs#L115)保留了对同一个 `ui-state.json` 的直接读写路由，主进程则持有自己的内存副本。
 
 仓库检索只发现该路由的定义，未发现现有调用方。因此，这是**潜在的第二写入入口与后续扩展风险**，不是本次已复现的覆盖故障。localStorage、内存缓存和文件也不是天然错误的重复；需要明确谁拥有最终状态，以及何时确认保存成功。
 

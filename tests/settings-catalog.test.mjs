@@ -1,24 +1,15 @@
-import { LABELS } from '../desktop/ui/shared/labels.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { createRequire } from 'node:module';
 const { createSoundSettingsDomains } = createRequire(import.meta.url)('../desktop/settings-store.cjs');
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import settingsCatalog from '../desktop/ui/settings-catalog.js';
+import { readValue, toPatch, editorFor } from '../desktop/ui/settings-pages.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const catalogPath = path.join(root, 'desktop/ui/settings-catalog.js');
-
-// The catalog is a plain browser script that also assigns module.exports, so it
-// is loaded the same way tests/account-view.test.mjs loads its pure helpers.
-const catalogSource = fs.readFileSync(catalogPath, 'utf8').replace(/^import .*$/mg, '');
-function loadCatalog() {
-  const module = { exports: {} };
-  vm.runInNewContext(catalogSource, { LABELS, module, globalThis: {}, console });
-  return module.exports;
-}
+const loadCatalog = () => settingsCatalog;
 
 test('catalog loads and exposes pages, fields and helpers', () => {
   const catalog = loadCatalog();
@@ -214,17 +205,15 @@ test('fields that claim to be editable declare a write path', () => {
 
 
 test('nested settings preserve sibling fields and editor destinations are explicit', () => {
-  const window = { WhaleSettingsCatalog: loadCatalog() };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window });
-  const pages = window.WhaleSettingsPages;
-  const field = window.WhaleSettingsCatalog.byId.get('usage.taskEndSel');
+  const pages = { readValue, toPatch, editorFor };
+  const field = settingsCatalog.byId.get('usage.taskEndSel');
   const values = { usage: { taskEnd: { on: true, sel: 'old', vol: .4 } } };
   assert.equal(pages.readValue(field, values), 'old');
   const patch = JSON.parse(JSON.stringify(pages.toPatch(field, 'preset:duck:press', values)));
   assert.deepEqual(patch.usage.taskEnd, { on: true, sel: 'preset:duck:press', vol: .4 });
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('api.models')).name, 'api');
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.audio')).name, 'sound');
-  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get(id)).name, 'resources');
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('media.workshop')).name, 'workshop');
-  assert.equal(pages.editorFor(window.WhaleSettingsCatalog.byId.get('ui.pos')), null, '位置字段只提供复位按钮，不打开编辑器');
+  assert.equal(pages.editorFor(settingsCatalog.byId.get('api.models')).name, 'api');
+  assert.equal(pages.editorFor(settingsCatalog.byId.get('media.audio')).name, 'sound');
+  for (const id of ['media.roles', 'media.bubbleImgs']) assert.equal(pages.editorFor(settingsCatalog.byId.get(id)).name, 'resources');
+  assert.equal(pages.editorFor(settingsCatalog.byId.get('media.workshop')).name, 'workshop');
+  assert.equal(pages.editorFor(settingsCatalog.byId.get('ui.pos')), null, '位置字段只提供复位按钮，不打开编辑器');
 });

@@ -4,9 +4,6 @@
 // .dshwv-fx-info-button / .dshwv-fx-info）：中性色圆形按钮、可聚焦、带
 // aria-expanded，Esc / 点击外部 / 窗口尺寸变化时关闭，关闭后焦点回到原按钮。
 // 这里把它抽成组件，每个字段都能挂。按钮平时收起，鼠标移到这一行或键盘聚焦时才显示。
-(() => {
-  'use strict';
-
   let openCard = null;
   let openButton = null;
 
@@ -52,10 +49,15 @@
   const onKeyDown = event => { if (event.key === 'Escape' && openCard) { event.preventDefault(); closeHelpAndRestore(); } };
   const onReflow = () => { if (openCard && openButton) place(openCard, openButton); };
 
-  document.addEventListener('pointerdown', onDocPointerDown, true);
-  document.addEventListener('keydown', onKeyDown, true);
-  window.addEventListener('resize', onReflow);
-  window.addEventListener('scroll', onReflow, true);
+  let listening = false;
+  function installListeners() {
+    if (listening || typeof document === 'undefined') return;
+    listening = true;
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('resize', onReflow);
+    window.addEventListener('scroll', onReflow, true);
+  }
 
   function buildCard(field) {
     const card = document.createElement('div');
@@ -99,6 +101,7 @@
    * @param {object} field 设置目录里的字段
    */
   function attach(anchor, field) {
+    installListeners();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'set-help-button';
@@ -122,5 +125,4 @@
     return button;
   }
 
-  window.WhaleSettingsHelp = { attach, close: closeHelpAndRestore };
-})();
+export { attach, closeHelpAndRestore as close };

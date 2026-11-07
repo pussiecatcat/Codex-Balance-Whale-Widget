@@ -16,12 +16,8 @@ import { bindAudioImport } from '/features/widget/audio-import.js';
 import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import { createAccountView } from '/features/widget/account-view.js';
-import '/select-enhancer.js';
 import { createWaitNotice } from '/features/widget/wait-notice.js';
 import { createSoundSettingsController } from '/features/sound-settings/controller.js';
-import '/shape.js';
-import '/input.js';
-import '/workshop.js';
 import WhaleMediaGuard from '/services/media-guard.js';
 import { createApiModelsStore } from '/features/widget/api-models/store.js';
 import { createApiModelsEditor } from '/features/widget/api-models/editor.js';
@@ -74,7 +70,10 @@ import { createReminderEditor } from '/features/widget/reminder-editor.js';
 import { createItemEditor } from '/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
-import { createCustomSelectController } from '/features/widget/custom-select.js';
+import { createCustomSelectController, createSelectEnhancer } from '/features/widget/select.js';
+import { createWorkshopDialog } from '/features/widget/workshop-dialog.js';
+import { createWindowShape } from '/services/window-shape.js';
+import { createPointerInput } from '/services/pointer-input.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/shared/bubble-config/layout.js';
 import {
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
@@ -122,6 +121,7 @@ import {
     var GIF_URL = '/dsh-whale/rua.gif';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
+    var uiScope = createScope('widget-ui');
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
 
@@ -190,11 +190,7 @@ import {
       dropOpen: dshwDropOpen, makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee });
     var dshwCustSel = customSelect.enhance;
     var dshwCustSelClose = customSelect.close;
-    window.WhaleSelect = window.WhaleSelect || {};
-    window.WhaleSelect.enhance = customSelect.enhance;
-    window.WhaleSelect.close = customSelect.close;
-    window.WhaleSelect.sync = customSelect.sync;
-    window.WhaleSelect.refresh = customSelect.refresh;
+    createSelectEnhancer({ document: document, select: customSelect, scope: uiScope });
     // ==== [任务结束音效] ====
     var taskEndSound = createTaskEndSound({
       document: document, window: window,
@@ -2609,7 +2605,7 @@ import {
         return;
       }
       if (editor === 'resources') { openResManager(); return; }
-      if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
+      if (editor === 'workshop') { workshopDialog.open(); return; }
       if (editor === 'api') { window.whaleDesktop?.openSettings?.('providers'); return; }
       if (editor === 'sound') { soundSettings.open().catch(assetFailure); return; }
     });
@@ -3067,6 +3063,11 @@ import {
       return turnNoticePoller.poll();
     }
     setInterval(pollLastTurn, 1000);
+    var workshopDialog = createWorkshopDialog({ document: document, window: window, request: requestJson });
+    createWindowShape({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope }).start();
+    createPointerInput({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, storage: localStorage, scope: uiScope,
+      toast: function (message) { if (window.whaleToast) window.whaleToast(message); } }).initialize();
+    window.addEventListener('beforeunload', function () { try { waitNotice.dispose(); soundSettings.dispose(); uiScope.dispose(); } catch (err) { /* best effort while the window closes */ } }, { once: true });
     window.__dshWhaleInit = true;
     window.__dshWhaleInitLoading = false;
     return true;

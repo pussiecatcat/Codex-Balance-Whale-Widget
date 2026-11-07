@@ -597,7 +597,7 @@ else {
     const watchdog = setTimeout(finish, 6500);
     shutdownCompanion({
       readRenderer: () => window && !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.isCrashed?.()
-        ? window.webContents.executeJavaScript("window.WhaleStorageSync?.pending() || null") : null,
+        ? window.webContents.executeJavaScript("window.__whaleShutdown?.pendingStorage() || null") : null,
       saveRenderer: patch => uiStore.applyPatch(patch),
       flushState: () => uiStore.flush(),
       closeBridge: () => bridge?.close(),

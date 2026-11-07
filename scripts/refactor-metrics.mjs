@@ -31,13 +31,6 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 // exactly what the dependency gate exists to stop.
 export const GLOBAL_SURFACE = Object.freeze([
   'WhaleBubbleShape',
-  'WhaleSelect',
-  'WhaleSettingsCatalog',
-  'WhaleSettingsHelp',
-  'WhaleSettingsPages',
-  'WhaleSettingsTest',
-  'WhaleStorageSync',
-  'WhaleWorkshopOpen',
   'whaleToast',
 ]);
 

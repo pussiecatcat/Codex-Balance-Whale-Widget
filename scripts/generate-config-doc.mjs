@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { LABELS } from '../desktop/ui/shared/labels.js';
 // 把 desktop/ui/settings-catalog.js 里的字段目录写进 docs/CONFIGURATION.md。
 //
 // 界面控件、`!` 说明和本文件共用同一份目录，所以三者不会各写各的。
@@ -7,21 +6,14 @@ import { LABELS } from '../desktop/ui/shared/labels.js';
 // 加 --check 只校验是否过期，CI 和验收用这个模式。
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import catalog from '../desktop/ui/settings-catalog.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const catalogFile = path.join(root, 'desktop/ui/settings-catalog.js');
 const docFile = path.join(root, 'docs/CONFIGURATION.md');
 
 const BEGIN = '<!-- BEGIN GENERATED: settings-catalog -->';
 const END = '<!-- END GENERATED: settings-catalog -->';
-
-function loadCatalog() {
-  const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(catalogFile, 'utf8').replace(/^import .*$/mg, ''), { LABELS, module, globalThis: {}, console });
-  return module.exports;
-}
 
 const escape = value => String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
@@ -112,7 +104,7 @@ function render(catalog) {
   return lines.join('\n');
 }
 
-const catalog = loadCatalog();
+
 const problems = catalog.validate();
 if (problems.length) {
   for (const problem of problems) console.error(`设置目录不完整：${problem.id} — ${problem.problem}`);

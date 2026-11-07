@@ -14,7 +14,7 @@ import { LABELS } from './shared/labels.js';
 //   4. 动态条目用 pattern:true + subFields，不能用一个笼统条目代替整个编辑器。
 //   5. 带单位的字段用 scale / offset 描述「界面值 × scale + offset = 存储值」，
 //      例如毫秒存、秒显示（scale 1000），或大小按 1–20 档显示、按倍数存储。
-(() => {
+export const catalog = (() => {
   'use strict';
 
   // 二级设置窗口的六个固定分类。顺序即左侧导航顺序。
@@ -1172,6 +1172,7 @@ import { LABELS } from './shared/labels.js';
     },
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = catalog;
-  if (typeof globalThis !== 'undefined') globalThis.WhaleSettingsCatalog = catalog;
+  return catalog;
 })();
+
+export default catalog;

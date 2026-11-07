@@ -1,25 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-import { LABELS } from '../desktop/ui/shared/labels.js';
-import { completionMode, completionPatch } from '../desktop/ui/shared/sound-model.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const catalog = (() => {
-  const module = { exports: {} };
-  // 两个文件都是浏览器模块：去掉 import 行，把共享依赖注入沙箱。
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-catalog.js'), 'utf8').replace(/^import .*$/mg, ''),
-    { LABELS, module, globalThis: {}, console });
-  return module.exports;
-})();
-const pages = (() => {
-  const window = { WhaleSettingsCatalog: catalog };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'desktop/ui/settings-pages.js'), 'utf8').replace(/^import .*$/mg, ''), { window, completionMode, completionPatch });
-  return window.WhaleSettingsPages;
-})();
+import catalog from '../desktop/ui/settings-catalog.js';
+import * as pages from '../desktop/ui/settings-pages.js';
 
 // 直接编辑（不走编辑器）的字段才参与读写往返。
 const directFields = () => catalog.fields.filter(field =>
