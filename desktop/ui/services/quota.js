@@ -1,20 +1,18 @@
-import { QUOTA_LABELS as labels, countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, fill, quotaState, quotaText } from '/shared/quota-format.js';
-import { requestJson } from '/services/request.js';
-import { statusView } from '/shared/status-tones.js';
+import { QUOTA_LABELS as labels, countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, fill, quotaState, quotaText } from '../shared/quota-format.js';
+import { requestJson } from './request.js';
+import { statusView } from '../shared/status-tones.js';
 
-(() => {
-  'use strict';
-  function planName(type) {
+export function planName(type) {
     const key = String(type || '').toLowerCase();
     if (!key) return 'Codex 订阅';
     const names = { plus: 'Codex Plus', pro: 'Codex Pro', team: 'Codex Team', business: 'Codex Business', enterprise: 'Codex Enterprise', free: 'Codex Free' };
     return names[key] || 'Codex ' + String(type).replace(/[_-]+/g, ' ');
   }
-  function planText(module, subscription) {
+export function planText(module, subscription) {
     const type = subscription?.planType || '';
     return fill(module?.tpl || '{plan_name}', { plan_name: planName(type), plan_type: type || 'unknown' });
   }
-  function peakText(module, pricing, now = Date.now()) {
+export function peakText(module, pricing, now = Date.now()) {
     if (!pricing?.visible) return fill(module?.tpl || '{peak_phase}', { peak_phase: '当前 API 无峰谷时段', peak_countdown: '—', peak_switch_at: '—', peak_note: '' });
     const isPeak = pricing.phase === 'peak', style = module?.type === 'nextpeak' ? 'count' : module?.peakStyle || 'default';
     const phase = pricing.phase === 'unknown' ? '时段规则待更新' : style === 'liangwen' ? (isPeak ? '梁文峰' : '梁文谷') : style === 'qiangqiang' ? (isPeak ? '!?峰峰?!' : '!?谷谷?!') : style === 'mini' ? (isPeak ? '峰' : '谷') : (isPeak ? '高峰时段' : '空闲时段');
@@ -23,14 +21,22 @@ import { statusView } from '/shared/status-tones.js';
     map.status = map.peak_phase; map.countdown = map.peak_countdown;
     return fill(module?.tpl || (style === 'count' ? '{peak_countdown}' : '{peak_phase}'), map);
   }
-  function moduleText(module, subscription, pricing, now = Date.now()) {
+export function moduleText(module, subscription, pricing, now = Date.now()) {
     if (module?.type === 'plan') return planText(module, subscription);
     if (module?.type === 'peak' || module?.type === 'nextpeak') return peakText(module, pricing, now);
     return quotaText(module, subscription, now);
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText, moduleText, planName };
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null, settledTimers = [];
+  export function createQuotaRuntime({
+  window: win = globalThis,
+  requestJson: requestFn = requestJson,
+  statusView: viewFn = statusView,
+  setTimeout: setTimer = globalThis.setTimeout,
+  clearTimeout: clearTimer = globalThis.clearTimeout,
+  setInterval: setTimerInterval = globalThis.setInterval,
+  clearInterval: clearTimerInterval = globalThis.clearInterval,
+  now: nowFn = Date.now,
+} = {}) {
+let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker = null, settledTimers = [];
   let active = false, stopped = false, revision = 0, failures = 0, syncing = false, syncStatus = '', pricingAt = 0;
   const bindings = new Map();
   function ensureQuotaMeter(element) {
@@ -122,13 +128,13 @@ import { statusView } from '/shared/status-tones.js';
       return pending.promise.then(() => queuedRevision === revision ? refresh(true) : subscription);
     }
     const interval = failures ? Math.min(30000, 3000 * 2 ** (failures - 1)) : bindings.size ? 10000 : 30000;
-    if (!force && fetchedAt && Date.now() - fetchedAt < interval) return subscription;
+    if (!force && fetchedAt && nowFn() - fetchedAt < interval) return subscription;
     const ownRevision = revision, current = { force, promise: null, abort: new AbortController() };
     syncing = true; paint();
     current.promise = (async () => {
-      const timeout = setTimeout(() => current.abort.abort(), 22000);
+      const timeout = setTimer(() => current.abort.abort(), 22000);
       try {
-        const data = await requestJson('/api/quota' + (force ? '?refresh=1' : ''), { signal: current.abort.signal });
+        const data = await requestFn('/api/quota' + (force ? '?refresh=1' : ''), { signal: current.abort.signal });
         if (ownRevision !== revision || stopped) return subscription;
         if (!data.subscription || data.ok === false) throw Error('unavailable');
         const before = JSON.stringify(subscription?.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
@@ -136,7 +142,7 @@ import { statusView } from '/shared/status-tones.js';
         const after = JSON.stringify(subscription.windows?.map(item => [item.windowDurationMins, item.usedPercent, item.resetsAt]));
         const failed = ['stale', 'error'].includes(subscription.status);
         failures = failed ? Math.min(5, failures + 1) : 0;
-        const view = statusView(subscription.status, { failed, changed: before !== after, reason: subscription.reason || '暂无额度窗口' });
+        const view = viewFn(subscription.status, { failed, changed: before !== after, reason: subscription.reason || '暂无额度窗口' });
         syncStatus = failed ? '同步失败，稍后重试' : view.label;
       } catch {
         if (ownRevision !== revision || stopped) return subscription;
@@ -144,16 +150,16 @@ import { statusView } from '/shared/status-tones.js';
         if (subscription) subscription = { ...subscription, stale: true };
         syncStatus = '同步失败，稍后重试';
       } finally {
-        clearTimeout(timeout);
-        if (ownRevision === revision) { fetchedAt = Date.now(); syncing = false; paint(); }
+        clearTimer(timeout);
+        if (ownRevision === revision) { fetchedAt = nowFn(); syncing = false; paint(); }
       }
       return subscription;
     })().finally(() => { if (pending === current) pending = null; });
     pending = current;
     // Pricing has its own cadence and cannot block quota rendering.
-    if (!pricingAt || Date.now() - pricingAt >= 60000) {
-      pricingAt = Date.now();
-      requestJson('/api/pricing').then(data => {
+    if (!pricingAt || nowFn() - pricingAt >= 60000) {
+      pricingAt = nowFn();
+      requestFn('/api/pricing').then(data => {
         if (data && ownRevision === revision && !stopped) { pricing = data; paint(); }
       }).catch(() => {});
     }
@@ -170,25 +176,25 @@ import { statusView } from '/shared/status-tones.js';
     for (const element of bindings.keys()) if (element === root || root.contains(element)) bindings.delete(element);
   }
   function settled() {
-    for (const timer of settledTimers) clearTimeout(timer);
-    settledTimers = [0, 3000, 8000, 15000].map(delay => setTimeout(() => refresh(true), delay));
+    for (const timer of settledTimers) clearTimer(timer);
+    settledTimers = [0, 3000, 8000, 15000].map(delay => setTimer(() => refresh(true), delay));
   }
   function startTicker() {
-    if (!ticker && !stopped) ticker = setInterval(() => { paint(); if (active || bindings.size) refresh(); }, 1000);
+    if (!ticker && !stopped) ticker = setTimerInterval(() => { paint(); if (active || bindings.size) refresh(); }, 1000);
   }
-  window.addEventListener('whale-account-view', event => {
+  win.addEventListener('whale-account-view', event => {
     revision++; pending?.abort.abort(); pending = null; fetchedAt = 0; failures = 0; syncing = false;
     active = event.detail?.mode === 'subscription'; subscription = null;
-    for (const timer of settledTimers) clearTimeout(timer);
+    for (const timer of settledTimers) clearTimer(timer);
     settledTimers = [];
     if (active) { startTicker(); refresh(true); }
-    else { clearInterval(ticker); ticker = null; paint(); }
+    else { clearTimerInterval(ticker); ticker = null; paint(); }
   });
-  window.addEventListener('online', () => { if (active) refresh(true); });
-  window.addEventListener('focus', () => { if (active) refresh(); });
-  window.addEventListener('pagehide', () => {
-    stopped = true; revision++; pending?.abort.abort(); clearInterval(ticker);
-    for (const timer of settledTimers) clearTimeout(timer); settledTimers = [];
+  win.addEventListener('online', () => { if (active) refresh(true); });
+  win.addEventListener('focus', () => { if (active) refresh(); });
+  win.addEventListener('pagehide', () => {
+    stopped = true; revision++; pending?.abort.abort(); clearTimerInterval(ticker);
+    for (const timer of settledTimers) clearTimer(timer); settledTimers = [];
   }, { once: true });
   function sourceLine() {
     if (!subscription) return '额度加载中…';
@@ -200,5 +206,10 @@ import { statusView } from '/shared/status-tones.js';
     if (subscription.source === 'codex-app-server') return 'Codex 官方' + (at ? ' · ' + at + ' 更新' : '');
     return 'Codex 额度' + (at ? ' · ' + at + ' 更新' : '');
   }
-  window.WhaleQuota = { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, text: module => moduleText(module, subscription, pricing) };
-})();
+  
+  return { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, text: (module, at = nowFn()) => moduleText(module, subscription, pricing, at) };
+}
+
+export const WhaleQuota = typeof window !== 'undefined' ? createQuotaRuntime() : null;
+export default WhaleQuota;
+export { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, fill, labels };

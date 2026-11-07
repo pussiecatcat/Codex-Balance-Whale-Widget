@@ -1,3 +1,4 @@
+import WhaleQuota from '../../services/quota.js';
 // Materialize frozen bubble rows into the live scene or the editor preview.
 import { isFineScale } from '../../shared/bubble-config/font-scale.js';
 
@@ -33,7 +34,7 @@ export function createBubbleRowsView(deps) {
       for (var i = 0; i < old.length; i++) {
         try {
           WhaleMoney.clearBindings(old[i]);
-          window.WhaleQuota?.clearBindings(old[i]);
+          WhaleQuota.clearBindings(old[i]);
           window.WhaleApiModels?.clearBindings(old[i]);
           parentEl.removeChild(old[i]);
         } catch (err) {}
@@ -84,7 +85,7 @@ export function createBubbleRowsView(deps) {
         if (['title', 'badge', 'hero', 'countdown', 'chip'].includes(m.role)) row.classList.add('dshwv-mod-' + m.role);
         tx.textContent = String(rowContent.txt);
         if (rowContent.moneyText) WhaleMoney.bind(tx, rowContent.moneyText);
-        if (rowContent.quotaText) window.WhaleQuota?.bind(tx, m);
+        if (rowContent.quotaText) WhaleQuota.bind(tx, m);
         if (rowContent.apiModelText) window.WhaleApiModels?.bind(tx, m);
         // Small modules must stay readable when the widget is scaled down.
         var minimum = bubbleFontFloor(fSize, m);

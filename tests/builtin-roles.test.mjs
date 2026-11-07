@@ -13,7 +13,7 @@ function host(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-builtin-roles-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const routes = new Map();
-  createWidgetHost(root, { fs }).apply({ whale: {}, declareRoute: declaration => { routes.set(declaration.path, declaration); return () => {}; }, effect: () => {} });
+  createWidgetHost(root, { fs }).declare({ whale: {}, declareRoute: declaration => { routes.set(declaration.path, declaration); return () => {}; }, effect: () => {} });
   return { root, async request(route, method = 'GET', body) {
     const req = { url: route, method, body: body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body)) };
     const response = toResponse(await routes.get(route.split('?')[0]).handler(req), method);

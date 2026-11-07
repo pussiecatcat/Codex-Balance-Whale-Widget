@@ -4,16 +4,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { quotaFromAppServer, createCodexRateLimitsClient, findCodexExecutable, codexSpawnArgs, readCodexRateLimits, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
 import { createInsightsService } from '../runtime/insights.mjs';
 
-const source = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
-const context = { ...quotaFormat, labels: quotaFormat.QUOTA_LABELS, module: { exports: {} }, requestJson: async () => ({}), statusView: () => ({ label: '' }) };
-vm.runInNewContext(source, context);
-const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText, planText, peakText } = context.module.exports;
+import { planText, peakText } from '../desktop/ui/services/quota.js';
+const { countdown, countdownShort, resetAt, snapshotAt, percentNumber, quotaBar, quotaState, quotaText } = quotaFormat;
 
 test('quota countdown formats every display boundary from one table', () => {
   const now = 1_790_000_000_000;

@@ -1,11 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import vm from 'node:vm';
+import WhaleTurnNotice from '../desktop/ui/shared/turn-notice.js';
 
-const box = { module: { exports: {} } };
-vm.runInNewContext(await fs.readFile(new URL('../desktop/ui/turn-notice.js', import.meta.url), 'utf8'), box);
-const notices = box.module.exports;
+const notices = WhaleTurnNotice;
 const record = extra => ({ ok: true, seq: 8, id: 'root-1:turn-2', turn: 'turn-2', ts: 1000, notificationAt: 4000,
   outcome: 'completed', amount: 0.123456, currency: 'USD', tokens: 1200, costState: 'observed', ...extra });
 

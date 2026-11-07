@@ -1,12 +1,5 @@
-import { requestJson } from '/services/request.js';
+import { requestJson } from './request.js';
 
-(function (host, factory) {
-  'use strict';
-  const api = factory(host);
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else { host.WhaleMediaGuard = api; api.refreshPolicy().catch(() => {}); }
-})(typeof globalThis === 'object' ? globalThis : this, function (host) {
-  'use strict';
   // First-file checks do not wait for a network request. The local policy
   // endpoint replaces these defaults; tests keep them equal to MEDIA_POLICY.
   const DEFAULT_POLICY = Object.freeze({
@@ -23,7 +16,7 @@ import { requestJson } from '/services/request.js';
     if (Object.prototype.toString.call(value) === '[object ArrayBuffer]') return new Uint8Array(value);
     return error('图片数据无效，请重新选择文件');
   }
-  function createMediaGuard(environment = host, { metadataTimeoutMs = 8000 } = {}) {
+export function createMediaGuard(environment = globalThis, { metadataTimeoutMs = 8000 } = {}) {
     let policy = DEFAULT_POLICY, policyJob = null;
     const getPolicy = () => policy;
     function setPolicy(value) {
@@ -221,6 +214,5 @@ import { requestJson } from '/services/request.js';
     }
     return Object.freeze({ checkFile, inspectImage, isAnimatedPng, validateAudioFile, getPolicy, setPolicy, refreshPolicy, get policy() { return policy; } });
   }
-  const guard = createMediaGuard(host);
-  return Object.freeze({ ...guard, get policy() { return guard.getPolicy(); }, createMediaGuard, DEFAULT_POLICY });
-});
+const guard = createMediaGuard();
+export default Object.freeze({ ...guard, get policy() { return guard.getPolicy(); }, createMediaGuard, DEFAULT_POLICY });

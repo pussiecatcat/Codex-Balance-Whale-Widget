@@ -1,3 +1,4 @@
+import WhaleQuota from './services/quota.js';
 import { requestJson } from '/services/request.js';
 import { needsModelPolling, nextPollDelay } from '/features/widget/model-polling.js';
 import { statusForCode, statusForError, statusView } from '/shared/status-tones.js';
@@ -26,7 +27,7 @@ import { statusForCode, statusForError, statusView } from '/shared/status-tones.
       const expired = item?.resetsAt && item.resetsAt <= Date.now();
       const left = item && Number.isFinite(item.usedPercent) && !expired ? Math.max(0, 100 - item.usedPercent) : null;
       const leftText=left===null?'未观测':left.toFixed(1)+'%',usedText=item&&Number.isFinite(item.usedPercent)?item.usedPercent.toFixed(1)+'%':'未观测';
-      return (module.tpl || '{api_name} 剩余 {api_quota_left}').replaceAll('{api_name}',modelName(module.apiModelId)).replaceAll('{api_quota_left}',leftText).replaceAll('{api_quota_used}',usedText).replaceAll('{quota_left}',leftText).replaceAll('{quota_left_round}',left===null?'未观测':Math.round(left)+'%').replaceAll('{quota_used}',usedText).replaceAll('{quota_label}',item?.label||'当前周期').replaceAll('{quota_reset_short}',window.WhaleQuota?.countdownShort(item?.resetsAt)||'等待同步').replaceAll('{quota_reset_at}',window.WhaleQuota?.resetAt(item?.resetsAt)||'等待同步').replaceAll('{quota_reset}',window.WhaleQuota?.countdown(item?.resetsAt)||'未观测').replaceAll('{quota_bar}',window.WhaleQuota?.quotaBar(left)||'────────')+(expired?'（数据已过期）':value.source==='manual'?'（手动）':value.source==='local-estimate'?'（本机估算）':'');
+      return (module.tpl || '{api_name} 剩余 {api_quota_left}').replaceAll('{api_name}',modelName(module.apiModelId)).replaceAll('{api_quota_left}',leftText).replaceAll('{api_quota_used}',usedText).replaceAll('{quota_left}',leftText).replaceAll('{quota_left_round}',left===null?'未观测':Math.round(left)+'%').replaceAll('{quota_used}',usedText).replaceAll('{quota_label}',item?.label||'当前周期').replaceAll('{quota_reset_short}',WhaleQuota?.countdownShort(item?.resetsAt)||'等待同步').replaceAll('{quota_reset_at}',WhaleQuota?.resetAt(item?.resetsAt)||'等待同步').replaceAll('{quota_reset}',WhaleQuota?.countdown(item?.resetsAt)||'未观测').replaceAll('{quota_bar}',WhaleQuota?.quotaBar(left)||'────────')+(expired?'（数据已过期）':value.source==='manual'?'（手动）':value.source==='local-estimate'?'（本机估算）':'');
     }
     if (value.noBalanceApi || value.available === false) return modelName(module.apiModelId) + ' · 无公开余额接口';
     const amount = Number(value.balance); const display = Number.isFinite(amount) ? formatMoney(amount,value.currency||'USD') : '未观测';

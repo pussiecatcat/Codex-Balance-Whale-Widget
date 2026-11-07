@@ -1,23 +1,16 @@
-(function (host, factory) {
-  'use strict';
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else host.WhaleTurnNotice = api;
-})(typeof globalThis === 'object' ? globalThis : this, function () {
-  'use strict';
-  function kind(record) {
+export function kind(record) {
     if (record.completionKind === 'failed' || ['failed','interrupted','superseded'].includes(record.outcome)) return 'failed';
     if (record.completionKind === 'cancelled' || ['aborted', 'cancelled'].includes(record.outcome)) return 'cancelled';
     return 'success';
   }
-  function shouldNotify(record, { seq = 0, id = '', firstPoll = false, startedAt = 0 } = {}) {
+export function shouldNotify(record, { seq = 0, id = '', firstPoll = false, startedAt = 0 } = {}) {
     if (!record?.ok || !Number.isSafeInteger(record.seq) || record.seq <= seq || !record.id || record.id === id ||
         record.turn == null || record.notify === false || record.isSubagent) return false;
     const published = record.notificationAt || record.ts;
     const at = typeof published === 'number' ? published : Date.parse(published);
     return !firstPoll || Number.isFinite(at) && at >= startedAt;
   }
-  function snapshot(record, nativeCurrency = 'USD', random = Math.random) {
+export function snapshot(record, nativeCurrency = 'USD', random = Math.random) {
     const completionKind = kind(record);
     const known = record.amount !== null && record.amount !== undefined && Number.isFinite(Number(record.amount)) &&
       !['pending', 'unknown'].includes(record.costState);
@@ -48,8 +41,7 @@
       note: String(record.note || ''),
     });
   }
-  function enabled(notice, settings, turnCostOn) {
+export function enabled(notice, settings, turnCostOn) {
     return notice.completionKind === 'failed' && notice.failureKind === 'high-demand' || ['success','cancelled','failed'].includes(notice.completionKind) && !!turnCostOn;
   }
-  return Object.freeze({ kind, shouldNotify, snapshot, enabled });
-});
+export default Object.freeze({ kind, shouldNotify, snapshot, enabled });

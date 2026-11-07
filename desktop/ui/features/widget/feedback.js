@@ -1,8 +1,7 @@
-import { sound } from './services/sound.js';
-import { UI_DEFAULTS } from './shared/ui-defaults.js';
+import { sound } from '../../services/sound.js';
+import { UI_DEFAULTS } from '../../shared/ui-defaults.js';
 
-(() => {
-  'use strict';
+  const storage = typeof localStorage !== 'undefined' ? localStorage : { getItem: () => null, setItem() {} };
   const key = 'dshw-v3-feedback', events = { press: '按下', release: '松开', success: '完成提示', cancelled: '取消提示', failed: '拥挤失败提示' };
   const defaults = () => structuredClone(UI_DEFAULTS.feedback);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -10,7 +9,7 @@ import { UI_DEFAULTS } from './shared/ui-defaults.js';
   // 设置窗口保存后由主进程广播过来，这里重新读一次 localStorage 即可生效。
   function load() {
     settings = defaults();
-    try { const saved = JSON.parse(localStorage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
+    try { const saved = JSON.parse(storage.getItem(key)); if (saved) { settings.feel = saved.feel || settings.feel; for (const k of Object.keys(events)) if (saved.events?.[k]) settings.events[k] = saved.events[k]; } } catch {}
     sound.reload({ feedback: settings });
     return clone(settings);
   }
@@ -23,7 +22,7 @@ import { UI_DEFAULTS } from './shared/ui-defaults.js';
   }
   function saveSettings(value) {
     const next = clone(value || defaults());
-    localStorage.setItem(key, JSON.stringify(next));
+    storage.setItem(key, JSON.stringify(next));
     settings = next;
     sound.reload({ feedback: settings });
     return clone(settings);
@@ -51,5 +50,6 @@ import { UI_DEFAULTS } from './shared/ui-defaults.js';
     const save = document.createElement('button'); save.textContent = '保存'; save.className = 'primary'; save.onclick = () => { try { saveSettings(draft); dialog.close(); } catch { window.whaleToast?.('设置未能保存，请检查存储空间。'); } };
     actions.append(cancel, save); dialog.append(actions); dialog.addEventListener('close', () => { sound.stop(); dialog.remove(); }); document.body.append(dialog); dialog.showModal();
   }
-  window.WhaleFeedback = { play, open, save: saveSettings, reload: load, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
-})();
+export const WhaleFeedback = { play, open, save: saveSettings, reload: load, snapshot: () => clone(settings), defaults: () => clone(defaults()), get feel() { return settings.feel; } };
+export default WhaleFeedback;
+

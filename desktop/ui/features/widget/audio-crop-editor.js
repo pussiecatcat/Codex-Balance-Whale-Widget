@@ -1,3 +1,4 @@
+import WhaleMediaGuard from '../../services/media-guard.js';
 import { openOver } from '../../services/layers.js';
 export function encodeWav(buffer) {
       var numCh = buffer.numberOfChannels;

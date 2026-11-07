@@ -1,10 +1,8 @@
-import * as quotaFormat from '../desktop/ui/shared/quota-format.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createCodexRateLimitsClient, resetCodexRateLimitsArgsCache } from '../runtime/codex-rate-limits.mjs';
@@ -210,20 +208,19 @@ test('explicit authentication errors clear cached quota; authoritative empty win
   assert.equal((await fixture.service.getQuota({ force: true })).subscription.available, false);
 });
 
-const quotaSource = (await fs.readFile(new URL('../desktop/ui/quota.js', import.meta.url), 'utf8')).replace(/^import .*$/mg, '');
+import { createQuotaRuntime } from '../desktop/ui/services/quota.js';
 function frontend() {
   let now = Date.now(), response = { ok: true, subscription: { available: true, status: 'ready', source: 'codex-app-server', observedAt: now,
     windows: [{ windowDurationMins: 300, usedPercent: 20, resetsAt: now + 3600000 }] } }, failing = false;
   const listeners = {}, intervals = new Map(), timeouts = new Map(), requests = []; let timerId = 0;
-  const box = { ...quotaFormat, labels: quotaFormat.QUOTA_LABELS, AbortController, Date: class extends Date { static now() { return now; } }, document: {},
-    window: { addEventListener: (name, fn) => { listeners[name] = fn; } },
+  const win = { addEventListener: (name, fn) => { listeners[name] = fn; } };
+  const api = createQuotaRuntime({ window: win, now: () => now,
     setInterval: (fn, ms) => { intervals.set(++timerId, { fn, ms }); return timerId; }, clearInterval: id => intervals.delete(id),
     setTimeout: (fn, ms) => { timeouts.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timeouts.delete(id),
     requestJson: async url => { requests.push(url); if (failing) throw Error('offline'); return url.startsWith('/api/pricing') ? {} : structuredClone(response); },
     statusView,
-  };
-  vm.runInNewContext(quotaSource, box);
-  return { api: box.window.WhaleQuota, requests, listeners, intervals, timeouts,
+  });
+  return { api, requests, listeners, intervals, timeouts,
     advance: ms => { now += ms; }, fail: flag => { failing = flag; }, setResponse: data => { response = data; } };
 }
 test('frontend prewarms while closed, retries failures, retains marked data, and clears on logout', async () => {

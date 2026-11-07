@@ -33,23 +33,15 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 export const GLOBAL_SURFACE = Object.freeze([
   'WhaleAccountView',
   'WhaleApiModels',
-  'WhaleAudio',
   'WhaleBubbleShape',
-  'WhaleFeedback',
-  'WhaleGesture',
   'WhaleLegacySoundUi',
   'WhaleLegacyUsage',
-  'WhaleMediaGuard',
-  'WhaleMoney',
-  'WhaleQuota',
-  'WhaleRendering',
   'WhaleSelect',
   'WhaleSettingsCatalog',
   'WhaleSettingsHelp',
   'WhaleSettingsPages',
   'WhaleSettingsTest',
   'WhaleStorageSync',
-  'WhaleTurnNotice',
   'WhaleWorkshopOpen',
   'whaleToast',
 ]);
@@ -60,19 +52,15 @@ export const GLOBAL_SURFACE = Object.freeze([
 // reading the global is reported as stale rather than failing, the way the line
 // caps above work.
 export const MODULE_GLOBAL_READS = Object.freeze({
-  'desktop/ui/features/sound-settings/controller.js': { WhaleRendering: 1, WhaleSelect: 1 },
+  'desktop/ui/features/sound-settings/controller.js': { WhaleSelect: 1 },
   'desktop/ui/features/widget/asset-helpers.js': { whaleToast: 2 },
-  'desktop/ui/features/widget/audio-crop-editor.js': { WhaleMediaGuard: 3 },
-  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1, WhaleQuota: 1 },
+  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1 },
   'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2, WhaleMoney: 4, WhaleQuota: 2 },
-  'desktop/ui/features/widget/reminder-editor.js': { WhaleMoney: 7, WhaleTurnNotice: 2 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2, WhaleFeedback: 2, WhaleQuota: 1, WhaleTurnNotice: 3 },
-  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1, WhaleMoney: 4 },
-  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4, WhaleMoney: 3 },
-  'desktop/ui/features/widget/usage-overview-view.js': { WhaleMoney: 5 },
-  'desktop/ui/features/widget/usage-panel.js': { WhaleMoney: 2 },
-  'desktop/ui/features/widget/usage-records-view.js': { WhaleMoney: 2 },
+  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2 },
+  'desktop/ui/features/widget/feedback.js': { whaleToast: 1 },
+  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2 },
+  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
+  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
 });
 
 // Modules that still call fetch directly rather than going through the shared
@@ -101,7 +89,7 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 269 };
+export const EMPTY_CATCH_BUDGET = { total: 261 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
@@ -477,6 +465,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
     /\/api\/sound-settings\b/g,
   ]);
   const widget = read(root, 'assets/whale-widget.js');
+  const entryImports = source => widget.includes("import '/" + source + "'") || widget.includes("from '/" + source + "'");
   const soundEntry = read(root, 'desktop/ui/sound-settings.js');
   const html = read(root, 'desktop/ui/widget.html');
   const sourceSlices = sourceSliceTests(root);
@@ -501,8 +490,8 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       boundaryFiles: presentBoundaryFiles,
       entryLines: lineCount(soundEntry),
       moduleScripts: {
-        soundSettings: moduleScript(html, 'sound-settings.js'),
-        waitNotice: moduleScript(html, 'wait-notice.js'),
+        soundSettings: moduleScript(html, 'sound-settings.js') || entryImports('sound-settings.js'),
+        waitNotice: moduleScript(html, 'wait-notice.js') || entryImports('wait-notice.js'),
       },
       forbidden: {
         domTextQueries,

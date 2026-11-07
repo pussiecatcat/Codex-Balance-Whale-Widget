@@ -82,16 +82,8 @@ const rendererModules = [
   'desktop/ui/settings-pages.js',
   'assets/whale-widget.js',
   'desktop/ui/api-models.js',
-  'desktop/ui/money.js',
-  'desktop/ui/quota.js',
   'desktop/ui/account-view.js',
   'desktop/ui/workshop.js',
-  'desktop/ui/media-guard.js',
-  'desktop/ui/audio-engine.js',
-  'desktop/ui/render.js',
-  'desktop/ui/turn-notice.js',
-  'desktop/ui/gesture.js',
-  'desktop/ui/preferences-v3.js',
   'desktop/ui/select-enhancer.js',
   'desktop/ui/shape.js',
   'desktop/ui/input.js',
@@ -106,7 +98,7 @@ const rendererModules = [
 // Every desktop/ui script is an ES module now; the classic branch below is kept
 // so a new classic file has to be registered deliberately instead of inheriting
 // global script semantics by accident.
-const classicEntries = ['desktop/ui/settings-catalog.js', 'desktop/ui/settings-pages.js', 'desktop/ui/api-models.js', 'desktop/ui/money.js', 'desktop/ui/quota.js', 'desktop/ui/account-view.js', 'desktop/ui/workshop.js', 'desktop/ui/media-guard.js', 'desktop/ui/audio-engine.js', 'desktop/ui/render.js', 'desktop/ui/turn-notice.js', 'desktop/ui/gesture.js', 'desktop/ui/preferences-v3.js', 'desktop/ui/select-enhancer.js', 'desktop/ui/shape.js', 'desktop/ui/input.js', 'desktop/ui/sound-settings.js', 'desktop/ui/wait-notice.js', 'desktop/ui/settings.js'];
+const classicEntries = ['desktop/ui/settings-catalog.js', 'desktop/ui/settings-pages.js', 'desktop/ui/api-models.js', 'desktop/ui/account-view.js', 'desktop/ui/workshop.js', 'desktop/ui/select-enhancer.js', 'desktop/ui/shape.js', 'desktop/ui/input.js', 'desktop/ui/sound-settings.js', 'desktop/ui/wait-notice.js', 'desktop/ui/settings.js'];
 
 const browserGlobals = { ...globals.browser, ...appGlobals };
 
