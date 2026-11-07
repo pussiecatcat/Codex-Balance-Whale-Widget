@@ -1,4 +1,5 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
+import { mirrorSizeSettings } from '/features/widget/settings-mirror.js';
 import { createSettingsClient } from '/services/settings-client.js';
 import { createScope } from '/services/scope.js';
 import { createUiState } from '/services/ui-state.js';
@@ -2517,14 +2518,15 @@ import {
           if (ownSettingsEpoch !== settingsApplyEpoch) return;
           applySoundSettingsSnapshot(snapshot);
           var saved = snapshot.size;
-          state.scale = saved.scale;
-          root.style.setProperty('--dshw-scale', String(saved.scale));
-          scaleInput.value = String(saved.scale); scaleNumber.value = String(scaleToDisplay(saved.scale));
-          bubbleOn = saved.bubbleOn; bubbleToggle.checked = bubbleOn;
-          scrollGapOn = saved.scrollGapOn; scrollGapPx = saved.scrollGapPx;
+          var mirrored = mirrorSizeSettings(saved, {});
+          state.scale = mirrored.scale;
+          root.style.setProperty('--dshw-scale', String(mirrored.scale));
+          scaleInput.value = String(mirrored.scale); scaleNumber.value = String(scaleToDisplay(mirrored.scale));
+          bubbleOn = mirrored.bubbleOn; bubbleToggle.checked = bubbleOn;
+          scrollGapOn = mirrored.scrollGapOn; scrollGapPx = mirrored.scrollGapPx;
           // Mirror every saved size key the widget writes back; a stale copy would be
           // saved over the new value by the next drag or menu change.
-          menuBtnHide = saved.menuBtnHide === true;
+          menuBtnHide = mirrored.menuBtnHide;
           applyMenuBtnHideUI(); settle(); syncLevel1Controls();
           WhaleRendering.refitBubble();
         }).catch(assetFailure);

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createConfigSync, savedAnchor } from '../desktop/ui/features/widget/config-sync.js';
+import { mirrorSizeSettings } from '../desktop/ui/features/widget/settings-mirror.js';
 
-function fixture(requestJson, settingsClient = null) {
+function fixture(requestJson, settingsClient = null, sizeSettings = { scale: 1.5 }) {
   const state = { balance: null, left: 150, top: 100 };
   const notices = [], errors = [], stored = new Map();
   const root = {};
@@ -10,7 +11,7 @@ function fixture(requestJson, settingsClient = null) {
     root, uiState: { set: (key, value) => stored.set(key, value), getJSON: () => null }, settingsClient, getState: () => state,
     getAccountView: () => ({ mode: 'api' }), setNativeCurrency() {}, onBalance: value => notices.push(value),
     checkAlerts() {}, requireSaved: value => assert.equal(value.ok, true), onError: error => errors.push(error),
-    getSizeSettings: () => ({ scale: 1.5 }),
+    getSizeSettings: () => sizeSettings,
     getPosition: () => ({ state, viewport: { w: 300, h: 200 }, width: 100, height: 80, rightGap: 17 }),
   });
   return { sync, state, notices, errors, stored, root };
@@ -48,14 +49,15 @@ test('saved anchors clamp distances and account for the scrollbar gap only on th
     { v: 2, hAnchor: 'left', hDist: 8, vAnchor: 'top', vDist: 4 });
 });
 
-test('the widget mirrors every size key it writes back after another window saves', async () => {
-  const { readFileSync } = await import('node:fs');
-  const widget = readFileSync(new URL('../assets/whale-widget.js', import.meta.url), 'utf8');
-  const handler = widget.match(/onSettingsChanged\(function \(change\) \{[\s\S]*?refitBubble\(\);/)?.[0] || '';
-  // soundOn, soundVol, soundSet, turnCostOn and turnCostCloseMs come from applySoundSettingsSnapshot.
-  for (const assignment of ['applySoundSettingsSnapshot(snapshot)', 'state.scale =', 'bubbleOn =', 'scrollGapOn =', 'scrollGapPx =', 'menuBtnHide =']) {
-    assert.ok(handler.includes(assignment), 'missing ' + assignment);
-  }
+test('a settings-window size change mirrors every key the widget writes back', async () => {
+  const live = { scale: 1.5, bubbleOn: true, scrollGapOn: false, scrollGapPx: 0, menuBtnHide: false };
+  mirrorSizeSettings({ scale: 1.9, bubbleOn: false, scrollGapOn: true, scrollGapPx: 24, menuBtnHide: true }, live);
+  assert.deepEqual(live, { scale: 1.9, bubbleOn: false, scrollGapOn: true, scrollGapPx: 24, menuBtnHide: true });
+  const writes = [];
+  const client = { write: async request => { writes.push(request); return { ok: true, values: request.changes }; } };
+  const f = fixture(async () => { throw new Error('the old PUT route must not be called'); }, client, live);
+  await f.sync.save();
+  assert.deepEqual(writes, [{ domain: 'size', changes: live, force: true }]);
 });
 
 test('save writes the size domain through the shared settings client instead of the old route', async () => {
