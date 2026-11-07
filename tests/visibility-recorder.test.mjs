@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import fs from 'node:fs';
-import vm from 'node:vm';
+
 const { createVisibilityRecorder } = createRequire(import.meta.url)('../desktop/visibility-recorder.cjs');
+const { applyChromiumSwitches } = createRequire(import.meta.url)('../desktop/chromium-switches.cjs');
 
 test('passive recording bounds memory and disk writes; reports preserve pre-focus state', () => {
   let at = 0, visible = false, reads = 0; const files = new Map(); let writes = 0;
@@ -28,12 +28,9 @@ test('recorder tolerates unavailable windows without creating a fake healthy sam
 });
 
 test('Windows occlusion switches apply before startup and preserve preexisting disabled features; macOS untouched', () => {
-  const source = fs.readFileSync(new URL('../desktop/main.cjs', import.meta.url), 'utf8');
-  const bootstrap = source.slice(source.indexOf('const softwareRendering ='), source.indexOf('if (!dataDir'));
   for (const platform of ['win32', 'darwin']) {
     const switches = new Map([['disable-features', 'ExistingFeature']]); let disabled = false;
-    const state = { process: { platform, env: {} }, app: { disableHardwareAcceleration() { disabled = true; }, commandLine: { getSwitchValue: k => switches.get(k) || '', appendSwitch: (k, v) => switches.set(k, v) } } };
-    vm.runInNewContext(bootstrap, state);
+    applyChromiumSwitches({ platform, env: {}, app: { disableHardwareAcceleration() { disabled = true; }, commandLine: { getSwitchValue: k => switches.get(k) || '', appendSwitch: (k, v) => switches.set(k, v) } } });
     assert.equal(disabled, platform === 'win32');
     assert.equal(switches.get('disable-features'), platform === 'win32' ? 'ExistingFeature,CalculateNativeWinOcclusion' : 'ExistingFeature');
     assert.equal(switches.has('disable-backgrounding-occluded-windows'), platform === 'win32');

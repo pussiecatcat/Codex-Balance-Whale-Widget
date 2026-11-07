@@ -70,7 +70,7 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 260 };
+export const EMPTY_CATCH_BUDGET = { total: 256 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
@@ -456,6 +456,7 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       whaleWidgetLines: lineCount(widget),
       sourceSliceTestFiles: sourceSlices,
       sourceSliceTestFileCount: sourceSlices.length,
+      mainCjsLines: lineCount(read(root, 'desktop/main.cjs')),
     },
     sound: {
       requiredModules: required,
@@ -491,7 +492,8 @@ export function refactorBoundaryErrors(metrics) {
   if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('The widget entry must import the sound controller and the wait notice.');
   if (metrics.current.whaleWidgetLines > 3100) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 3100 lines (found ${metrics.current.whaleWidgetLines}).`);
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
-  if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
+  if (metrics.current.sourceSliceTestFileCount > 0) errors.push(`Source-slicing test files must stay at 0 (found ${metrics.current.sourceSliceTestFileCount}).`);
+  if (metrics.current.mainCjsLines > 450) errors.push(`desktop/main.cjs must stay within the phase-5 cap of 450 lines (found ${metrics.current.mainCjsLines}).`);
   errors.push(...dependencyErrors(metrics.dependency));
   if (metrics.emptyCatch.total > EMPTY_CATCH_BUDGET.total) {
     const perFile = Object.entries(metrics.emptyCatch.byFile).sort((a, b) => b[1] - a[1])
@@ -531,6 +533,7 @@ function summary(metrics) {
       classicScriptTags: metrics.current.classicScriptTags,
       whaleWidgetLines: metrics.current.whaleWidgetLines,
       sourceSliceTestFileCount: metrics.current.sourceSliceTestFileCount,
+      mainCjsLines: metrics.current.mainCjsLines,
     },
     sound: {
       missingModules: metrics.sound.missingModules,

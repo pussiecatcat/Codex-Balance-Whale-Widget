@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const { createSoundSettingsDomains } = createRequire(import.meta.url)('../desktop/settings-store.cjs');
+const { createSettingsDomains } = createRequire(import.meta.url)('../desktop/settings-domains.cjs');
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import settingsCatalog from '../desktop/ui/settings-catalog.js';
 import { readValue, toPatch, editorFor } from '../desktop/ui/settings-pages.js';
@@ -183,14 +184,16 @@ test('each field names where it is stored and how it is read and written', () =>
 });
 
 test('every field belongs to a storage domain the settings store actually registers', () => {
-  // desktop/main.cjs builds the store's domains map; the catalog must not point
-  // at a domain that does not exist or the save silently has nowhere to go.
-  const mainSource = fs.readFileSync(path.join(root, 'desktop/main.cjs'), 'utf8');
-  const registered = new Set(
-    [...mainSource.matchAll(/^        (\w+): \{/gm)].map(match => match[1]),
-  );
-  for (const domain of Object.keys(createSoundSettingsDomains({}))) registered.add(domain);
-  assert.ok(registered.size >= 8, `未能从 main.cjs 解析出设置域，实际 ${registered.size} 个`);
+  // desktop/settings-domains.cjs builds the store's domain map; the catalog must
+  // not point at a domain that does not exist or the save silently has nowhere
+  // to go.
+  const domains = createSettingsDomains({
+    dispatcher: { soundSettings: {} }, values: () => ({}),
+    uiStore: { setKeys() {}, flush() {} }, read: () => ({}), save() {}, dataDir: '/',
+    createSoundSettingsDomains,
+  });
+  const registered = new Set(Object.keys(domains));
+  assert.ok(registered.size >= 8, `未能构建设置域，实际 ${registered.size} 个`);
   for (const field of loadCatalog().fields) {
     assert.ok(registered.has(field.domain), `${field.id} 的 domain ${field.domain} 没有在主进程注册`);
   }
