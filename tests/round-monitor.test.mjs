@@ -190,7 +190,8 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
   let lastTurnNotice = null, subscriptionNotices = 0, quotaSettles = 0;
   const accountView = { mode: 'api', notice: () => subscriptionNotices++ };
   const turnNoticePoller = createTurnNoticePoller({
-    window: sandbox.window, localStorage: sandbox.localStorage, fetch: sandbox.fetch, accountView,
+    window: sandbox.window, fetch: sandbox.fetch, accountView,
+    uiState: { get: key => sandbox.localStorage.getItem(key), set: (key, value) => sandbox.localStorage.setItem(key, value) },
     WhaleTurnNotice, CustomEvent: sandbox.CustomEvent,
     WhaleFeedback: { play: () => {} }, WhaleQuota: { settled: () => quotaSettles++ },
     getCurrency: () => sandbox.state.currency,

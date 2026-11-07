@@ -1,10 +1,9 @@
 import { createInputHitTester, createRoleHitPreparer, pointerPressAccepted } from '../features/widget/input-policy.js';
-import { createStorageSync } from '../features/widget/storage-sync.js';
 
 // The pointer layer decides whether the native window accepts clicks at the
 // cursor, mirrors keyboard focus, and keeps widget-local storage in sync. It was
 // a classic script; the entry now constructs it with the widget's bridge.
-export function createPointerInput({ window: win, document: doc, bridge, rendering, storage, toast = () => {}, scope = null }) {
+export function createPointerInput({ window: win, document: doc, bridge, rendering, toast = () => {}, scope = null }) {
   const listen = (target, type, fn, options) => scope ? scope.on(target, type, fn, options) : target.addEventListener(type, fn, options);
   function initialize() {
     if (!bridge || !rendering) return null;
@@ -78,26 +77,8 @@ export function createPointerInput({ window: win, document: doc, bridge, renderi
     pet.addEventListener('load', roleHit.prepare);
     pet.addEventListener('error', roleHit.fallback);
     roleHit.prepare();
-    const storageSync = createStorageSync({ initial: bridge.storage,
-      read: () => Object.fromEntries(Object.keys(storage).filter(key => /^dshw[-v]/.test(key)).map(key => [key, storage.getItem(key)])),
-      write: patch => bridge.save(patch),
-      reconcile: (key, value) => {
-        if (value === null) storage.removeItem(key); else storage.setItem(key, value);
-        win.dispatchEvent(new win.Event('whale-storage-reconciled'));
-      },
-    });
-    // The main process reads this contract while shutting down; it is the only
-    // remaining renderer-to-main global the architecture allows.
-    win.__whaleShutdown = { pendingStorage: storageSync.pending };
-    const save = () => storageSync.save();
-    // A hidden companion has no editable surfaces. Keep the last snapshot rather
-    // than repeatedly serializing storage while Codex is minimized.
-    if (scope) scope.interval(() => { if (!doc.hidden) save(); }, 800);
-    else setInterval(() => { if (!doc.hidden) save(); }, 800);
-    listen(doc, 'visibilitychange', save);
-    listen(win, 'beforeunload', save);
     request();
-    return { storageSync };
+    return {};
   }
   return { initialize };
 }

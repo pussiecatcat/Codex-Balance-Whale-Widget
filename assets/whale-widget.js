@@ -1,6 +1,7 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { createSettingsClient } from '/services/settings-client.js';
 import { createScope } from '/services/scope.js';
+import { createUiState } from '/services/ui-state.js';
 import { createToast } from '/services/toast.js';
 import { applyGesture } from '/features/widget/gesture.js';
 import WhaleRendering from '/services/rendering.js';
@@ -122,6 +123,8 @@ import {
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
     var uiScope = createScope('widget-ui');
+    var uiState = createUiState({ storage: localStorage, bridge: window.whaleDesktop, scope: uiScope });
+    window.__whaleShutdown = { pendingStorage: uiState.pending };
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
 
@@ -141,7 +144,7 @@ import {
     img.className = 'dshwv-img';
     var initRoleUrl = IMG_URL;
     try {
-      var initRoleId = localStorage.getItem('dshw-role') || UI_DEFAULTS.roleId;
+      var initRoleId = uiState.get('dshw-role') || UI_DEFAULTS.roleId;
       if (initRoleId && initRoleId !== 'default') initRoleUrl = '/dsh-whale/role-image.png?id=' + encodeURIComponent(initRoleId);
     } catch (err) {}
     img.src = initRoleUrl;
@@ -252,7 +255,7 @@ import {
     roleFileInput.accept = 'image/*';
     roleFileInput.style.display = 'none';
     var roleManager = createRoleManager({
-      document: document, window: window, localStorage: localStorage, location: location, Image: Image,
+      document: document, window: window, uiState: uiState, location: location, Image: Image,
       rendering: WhaleRendering, imageElement: img, roleButton: roleBtn, roleButtonLabel: roleBtnLabel,
       rolePanel: rolePanel, imageUrl: IMG_URL, assetClient: assetClient, assetWarning: assetWarning,
       assetNotice: assetNotice, assetFailure: assetFailure, requireSaved: requireSaved,
@@ -279,7 +282,8 @@ import {
 
     // ==== [用量面板与设置] ====
     var settingsClient = window.whaleDesktop && window.whaleDesktop.settings ? createSettingsClient({ bridge: window.whaleDesktop }) : null;
-    var accountView = createAccountView({ document: document, window: window, bridge: window.whaleDesktop, toast: function (message) { if (window.whaleToast) window.whaleToast(message); } });
+    if (settingsClient) uiScope.add(settingsClient.subscribe('ui', uiState.applyRemote));
+    var accountView = createAccountView({ document: document, window: window, bridge: window.whaleDesktop, storage: { getItem: uiState.get, setItem: function (key, value) { uiState.set(key, value); } }, toast: function (message) { if (window.whaleToast) window.whaleToast(message); } });
     accountView.init(); if (window.whaleDesktop?.testMode) window.__whaleAccount = accountView;
     var apiModels = createApiModelsStore({ request: function (url, options) { return requestJson(url, options); }, quota: WhaleQuota, money: WhaleMoney, storage: localStorage,
       onAlert: function (detail) { showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 }); },
@@ -1743,7 +1747,7 @@ import {
     // dshw-bubble-shape is mirrored to ui-state.json by the /^dshw[-v]/ rule in
     // desktop/ui-state-store.cjs, so no size.json signature change is needed.
     try {
-      var savedShape = localStorage.getItem('dshw-bubble-shape');
+      var savedShape = uiState.get('dshw-bubble-shape');
       if (savedShape) applyBubbleShape(savedShape);
     } catch (err) {}
     // The menu select is built earlier in this closure; sync it to the restored shape.
@@ -1848,7 +1852,7 @@ import {
     function loadSnapConfig() {
       snapConfig = cloneSnap(SNAP_DEFAULTS);
       try {
-        var raw = localStorage.getItem(SNAP_KEY);
+        var raw = uiState.get(SNAP_KEY);
         if (raw) {
           var d = JSON.parse(raw);
           if (d && d.v === SNAP_VER) {
@@ -1873,7 +1877,7 @@ import {
       try {
         var out = cloneSnap(snapConfig);
         out.v = SNAP_VER;
-        localStorage.setItem(SNAP_KEY, JSON.stringify(out));
+        uiState.set(SNAP_KEY, JSON.stringify(out));
       } catch (err) {}
     }
     loadSnapConfig();
@@ -2333,7 +2337,7 @@ import {
     // ==== [刷新与配置保存] ====
     var configSync = createConfigSync({
       requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL, settingsClient: settingsClient,
-      root: root, localStorage: localStorage, timeoutMs: FETCH_TIMEOUT_MS,
+      root: root, uiState: uiState, timeoutMs: FETCH_TIMEOUT_MS,
       getState: function () { return state; },
       getAccountView: function () { return accountView; },
       setNativeCurrency: function (currency) { WhaleMoney.setNativeCurrency(currency); },
@@ -2535,14 +2539,7 @@ import {
         return;
       }
       if (!change || change.domain !== 'ui' || !Array.isArray(change.keys)) return;
-      for (var i = 0; i < change.keys.length; i++) {
-        var key = change.keys[i];
-        var value = change.values ? change.values[key] : undefined;
-        try {
-          if (value === null || value === undefined) localStorage.removeItem(key);
-          else localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-        } catch (err) {}
-      }
+      uiState.applyRemote(change);
       if (change.values && Object.hasOwn(change.values, 'dshw-display-currency')) {
         try { WhaleMoney.setDisplayCurrency(change.values['dshw-display-currency']).catch(function () { /* 汇率不可用时保持原币种 */ }); } catch (err) { /* 金额尚未渲染时由下次刷新补上 */ }
       }
@@ -2571,10 +2568,6 @@ import {
       if (typeof change.values.vol === 'number') previewVol(change.values.vol);
     });
 
-    window.addEventListener('whale-storage-reconciled', function () {
-      window.WhaleBubbleShape.apply(localStorage.getItem('dshw-bubble-shape') || 'ellipse');
-      WhaleFeedback.reload();
-    });
     // 完整设置窗口通过具体动作按钮唤起这里的原生编辑器。
     // 这些弹层闭包在 whale-widget.js 内部、依赖鲸鱼自身的 DOM 与状态，
     // 所以不搬进设置窗口，只在这里加事件监听。
@@ -2881,7 +2874,7 @@ import {
     });
 
     var characterInteraction = createCharacterInteraction({
-      document: document, window: window, localStorage: localStorage, rendering: WhaleRendering,
+      document: document, window: window, uiState: uiState, rendering: WhaleRendering,
       root: root, image: img, positioner: positioner, menuButton: menuBtn, state: state, dragStatus: drag,
       clickDistanceSq: CLICK_SQ, imageUrl: IMG_URL, viewport: viewport, rightGap: rightGap,
       clampToViewport: clampToViewport, artCenterAt: artCenterAt, snapZones: snapZones,
@@ -3018,7 +3011,7 @@ import {
         applyMenuBtnHideUI();
       }
       try {
-        var a = JSON.parse(localStorage.getItem('dshw-pos') || 'null');
+        var a = uiState.getJSON('dshw-pos');
         if (a && a.v === 2 && (a.hAnchor === 'left' || a.hAnchor === 'right') && Number.isFinite(a.hDist) && a.hDist >= 0 && (a.vAnchor === 'top' || a.vAnchor === 'bottom') && Number.isFinite(a.vDist) && a.vDist >= 0) {
           var vpA = viewport();
           var wA = root.offsetWidth || root.getBoundingClientRect().width || 0;
@@ -3051,7 +3044,7 @@ import {
       openUsageRecordsWindow();
     });
     var turnNoticePoller = createTurnNoticePoller({
-      window: window, localStorage: localStorage, fetch: fetch,
+      window: window, uiState: uiState, fetch: fetch,
       WhaleTurnNotice: WhaleTurnNotice, WhaleFeedback: WhaleFeedback, WhaleQuota: WhaleQuota, accountView: accountView,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
@@ -3065,7 +3058,7 @@ import {
     setInterval(pollLastTurn, 1000);
     var workshopDialog = createWorkshopDialog({ document: document, window: window, request: requestJson });
     createWindowShape({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope }).start();
-    createPointerInput({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, storage: localStorage, scope: uiScope,
+    createPointerInput({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope,
       toast: function (message) { if (window.whaleToast) window.whaleToast(message); } }).initialize();
     window.addEventListener('beforeunload', function () { try { waitNotice.dispose(); soundSettings.dispose(); uiScope.dispose(); } catch (err) { /* best effort while the window closes */ } }, { once: true });
     window.__dshWhaleInit = true;

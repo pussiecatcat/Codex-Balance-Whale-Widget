@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { WhaleService } from '../runtime/service.mjs';
 import { SoundSettingsService } from '../runtime/sound-settings.mjs';
-import { createStorageSync } from '../desktop/ui/features/widget/storage-sync.js';
+import { createUiState } from '../desktop/ui/services/ui-state.js';
 const require = createRequire(import.meta.url);
 const { SettingsStore, createSoundSettingsDomains } = require('../desktop/settings-store.cjs');
 const { UiStateStore } = require('../desktop/ui-state-store.cjs');
@@ -82,21 +82,27 @@ test('an in-flight widget patch cannot undo newer settings and unrelated edits s
   const initial = { 'dshw-bubble-shape': 'ellipse', 'dshw-pos': 'old' };
   Object.assign(state, { value: { ...initial }, encoded: JSON.stringify(initial), dirty: false, timer: null });
   t.after(() => clearTimeout(state.timer));
-  let local = { ...initial }, release;
+  const local = { ...initial };
+  Object.defineProperties(local, {
+    getItem: { value: key => Object.hasOwn(local, key) ? local[key] : null },
+    setItem: { value: (key, value) => { local[key] = String(value); } },
+    removeItem: { value: key => { delete local[key]; } },
+  });
+  let release;
   const gate = new Promise(resolve => { release = resolve; });
-  const sync = createStorageSync({ initial, read: () => ({ ...local }),
-    write: async patch => { await gate; return state.applyPatch(patch); },
-    reconcile: (key, value) => { if (value === null) delete local[key]; else local[key] = value; } });
+  const uiState = createUiState({ storage: local,
+    bridge: { storage: { ...initial }, save: async patch => { await gate; return state.applyPatch(patch); } },
+    setTimeout: fn => fn(), clearTimeout() {} });
   local['dshw-bubble-shape'] = 'round'; local['dshw-pos'] = 'dragged';
-  const saving = sync.save();
+  const saving = uiState.flush();
   state.setKeys({ 'dshw-bubble-shape': 'newer' });
   release(); await saving;
   assert.equal(state.get()['dshw-bubble-shape'], 'newer');
   assert.equal(state.get()['dshw-pos'], 'dragged');
   assert.equal(local['dshw-bubble-shape'], 'newer');
   assert.equal(state.applyPatch(initial).ok, false, 'raw full snapshots are refused');
-  local['dshw-pos'] = null;
-  await sync.save();
+  uiState.remove('dshw-pos');
+  await uiState.flush();
   assert.equal(Object.hasOwn(state.get(), 'dshw-pos'), false);
 });
 

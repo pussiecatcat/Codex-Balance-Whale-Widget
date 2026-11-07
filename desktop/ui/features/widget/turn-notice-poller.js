@@ -2,7 +2,7 @@ import DefaultFeedback from './feedback.js';
 import DefaultQuota from '../../services/quota.js';
 // Poll completed turns once, persist the cursor, and deliver fresh notices to the widget.
 export function createTurnNoticePoller(deps) {
-  const { localStorage, fetch: fetchImpl, WhaleTurnNotice,
+  const { uiState, fetch: fetchImpl, WhaleTurnNotice,
     WhaleFeedback = DefaultFeedback, WhaleQuota = DefaultQuota, accountView = null,
     getCurrency, setLastTurnNotice, playTaskEndSound, getFeedbackVolume,
     showCostBubble, now = Date.now } = deps;
@@ -13,9 +13,9 @@ export function createTurnNoticePoller(deps) {
   let lastCostPending = false;
   const costPollingStartedAt = now();
   try {
-    const lastCostStored = Number(localStorage.getItem('dshw-last-seq') || 0);
+    const lastCostStored = Number(uiState.get('dshw-last-seq') || 0);
     if (isFinite(lastCostStored) && lastCostStored >= 0) lastCostSeq = lastCostStored;
-    lastCostId = localStorage.getItem('dshw-last-turn-id') || '';
+    lastCostId = uiState.get('dshw-last-turn-id') || '';
   } catch (err) {}
 
   function pollLastTurn() {
@@ -35,8 +35,8 @@ export function createTurnNoticePoller(deps) {
         lastCostSeq = d.seq;
         if (d.id) lastCostId = d.id;
         try {
-          localStorage.setItem('dshw-last-seq', String(lastCostSeq));
-          localStorage.setItem('dshw-last-turn-id', lastCostId);
+          uiState.set('dshw-last-seq', String(lastCostSeq));
+          uiState.set('dshw-last-turn-id', lastCostId);
         } catch (err) {}
         const notice = WhaleTurnNotice.snapshot(d, getCurrency());
         setLastTurnNotice(notice);

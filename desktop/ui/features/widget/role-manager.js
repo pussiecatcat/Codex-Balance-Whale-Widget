@@ -2,7 +2,7 @@ import { UI_DEFAULTS } from '../../shared/ui-defaults.js';
 
 export function createRoleManager(deps) {
   const {
-    document, window, localStorage, location, Image, rendering,
+    document, window, uiState, location, Image, rendering,
     imageElement, roleButton, roleButtonLabel, rolePanel, imageUrl,
     assetClient, assetWarning, assetNotice, assetFailure, requireSaved,
     viewport, setupHitTest, makeNameCell, bindNameMarquee, confirm,
@@ -106,7 +106,7 @@ export function createRoleManager(deps) {
       current = { id, name, url };
       imageElement.src = url;
       roleButtonLabel.textContent = name;
-      try { localStorage.setItem('dshw-role', id); } catch (error) {}
+      try { uiState.set('dshw-role', id); } catch (error) {}
       setupHitTest(url);
       close();
       render();
@@ -129,11 +129,11 @@ export function createRoleManager(deps) {
     if (fallbackInProgress || imageElement.complete && imageElement.naturalWidth > 0) {
       // The default art is already visible, but the saved id may still point at
       // a missing role. Clear it so the next launch does not repeat the failure.
-      if (current.id === UI_DEFAULTS.roleId) { try { localStorage.setItem('dshw-role', UI_DEFAULTS.roleId); } catch (error) { /* storage may be unavailable */ } }
+      if (current.id === UI_DEFAULTS.roleId) { try { uiState.set('dshw-role', UI_DEFAULTS.roleId); } catch (error) { /* storage may be unavailable */ } }
       return;
     }
     let failedId = current.id;
-    try { failedId = localStorage.getItem('dshw-role') || failedId; } catch (error) {}
+    try { failedId = uiState.get('dshw-role') || failedId; } catch (error) {}
     if (failedId && failedId !== 'default') badIds[failedId] = true;
     if (new URL(imageElement.currentSrc || imageElement.src, location.href).href === new URL(imageUrl, location.href).href) {
       assetNotice('内置小鲸鱼图片加载失败，请重启挂件或重新安装');
@@ -168,7 +168,7 @@ export function createRoleManager(deps) {
         assetWarning(data);
         if (fallbackInProgress) return;
         let saved = '';
-        try { saved = localStorage.getItem('dshw-role') || ''; } catch (error) {}
+        try { saved = uiState.get('dshw-role') || ''; } catch (error) {}
         const found = roles.find(role => role.id === saved) || null;
         if (found && !badIds[found.id]) {
           if (current.id !== found.id) apply(found.id, found.name, found.url);

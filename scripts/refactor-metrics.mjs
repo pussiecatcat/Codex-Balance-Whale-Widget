@@ -70,7 +70,7 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 261 };
+export const EMPTY_CATCH_BUDGET = { total: 260 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };

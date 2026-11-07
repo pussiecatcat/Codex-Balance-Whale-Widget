@@ -7,7 +7,7 @@ function fixture(requestJson, settingsClient = null) {
   const notices = [], errors = [], stored = new Map();
   const root = {};
   const sync = createConfigSync({ requestJson, settingsUrl: '/settings', balanceUrl: '/balance',
-    root, localStorage: { setItem: (key, value) => stored.set(key, value) }, settingsClient, getState: () => state,
+    root, uiState: { set: (key, value) => stored.set(key, value), getJSON: () => null }, settingsClient, getState: () => state,
     getAccountView: () => ({ mode: 'api' }), setNativeCurrency() {}, onBalance: value => notices.push(value),
     checkAlerts() {}, requireSaved: value => assert.equal(value.ok, true), onError: error => errors.push(error),
     getSizeSettings: () => ({ scale: 1.5 }),
