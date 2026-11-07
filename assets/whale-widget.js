@@ -2443,7 +2443,6 @@ import {
       applySoundSet();
       saveConfig();
     }
-    var SQUISH = 'scaleY(0.88) scaleX(1.05)';
     var releasePlayed = false;
     function forgetGroupSounds() {
       sound.reload({ catalog: { groups: audioGroups || [], fragments: audioFragments || [] } });
@@ -2464,15 +2463,14 @@ import {
     // on the parent would deform and shake the text above it.
     function pressDown() {
       // The bubble rides along with the character; a press never changes its content.
-      if (window.WhaleGesture) applyGesture(body, true, WhaleFeedback.feel);
-      else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
+      applyGesture(body, true, WhaleFeedback.feel);
       playPress();
     }
     function pressUp() {
-      if (window.WhaleGesture) applyGesture(body, false, WhaleFeedback.feel);
-      else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
+      applyGesture(body, false, WhaleFeedback.feel);
       playRelease();
-    }    var menuOpen = false;
+    }
+    var menuOpen = false;
     var menuPositionFrame = 0;
     new ResizeObserver(function () {
       if (!menuOpen || menuPositionFrame) return;
@@ -2559,7 +2557,7 @@ import {
         try { applyRole(change.values['dshw-role']); } catch (err) {}
       }
       if (change.values && Object.hasOwn(change.values, 'dshw-v3-feedback') && WhaleFeedback.reload) {
-        try { window.WhaleFeedback.reload(); } catch (err) {}
+        try { WhaleFeedback.reload(); } catch (err) {}
       }
     }); } catch (err) {}
 

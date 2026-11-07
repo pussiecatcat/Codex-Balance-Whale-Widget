@@ -1,3 +1,5 @@
+import WhaleMoney from './money.js';
+
   let frameRequest = 0, presentUntil = 0;
   const frameListeners = new Set();
 export function presentFor(ms = 0) {
@@ -238,7 +240,7 @@ export class BubbleRenderer {
     }
     reset(parts) {
       // Only the hidden buffer is edited. The four legacy nodes are reused.
-      window.WhaleMoney?.clearBindings(parts.root);
+      WhaleMoney?.clearBindings(parts.root);
       parts.root.style.removeProperty('--dshw-fit');
       for (const child of [...parts.root.children]) {
         if (![parts.label, parts.amount, parts.hint, parts.gif].includes(child)) child.remove();
