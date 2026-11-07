@@ -1,6 +1,3 @@
-import './settings-catalog.js';
-import './settings-help.js';
-import './settings-pages.js';
 // 小龙娘完整设置窗口的控制器。
 //
 // 状态分三层，任何一层都不越权：
@@ -8,17 +5,12 @@ import './settings-pages.js';
 //   draft     用户在当前页的修改，只存在于内存，切换分类不会丢
 //   values    最近一次从主进程读到的真实值
 // 保存时只提交 draft 与 baseline 的差异，并且只发给该字段所属的存储域。
+import catalog from './settings-catalog.js';
+import { renderPage, toPatch, readValue, editorFor, defaultFor } from './settings-pages.js';
 import { requestJson } from '/services/request.js';
-import '/settings-catalog.js';
-import '/settings-help.js';
-import '/settings-pages.js';
 import { soundOptions } from '/services/sound-reference.js';
 
-(() => {
-  'use strict';
-
-  const catalog = window.WhaleSettingsCatalog;
-  const pages = window.WhaleSettingsPages;
+const pages = { renderPage, toPatch, readValue, editorFor, defaultFor };
   const bridge = window.whaleDesktop;
 
   const state = {
@@ -705,5 +697,4 @@ import { soundOptions } from '/services/sound-reference.js';
     dom.content.append(box);
   });
 
-  window.WhaleSettingsTest = { state, go, save, revert, resetDefaults, isDirty, anyDirty, anyPageDirty, render, renderLoadError };
-})();
+window.__whaleSettingsTest = { state, catalog, go, save, revert, resetDefaults, isDirty, anyDirty, anyPageDirty, render, renderLoadError };

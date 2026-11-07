@@ -1,5 +1,8 @@
 import { createConfigSync } from '/features/widget/config-sync.js';
+import { mirrorSizeSettings } from '/features/widget/settings-mirror.js';
 import { createSettingsClient } from '/services/settings-client.js';
+import { createScope } from '/services/scope.js';
+import { createUiState } from '/services/ui-state.js';
 import { createToast } from '/services/toast.js';
 import { applyGesture } from '/features/widget/gesture.js';
 import WhaleRendering from '/services/rendering.js';
@@ -14,17 +17,15 @@ import { openOver } from '/services/layers.js';
 import { bindAudioImport } from '/features/widget/audio-import.js';
 import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
-import '/account-view.js';
-import '/select-enhancer.js';
-import '/wait-notice.js';
-import '/sound-settings.js';
-import '/shape.js';
-import '/input.js';
-import '/workshop.js';
+import { createAccountView } from '/features/widget/account-view.js';
+import { createWaitNotice } from '/features/widget/wait-notice.js';
+import { createSoundSettingsController } from '/features/sound-settings/controller.js';
 import WhaleMediaGuard from '/services/media-guard.js';
-import '/api-models.js';
+import { createApiModelsStore } from '/features/widget/api-models/store.js';
+import { createApiModelsEditor } from '/features/widget/api-models/editor.js';
 import { requestJson } from '/services/request.js';
-import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
+import { createTurnNoticeFeed } from '/features/widget/turn-notice-feed.js';
+import { createRuntimeFeed } from '/services/runtime-feed.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
 import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
@@ -72,7 +73,10 @@ import { createReminderEditor } from '/features/widget/reminder-editor.js';
 import { createItemEditor } from '/features/widget/item-editor.js';
 import { loadBubbleEditorDraft, saveBubbleEditorDraft } from '/features/widget/bubble-editor-model.js';
 import { snapBounds as calculateSnapBounds, snapZones as calculateSnapZones, artCenterAt, restoreAnchor, clampToViewport, settlePosition } from '/features/widget/anchors.js';
-import { createCustomSelectController } from '/features/widget/custom-select.js';
+import { createCustomSelectController, createSelectEnhancer } from '/features/widget/select.js';
+import { createWorkshopDialog } from '/features/widget/workshop-dialog.js';
+import { createWindowShape } from '/services/window-shape.js';
+import { createPointerInput } from '/services/pointer-input.js';
 import { bubbleIsImgMod, bubbleRowsOf, bubbleRowsFlat, bubbleRowsCanon } from '/shared/bubble-config/layout.js';
 import {
   bubbleDefaultSecondModules, bubbleDefaultQueue as buildBubbleDefaultQueue,
@@ -120,6 +124,10 @@ import {
     var GIF_URL = '/dsh-whale/rua.gif';
     var ROLE_URL = '/dsh-whale/roles.json';
     var assetClient = createAssetClient();
+    var uiScope = createScope('widget-ui');
+    var uiState = createUiState({ storage: localStorage, bridge: window.whaleDesktop, scope: uiScope });
+    var runtimeFeed = createRuntimeFeed({ bridge: window.whaleDesktop, scope: uiScope });
+    window.__whaleShutdown = { pendingStorage: uiState.pending };
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
 
@@ -139,7 +147,7 @@ import {
     img.className = 'dshwv-img';
     var initRoleUrl = IMG_URL;
     try {
-      var initRoleId = localStorage.getItem('dshw-role') || UI_DEFAULTS.roleId;
+      var initRoleId = uiState.get('dshw-role') || UI_DEFAULTS.roleId;
       if (initRoleId && initRoleId !== 'default') initRoleUrl = '/dsh-whale/role-image.png?id=' + encodeURIComponent(initRoleId);
     } catch (err) {}
     img.src = initRoleUrl;
@@ -188,11 +196,7 @@ import {
       dropOpen: dshwDropOpen, makeNameCell: makeNameCell, bindNameMarquee: bindNameMarquee });
     var dshwCustSel = customSelect.enhance;
     var dshwCustSelClose = customSelect.close;
-    window.WhaleSelect = window.WhaleSelect || {};
-    window.WhaleSelect.enhance = customSelect.enhance;
-    window.WhaleSelect.close = customSelect.close;
-    window.WhaleSelect.sync = customSelect.sync;
-    window.WhaleSelect.refresh = customSelect.refresh;
+    createSelectEnhancer({ document: document, select: customSelect, scope: uiScope });
     // ==== [任务结束音效] ====
     var taskEndSound = createTaskEndSound({
       document: document, window: window,
@@ -254,7 +258,7 @@ import {
     roleFileInput.accept = 'image/*';
     roleFileInput.style.display = 'none';
     var roleManager = createRoleManager({
-      document: document, window: window, localStorage: localStorage, location: location, Image: Image,
+      document: document, window: window, uiState: uiState, location: location, Image: Image,
       rendering: WhaleRendering, imageElement: img, roleButton: roleBtn, roleButtonLabel: roleBtnLabel,
       rolePanel: rolePanel, imageUrl: IMG_URL, assetClient: assetClient, assetWarning: assetWarning,
       assetNotice: assetNotice, assetFailure: assetFailure, requireSaved: requireSaved,
@@ -281,6 +285,19 @@ import {
 
     // ==== [用量面板与设置] ====
     var settingsClient = window.whaleDesktop && window.whaleDesktop.settings ? createSettingsClient({ bridge: window.whaleDesktop }) : null;
+    if (settingsClient) uiScope.add(settingsClient.subscribe('ui', uiState.applyRemote));
+    var accountView = createAccountView({ document: document, window: window, bridge: window.whaleDesktop, storage: { getItem: uiState.get, setItem: function (key, value) { uiState.set(key, value); } }, toast: function (message) { if (window.whaleToast) window.whaleToast(message); } });
+    accountView.init(); if (window.whaleDesktop?.testMode) window.__whaleAccount = accountView;
+    var apiModels = createApiModelsStore({ request: function (url, options) { return requestJson(url, options); }, quota: WhaleQuota, money: WhaleMoney, storage: localStorage,
+      onAlert: function (detail) { showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 }); },
+      onChanged: function () { if (usageNavigation && usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true); } });
+    var apiModelsEditor = createApiModelsEditor({ document: document, window: window, store: apiModels,
+      request: function (url, method, body) { return requestJson(url, { method: method, body: body }); },
+      toast: function (message) { if (window.whaleToast) window.whaleToast(message); },
+      openBubbleEditor: function (detail) { usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config); },
+      onBalanceReconcile: function () { usageReconcileEditor(); } });
+    apiModelsEditor.init(); apiModels.start(createScope('api-models'));
+    if (window.whaleDesktop?.testMode) window.__whaleApiModels = apiModels;
     var usagePanelApi = createUsagePanel({
       document: document, requestJson: requestJson, settingsUrl: SETTINGS_URL, recordsUrl: USAGE_REC_URL,
       assetWarning: assetWarning, assetFailure: assetFailure, WhaleMoney: WhaleMoney,
@@ -305,7 +322,7 @@ import {
     menuFooter.className = 'dshwv-menu-footer-slot';
     var compactMenu = createMenuLayout(menuBox, {
       view: menuRootView, navigation: menuNavigation, footer: menuFooter
-    }, window.WhaleAccountView.mode);
+    }, accountView.mode);
     compactMenu.register({ id: 'role', element: rowRole });
     compactMenu.register({ id: 'size', element: row1 });
     compactMenu.register({ id: 'bubble', element: row6 });
@@ -341,9 +358,7 @@ import {
     });
     footerRow.appendChild(advancedBtn);
     compactMenu.register({ id: 'advanced', element: footerRow });
-    window.addEventListener('whale-account-view', function (event) {
-      closeUsagePanel(); compactMenu.applyMode(event.detail.mode);
-    });
+    accountView.subscribe(function (mode) { WhaleQuota?.setSubscriptionMode(mode); closeUsagePanel(); compactMenu.applyMode(mode); });
     syncLevel1Controls();
     var usageShell = createUsageShell({ document: document, button: usageRecBtn });
     var usagePanel = usageShell.panel, usageArea = usageShell.area;
@@ -359,13 +374,6 @@ import {
     });
     var toggleUsagePanel = usageNavigation.toggle;
     var closeUsagePanel = usageNavigation.close;
-    window.WhaleLegacyUsage = {
-      start: usageNavigation.startLegacy,
-      stop: usageNavigation.stopLegacy,
-      records: function () { openUsageRecordsWindow(); },
-      showWait: function (detail) { return showWaitBubble(detail || {}); },
-      hideWait: function (id) { hideWaitBubble(false, id); }
-    };
     function dismissLedgerWarning() {
       return requestJson('/api/usage-warning', { method: 'POST' }).catch(function () { return null; });
     }
@@ -394,18 +402,13 @@ import {
       usageMainEl = usageShell.build(buildUsageModelArea);
     }
     var usageModelsView = createUsageModelsView({
-      document: document, window: window, WhaleMoney: WhaleMoney,
+      document: document, window: window, WhaleMoney: WhaleMoney, apiModels: apiModels,
+      openEditor: function (id) { apiModelsEditor.open(id); },
       getPanel: function () { return usagePanel; }
     });
     var renderUsageModels = usageModelsView.render;
     var buildUsageModelArea = usageModelsView.build;
     var usageAlertBudgetEditor = null;
-    window.addEventListener('whale-api-model-changed', function () {
-      if (usageNavigation.isOpen() && usageModelsView.hasList()) renderUsageModels(true);
-    });
-    window.addEventListener('whale-open-balance-reconcile', function () {
-      usageReconcileEditor();
-    });
     // ==== [资源管理器（角色 / 气泡图 / 音频）] ====
     var resourceManager = createResourceManager({
       document: document, client: assetClient, confirm: showConfirm,
@@ -437,6 +440,7 @@ import {
       getLastTurnNotice: function () { return lastTurnNotice; },
       getCurrency: function () { return state.currency || 'USD'; },
       getBubbleNoticeQueue: function () { return bubbleNoticeQueue; },
+      getAccountMode: function () { return accountView.mode; },
       getAlertTtl: function () { return USAGE_ALERT_TTL; }
     });
     var usageTodayKeyStr = usageAlerts.usageTodayKeyStr;
@@ -512,7 +516,7 @@ import {
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
     function bubbleDefaultQueue(subscriptionMode) {
-      if (typeof subscriptionMode !== 'boolean') subscriptionMode = window.WhaleAccountView?.mode === 'subscription';
+      if (typeof subscriptionMode !== 'boolean') subscriptionMode = accountView?.mode === 'subscription';
       return buildBubbleDefaultQueue(subscriptionMode);
     }
     var itemEditor = createItemEditor({
@@ -534,7 +538,7 @@ import {
     var bubbleEditorApi = createBubbleEditorController({
       state: bubbleEditorState, view: bubbleEditorView,
       getMask: function () { return bubbleMask; },
-      getMode: function () { return window.WhaleAccountView?.mode; },
+      getMode: function () { return accountView?.mode; },
       getConfig: function () { return bubbleCfg; }, isConfigLoaded: function () { return bubbleCfgLoaded; },
       loadConfig: loadBubbleCfg, saveConfig: saveBubbleCfg,
       draftOf: loadBubbleEditorDraft, draftSave: saveBubbleEditorDraft,
@@ -636,7 +640,8 @@ import {
       qeditEnsure: function () { return qeditEnsure(); },
       renderBubblePv: function () { return renderBubblePv(); },
       getPreviewElement: function () { return bubbleEditorState.pvPrevEl; },
-      bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); }
+      bubbleTplHelpToggle: function (m, anchor) { return bubbleTplHelpToggle(m, anchor); },
+      apiModels: apiModels
     });
     var openQuickTextEditor = bubbleQuickEditors.openText;
     var openQuickModuleEditor = bubbleQuickEditors.openModule;
@@ -645,7 +650,7 @@ import {
       document: document, getPaletteElement: function () { return bubbleEditorState.palEl; },
       getLibrary: function () { return bubbleEditorState.lib; },
       setDragKey: function (key) { bubbleDragKey = key; },
-      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
+      getMode: function () { return accountView && accountView.mode; },
       bubbleModuleAdd: bubbleModuleAdd, bubbleModuleNew: bubbleModuleNew,
       bubblePickImageToAdd: bubblePickImageToAdd, bubblePaletteModule: bubblePaletteModule,
       bubbleCloneModule: bubbleCloneModule, bubbleDefaultSecondModules: bubbleDefaultSecondModules,
@@ -960,7 +965,7 @@ import {
     bubbleCard.appendChild(bubbleTitle);
     var bubblePresetRow = document.createElement('div');
     bubblePresetRow.className = 'dshwv-bubpresets';
-    var presetSpecs = (window.WhaleAccountView && window.WhaleAccountView.mode === 'subscription')
+    var presetSpecs = (accountView && accountView.mode === 'subscription')
       ? [['quota', '额度优先'], ['quota-cards', '双卡片'], ['minimal', '只看数字'], ['companion', '带随机台词']]
       : [['balance', '余额优先'], ['minimal', '只看数字'], ['companion', '带随机台词']];
     var bubblePresetLabel = document.createElement('div');
@@ -1745,7 +1750,7 @@ import {
     // dshw-bubble-shape is mirrored to ui-state.json by the /^dshw[-v]/ rule in
     // desktop/ui-state-store.cjs, so no size.json signature change is needed.
     try {
-      var savedShape = localStorage.getItem('dshw-bubble-shape');
+      var savedShape = uiState.get('dshw-bubble-shape');
       if (savedShape) applyBubbleShape(savedShape);
     } catch (err) {}
     // The menu select is built earlier in this closure; sync it to the restored shape.
@@ -1850,7 +1855,7 @@ import {
     function loadSnapConfig() {
       snapConfig = cloneSnap(SNAP_DEFAULTS);
       try {
-        var raw = localStorage.getItem(SNAP_KEY);
+        var raw = uiState.get(SNAP_KEY);
         if (raw) {
           var d = JSON.parse(raw);
           if (d && d.v === SNAP_VER) {
@@ -1875,7 +1880,7 @@ import {
       try {
         var out = cloneSnap(snapConfig);
         out.v = SNAP_VER;
-        localStorage.setItem(SNAP_KEY, JSON.stringify(out));
+        uiState.set(SNAP_KEY, JSON.stringify(out));
       } catch (err) {}
     }
     loadSnapConfig();
@@ -2009,7 +2014,7 @@ import {
     // ==== [气泡渲染与行模板] ====
     function applyBubbleCfgSeq() {
       try {
-        var configured = bubbleItemsForMode(bubbleCfg, window.WhaleAccountView?.mode === 'subscription');
+        var configured = bubbleItemsForMode(bubbleCfg, accountView?.mode === 'subscription');
         var seq = [];
         for (var i = 0; i < configured.length; i++) {
           var it = configured[i];
@@ -2126,21 +2131,21 @@ import {
         var lines = pickRandomLines();
         bubbleSceneController.open('random', function () {
           bubbleRenderRandom(lines);
-        }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
+        }, accountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else if (item.kind === 'custom') {
         bubbleSceneController.open('custom', function () {
           bubbleRenderModules(item.modules || []);
-        }, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
+        }, accountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       } else {
-        bubbleSceneController.open('normal', bubbleRenderDefault, window.WhaleAccountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
+        bubbleSceneController.open('normal', bubbleRenderDefault, accountView?.mode === 'subscription' ? 0 : BUBBLE_MS);
       }
     }
     var bubbleContent = createBubbleContent({
       window: window, getState: function () { return state; },
-      getMode: function () { return window.WhaleAccountView && window.WhaleAccountView.mode; },
+      getMode: function () { return accountView && accountView.mode; },
       getLastTurnNotice: function () { return lastTurnNotice; }, fmt: fmt,
       whaleMoneyTemplates: whaleMoneyTemplates, usageFillText: usageFillText,
-      bubbleCloneModule: bubbleCloneModule
+      bubbleCloneModule: bubbleCloneModule, apiModels: apiModels
     });
     var bubbleModuleFontU = bubbleContent.fontU;
     var bubbleTokenValue = bubbleContent.tokenValue;
@@ -2158,7 +2163,7 @@ import {
       getBubbleTarget: function () { return bubbleTarget; },
       getSceneController: function () { return bubbleSceneController; },
       getVisuals: function () { return { gifEl: gifEl, labelEl: labelEl, amountEl: amountEl, hintEl: hintEl }; },
-      getRoot: function () { return root; }, getBubbleBox: function () { return bubbleBox; }
+      getRoot: function () { return root; }, getBubbleBox: function () { return bubbleBox; }, apiModels: apiModels
     });
     var bubbleRenderModules = bubbleRowsView.render;
     var bubblePreviewInto = bubbleRowsView.preview;
@@ -2168,7 +2173,7 @@ import {
       isShown: function () { return bubbleSceneController.shown; },
       getCurrentNotice: function () { return bubbleNoticeQueue.current; },
       closeWait: hideWaitBubble,
-      isSubscription: function () { return window.WhaleAccountView?.mode === 'subscription'; },
+      isSubscription: function () { return accountView?.mode === 'subscription'; },
       refreshQuota: function () { WhaleQuota?.refresh(true); },
       startRound: function () {
         bubbleRoundOn = true;
@@ -2186,7 +2191,7 @@ import {
     function hideBubble() {
       bubbleSceneController.clear();
       WhaleQuota?.clearBindings(bubbleBox);
-      window.WhaleApiModels?.clearBindings(bubbleBox);
+      apiModels.clearBindings(bubbleBox);
       costBubbleActive = false;
       bubbleNoticeQueue.clear();
       bubbleRoundOn = false;
@@ -2335,9 +2340,9 @@ import {
     // ==== [刷新与配置保存] ====
     var configSync = createConfigSync({
       requestJson: requestJson, settingsUrl: SETTINGS_URL, balanceUrl: BALANCE_URL, settingsClient: settingsClient,
-      root: root, localStorage: localStorage, timeoutMs: FETCH_TIMEOUT_MS,
+      root: root, uiState: uiState, timeoutMs: FETCH_TIMEOUT_MS,
       getState: function () { return state; },
-      getAccountView: function () { return window.WhaleAccountView; },
+      getAccountView: function () { return accountView; },
       setNativeCurrency: function (currency) { WhaleMoney.setNativeCurrency(currency); },
       checkAlerts: function (balance, today) { checkUsageAlerts(balance, today); },
       requireSaved: requireSaved, onError: assetFailure,
@@ -2438,7 +2443,6 @@ import {
       applySoundSet();
       saveConfig();
     }
-    var SQUISH = 'scaleY(0.88) scaleX(1.05)';
     var releasePlayed = false;
     function forgetGroupSounds() {
       sound.reload({ catalog: { groups: audioGroups || [], fragments: audioFragments || [] } });
@@ -2459,15 +2463,14 @@ import {
     // on the parent would deform and shake the text above it.
     function pressDown() {
       // The bubble rides along with the character; a press never changes its content.
-      if (window.WhaleGesture) applyGesture(body, true, WhaleFeedback.feel);
-      else { body.style.transitionDuration = '75ms'; body.style.transform = SQUISH; }
+      applyGesture(body, true, WhaleFeedback.feel);
       playPress();
     }
     function pressUp() {
-      if (window.WhaleGesture) applyGesture(body, false, WhaleFeedback.feel);
-      else { body.style.transitionDuration = '140ms'; body.style.transform = 'scaleY(1) scaleX(1)'; }
+      applyGesture(body, false, WhaleFeedback.feel);
       playRelease();
-    }    var menuOpen = false;
+    }
+    var menuOpen = false;
     var menuPositionFrame = 0;
     new ResizeObserver(function () {
       if (!menuOpen || menuPositionFrame) return;
@@ -2502,7 +2505,7 @@ import {
     var settingsApplyEpoch = 0;
     try { window.whaleDesktop.onSettingsChanged(function (change) {
       if (change && change.domain === 'bubble') { loadBubbleCfg(); return; }
-      if (change && change.domain === 'apiModels') { try { window.WhaleApiModels?.load?.(true); } catch (err) { /* a failed reload keeps the previous list */ } return; }
+      if (change && change.domain === 'apiModels') { try { apiModels.load(true).catch(function () {}); } catch (err) { /* a failed reload keeps the previous list */ } return; }
       if (change && change.domain === 'media') {
         try { if (change.kind === 'roles') loadRoles(); else if (change.kind === 'audio') loadAudio(); } catch (err) { /* a failed reload keeps the previous lists */ }
         return;
@@ -2513,38 +2516,32 @@ import {
           if (ownSettingsEpoch !== settingsApplyEpoch) return;
           applySoundSettingsSnapshot(snapshot);
           var saved = snapshot.size;
-          state.scale = saved.scale;
-          root.style.setProperty('--dshw-scale', String(saved.scale));
-          scaleInput.value = String(saved.scale); scaleNumber.value = String(scaleToDisplay(saved.scale));
-          bubbleOn = saved.bubbleOn; bubbleToggle.checked = bubbleOn;
-          scrollGapOn = saved.scrollGapOn; scrollGapPx = saved.scrollGapPx;
+          var mirrored = mirrorSizeSettings(saved, {});
+          state.scale = mirrored.scale;
+          root.style.setProperty('--dshw-scale', String(mirrored.scale));
+          scaleInput.value = String(mirrored.scale); scaleNumber.value = String(scaleToDisplay(mirrored.scale));
+          bubbleOn = mirrored.bubbleOn; bubbleToggle.checked = bubbleOn;
+          scrollGapOn = mirrored.scrollGapOn; scrollGapPx = mirrored.scrollGapPx;
           // Mirror every saved size key the widget writes back; a stale copy would be
           // saved over the new value by the next drag or menu change.
-          menuBtnHide = saved.menuBtnHide === true;
+          menuBtnHide = mirrored.menuBtnHide;
           applyMenuBtnHideUI(); settle(); syncLevel1Controls();
           WhaleRendering.refitBubble();
         }).catch(assetFailure);
         return;
       }
       if (change && change.domain === 'displayMode') {
-        window.WhaleAccountView.setMode(change.values.mode).catch(assetFailure);
+        accountView.setMode(change.values.mode).catch(assetFailure);
         return;
       }
       if (change && change.domain === 'api') {
         // 接口地址、刷新间隔等改动后立刻拉一次余额，不必等下一个周期。
         try { refresh(); } catch (err) { /* 失败会走余额区域自己的错误态 */ }
-        try { if (window.WhaleApiModels && window.WhaleApiModels.load) window.WhaleApiModels.load(true).catch(function () { /* 列表打开时会重试 */ }); } catch (err) { /* 模型模块未加载时忽略 */ }
+        try { apiModels.load(true).catch(function () { /* 列表打开时会重试 */ }); } catch (err) { /* 模型模块未加载时忽略 */ }
         return;
       }
       if (!change || change.domain !== 'ui' || !Array.isArray(change.keys)) return;
-      for (var i = 0; i < change.keys.length; i++) {
-        var key = change.keys[i];
-        var value = change.values ? change.values[key] : undefined;
-        try {
-          if (value === null || value === undefined) localStorage.removeItem(key);
-          else localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-        } catch (err) {}
-      }
+      uiState.applyRemote(change);
       if (change.values && Object.hasOwn(change.values, 'dshw-display-currency')) {
         try { WhaleMoney.setDisplayCurrency(change.values['dshw-display-currency']).catch(function () { /* 汇率不可用时保持原币种 */ }); } catch (err) { /* 金额尚未渲染时由下次刷新补上 */ }
       }
@@ -2560,7 +2557,7 @@ import {
         try { applyRole(change.values['dshw-role']); } catch (err) {}
       }
       if (change.values && Object.hasOwn(change.values, 'dshw-v3-feedback') && WhaleFeedback.reload) {
-        try { window.WhaleFeedback.reload(); } catch (err) {}
+        try { WhaleFeedback.reload(); } catch (err) {}
       }
     }); } catch (err) {}
 
@@ -2573,10 +2570,6 @@ import {
       if (typeof change.values.vol === 'number') previewVol(change.values.vol);
     });
 
-    window.addEventListener('whale-storage-reconciled', function () {
-      window.WhaleBubbleShape.apply(localStorage.getItem('dshw-bubble-shape') || 'ellipse');
-      WhaleFeedback.reload();
-    });
     // 完整设置窗口通过具体动作按钮唤起这里的原生编辑器。
     // 这些弹层闭包在 whale-widget.js 内部、依赖鲸鱼自身的 DOM 与状态，
     // 所以不搬进设置窗口，只在这里加事件监听。
@@ -2596,8 +2589,8 @@ import {
         return;
       }
       if (editor === 'api-model') {
-        // DIY 模型的编辑器在 api-models.js；带 id 是编辑，null 是新建。
-        window.dispatchEvent(new CustomEvent('whale-api-model-edit', { detail: { id: args.id == null ? null : String(args.id) } }));
+        // DIY 模型的编辑器由 API 模型编辑器拥有；带 id 是编辑，null 是新建。
+        apiModelsEditor.open(args.id == null ? null : String(args.id));
         return;
       }
       if (editor === 'feedback-events') {
@@ -2607,13 +2600,9 @@ import {
         return;
       }
       if (editor === 'resources') { openResManager(); return; }
-      if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
+      if (editor === 'workshop') { workshopDialog.open(); return; }
       if (editor === 'api') { window.whaleDesktop?.openSettings?.('providers'); return; }
-      if (editor === 'sound') {
-        var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
-        if (soundEntry) soundEntry.click();
-        else WhaleFeedback.open();
-      }
+      if (editor === 'sound') { soundSettings.open().catch(assetFailure); return; }
     });
     function snapCheck() {
       if (!snapConfig || snapConfig.mode === 'off') return;
@@ -2887,7 +2876,7 @@ import {
     });
 
     var characterInteraction = createCharacterInteraction({
-      document: document, window: window, localStorage: localStorage, rendering: WhaleRendering,
+      document: document, window: window, uiState: uiState, rendering: WhaleRendering,
       root: root, image: img, positioner: positioner, menuButton: menuBtn, state: state, dragStatus: drag,
       clickDistanceSq: CLICK_SQ, imageUrl: IMG_URL, viewport: viewport, rightGap: rightGap,
       clampToViewport: clampToViewport, artCenterAt: artCenterAt, snapZones: snapZones,
@@ -2898,7 +2887,8 @@ import {
       applyBubbleConfig: applyBubbleCfgSeq, positionMenu: positionMenu,
       isMenuOpen: function () { return menuOpen; },
       isMenuButtonHidden: function () { return menuBtnHide; },
-      isScrollGapEnabled: function () { return scrollGapOn; }
+      isScrollGapEnabled: function () { return scrollGapOn; },
+      accountView: accountView
     });
     var setupHitTest = characterInteraction.setupHitTest;
     var whaleLayoutRect = characterInteraction.layoutRect;
@@ -2924,10 +2914,6 @@ import {
       sound.reload({ usage: settings });
       if (!turnCostOn) hideCostBubble();
     }
-    window.addEventListener('whale-sound-settings-applied', function (event) {
-      if (event.detail && event.detail.schemaVersion === 1) return;
-      applySoundSettingsSnapshot(event.detail || {});
-    });
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
         var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
@@ -2936,20 +2922,15 @@ import {
         usagePanelApi.save({ turnCost: settings.turnCost });
       });
     });
-    window.addEventListener('whale-api-model-alert', function (event) {
-      var detail = event.detail || ({});
-      showUsagePopup('API 模型提醒', detail.lines || [{ type: 'text', text: String(detail.message || 'API 模型达到提醒条件'), size: 6, bold: true }], null, null, detail.rank === 1 ? 1 : 2, detail.config || { autoClose: false, ttlSec: 6 });
+    var waitNotice = createWaitNotice({
+      windowRef: window, request: requestJson, sound: sound, runtimeFeed: runtimeFeed,
+      bubble: { showWait: function (detail) { return showWaitBubble(detail || {}); }, hideWait: function (id) { hideWaitBubble(false, id); } }
     });
-    window.addEventListener('whale-edit-api-reminder', function (event) {
-      var detail=event.detail || {};
-      usageAlertBudgetEditor(detail.key === 'budget' ? 'budget' : 'alert', detail.save, detail.config);
-    });
-    var legacySoundUi = Object.freeze({
-      mountMenuEntry: function (node) {
-        return compactMenu.register({ id: 'sound', element: node });
-      },
-      audioEditor: Object.freeze({ open: openAudioEditorForFeature }),
-      promptEditor: Object.freeze({
+    var soundSettings = createSoundSettingsController({
+      windowRef: window, documentRef: document, settings: settingsClient,
+      menu: { mountMenuEntry: function (node) { return compactMenu.register({ id: 'sound', element: node }); } },
+      audioEditor: { open: openAudioEditorForFeature }, rendering: WhaleRendering, select: customSelect,
+      promptEditor: {
         open: function (options) {
           options = options || {};
           var kind = options.kind;
@@ -2962,11 +2943,12 @@ import {
             });
           });
         }
-      }),
-      applySettings: applySoundSettingsSnapshot
+      },
+      applySettings: applySoundSettingsSnapshot,
+      onApplied: function (saved) { waitNotice.applySettings(saved); if (!saved || saved.schemaVersion !== 1) applySoundSettingsSnapshot(saved || {}); }
     });
-    window.WhaleLegacySoundUi = legacySoundUi;
-    window.dispatchEvent(new CustomEvent('whale-legacy-sound-ready', { detail: legacySoundUi }));
+    soundSettings.start();
+    waitNotice.start();
     applySoundSet();
     setupHitTest(initRoleUrl);
     loadRoles();
@@ -2976,7 +2958,7 @@ import {
     if (window.whaleDesktop && window.whaleDesktop.testMode) {
       window.__whaleRenderTest = Object.freeze({
         refresh: refresh, usage: refreshUsageMain, next: bubbleNext, close: hideBubble,
-        poll: pollLastTurn, importRole: onRoleFileChosen, importBubble: bubbleUploadImg,
+        poll: function () { return turnNoticeFeed.snapshot(); }, importRole: onRoleFileChosen, importBubble: bubbleUploadImg,
         openHistory: openUsageRecordsWindow,
         showCost: showCostBubble,
         open: whaleClick,
@@ -3031,7 +3013,7 @@ import {
         applyMenuBtnHideUI();
       }
       try {
-        var a = JSON.parse(localStorage.getItem('dshw-pos') || 'null');
+        var a = uiState.getJSON('dshw-pos');
         if (a && a.v === 2 && (a.hAnchor === 'left' || a.hAnchor === 'right') && Number.isFinite(a.hDist) && a.hDist >= 0 && (a.vAnchor === 'top' || a.vAnchor === 'bottom') && Number.isFinite(a.vDist) && a.vDist >= 0) {
           var vpA = viewport();
           var wA = root.offsetWidth || root.getBoundingClientRect().width || 0;
@@ -3063,19 +3045,22 @@ import {
     window.addEventListener('whale-open-usage', function () {
       openUsageRecordsWindow();
     });
-    var turnNoticePoller = createTurnNoticePoller({
-      window: window, localStorage: localStorage, fetch: fetch,
-      WhaleTurnNotice: WhaleTurnNotice, WhaleFeedback: WhaleFeedback, WhaleQuota: WhaleQuota,
+    var turnNoticeFeed = createTurnNoticeFeed({
+      uiState: uiState, fetch: fetch,
+      WhaleTurnNotice: WhaleTurnNotice, WhaleFeedback: WhaleFeedback, WhaleQuota: WhaleQuota, accountView: accountView,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
       playTaskEndSound: playTaskEndSound,
       getFeedbackVolume: function () { return soundOn ? soundVol : 0; },
       showCostBubble: showCostBubble
     });
-    function pollLastTurn() {
-      return turnNoticePoller.poll();
-    }
-    setInterval(pollLastTurn, 1000);
+    runtimeFeed.subscribe('turn', payload => turnNoticeFeed.process(payload, { firstPoll: false }));
+    turnNoticeFeed.snapshot();
+    var workshopDialog = createWorkshopDialog({ document: document, window: window, request: requestJson });
+    createWindowShape({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope }).start();
+    createPointerInput({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope,
+      toast: function (message) { if (window.whaleToast) window.whaleToast(message); } }).initialize();
+    window.addEventListener('beforeunload', function () { try { waitNotice.dispose(); soundSettings.dispose(); uiScope.dispose(); } catch (err) { /* best effort while the window closes */ } }, { once: true });
     window.__dshWhaleInit = true;
     window.__dshWhaleInitLoading = false;
     return true;

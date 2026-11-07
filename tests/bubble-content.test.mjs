@@ -8,7 +8,7 @@ function content(random = () => .5, state = { balance: null, todayUsage: null, c
     getLastTurnNotice: () => null, fmt: amount => `$${Number(amount).toFixed(2)}`,
     whaleMoneyTemplates: new WeakMap(), usageFillText: text => text,
     bubbleCloneModule: value => structuredClone(value), random,
-    getMode: () => win.WhaleAccountView && win.WhaleAccountView.mode,
+    getMode: () => win.accountMode,
     getQuotaSource: () => win.WhaleQuota && win.WhaleQuota.sourceLine ? win.WhaleQuota.sourceLine() : '',
   });
 }
@@ -59,7 +59,7 @@ test('the source module names the provider, the update time and stale data', () 
   assert.match(staleView.rows.get(staleView.modules[0]).txt, /上次数据/);
 
   const subscription = content(undefined, { balance: null, currency: 'USD' }, {
-    WhaleAccountView: { mode: 'subscription' },
+    accountMode: 'subscription',
     WhaleQuota: { sourceLine: () => 'Codex 官方 · 14:32 更新' },
   });
   const subView = subscription.snapshot([{ type: 'source', tpl: '{source_line}' }], true);
@@ -68,11 +68,11 @@ test('the source module names the provider, the update time and stale data', () 
 
 test('modules from the other mode are hidden instead of shown as zero', () => {
   const state = { balance: 1, todayUsage: 0, currency: 'USD', status: 'ok' };
-  const subscription = content(undefined, state, { WhaleAccountView: { mode: 'subscription' } });
+  const subscription = content(undefined, state, { accountMode: 'subscription' });
   const sub = subscription.snapshot([{ type: 'balance' }, { type: 'quota' }, { type: 'source', tpl: '{source_line}' }], true);
   assert.deepEqual(sub.modules.map(module => module.type), ['quota', 'source']);
 
-  const api = content(undefined, state, { WhaleAccountView: { mode: 'api' } });
+  const api = content(undefined, state, { accountMode: 'api' });
   const apiView = api.snapshot([{ type: 'quota' }, { type: 'balance' }], true);
   assert.deepEqual(apiView.modules.map(module => module.type), ['balance']);
 });

@@ -18,8 +18,7 @@ export const SOUND_RUNTIME_MODULES = Object.freeze([
 ]);
 
 const SOUND_BOUNDARY_FILES = Object.freeze([
-  'desktop/ui/sound-settings.js',
-  'desktop/ui/wait-notice.js',
+  'desktop/ui/features/widget/wait-notice.js',
   'desktop/ui/services/sound-reference.js',
   'desktop/ui/features/sound-settings/model.js',
   'desktop/ui/features/sound-settings/controller.js',
@@ -31,18 +30,7 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 // A name appearing that is not here is a new compatibility surface, which is
 // exactly what the dependency gate exists to stop.
 export const GLOBAL_SURFACE = Object.freeze([
-  'WhaleAccountView',
-  'WhaleApiModels',
   'WhaleBubbleShape',
-  'WhaleLegacySoundUi',
-  'WhaleLegacyUsage',
-  'WhaleSelect',
-  'WhaleSettingsCatalog',
-  'WhaleSettingsHelp',
-  'WhaleSettingsPages',
-  'WhaleSettingsTest',
-  'WhaleStorageSync',
-  'WhaleWorkshopOpen',
   'whaleToast',
 ]);
 
@@ -52,15 +40,8 @@ export const GLOBAL_SURFACE = Object.freeze([
 // reading the global is reported as stale rather than failing, the way the line
 // caps above work.
 export const MODULE_GLOBAL_READS = Object.freeze({
-  'desktop/ui/features/sound-settings/controller.js': { WhaleSelect: 1 },
   'desktop/ui/features/widget/asset-helpers.js': { whaleToast: 2 },
-  'desktop/ui/features/widget/bubble-content.js': { WhaleApiModels: 1 },
-  'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
-  'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2 },
   'desktop/ui/features/widget/feedback.js': { whaleToast: 1 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2 },
-  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
-  'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
 });
 
 // Modules that still call fetch directly rather than going through the shared
@@ -89,7 +70,7 @@ export const LEGACY_DIRECT_FETCH_BUDGET = { total: 0 };
 // tree starts with a large count instead of failing lint wholesale. The number
 // may only shrink: a new empty catch has to either handle the error or carry a
 // comment explaining why swallowing it is deliberate.
-export const EMPTY_CATCH_BUDGET = { total: 261 };
+export const EMPTY_CATCH_BUDGET = { total: 253 };
 
 // The palette budget counts named root tokens; component hex literals are forbidden.
 export const CSS_HEX_BUDGET = { total: 100 };
@@ -286,12 +267,6 @@ function sourceSliceTests(root) {
     .sort();
 }
 
-function moduleScript(html, source) {
-  return (html.match(/<script\b[^>]*>/g) || []).some(tag =>
-    new RegExp(`\\bsrc=["']/${source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`).test(tag)
-      && /\btype=["']module["']/.test(tag));
-}
-
 const SHARED_ROOT = 'desktop/ui/shared';
 const SHARED_FORBIDDEN = [
   [/\bwindow\s*\./g, 'window'],
@@ -466,7 +441,6 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
   ]);
   const widget = read(root, 'assets/whale-widget.js');
   const entryImports = source => widget.includes("import '/" + source + "'") || widget.includes("from '/" + source + "'");
-  const soundEntry = read(root, 'desktop/ui/sound-settings.js');
   const html = read(root, 'desktop/ui/widget.html');
   const sourceSlices = sourceSliceTests(root);
   return {
@@ -474,7 +448,6 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       commit: 'c799866d38392e52cd464156cfaaa69cce16e4b2',
       classicScriptTags: 19,
       whaleWidgetLines: 12189,
-      soundEntryLines: 306,
       soundForbidden: { domTextQueries: 2, simulatedClicks: 1, mutationObservers: 1, directFetches: 1, legacyMultiWriteEndpoints: 2 },
       sourceSliceTestFileCount: 7,
     },
@@ -483,15 +456,15 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       whaleWidgetLines: lineCount(widget),
       sourceSliceTestFiles: sourceSlices,
       sourceSliceTestFileCount: sourceSlices.length,
+      mainCjsLines: lineCount(read(root, 'desktop/main.cjs')),
     },
     sound: {
       requiredModules: required,
       missingModules,
       boundaryFiles: presentBoundaryFiles,
-      entryLines: lineCount(soundEntry),
       moduleScripts: {
-        soundSettings: moduleScript(html, 'sound-settings.js') || entryImports('sound-settings.js'),
-        waitNotice: moduleScript(html, 'wait-notice.js') || entryImports('wait-notice.js'),
+        soundSettings: entryImports('features/sound-settings/controller.js'),
+        waitNotice: entryImports('features/widget/wait-notice.js'),
       },
       forbidden: {
         domTextQueries,
@@ -502,6 +475,8 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       },
       combinedEndpointReferences: combinedEndpoint,
     },
+    staticStyleWrites: [...new Set(listJavaScript(root, 'desktop/ui/features'))].flatMap(relative => findings(relative, read(root, relative), 'static-style-write', [/\.style\.(?:color|background|backgroundColor|fontSize)\s*=\s*'[#\d]/g])),
+    displayStyleWrites: [...new Set(listJavaScript(root, 'desktop/ui/features'))].flatMap(relative => findings(relative, read(root, relative), 'display-style-write', [/\.style\.display\s*=\s*'/g])),
     dependency: collectDependencyMetrics({ root }),
     emptyCatch: emptyCatchMetrics(root),
     cssHex: cssHexMetrics(root),
@@ -516,11 +491,13 @@ export function refactorBoundaryErrors(metrics) {
     if (found.length) errors.push(`${name} must be 0, found ${found.length}: ` + found.map(item => `${item.file}:${item.line}`).join(', '));
   }
   if (!metrics.sound.combinedEndpointReferences.length) errors.push('The sound feature must use GET/PUT /api/sound-settings.');
-  if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('sound-settings.js and wait-notice.js must load as ES modules.');
-  if (metrics.sound.entryLines > 80) errors.push(`desktop/ui/sound-settings.js must remain a thin entry (<= 80 lines, found ${metrics.sound.entryLines}).`);
+  if (!metrics.sound.moduleScripts.soundSettings || !metrics.sound.moduleScripts.waitNotice) errors.push('The widget entry must import the sound controller and the wait notice.');
   if (metrics.current.whaleWidgetLines > 3100) errors.push(`assets/whale-widget.js must stay within the phase-4 maintenance cap of 3100 lines (found ${metrics.current.whaleWidgetLines}).`);
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
-  if (metrics.current.sourceSliceTestFileCount > 3) errors.push(`Source-slicing test files must stay within the phase-4 maintenance cap of 3 (found ${metrics.current.sourceSliceTestFileCount}).`);
+  if (metrics.current.sourceSliceTestFileCount > 0) errors.push(`Source-slicing test files must stay at 0 (found ${metrics.current.sourceSliceTestFileCount}).`);
+  if (metrics.current.mainCjsLines > 450) errors.push(`desktop/main.cjs must stay within the phase-5 cap of 450 lines (found ${metrics.current.mainCjsLines}).`);
+  if (metrics.staticStyleWrites.length) errors.push('Static color/background/fontSize writes must use a class: ' + metrics.staticStyleWrites.map(item => `${item.file}:${item.line}`).join(', '));
+  if (metrics.displayStyleWrites.length > 80) errors.push(`Literal display toggles must not grow past the frozen 80 (found ${metrics.displayStyleWrites.length}).`);
   errors.push(...dependencyErrors(metrics.dependency));
   if (metrics.emptyCatch.total > EMPTY_CATCH_BUDGET.total) {
     const perFile = Object.entries(metrics.emptyCatch.byFile).sort((a, b) => b[1] - a[1])
@@ -560,10 +537,10 @@ function summary(metrics) {
       classicScriptTags: metrics.current.classicScriptTags,
       whaleWidgetLines: metrics.current.whaleWidgetLines,
       sourceSliceTestFileCount: metrics.current.sourceSliceTestFileCount,
+      mainCjsLines: metrics.current.mainCjsLines,
     },
     sound: {
       missingModules: metrics.sound.missingModules,
-      entryLines: metrics.sound.entryLines,
       moduleScripts: metrics.sound.moduleScripts,
       forbidden,
       combinedEndpointReferences: metrics.sound.combinedEndpointReferences.length,

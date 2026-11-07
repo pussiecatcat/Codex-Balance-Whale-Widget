@@ -1,6 +1,6 @@
 // Owns the custom select popup, its suppression window, and document
 // listeners. Callers provide only the menu positioning and name rendering UI.
-export function createCustomSelectController({ document, window, dropOpen, makeNameCell, bindNameMarquee, now = Date.now }) {
+export function createCustomSelectController({ document, window, dropOpen, makeNameCell, bindNameMarquee, now = Date.now, scope = null }) {
   var dshwCustSelOpen = null;
   var dshwCustSuppressAt = 0;
   function dshwCustSelClose() {
@@ -13,28 +13,26 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
       if (o.menu.parentNode === document.body) document.body.removeChild(o.menu);
     } catch (err) {}
   }
-  if (!window.__dshwCustBound) {
-    window.__dshwCustBound = true;
-    document.addEventListener('pointerdown', function (e) {
-      var o = dshwCustSelOpen;
-      if (!o) return;
-      try {
-        var onBtn = !!(e.target && e.target.closest && e.target.closest('.dshwv-custbtn'));
-        if (onBtn) {
-          dshwCustCloseNow();
-          return;
-        }
-        if (e.target && o.menu.contains(e.target)) return;
-      } catch (err) {}
-      dshwCustSelClose();
-    }, true);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') dshwCustCloseNow();
-    }, true);
-    window.addEventListener('resize', function () {
-      dshwCustCloseNow();
-    });
-  }
+  const listen = (target, type, fn, options) => scope ? scope.on(target, type, fn, options) : target.addEventListener(type, fn, options);
+  listen(document, 'pointerdown', function (e) {
+    var o = dshwCustSelOpen;
+    if (!o) return;
+    try {
+      var onBtn = !!(e.target && e.target.closest && e.target.closest('.dshwv-custbtn'));
+      if (onBtn) {
+        dshwCustCloseNow();
+        return;
+      }
+      if (e.target && o.menu.contains(e.target)) return;
+    } catch (err) {}
+    dshwCustSelClose();
+  }, true);
+  listen(document, 'keydown', function (e) {
+    if (e.key === 'Escape') dshwCustCloseNow();
+  }, true);
+  listen(window, 'resize', function () {
+    dshwCustCloseNow();
+  });
   function dshwCustCloseNow() {
     dshwCustSelClose();
     dshwCustSuppressAt = now();
@@ -196,4 +194,45 @@ export function createCustomSelectController({ document, window, dropOpen, makeN
     sync: sel => sel?.__dshwCustDrop?.sync(),
     refresh: sel => sel?.__dshwCustDrop?.refresh(),
   };
+}
+
+
+// Enhances every select the widget renders. New nodes and option changes are
+// picked up by the observer, so the old 300 ms rescan interval is gone.
+export function createSelectEnhancer({ document: doc, select, scope = null }) {
+  const usable = node => node && node.tagName === 'SELECT'
+    && !node.multiple
+    && Number(node.size || 0) <= 1
+    && !node.matches('[data-native-select]');
+  function enhance(node) {
+    if (!usable(node) || node.__dshwCust || node.__dshwCustDrop) return;
+    select.enhance(node);
+  }
+  function scan(root) {
+    enhance(root);
+    root?.querySelectorAll?.('select').forEach(enhance);
+  }
+  function refreshOwner(node) {
+    const sel = node?.tagName === 'SELECT' ? node : node?.closest?.('select');
+    sel?.__dshwCustDrop?.refresh();
+  }
+  scan(doc);
+  if (typeof MutationObserver === 'function') {
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        if (record.type === 'attributes') refreshOwner(record.target);
+        for (const node of record.addedNodes || []) {
+          if (node.nodeType !== 1) continue;
+          scan(node);
+          refreshOwner(node);
+        }
+        refreshOwner(record.target);
+      }
+    });
+    observer.observe(doc.documentElement, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'label'],
+    });
+    scope?.add(() => observer.disconnect());
+  }
+  return { enhance, scan };
 }

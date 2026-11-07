@@ -161,7 +161,7 @@ if not args.release_tag:
     stamp = datetime.now(timezone.utc).strftime('%Y%m%d')
     manifest['version'] = source_version.split('+', 1)[0] + '+codex.' + stamp + '-' + revision + '.' + identity
     files['.codex-plugin/plugin.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
-for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
+for name in ['vendor/smol-toml/dist/index.js', 'desktop/ui/services/window-shape.js', 'desktop/macos/window-probe.swift', 'scripts/install-package.ps1', 'scripts/install-macos.mjs']:
     assert name in files, 'Missing runtime dependency: ' + name
 assert b'pull/128' in files['README.md']
 assert 'launchers/安装插件.cmd' in files and 'launchers/安装 Mac 自动跟随.command' in files, 'Launcher entrypoints missing'

@@ -2,7 +2,7 @@
 
 审阅日期：2026-10-09。基线：`main` / `c799866d38392e52cd464156cfaaa69cce16e4b2`，构建标识 `0.3.0+codex.20261009-bubble-open-refresh`。
 
-实施状态：阶段 0–2 与阶段 4–5 已完成，验收记录见 [阶段 0–2 基线](history/REFACTOR-BASELINE.md) 与 [阶段 4–5 验收](history/REFACTOR-STAGES-4-5.md)。**阶段 3 只完成了一部分**：`ui-state.json` 的唯一写入负责人已就位（重复的 `/api/ui-state` 路由已删除），但旧式 `req/res` 路由适配与显式资源路由表尚未实施，详见阶段 3 一节。阶段 6 负责移除剩余兼容适配器并完成发行级安装、更新和回滚验收。macOS 实机桌面验收仍需在发布前执行。
+实施状态：阶段 0–2 与阶段 4–5 已完成，验收记录见 [阶段 0–2 基线](../history/REFACTOR-BASELINE.md) 与 [阶段 4–5 验收](../history/REFACTOR-STAGES-4-5.md)。**阶段 3 只完成了一部分**：`ui-state.json` 的唯一写入负责人已就位（重复的 `/api/ui-state` 路由已删除），但旧式 `req/res` 路由适配与显式资源路由表尚未实施，详见阶段 3 一节。阶段 6 负责移除剩余兼容适配器并完成发行级安装、更新和回滚验收。macOS 实机桌面验收仍需在发布前执行。
 
 ## 1. 结论与范围
 
@@ -34,19 +34,19 @@
 
 ### A. 前端的模块边界不完整——最高优先级
 
-**证据：** [挂件闭包与分段索引](../assets/whale-widget.js#L30)覆盖菜单、任务音效、用量面板、资源管理、气泡默认内容、编辑器、渲染、保存与拖拽。外部模块经 `WhaleAccountView`、`WhaleFeedback`、`WhaleQuota` 等全局接口连接；[页面入口](../desktop/ui/widget.html#L5)手工维护 19 个脚本的加载顺序。
+**证据：** [挂件闭包与分段索引](../../assets/whale-widget.js#L30)覆盖菜单、任务音效、用量面板、资源管理、气泡默认内容、编辑器、渲染、保存与拖拽。外部模块经 `WhaleAccountView`、`WhaleFeedback`、`WhaleQuota` 等全局接口连接；[页面入口](../../desktop/ui/widget.html#L5)手工维护 19 个脚本的加载顺序。
 
-更具体的问题在[音效面板初始化](../desktop/ui/sound-settings.js#L43)：代码按中文标签查找旧菜单行、隐藏这些行，再定位旧按钮；[打开音频编辑器](../desktop/ui/sound-settings.js#L288)调用旧按钮的 `.click()`，并观察旧弹层的 `style` 来判断编辑完成。更改文案、标题、DOM 层级或关闭方式都可能破坏这个连接，即使业务逻辑完全没有变化。
+更具体的问题在[音效面板初始化](../../desktop/ui/features/sound-settings/controller.js)：代码按中文标签查找旧菜单行、隐藏这些行，再定位旧按钮；[打开音频编辑器](../../desktop/ui/features/sound-settings/controller.js)调用旧按钮的 `.click()`，并观察旧弹层的 `style` 来判断编辑完成。更改文案、标题、DOM 层级或关闭方式都可能破坏这个连接，即使业务逻辑完全没有变化。
 
 **建议：** 功能通过 `open()`、`save()`、`subscribe()`、`dispose()` 等显式接口协作。旧闭包只通过一个临时适配器接入新模块。依次建立功能自身的状态归属，再迁出代码；不把整个闭包变量集合装进一个共享 `context` 对象后分发给所有文件。
 
 ### B. 设置的归属和提交边界分散——最高优先级
 
-**证据一：** [renderer 定期保存](../desktop/ui/input.js#L120)每 800 毫秒检查 localStorage 快照，经 preload 和主进程交给 [UiStateStore](../desktop/ui-state-store.cjs#L3)。同时，[dispatcher](../runtime/dispatcher.mjs#L115)保留了对同一个 `ui-state.json` 的直接读写路由，主进程则持有自己的内存副本。
+**证据一：** [renderer 定期保存](../../desktop/ui/services/pointer-input.js)每 800 毫秒检查 localStorage 快照，经 preload 和主进程交给 [UiStateStore](../../desktop/ui-state-store.cjs#L3)。同时，[dispatcher](../../runtime/dispatcher.mjs#L115)保留了对同一个 `ui-state.json` 的直接读写路由，主进程则持有自己的内存副本。
 
 仓库检索只发现该路由的定义，未发现现有调用方。因此，这是**潜在的第二写入入口与后续扩展风险**，不是本次已复现的覆盖故障。localStorage、内存缓存和文件也不是天然错误的重复；需要明确谁拥有最终状态，以及何时确认保存成功。
 
-**证据二：** [音效保存](../desktop/ui/sound-settings.js#L207)同时涉及 size 配置和 usage 配置。浏览器先写一份，再写另一份，第二次失败时尝试补偿第一份。补偿发生在 renderer，窗口退出或进程中断会使恢复依赖调用时序。
+**证据二：** [音效保存](../../desktop/ui/features/sound-settings/controller.js)同时涉及 size 配置和 usage 配置。浏览器先写一份，再写另一份，第二次失败时尝试补偿第一份。补偿发生在 renderer，窗口退出或进程中断会使恢复依赖调用时序。
 
 **建议：** 每类数据明确一个写入负责人。UI 偏好由主进程提供有确认结果的存储接口；音效提交交给后端应用层协调，UI 只提交一份草稿。先保留现有文件格式，增加版本检查与可恢复的多文件提交流程；随后才评估是否合并数据文件。
 
@@ -54,16 +54,16 @@
 
 | 重复位置 | 已观察到的差异 | 建议抽取的边界 |
 | --- | --- | --- |
-| [共享请求封装](../desktop/ui/services/request.js)、[API 模型请求封装](../desktop/ui/api-models.js#L5)、[音效请求封装](../desktop/ui/sound-settings.js#L6) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
-| [余额响应读取](../runtime/providers.mjs#L7)、[模型响应读取](../runtime/api-models.mjs#L132)、[汇率响应读取](../runtime/fx.mjs#L31) | 字节上限、取消方式、无流响应处理不同 | 共享受限读取与取消原语，按调用方传入限制和策略 |
-| [通用 JSON 写入](../runtime/paths.mjs#L20)、[资源写入](../lib/resource-store.mjs#L28)、[UI 状态写入](../desktop/ui-state-store.cjs#L23)、[主进程 save](../desktop/main.cjs#L53) | Windows 重试、备份、flush、串行队列、错误传播各不相同 | 统一文件替换机制，保留领域仓库的备份与事务策略 |
-| [音效地址解析](../desktop/ui/sound-settings.js#L33)、[等待提示音效解析](../desktop/ui/wait-notice.js#L12) | 存在相同的 `grp:` / `frag:` / `preset:` 解析 | 共享声音引用格式与解析函数 |
+| [共享请求封装](../../desktop/ui/services/request.js)、[API 模型请求封装](../../desktop/ui/features/widget/api-models/store.js#L5)、[音效请求封装](../../desktop/ui/features/sound-settings/controller.js) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
+| [余额响应读取](../../runtime/providers.mjs#L7)、[模型响应读取](../../runtime/api-models.mjs#L132)、[汇率响应读取](../../runtime/fx.mjs#L31) | 字节上限、取消方式、无流响应处理不同 | 共享受限读取与取消原语，按调用方传入限制和策略 |
+| [通用 JSON 写入](../../runtime/paths.mjs#L20)、[资源写入](../../lib/resource-store.mjs#L28)、[UI 状态写入](../../desktop/ui-state-store.cjs#L23)、[主进程 save](../../desktop/main.cjs#L53) | Windows 重试、备份、flush、串行队列、错误传播各不相同 | 统一文件替换机制，保留领域仓库的备份与事务策略 |
+| [音效地址解析](../../desktop/ui/features/sound-settings/controller.js)、[等待提示音效解析](../../desktop/ui/features/widget/wait-notice.js) | 存在相同的 `grp:` / `frag:` / `preset:` 解析 | 共享声音引用格式与解析函数 |
 
 这里应复用机制，保留策略差异。例如汇率请求不需要凭据，余额请求需要专门的认证和错误分类；不能用一个宽松封装覆盖全部情况。同步写入、异步排队和跨文件事务也不能仅靠同一个 `writeJson()` 名字替代。
 
 ### D. 本地资源请求还承担历史 Web 插件适配成本——高优先级
 
-**证据：** [dispatcher 装配](../runtime/dispatcher.mjs#L32)构造虚拟 `webServer.register` / `tapIndex`，供 [widget host](../lib/widget-host.mjs#L131)注册旧式处理器；请求再被转换成 `Readable` 和 `Writable` 模拟对象，收集响应字节后返回，见 [请求适配](../runtime/dispatcher.mjs#L144)。项目实际没有 HTTP 监听端口。
+**证据：** [dispatcher 装配](../../runtime/dispatcher.mjs#L32)构造虚拟 `webServer.register` / `tapIndex`，供 [widget host](../../lib/widget-host.mjs#L131)注册旧式处理器；请求再被转换成 `Readable` 和 `Writable` 模拟对象，收集响应字节后返回，见 [请求适配](../../runtime/dispatcher.mjs#L144)。项目实际没有 HTTP 监听端口。
 
 **影响：** 新功能既可能写在 dispatcher 的路径分支中，也可能写成旧式 `req/res` handler。方法检查、错误格式、正文解析和资源返回有两套写法。
 
@@ -71,27 +71,27 @@
 
 ### E. 计费服务和会话读取需要更清晰的职责边界——中高优先级
 
-**证据：** [WhaleService 构造与状态](../runtime/service.mjs#L9)同时维护余额缓存、并发查询、活动轮次、结算任务、恢复日志、待确认消费和通知定时器。`getBalance()`、`settleTurn()`、`prepareRecovery()`、`queueNotice()` 等属于不同职责，但共享该对象的可变状态。[SessionMonitor](../runtime/session-monitor.mjs#L243)直接调用这些方法，其状态查询还读取服务内部的 `turns` 和 `journal`。
+**证据：** [WhaleService 构造与状态](../../runtime/service.mjs#L9)同时维护余额缓存、并发查询、活动轮次、结算任务、恢复日志、待确认消费和通知定时器。`getBalance()`、`settleTurn()`、`prepareRecovery()`、`queueNotice()` 等属于不同职责，但共享该对象的可变状态。[SessionMonitor](../../runtime/session-monitor.mjs#L243)直接调用这些方法，其状态查询还读取服务内部的 `turns` 和 `journal`。
 
-[SessionReader/SessionParser](../runtime/session-monitor.mjs#L13)与 [InsightAccumulator/collectInsights](../runtime/insights-worker.mjs#L28)都解析会话计数与元数据。它们的用途不同：前者负责实时轮次及恢复，后者负责有扫描预算的历史滚动统计，且包含归档目录。不能直接把其中一个删除或完全复用前者的账本作为后者的统计来源。
+[SessionReader/SessionParser](../../runtime/session-monitor.mjs#L13)与 [InsightAccumulator/collectInsights](../../runtime/insights-worker.mjs#L28)都解析会话计数与元数据。它们的用途不同：前者负责实时轮次及恢复，后者负责有扫描预算的历史滚动统计，且包含归档目录。不能直接把其中一个删除或完全复用前者的账本作为后者的统计来源。
 
 **建议：** 保留 `WhaleService` 门面，逐步抽出余额查询、轮次结算/恢复和通知发布三个组件。对外暴露只读状态方法。先共享经过测试的事件解码、身份识别和计数规范化，再分别保留实时投影与历史投影。将 parser/reader 从持有 Worker 的宿主模块分出，使 worker 入口不必导入宿主编排模块。
 
 ### F. 测试有价值，但一部分绑定了源码布局——高优先级的实施前提
 
-**证据：** [菜单悬停测试](../tests/menu-hover.test.mjs#L7)、[启动恢复测试](../tests/startup-show.test.mjs#L6)、[桌面模式测试](../tests/desktop-mode.test.mjs#L41)通过 `indexOf()` / `slice()` 截取源码，再放进 VM 执行。改函数位置或名称会影响测试装配。这些测试保护的行为仍然重要，需要在提取模块时改为调用真实导出接口。
+**证据：** [菜单悬停测试](../../tests/menu-hover.test.mjs#L7)、[启动恢复测试](../../tests/startup-show.test.mjs#L6)、[桌面模式测试](../../tests/desktop-mode.test.mjs#L41)通过 `indexOf()` / `slice()` 截取源码，再放进 VM 执行。改函数位置或名称会影响测试装配。这些测试保护的行为仍然重要，需要在提取模块时改为调用真实导出接口。
 
-[当前 CI](../.github/workflows/verify.yml)执行默认 Node 测试及发布包检查；仓库已有的 [桌面功能回归](../tests/feature-ui-regression.mjs)和[渲染回归](../tests/render-regression.mjs)不由 `npm test` 的文件匹配直接执行。现有证据不能等同于所有桌面路径都受 CI 保护。
+[当前 CI](../../.github/workflows/verify.yml)执行默认 Node 测试及发布包检查；仓库已有的 [桌面功能回归](../../tests/feature-ui-regression.mjs)和[渲染回归](../../tests/render-regression.mjs)不由 `npm test` 的文件匹配直接执行。现有证据不能等同于所有桌面路径都受 CI 保护。
 
 **建议：** 继续保留领域与故障注入测试；被迁移模块的源码截取测试同步改造。把可稳定自动运行的 Electron 测试加入明确入口。窗口遮挡、原生穿透、睡眠唤醒等保留真实桌面的验收门槛，不以 headless 或普通 CI 结果代替。
 
 ### G. 退役实现与文档、打包规则存在漂移——中优先级
 
-**证据：** [产品决定](DASHBOARD-B.md)明确说明 B 版面板已撤下，页面入口也不加载 `dashboard.js`；但 [包检查](../scripts/check-package.mjs)和[发布构建](../scripts/build-release.py)仍要求它存在，旧闭包还保留对 `WhaleDashboard` 的条件分支。
+**证据：** [产品决定](../decisions/COMPACT-MENU.md)明确说明 B 版面板已撤下，页面入口也不加载 `dashboard.js`；但 [包检查](../../scripts/check-package.mjs)和[发布构建](../../scripts/build-release.py)仍要求它存在，旧闭包还保留对 `WhaleDashboard` 的条件分支。
 
 另有小型遗留项：`widget-host.mjs` 中的 `balanceInFlight`、`USAGE_FILE_CANDIDATES`、`TURN_FILE_CANDIDATES` 没有后续使用；`balanceCache` 只被初始化或清空。删除前仍应核对全部调用和发布要求。
 
-[被索引为权威的数据口径说明](V0.3-PLAN-AND-PROVENANCE.md)保留了扫描上限 256 文件 / 128 MiB 的描述；[当前历史扫描实现](../runtime/insights-worker.mjs#L56)默认是 400 文件 / 96 MiB，并已有 app-server 直读优先、会话快照回退的实现。当前规格与历史说明应明确区分。
+[被索引为权威的数据口径说明](../decisions/DATA-SEMANTICS.md)保留了扫描上限 256 文件 / 128 MiB 的描述；[当前历史扫描实现](../../runtime/insights-worker.mjs#L56)默认是 400 文件 / 96 MiB，并已有 app-server 直读优先、会话快照回退的实现。当前规格与历史说明应明确区分。
 
 **建议：** 为退役代码做可达性清单，再同步删除加载分支、文件和包规则。将运行资源清单作为检查与构建的共同输入；更新当前行为说明，保留有价值的历史背景和来源署名。
 

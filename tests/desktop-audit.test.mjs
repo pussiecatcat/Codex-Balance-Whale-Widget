@@ -1,3 +1,6 @@
+// Two cases run code in a vm on purpose: desktop/preload.cjs requires electron,
+// and desktop/ui/alpha-worker.js is a classic worker script that reads `self`.
+// Neither can be imported in Node, so the sandbox is the test boundary.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

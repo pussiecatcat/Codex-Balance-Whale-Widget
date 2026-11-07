@@ -4,7 +4,6 @@ import { RequestError, requestJson } from '../desktop/ui/services/request.js';
 import { parseSoundReference, soundReferenceUrl } from '../desktop/ui/services/sound-reference.js';
 import { buildSoundSave, createSoundDraft } from '../desktop/ui/features/sound-settings/model.js';
 import { SoundSettingsController } from '../desktop/ui/features/sound-settings/controller.js';
-import { WaitNoticeController } from '../desktop/ui/wait-notice.js';
 import { createSoundService } from '../desktop/ui/services/sound.js';
 
 const usage = () => ({
@@ -61,19 +60,12 @@ test('sound draft cancel is isolated and one save command preserves unknown fiel
 });
 
 test('sound controller mounts explicitly, cancel writes nothing and save performs one combined PUT', async () => {
-  const calls = [], applied = [], dispatched = [], loading = [];
+  const calls = [], applied = [], loading = [];
   let viewOptions, unmounted = 0, destroyed = 0;
-  const windowRef = {
-    document: {}, WhaleSelect: {}, WhaleRendering: { presentFor() {} },
-    CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
-    dispatchEvent: event => dispatched.push(event),
-  };
-  const legacy = {
-    mountMenuEntry: () => () => { unmounted++; },
-    audioEditor: { open: async () => ({ status: 'cancelled' }) },
-    promptEditor: { open: async () => ({ status: 'cancelled' }) },
-    applySettings: value => applied.push(value),
-  };
+  const windowRef = { document: {} };
+  const menu = { mountMenuEntry: () => () => { unmounted++; } };
+  const audioEditor = { open: async () => ({ status: 'cancelled' }) };
+  const promptEditor = { open: async () => ({ status: 'cancelled' }) };
   const request = async (url, options = {}) => {
     calls.push({ url, method: options.method || 'GET', body: options.body });
     if (url === '/dsh-whale/audio.json') return catalog();
@@ -81,7 +73,9 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
     return bundle();
   };
   const controller = new SoundSettingsController({
-    windowRef, documentRef: windowRef.document, legacy, request,
+    windowRef, documentRef: windowRef.document, menu, audioEditor, promptEditor, request,
+    renderer: undefined, rendering: { presentFor() {} }, select: {},
+    applySettings: value => applied.push(value), onApplied: value => applied.push(value),
     player: { play() {}, stop() {} },
     createMenuEntry: ({ onOpen }) => ({ element: {}, onOpen, setLoading: (...args) => loading.push(args), destroy() {} }),
     createView: options => { viewOptions = options; return { destroy() { destroyed++; } }; },
@@ -97,8 +91,7 @@ test('sound controller mounts explicitly, cancel writes nothing and save perform
   assert.equal(writes.length, 1);
   assert.equal(writes[0].url, '/api/sound-settings');
   assert.equal(writes[0].body.size.vol, .25);
-  assert.equal(applied.length, 1);
-  assert.equal(dispatched.filter(event => event.type === 'whale-sound-settings-applied').length, 1);
+  assert.equal(applied.length, 2);
   controller.dispose();
   assert.equal(unmounted, 1);
   assert.ok(destroyed >= 1);
@@ -112,14 +105,13 @@ test('mode changes cancel an in-flight sound settings open before it can mount a
     if (url === '/api/sound-settings') resolveSettings = resolve;
     else resolveCatalog = resolve;
   });
-  const legacy = {
-    mountMenuEntry: () => () => {},
-    audioEditor: { open: async () => ({ status: 'cancelled' }) },
-    promptEditor: { open: async () => ({ status: 'cancelled' }) },
-    applySettings() {},
-  };
+  const menu = { mountMenuEntry: () => () => {} };
+  const audioEditor = { open: async () => ({ status: 'cancelled' }) };
+  const promptEditor = { open: async () => ({ status: 'cancelled' }) };
   const controller = new SoundSettingsController({
-    windowRef, documentRef: windowRef.document, legacy, request,
+    windowRef, documentRef: windowRef.document, menu, audioEditor, promptEditor, request,
+    rendering: { presentFor() {} }, select: {},
+    applySettings() {}, onApplied() {},
     player: { play() {}, stop() {} },
     createMenuEntry: () => ({ element: {}, setLoading: (...args) => loading.push(args), destroy() {} }),
     createView: () => { views++; return { destroy() {} }; },
@@ -142,7 +134,7 @@ test('a completed save cannot close or overwrite a panel opened after a mode cha
   windowRef.dispatchEvent = event => windowRef.dispatch(event.type, event.detail);
   const controller = new SoundSettingsController({
     windowRef, documentRef: windowRef.document, sound: createSoundService(),
-    legacy: { mountMenuEntry: () => () => {}, audioEditor: {}, promptEditor: {}, applySettings() {} },
+    menu: { mountMenuEntry: () => () => {} }, audioEditor: {}, promptEditor: {}, applySettings() {},
     request: async (url, options = {}) => {
       if (url.endsWith('audio.json')) return catalog();
       if (options.method === 'PUT') return new Promise(resolve => { completeSave = () => resolve({ ...options.body, revision: 'saved' }); });
@@ -179,69 +171,3 @@ function eventWindow() {
     audioCalls,
   };
 }
-
-test('wait notice controller deduplicates pending prompts, applies settings and disposes its lifecycle', async () => {
-  const windowRef = eventWindow(), shown = [], hidden = [], scheduled = [];
-  let settingsReads = 0, waitReads = 0;
-  const currentUsage = usage();
-  currentUsage.events.question.soundOn = true;
-  const request = async url => {
-    if (url === '/api/sound-settings') { settingsReads++; return { usage: currentUsage }; }
-    waitReads++;
-    return { pending: { id: 'pending-1', kind: 'question', sessionLabel: '合成会话' } };
-  };
-  const controller = new WaitNoticeController({
-    windowRef,
-    sound: createSoundService({ engine: windowRef.WhaleAudio }),
-    request,
-    legacyUsage: () => ({ showWait: value => shown.push(value), hideWait: id => hidden.push(id) }),
-    schedule: fn => { scheduled.push(fn); return scheduled.length; },
-    cancelSchedule() {},
-  });
-  await controller.tick();
-  await controller.tick();
-  assert.equal(settingsReads, 1);
-  assert.equal(waitReads, 2);
-  assert.equal(shown.length, 1);
-  assert.equal(windowRef.audioCalls.length, 1);
-  controller.start();
-  assert.equal(windowRef.listenerCount('whale-sound-settings-applied'), 1);
-  windowRef.dispatch('whale-sound-settings-applied', { usage: currentUsage });
-  assert.deepEqual(hidden, ['pending-1']);
-  controller.dispose();
-  assert.equal(windowRef.listenerCount('whale-sound-settings-applied'), 0);
-  const before = scheduled.length;
-  await controller.tick();
-  assert.equal(scheduled.length, before);
-});
-
-test('a delayed wait-settings read cannot replace a newer saved sound snapshot', async () => {
-  const windowRef = eventWindow(), service = createSoundService();
-  let resolveRead;
-  const old = { size: { soundSet: 'old', vol: .9 }, usage: { taskEnd: { on: false } } };
-  const saved = { size: { soundSet: 'new', vol: .2 }, usage: { taskEnd: { on: true } } };
-  const controller = new WaitNoticeController({
-    windowRef, sound: service, legacyUsage: () => null, schedule: () => 0,
-    request: url => url === '/api/sound-settings' ? new Promise(resolve => { resolveRead = resolve; }) : Promise.resolve({ pending: null }),
-  });
-  const reading = controller.tick();
-  service.reload(saved); controller.onSettings({ detail: saved });
-  resolveRead(old); await reading;
-  assert.equal(service.snapshot().size.soundSet, 'new');
-  assert.equal(service.snapshot().size.vol, .2);
-  assert.equal(controller.settings.taskEnd.on, true);
-  controller.dispose();
-});
-
-test('disposing during a wait-settings read prevents a late reload or another request', async () => {
-  const windowRef = eventWindow(), service = createSoundService();
-  let resolveRead, requests = 0;
-  const controller = new WaitNoticeController({
-    windowRef, sound: service, legacyUsage: () => null, schedule: () => 0,
-    request: () => { requests++; return new Promise(resolve => { resolveRead = resolve; }); },
-  });
-  const reading = controller.tick(); controller.dispose();
-  resolveRead({ size: { soundSet: 'late' }, usage: {} }); await reading;
-  assert.equal(service.snapshot().size.soundSet, undefined);
-  assert.equal(requests, 1);
-});

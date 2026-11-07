@@ -53,9 +53,9 @@ function fixture({ roles = [], saved = '', roleData = null, failUrls = [] } = {}
   const manager = createRoleManager({
     document: { createElement: () => element() },
     window: managerWindow,
-    localStorage: {
-      getItem: key => (storage.has(key) ? storage.get(key) : null),
-      setItem: (key, value) => storage.set(key, value),
+    uiState: {
+      get: key => (storage.has(key) ? storage.get(key) : null),
+      set: (key, value) => storage.set(key, value),
     },
     location: { href: 'whale://widget/widget.html' },
     Image: FakeImage,

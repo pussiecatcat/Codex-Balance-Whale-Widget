@@ -1,4 +1,5 @@
-import './settings-catalog.js';
+import catalog from './settings-catalog.js';
+import { attach as attachHelp } from './settings-help.js';
 // 设置窗口的分区与字段行渲染。
 //
 // 每个字段按设置目录（settings-catalog.js）里的 type 渲染成对应控件。同一分类
@@ -7,10 +8,6 @@ import './settings-catalog.js';
 // 由设置窗口唤起鲸鱼自己的弹层。
 import { completionMode, completionPatch } from './shared/sound-model.js';
 
-(() => {
-  'use strict';
-
-  const catalog = window.WhaleSettingsCatalog;
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -261,7 +258,7 @@ import { completionMode, completionPatch } from './shared/sound-model.js';
     const label = el('div', 'set-row-label');
     label.append(el('span', 'set-row-name', field.label));
     // 说明按钮跟着字段名，不占控件列，否则每行右侧都是一排相同的圆圈。
-    window.WhaleSettingsHelp.attach(label, field);
+    attachHelp(label, field);
     // 内部 ID 不给用户看，只留给测试和排障定位这一行。
     const id = el('span', 'set-id', field.id);
     id.hidden = true;
@@ -366,5 +363,4 @@ import { completionMode, completionPatch } from './shared/sound-model.js';
     return container;
   }
 
-  window.WhaleSettingsPages = { renderPage, toPatch, readValue, editorFor, defaultFor };
-})();
+export { renderPage, toPatch, readValue, editorFor, defaultFor };

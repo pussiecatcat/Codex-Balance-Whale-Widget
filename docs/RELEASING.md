@@ -1,4 +1,4 @@
-# GitHub 发布与仓库维护
+# 发布与仓库维护
 
 当前 Codex 适配版发布到独立仓库 `pussiecatcat/Codex-Balance-Whale-Widget`。原始仓库 [MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget) 继续作为上游来源；独立发布不会改写上游分支、标签或 Release。
 
@@ -74,3 +74,23 @@ Windows 安装器不按 SemVer 大小跳过版本：它先暂存并替换源码�
 代码和文档沿用 MIT 许可。原图片、动图和音频按上游条款随挂件分发，不被重新声明为个人原创。个人仓库和 Release 均不得包含 API 密钥、账号配置、账本、会话正文、真实账号截图、额度快照、运行日志、IPC 令牌、安装回执或本机备份。
 
 完整来源边界见 [PROVENANCE.md](../PROVENANCE.md)，第三方依赖见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)。
+
+## 发布前检查
+
+1. `.codex-plugin/plugin.json` 的 `version` 是唯一真源；基础版本与 `CHANGELOG.md` 一致。
+2. 运行 `npm run verify`（lint、单测、包依赖、架构边界、发布包）。
+3. 在 Windows 上跑桌面审计与设置窗口 smoke；气泡改动再跑视觉回归。
+4. 更新 `RELEASE_NOTES.md`：只写当前构建相对上一个发布标签的变化；发布时并入 `CHANGELOG.md` 并清空。
+5. 用 `python scripts/build-release.py --release-tag vX.Y.Z` 生成正式包，核对 `release-manifest.json` 的 `sourceVersion` 与 `internalVersion`。
+
+## 安装验证
+
+- 安装包不内置 Electron，首次安装需联网下载。
+- 安装器会替换源码、注册插件、核对完整版本与启用状态；安装后启动挂件，确认 `control.mjs status` 的 `buildVersion` 与包一致。
+- 设置窗口与托盘命令各打开一次，确认 IPC 与资源路由可用。
+
+## 回滚
+
+- 用户侧：双击 `launchers/停用自动跟随.cmd` 停止跟随；需要恢复旧版本时运行 `scripts/rollback-package.ps1`（参数见脚本头部）。
+- 数据恢复：`npm run restore-providers` 从 `providers.legacy-backup.json` 恢复 API 设置与 DIY 模型；气泡 schema 迁移失败时保留 `.dshw-bubble.schema1-backup.json`。
+- 代码侧：每个整改子任务一个提交，可单独 revert；版本回退需同时回退 `plugin.json` 与发布包。

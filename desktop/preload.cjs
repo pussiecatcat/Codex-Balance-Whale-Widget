@@ -58,6 +58,11 @@ if (isSettingsWindow) {
   interactive: value => ipcRenderer.send('whale-interactive', !!value),
   shape: rects => ipcRenderer.send('whale-shape', rects),
   onCursor: callback => ipcRenderer.on('whale-cursor', (_event, point) => callback(point)),
+  onRuntimeEvent: callback => {
+    const listener = (_event, event) => callback(event);
+    ipcRenderer.on('whale-runtime-event', listener);
+    return () => ipcRenderer.removeListener('whale-runtime-event', listener);
+  },
   storage: saved,
   save: patch => ipcRenderer.invoke('whale-save-storage', patch),
   command: command => ipcRenderer.invoke('whale-command', command),

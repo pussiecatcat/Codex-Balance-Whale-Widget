@@ -2,9 +2,9 @@ import { displayLevel, setFontLevel, FONT_LEVEL_MIN, FONT_LEVEL_MAX } from '../.
 
 // Quick controls for text, data modules, and random sentence lines.
 export function createBubbleQuickEditors(deps) {
-  const { document, window, qeditClose, qeditEnsure, qRow, qLabel,
+  const { document, qeditClose, qeditEnsure, qRow, qLabel,
     bubbleFontEditRow, qColorSelectBuild, renderBubblePv, qeditPlace,
-    getPreviewElement, bubbleTplHelpToggle } = deps;
+    getPreviewElement, bubbleTplHelpToggle, apiModels = null } = deps;
     function qStyleChecksBuild(getBool, setBool) {
       var row = qRow();
       // 字形开关是一组选项，不是「标签 + 控件」行：版式由 .dshwv-qedit-checks 决定。
@@ -265,7 +265,7 @@ export function createBubbleQuickEditors(deps) {
         var apiModelRow = qRow(); apiModelRow.appendChild(qLabel('数据来源'));
         var apiModelSelect = document.createElement('select'); apiModelSelect.className = 'dshwv-sound';
         apiModelRow.appendChild(apiModelSelect); box.appendChild(apiModelRow);
-        if (window.WhaleApiModels) window.WhaleApiModels.options(apiModelSelect, m.apiModelId || '', function (value) {
+        if (apiModels) apiModels.options(apiModelSelect, m.apiModelId || '', function (value) {
           m.apiModelId = value || '';
           if (m.apiModelId && m.type === 'quota') delete m.quotaStyle;
           changed(); qeditClose(); openQuickModuleEditor(m);

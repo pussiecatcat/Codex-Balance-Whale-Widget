@@ -4,11 +4,11 @@ const BLOCKED_SURFACES = '.dshwv-rolelist,.dshwv-audiolist,.dshwv-cropmask,.dshw
 
 export function createCharacterInteraction(deps) {
   const {
-    document, window, localStorage, rendering, root, image, positioner, menuButton, state, dragStatus,
+    document, window, uiState, rendering, root, image, positioner, menuButton, state, dragStatus,
     clickDistanceSq, imageUrl, viewport, rightGap, clampToViewport, artCenterAt, snapZones, restoreAnchor,
     express, settle, saveConfig, refreshFlip, pressDown, pressUp, whaleClick, refresh,
     closeMenu, toggleMenu, closeRolePanel, closeAudioGroupPanel, hideBubble,
-    applyBubbleConfig, positionMenu, isMenuOpen, isMenuButtonHidden, isScrollGapEnabled,
+    applyBubbleConfig, positionMenu, isMenuOpen, isMenuButtonHidden, isScrollGapEnabled, accountView,
   } = deps;
   let drag = null;
 
@@ -143,7 +143,7 @@ export function createCharacterInteraction(deps) {
 
   function applyAnchorPosition() {
     try {
-      const saved = JSON.parse(localStorage.getItem('dshw-pos') || 'null');
+      const saved = uiState?.getJSON ? uiState.getJSON('dshw-pos') : null;
       const area = viewport();
       const width = root.offsetWidth || root.getBoundingClientRect().width || 0;
       const height = root.offsetHeight || root.getBoundingClientRect().height || 0;
@@ -172,7 +172,7 @@ export function createCharacterInteraction(deps) {
     endDrag(null, false); closeMenu(); menuHover.reset(); hideBubble(); settle();
     window.getSelection()?.removeAllRanges(); menuHover.setCursor('');
   });
-  window.addEventListener('whale-account-view', () => {
+  accountView?.subscribe(() => {
     hideBubble(); applyBubbleConfig(); refresh(true);
     window.requestAnimationFrame(() => { if (isMenuOpen()) positionMenu(); });
   });
@@ -191,7 +191,7 @@ export function createCharacterInteraction(deps) {
   express();
   window.addEventListener('whale-reset-position', () => {
     endDrag(null, false); closeMenu(); hideBubble();
-    localStorage.setItem('dshw-pos', JSON.stringify({ v: 2, hAnchor: 'right', hDist: 12, vAnchor: 'bottom', vDist: 12 }));
+    uiState.set('dshw-pos', JSON.stringify({ v: 2, hAnchor: 'right', hDist: 12, vAnchor: 'bottom', vDist: 12 }));
     applyAnchorPosition(); settle();
   });
 

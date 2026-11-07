@@ -14,7 +14,7 @@ import { LABELS } from './shared/labels.js';
 //   4. 动态条目用 pattern:true + subFields，不能用一个笼统条目代替整个编辑器。
 //   5. 带单位的字段用 scale / offset 描述「界面值 × scale + offset = 存储值」，
 //      例如毫秒存、秒显示（scale 1000），或大小按 1–20 档显示、按倍数存储。
-(() => {
+export const catalog = (() => {
   'use strict';
 
   // 二级设置窗口的六个固定分类。顺序即左侧导航顺序。
@@ -633,7 +633,7 @@ import { LABELS } from './shared/labels.js';
       id: 'sound.panel', page: 'sound', tier: 2, domain: 'size', type: 'action', bridged: true,
       label: '提示与音效面板', purpose: '在挂件里集中调整提问、授权、每轮消耗和任务结束提示。',
       editor: { name: 'sound', label: '打开提示与音效面板' },
-      defaultValue: null, defaultSource: 'desktop/ui/features/sound-settings/controller.js#startSoundSettings',
+      defaultValue: null, defaultSource: 'desktop/ui/features/sound-settings/controller.js#createSoundSettingsController',
       store: '（即时操作，不落配置）', key: '—', emptyValue: '—',
       read: 'GET /api/sound-settings', write: '面板内保存',
       dependsOn: [], hotReload: 'after-save',
@@ -1172,6 +1172,7 @@ import { LABELS } from './shared/labels.js';
     },
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = catalog;
-  if (typeof globalThis !== 'undefined') globalThis.WhaleSettingsCatalog = catalog;
+  return catalog;
 })();
+
+export default catalog;

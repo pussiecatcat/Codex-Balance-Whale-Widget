@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createCustomSelectController } from '../desktop/ui/features/widget/custom-select.js';
+import { createCustomSelectController } from '../desktop/ui/features/widget/select.js';
 
 function element(tag = 'div') {
   const node = {

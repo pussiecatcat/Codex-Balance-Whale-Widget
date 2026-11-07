@@ -5,8 +5,8 @@ import { fontUnits } from '../../shared/bubble-config/font-scale.js';
 
 // Snapshot content is selected once per bubble open, with prior random picks scoped here.
 export function createBubbleContent(deps) {
-  const { window, getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
-    usageFillText, bubbleCloneModule, getMode = () => '', getQuotaSource = () => '', random = Math.random } = deps;
+  const { getState, getLastTurnNotice, fmt, whaleMoneyTemplates,
+    usageFillText, bubbleCloneModule, getMode = () => '', getQuotaSource = () => '', apiModels = null, random = Math.random } = deps;
     // 字号档位 → 气泡单位；新旧两套映射由模块自己的 fontScale 决定（见 font-scale.js）。
     function bubbleModuleFontU(level, module) {
       return fontUnits(level, module);
@@ -134,7 +134,7 @@ export function createBubbleContent(deps) {
         return { txt: '', line: null, hidden: true };
       }
       if (mod.apiModelId && (mod.type === 'balance' || mod.type === 'today' || mod.type === 'quota' || mod.type === 'plan')) {
-        var apiModelText = function () { return window.WhaleApiModels?.text(mod) || 'API 模型加载中…'; };
+        var apiModelText = function () { return apiModels?.text(mod) || 'API 模型加载中…'; };
         return { txt: apiModelText(), line: null, apiModelText: apiModelText };
       }
       if (mod.type === 'quota' || mod.type === 'plan' || mod.type === 'peak' || mod.type === 'nextpeak') {

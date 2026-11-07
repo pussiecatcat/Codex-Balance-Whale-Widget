@@ -44,7 +44,7 @@ function fixture({ menuOpen = false } = {}) {
   calls.menuPositioned = 0;
 
   const interaction = createCharacterInteraction({
-    document: documentStub, window: windowStub, localStorage: { getItem: () => null, setItem() {} },
+    document: documentStub, window: windowStub, uiState: { getJSON: () => null, get: () => null, set() {} },
     rendering: {
       hitCache: {
         prepare: url => calls.prepared.push(url),

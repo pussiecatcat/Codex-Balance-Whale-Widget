@@ -72,4 +72,4 @@ npm run restore-providers
 
 ## 测试数量与已知失败
 
-当前结果见 [验证基线](BASELINE.md)；本轮后 `npm test` 在任意主机时区都是 745/745 通过。
+当前结果见 [历史基线](history/BASELINE.md)；本轮后 `npm test` 在任意主机时区都是 745/745 通过。

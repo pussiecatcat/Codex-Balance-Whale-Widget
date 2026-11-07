@@ -16,6 +16,15 @@ const { createChangeBus } = require('./change-bus.cjs');
 const { createTestHarness } = require('./test-harness.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
 const { createVisibilityController } = require('./visibility.cjs');
+const { createModeController } = require('./mode-controller.cjs');
+const { createSettingsWindowManager } = require('./settings-window.cjs');
+const { createLegacyStorageImporter } = require('./legacy-storage-import.cjs');
+const { createTrayController } = require('./tray.cjs');
+const { createSettingsDomains } = require('./settings-domains.cjs');
+const { createAppActions } = require('./app-actions.cjs');
+const { createRendererLifecycle } = require('./renderer-lifecycle.cjs');
+const { applyChromiumSwitches } = require('./chromium-switches.cjs');
+const { registerShortcuts } = require('./shortcuts.cjs');
 const { normalizeHostState, parseInitialHostState } = require('./host-state.cjs');
 const { createDiagnostics } = require('./diagnostics.cjs');
 const { pathToFileURL } = require('node:url');
@@ -34,41 +43,22 @@ const isMac = process.platform === 'darwin';
 const usesWindowShape = process.platform === 'win32';
 let windowShape = null, windowShapeError = null;
 const toDipRect = rect => isMac ? rect : screen.screenToDipRect(null, rect);
-// Windows layered/region-clipped transparent windows can remain logically
-// visible while their GPU surface stops presenting. Use the software path for
-// this small companion only; no settings or switches are applied to Codex.
-const softwareRendering = process.platform === 'win32' && process.env.WHALE_RENDER_MODE !== 'hardware';
-// The owned, region-clipped surface can be considered occluded by Chromium
-// independently of IsWindowVisible and the software/GPU rendering choice.
-// Disable that optimization only in this Windows companion, before app ready.
-const nativeOcclusionDisabled = process.platform === 'win32';
-if (nativeOcclusionDisabled) {
-  const disabled = app.commandLine.getSwitchValue('disable-features').split(',').filter(Boolean);
-  app.commandLine.appendSwitch('disable-features', [...new Set([...disabled, 'CalculateNativeWinOcclusion'])].join(','));
-  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-}
-if (softwareRendering) app.disableHardwareAcceleration();
-else if (process.platform !== 'win32') app.commandLine.appendSwitch('enable-gpu-rasterization');
+const { softwareRendering, nativeOcclusionDisabled } = applyChromiumSwitches({ app });
 if (!dataDir || !path.isAbsolute(dataDir) || (!harness.enabled && !process.argv.includes('--supervised'))) app.exit(1);
 protocol.registerSchemesAsPrivileged([{ scheme: 'whale', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 fs.mkdirSync(path.join(dataDir, 'desktop-profile'), { recursive: true });
 app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
-let window, tray, dispatcher, bridge, lastHost = initialHost, appliedBounds = '', rendererReady = false, quitting = false, manuallyHidden = false, hostHeartbeat = Date.now();
-let settingsWindow = null;
+let window, dispatcher, bridge, quitting = false, manuallyHidden = false;
+const renderer = { ready: false, readyTimer: null, recoveryTimer: null, attempts: 0 };
 let settingsStore = null;
 let uiOrigin = 'whale://widget';
-let hostSequence = -1;
-let appliedNativeSize = '';
 const stateFile = path.join(dataDir, 'ui-state.json');
 const read = (f, fallback = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; } };
 // Same atomic primitive the service uses. This used to be a weaker local copy
 // (fixed temp name, no exclusive create, no retry), which is the wrong trade for
 // the state files that have to survive a crash.
 const save = (file, value) => writeFileAtomicSync(file, JSON.stringify(value, null, 2));
-let desktopMode = read(path.join(dataDir, 'follow-config.json')).mode === 'standalone' ? 'standalone' : 'follow-codex';
-let desktopBoundsApplied = false, modePending = false;
-let recoveryAttempts = 0, recoveryTimer = null, readyTimer = null;
 let diagnosticShortcutRegistered = false;
 let toggleShortcutRegistered = false;
 const diagnostics = createDiagnostics({
@@ -80,16 +70,16 @@ const diagnostics = createDiagnostics({
     return {
       // Null when there is no window to sample; `entry` is written either way.
       record: live ? {
-        ready: rendererReady, visible: window.isVisible(), manuallyHidden, desktopMode,
-        hostAlive: !!lastHost?.hostAlive, hostVisible: !!lastHost?.visible, modal: !!lastHost?.modal,
-        native: lastHost?.visualDiagnostics || null, bounds: window.getBounds(),
+        ready: renderer.ready, visible: window.isVisible(), manuallyHidden, desktopMode: mode.state.desktopMode,
+        hostAlive: !!mode.state.lastHost?.hostAlive, hostVisible: !!mode.state.lastHost?.visible, modal: !!mode.state.lastHost?.modal,
+        native: mode.state.lastHost?.visualDiagnostics || null, bounds: window.getBounds(),
         shape: windowShape, shapeError: !!windowShapeError, inputEnabled,
-        visibility: visibilityController.snapshot(), recoveryAttempts, presents, nativeOcclusionDisabled,
+        visibility: visibilityController.snapshot(), attempts: renderer.attempts, presents, nativeOcclusionDisabled,
       } : null,
       entry: {
-        desktopMode, ready: rendererReady, manuallyHidden, recoveryAttempts,
-        hostAlive: !!lastHost?.hostAlive, hostVisible: !!lastHost?.visible, modal: !!lastHost?.modal,
-        attached: !!lastHost?.attached, shapeCount: windowShape?.length || 0,
+        desktopMode: mode.state.desktopMode, ready: renderer.ready, manuallyHidden, attempts: renderer.attempts,
+        hostAlive: !!mode.state.lastHost?.hostAlive, hostVisible: !!mode.state.lastHost?.visible, modal: !!mode.state.lastHost?.modal,
+        attached: !!mode.state.lastHost?.attached, shapeCount: windowShape?.length || 0,
       },
     };
   },
@@ -142,16 +132,16 @@ function ensureCursorPoll() {
   cursorPoll.unref?.();
 }
 function sendCursor(force = false) {
-  if (!window || window.isDestroyed() || !rendererReady || !window.isVisible()) { stopCursorPoll(); return; }
+  if (!window || window.isDestroyed() || !renderer.ready || !window.isVisible()) { stopCursorPoll(); return; }
   const bounds = window.getContentBounds(), cursor = screen.getCursorScreenPoint();
-  const point = { ...harness.cursorPoint({ x: cursor.x - bounds.x, y: cursor.y - bounds.y }), buttons: lastHost?.mouseButtons || 0, sampledAt: lastHost?.mouseSampleAt || 0 };
+  const point = { ...harness.cursorPoint({ x: cursor.x - bounds.x, y: cursor.y - bounds.y }), buttons: mode.state.lastHost?.mouseButtons || 0, sampledAt: mode.state.lastHost?.mouseSampleAt || 0 };
   const encoded = point.x + ',' + point.y + ',' + point.buttons;
   if (force || encoded !== lastCursor) { lastCursor = encoded; window.webContents.send('whale-cursor', point); }
 }
 function setTestCursor(point) { if (harness.setCursor(point)) sendCursor(true); }
 const visibilityController = createVisibilityController({
   getWindow: () => window,
-  getState: () => ({ ready: rendererReady && !modePending && (!usesWindowShape || !!windowShape), host: lastHost, standalone: desktopMode === 'standalone', fixture: harness.enabled, manuallyHidden, quitting }),
+  getState: () => ({ ready: renderer.ready && !mode.state.modePending && (!usesWindowShape || !!windowShape), host: mode.state.lastHost, standalone: mode.state.desktopMode === 'standalone', fixture: harness.enabled, manuallyHidden, quitting }),
   onShown: () => {
     if (startup.phases.interactive == null) {
       markStartup('interactive');
@@ -162,25 +152,46 @@ const visibilityController = createVisibilityController({
 function visibility() {
   visibilityController.update();
 }
-function show() {
-  manuallyHidden = false;
-  // Showing during normal startup must not restart an already loading page.
-  if (!rendererReady && !readyTimer && !recoveryTimer && window && !window.isDestroyed() && !window.webContents.isLoading()) {
-    recoveryAttempts = 0; recoverRenderer('manual-recovery');
-  }
-  visibilityController.requestRecovery();
-}
-function toggle() { if (manuallyHidden) show(); else { manuallyHidden = true; visibility(); } }
+const rendererLifecycle = createRendererLifecycle({
+  getWindow: () => window, getQuitting: () => quitting, state: renderer,
+  visibilityController, diagnose: reason => diagnose(reason),
+  hideManuallyOff: () => { manuallyHidden = false; },
+});
+const mode = createModeController({
+  getWindow: () => window, getQuitting: () => quitting,
+  initialHost, initialMode: read(path.join(dataDir, 'follow-config.json')).mode === 'standalone' ? 'standalone' : 'follow-codex',
+  dataDir, normalizedHost: normalizeHostState, usesWindowShape, harnessEnabled: harness.enabled,
+  read, save, screen, toDipRect,
+  sendCursor: (...args) => sendCursor(...args), markStartup,
+  diagnose: reason => diagnose(reason), visibility: () => visibility(), show: () => rendererLifecycle.show(),
+  syncNativeViewport, visibilityController, diagnostics, quit: () => app.quit(),
+  hideManuallyOff: () => { manuallyHidden = false; },
+  updateTray: () => trayController.update(),
+});
+const appActions = createAppActions({
+  app, dialog, getWindow: () => window, dataDir, save, mode,
+  getRendererReady: () => renderer.ready, getRecoveryAttempts: () => renderer.attempts,
+});
+const trayController = createTrayController({
+  Tray, Menu, nativeImage, iconPath: path.join(root, 'assets', 'DSniang1.png'),
+  actions: {
+    toggle: () => toggle(), show: () => rendererLifecycle.show(), resetPosition: () => resetPosition(),
+    setMode: value => mode.setMode(value), getMode: () => mode.state.desktopMode,
+    sendCommand: command => sendCommand(command), openSettings: () => settings.open(),
+    showStatusDialog: () => appActions.showStatusDialog(), pauseAndQuit: () => appActions.pauseAndQuit(),
+  },
+});
+function toggle() { if (manuallyHidden) rendererLifecycle.show(); else { manuallyHidden = true; visibility(); } }
 // Renderer finished loading its images and input bindings: clear the recovery
 // timers it may have raced, then hand it the mode it should be showing.
 function markRendererReady() {
   markStartup('imageAndInputReady');
   try { fs.rmSync(path.join(dataDir, 'desktop-error.json'), { force: true }); } catch {}
-  clearTimeout(readyTimer); readyTimer = null;
-  clearTimeout(recoveryTimer); recoveryTimer = null;
-  rendererReady = true;
+  clearTimeout(renderer.readyTimer); renderer.readyTimer = null;
+  clearTimeout(renderer.recoveryTimer); renderer.recoveryTimer = null;
+  renderer.ready = true;
   diagnose('ready');
-  window.webContents.send('whale-desktop-mode', desktopMode);
+  window.webContents.send('whale-desktop-mode', mode.state.desktopMode);
   visibility(); flushCommands(); invalidate(); sendCursor(true);
 }
 function setInteractive(enabled) {
@@ -192,36 +203,15 @@ function setInteractive(enabled) {
 }
 function sendCommand(command, payload) {
   if (!window || window.isDestroyed() || !command) return false;
-  show();
-  if (rendererReady) window.webContents.send('whale-command', command, payload);
+  rendererLifecycle.show();
+  if (renderer.ready) window.webContents.send('whale-command', command, payload);
   else if (!pendingCommands.some(entry => entry[0] === command)) pendingCommands.push([command, payload]);
   return true;
 }
 function flushCommands() {
-  if (!rendererReady || !window || window.isDestroyed()) return;
+  if (!renderer.ready || !window || window.isDestroyed()) return;
   for (const [command, payload] of pendingCommands.splice(0)) window.webContents.send('whale-command', command, payload);
 }
-async function showStatusDialog() {
-  const lines = [
-    '平台：' + process.platform,
-    '跟随模式：' + (lastHost?.followMode || (lastHost?.nativeFollowing ? 'native' : '等待 Codex')),
-    'Codex PID：' + (lastHost?.hostPid || '未检测到'),
-    '挂件窗口：' + (window?.isVisible?.() ? '显示' : '隐藏'),
-    '桌面模式：' + desktopMode,
-    '素材就绪：' + rendererReady,
-    '恢复次数：' + recoveryAttempts,
-  ];
-  await dialog.showMessageBox({
-    type: 'info',
-    title: '挂件运行状态',
-    message: 'Codex 小龙娘',
-    detail: lines.join('\n'),
-    buttons: ['关闭'],
-  });
-}
-function relaunchApp() { app.relaunch(); app.exit(0); return true; }
-function pauseAndQuit() { save(path.join(dataDir, 'pause-until-host-exit.json'), { pauseAll: desktopMode === 'standalone', hostPid: lastHost?.hostPid || 0, hostSession: lastHost?.hostSession || '', hostWindow: lastHost?.window || '0' }); app.quit(); }
-
 async function openWebLink(value, gestureRequired = true) {
   if (gestureRequired && (!trustedGestureAt || Date.now() - trustedGestureAt > 1000)) return false;
   trustedGestureAt = 0;
@@ -240,161 +230,20 @@ async function openWebLink(value, gestureRequired = true) {
 }
 
 // 角色化判定在 desktop/ipc-handlers.cjs 里按通道完成；这里只提供窗口表。
-const windows = () => ({ widget: window, settings: settingsWindow });
+const windows = () => ({ widget: window, settings: settings.get() });
 
-function openSettingsWindow(page) {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    if (settingsWindow.isMinimized()) settingsWindow.restore();
-    settingsWindow.show();
-    settingsWindow.focus();
-    if (page) settingsWindow.webContents.send('whale-settings-navigate', { page });
-    return settingsWindow;
-  }
-  const display = screen.getPrimaryDisplay();
-  const work = display.workArea;
-  // 方案建议 960×720，但真实尺寸必须落在显示器工作区内，小屏允许更小。
-  const width = Math.max(560, Math.min(960, work.width - 40));
-  const height = Math.max(420, Math.min(720, work.height - 60));
-  const x = Math.max(work.x, Math.round(work.x + (work.width - width) / 2));
-  const y = Math.max(work.y, Math.round(work.y + (work.height - height) / 3));
-  settingsWindow = new BrowserWindow({
-    x, y, width, height, minWidth: 560, minHeight: 420,
-    title: '小龙娘设置', show: false, resizable: true, minimizable: true, maximizable: true, fullscreenable: false,
-    backgroundColor: '#f6f8fd',
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: true,
-      // 与挂件同一个 preload，靠这个参数区分窗口角色。
-      additionalArguments: harness.enabled ? ['--whale-render-test', '--whale-role=settings'] : ['--whale-role=settings'],
-    },
-  });
-  const target = settingsWindow;
-  // 这两个守卫是 per-webContents 的，不会从挂件窗口继承，必须重新注册。
-  target.webContents.setWindowOpenHandler(({ url }) => { openWebLink(url).catch(() => {}); return { action: 'deny' }; });
-  target.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(uiOrigin + '/')) event.preventDefault(); });
-  // beforeunload 只负责「有未保存修改」的判断；Electron 遇到它不会自己弹框，
-  // 这里补上选择框。preventDefault 表示放行关闭。
-  target.webContents.on('will-prevent-unload', event => {
-    // 退出应用时不弹框，直接放行，避免退出被草稿卡住。
-    if (quitting) { event.preventDefault(); return; }
-    const choice = dialog.showMessageBoxSync(target, {
-      type: 'warning',
-      buttons: ['继续编辑', '放弃修改并关闭'],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-      title: '还有未保存的修改',
-      message: '关闭设置窗口会丢弃这些修改。',
-      detail: '「继续编辑」返回设置窗口；「放弃修改并关闭」直接关闭，草稿不会保存。',
-    });
-    if (choice === 1) event.preventDefault();
-  });
-  target.once('ready-to-show', () => { if (!target.isDestroyed()) target.show(); });
-  target.on('closed', () => {
-    if (settingsWindow === target) settingsWindow = null;
-    // 关闭时丢弃未保存的预览：读回磁盘值再让挂件应用一次。
-    if (settingsStore) {
-      settingsStore.read(['size'])
-        .then(values => previewSettings({ domain: 'size', values: values.size }))
-        .catch(() => {});
-    }
-  });
-  harness.watchRenderer(target);
-  target.loadURL(uiOrigin + '/settings.html' + (page ? '#' + page : '')).catch(() => { if (settingsWindow === target) settingsWindow = null; });
-  return settingsWindow;
-}
-function closeSettingsWindow() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.destroy();
-  settingsWindow = null;
-}
 
-// 设置窗口点「打开编辑器」时，普通窗口会压住透明挂件，先最小化自己再点亮鲸鱼。
-function openEditorFromSettings(payload) {
-  if (!payload || !payload.editor) return false;
-  show();
-  if (settingsWindow && !settingsWindow.isDestroyed() && !settingsWindow.isMinimized()) settingsWindow.minimize();
-  return sendCommand('open-editor', { editor: payload.editor, args: payload.args || {} });
-}
+const importLegacyStorage = createLegacyStorageImporter({
+  dataDir, BrowserWindow, session, harnessEnabled: harness.enabled,
+  storeValues, values, save: (file, value) => save(file, value),
+});
 
-// 设置窗口拖动大小/音量时的临时预览：只广播给挂件，不写任何配置文件。
-function previewSettings(change) {
-  if (!change || !change.domain) return false;
-  if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return false;
-  window.webContents.send('whale-settings-preview', change);
-  return true;
-}
-async function setHost(host) {
-  host = normalizeHostState(host, { platform: process.platform });
-  if (!host) return;
-  if (Number.isSafeInteger(host.serial)) { if (host.serial <= hostSequence) return; hostSequence = host.serial; }
-  hostHeartbeat = Date.now(); lastHost = host;
-  // Record the observed state before any lifecycle recovery can change it.
-  if (usesWindowShape) { try { diagnostics.sample(); } catch {} }
-  if (host.monitorExit) { app.quit(); return; }
-  sendCursor();
-  if (modePending) {
-    if (host.mode !== desktopMode || (desktopMode === 'standalone' ? host.nativeFollowing || host.attached : host.hostAlive && !host.attached)) return;
-    modePending = false;
-    window.setAlwaysOnTop(desktopMode === 'standalone' || isMac, 'floating');
-    window.webContents.send('whale-desktop-mode', desktopMode);
-    updateTray();
-  } else if (!isMac && !harness.enabled && host.mode && host.mode !== desktopMode) return;
-  if (desktopMode === 'standalone') {
-    // macOS may move an overlay while restoring windows or switching Spaces.
-    // Desktop mode owns its geometry even when Codex is still observable.
-    if (window && !host.nativeFollowing) {
-      const target = screen.getPrimaryDisplay().workArea;
-      const current = window.getBounds();
-      const boundsDrifted = ['x', 'y', 'width', 'height'].some(key => Math.abs(current[key] - target[key]) >= 1);
-      if (boundsDrifted) window.setBounds(target);
-      if (boundsDrifted || !desktopBoundsApplied) {
-        window.setAlwaysOnTop(true, 'floating');
-        desktopBoundsApplied = true;
-      }
-    }
-    visibility(); return;
-  }
-  if (!host.hostAlive) { if (window) app.quit(); return; }
-  if (!window) return;
-  if (host.attached) markStartup('attached');
-  // Native events own position. Only Electron may resize its non-resizable
-  // viewport; it updates the corresponding native min/max tracking sizes.
-  appliedNativeSize = syncNativeViewport(host, window, screen, appliedNativeSize);
-  // Stale coordinates never go through setBounds while native following runs.
-  if (!host.nativeFollowing && host.visible && host.bounds && [host.bounds.x, host.bounds.y, host.bounds.width, host.bounds.height].every(Number.isFinite)) {
-    const rect = toDipRect(host.bounds);
-    const key = JSON.stringify(rect);
-    if (rect.width > 10 && rect.height > 10 && appliedBounds !== key) {
-      const current = window.getBounds();
-      if (rect.width !== current.width || rect.height !== current.height) window.setBounds(rect);
-      else window.setPosition(rect.x, rect.y);
-      appliedBounds = key; sendCursor(true);
-    }
-  }
-  visibility();
-  if (visibilityController.observeNativeVisibility()) diagnose('native-window-hidden');
-}
-
-async function importLegacyStorage() {
-  const marker = path.join(dataDir, 'legacy-storage-imported.json');
-  if (fs.existsSync(marker) || harness.enabled) return;
-  let legacy = null;
-  try {
-    legacy = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
-    session.defaultSession.protocol.handle('http', request => new Response(request.url.startsWith('http://127.0.0.1:47321/') ? '<!doctype html><title>Local migration</title>' : '', { status: request.url.startsWith('http://127.0.0.1:47321/') ? 200 : 403, headers: { 'Content-Type': 'text/html' } }));
-    await legacy.loadURL('http://127.0.0.1:47321/');
-    const old = await legacy.webContents.executeJavaScript("Object.fromEntries(Object.keys(localStorage).filter(k => /^dshw[-v]/.test(k)).map(k => [k, localStorage.getItem(k)]))");
-    storeValues({ ...old, ...values() }); save(marker, { complete: true, at: new Date().toISOString() });
-  } catch (error) {
-    // A failed migration must not block startup or retry on every launch: the
-    // marker records it once, and the widget starts without the legacy values.
-    try { save(marker, { complete: false, at: new Date().toISOString(), error: String(error?.message || error).slice(0, 200) }); } catch {}
-  } finally {
-    try { legacy?.destroy(); } catch {}
-    try { session.defaultSession.protocol.unhandle('http'); } catch {}
-  }
-}
+const settings = createSettingsWindowManager({
+  BrowserWindow, screen, dialog, harness, get uiOrigin() { return uiOrigin; },
+  openWebLink, getSettingsStore: () => settingsStore, isQuitting: () => quitting,
+  showWidget: () => rendererLifecycle.show(), getWidgetWindow: () => window,
+  sendCommand: (...args) => sendCommand(...args),
+});
 
 // What desktop/ipc-handlers.cjs is allowed to reach. Listing it here keeps the
 // IPC surface auditable in one place instead of implicit in the closures of nine
@@ -412,79 +261,43 @@ const ipcHost = {
   setInteractive,
   setKeyboardFocus,
   openExternal: url => openWebLink(url),
-  setMode,
-  desktopMode: () => desktopMode,
-  show,
-  showStatusDialog,
-  pauseAndQuit,
-  relaunch: relaunchApp,
+  setMode: mode.setMode,
+  desktopMode: () => mode.state.desktopMode,
+  show: rendererLifecycle.show,
+  showStatusDialog: appActions.showStatusDialog,
+  pauseAndQuit: appActions.pauseAndQuit,
+  relaunch: appActions.relaunchApp,
   resetPosition: () => resetPosition(),
   openDiagnostics: () => openDiagnosticsFolder(),
   sendCommand,
-  openSettings: page => !!openSettingsWindow(page),
-  openEditorFromSettings,
-  previewSettings,
+  openSettings: page => !!settings.open(page),
+  openEditorFromSettings: settings.openEditor,
+  previewSettings: settings.preview,
   settingsStore: () => settingsStore,
 };
 
 if (!lock) app.quit();
 else {
-  app.on('second-instance', show);
+  app.on('second-instance', () => rendererLifecycle.show());
   app.whenReady().then(async () => {
     markStartup('appReady');
     const { createDispatcher, UI_ORIGIN } = await import(pathToFileURL(path.join(root, 'runtime', 'dispatcher.mjs')));
     uiOrigin = UI_ORIGIN;
     const { startBridge } = await import(pathToFileURL(path.join(root, 'runtime', 'bridge.mjs')));
     const testOptions = await harness.load(dataDir);
-    const changeBus = createChangeBus({ targets: () => [window, settingsWindow] });
-    dispatcher = createDispatcher({ dataDir, onChange: change => changeBus.publish(change), fetchImpl: (url, options) => net.fetch(url, options), onStop: pauseAndQuit, onShow: show, statusInfo: () => ({ followCodex: desktopMode !== 'standalone', desktopMode, rendererReady, recoveryAttempts, manuallyHidden, platform: process.platform, followMode: lastHost?.followMode || null, hostPid: lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
+    const changeBus = createChangeBus({ targets: () => [window, settings.get()] });
+    dispatcher = createDispatcher({ dataDir, onChange: change => changeBus.publish(change), fetchImpl: (url, options) => net.fetch(url, options), onStop: appActions.pauseAndQuit, onShow: () => rendererLifecycle.show(),
+      onRuntimeEvent: event => {
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return;
+        window.webContents.send('whale-runtime-event', event);
+      },
+      statusInfo: () => ({ followCodex: mode.state.desktopMode !== 'standalone', desktopMode: mode.state.desktopMode, ready: renderer.ready, recoveryAttempts: renderer.attempts, manuallyHidden, platform: process.platform, followMode: mode.state.lastHost?.followMode || null, hostPid: mode.state.lastHost?.hostPid || null, visible: !!window?.isVisible(), modePending: mode.state.modePending, windowShape, windowShapeError, windowBounds: window?.getBounds(), visibility: visibilityController.snapshot(), nativeFollowing: !!mode.state.lastHost?.nativeFollowing, mouseRouting: { forwardedMouseMoves: !usesWindowShape, cursorPollMs: usesWindowShape ? 16 : 50 }, diagnostics: { shortcutRegistered: diagnosticShortcutRegistered, toggleShortcutRegistered, lastReport: diagnostics.lastReport(), native: mode.state.lastHost?.visualDiagnostics || null }, startup, rendering: gpuStatus }), ...testOptions });
     markStartup('dispatcherReady');
     // 小龙娘设置的唯一写入者。size/usage 经 SoundSettingsService 的同一事务落盘
     // （journal + 失败恢复），ui 走 UiStateStore 的按键合并，displayMode 走现有路由；
     // 这里只做域适配，不建立第二套写入者。
     settingsStore = new SettingsStore({
-      domains: {
-        ...createSoundSettingsDomains(dispatcher.soundSettings),
-        ui: {
-          // 值在磁盘上是字符串，对象字段是 JSON 文本。这里解析出来给界面用，
-          // 键名保持真实的 dshw-* ，便于回读和文档核对。
-          read: () => {
-            const parsed = {};
-            for (const [key, value] of Object.entries({ ...values() })) {
-              try { parsed[key] = JSON.parse(value); } catch { parsed[key] = value; }
-            }
-            return parsed;
-          },
-          write: async (_next, { changes }) => {
-            const encoded = {};
-            for (const [key, value] of Object.entries(changes)) {
-              if (typeof value === 'string') { encoded[key] = value; continue; }
-              if (value === null) { encoded[key] = null; continue; }
-              encoded[key] = JSON.stringify(value);
-            }
-            uiStore.setKeys(encoded);
-            await uiStore.flush();
-          },
-        },
-        displayMode: {
-          read: () => ({ mode: read(path.join(dataDir, 'display-mode.json')).mode === 'api' ? 'api' : 'subscription' }),
-          write: values2 => {
-            if (!['api', 'subscription'].includes(values2.mode)) throw new Error('请选择 API 或会员订阅额度模式');
-            // 与 /api/display-mode 路由写同一份文件、同一格式；不经路由是为了
-            // 保持 SettingsStore 的同步写入契约。
-            save(path.join(dataDir, 'display-mode.json'), { version: 1, mode: values2.mode });
-            // dshw-account-view 是渲染器侧的缓存，两处保持一致。
-            uiStore.setKeys({ 'dshw-account-view': values2.mode });
-          },
-        },
-        api: {
-          read: () => dispatcher.whale.config.settingsInfo().settings,
-          write: (_next, { changes }) => dispatcher.whale.config.save(changes),
-        },
-        bubble: { read: () => ({}), write: () => { throw new Error('请在气泡编辑器中保存'); } },
-        media: { read: () => ({}), write: () => { throw new Error('请在素材编辑器中保存'); } },
-        apiModels: { read: () => ({}), write: () => { throw new Error('请在 API 编辑器中保存'); } },
-      },
+      domains: createSettingsDomains({ dispatcher, values, uiStore, read, save, dataDir, createSoundSettingsDomains }),
       onChange: change => changeBus.publish(change),
     });
     await importLegacyStorage();
@@ -508,10 +321,10 @@ else {
       window.setAlwaysOnTop(true, 'floating', 1);
       window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     }
-    window.setAlwaysOnTop(isMac || desktopMode === 'standalone', 'floating');
-    if (desktopMode === 'standalone') window.setBounds(screen.getPrimaryDisplay().workArea);
-    window.webContents.on('render-process-gone', (_event, details) => { rendererReady = false; visibility(); recoverRenderer('renderer-' + details.reason); });
-    window.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) recoverRenderer('load-' + code); });
+    window.setAlwaysOnTop(isMac || mode.state.desktopMode === 'standalone', 'floating');
+    if (mode.state.desktopMode === 'standalone') window.setBounds(screen.getPrimaryDisplay().workArea);
+    window.webContents.on('render-process-gone', (_event, details) => { renderer.ready = false; visibility(); rendererLifecycle.recoverRenderer('renderer-' + details.reason); });
+    window.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) rendererLifecycle.recoverRenderer('load-' + code); });
     markStartup('windowCreated');
     window.once('ready-to-show', () => markStartup('frameReady'));
     harness.watchRenderer(window);
@@ -526,7 +339,7 @@ else {
     });
     window.webContents.on('did-start-loading', () => {
       if(quitting || !window || window.isDestroyed())return;
-      rendererReady = false; inputEnabled = false; clearTimeout(readyTimer); readyTimer = setTimeout(() => { if (!rendererReady) recoverRenderer('ready-timeout'); }, 15000);
+      renderer.ready = false; inputEnabled = false; clearTimeout(renderer.readyTimer); renderer.readyTimer = setTimeout(() => { if (!renderer.ready) rendererLifecycle.recoverRenderer('ready-timeout'); }, 15000);
       if (usesWindowShape) applyWindowShape(EMPTY_SHAPE);
       visibility();
       setKeyboardFocus(false);
@@ -545,27 +358,24 @@ else {
     window.on('closed', stopCursorPoll);
     ensureCursorPoll();
     app.once('will-quit', stopCursorPoll);
-    const icon = nativeImage.createFromPath(path.join(root, 'assets', 'DSniang1.png')).resize({ width: 24, height: 24 });
-    tray = new Tray(icon); tray.setToolTip('Codex 小龙娘 · 跟随 Codex');
-    updateTray();
-    tray.on('double-click', toggle);
-    toggleShortcutRegistered = globalShortcut.register(isMac ? 'Command+Option+W' : 'Control+Alt+W', toggle);
-    if (!toggleShortcutRegistered) diagnose('toggle-shortcut-unavailable');
-    if (usesWindowShape && !harness.enabled) diagnosticShortcutRegistered = globalShortcut.register('Control+Alt+Shift+F10', reportVisibility);
-    bridge = await startBridge(dispatcher, { dataDir, onHost: setHost, onMode: setMode, onResetPosition: resetPosition });
+    trayController.create();
+    ({ toggleRegistered: toggleShortcutRegistered, diagnosticRegistered: diagnosticShortcutRegistered } = registerShortcuts({
+      globalShortcut, isMac, toggle, reportVisibility, usesWindowShape, harnessEnabled: harness.enabled, diagnose,
+    }));
+    bridge = await startBridge(dispatcher, { dataDir, onHost: mode.setHost, onMode: mode.setMode, onResetPosition: resetPosition });
     markStartup('bridgeReady');
-    await window.loadURL(UI_ORIGIN + '/widget.html').catch(() => recoverRenderer('initial-load-failed'));
+    await window.loadURL(UI_ORIGIN + '/widget.html').catch(() => rendererLifecycle.recoverRenderer('initial-load-failed'));
     markStartup('pageLoaded');
-    if (lastHost) await setHost(lastHost);
+    if (mode.state.lastHost) await mode.setHost(mode.state.lastHost);
     // A harness run drives the live window from here and quits when it is done;
     // a normal launch installs the supervisor heartbeat instead.
     if (harness.enabled) await harness.run({
-      app, window, screen, setHost, setTestCursor, dispatcher, dataDir,
-      openSettingsWindow, settingsWindow: () => settingsWindow,
+      app, window, screen, setHost: mode.setHost, setTestCursor, dispatcher, dataDir,
+      openSettingsWindow: settings.open, settingsWindow: settings.get,
       renderInfo: () => ({ gpuStatus, presents, inputEnabled, keyboardFocus, windowShape, windowShapeError, visibility: visibilityController.snapshot() }),
     });
     else {
-      const health=createHeartbeatMonitor({lastSeen:()=>hostHeartbeat,onDelayed:()=>diagnose('monitor-heartbeat-delayed'),onRecovered:()=>diagnose('monitor-heartbeat-restored')});
+      const health=createHeartbeatMonitor({lastSeen:()=>mode.state.hostHeartbeat,onDelayed:()=>diagnose('monitor-heartbeat-delayed'),onRecovered:()=>diagnose('monitor-heartbeat-restored')});
       const supervisorPid=Number(process.env.WHALE_SUPERVISOR_PID);
       const heartbeat=setInterval(()=>{
         const delayed=health.check();
@@ -575,21 +385,21 @@ else {
       },2000); app.once('will-quit',()=>clearInterval(heartbeat));
     }
   }).catch(error => { try { save(path.join(dataDir, 'desktop-error.json'), { message: String(error.message).slice(0, 350), at: new Date().toISOString() }); } catch {} app.exit(1); });
-  app.on('window-all-closed', () => { if (!quitting && rendererReady) app.quit(); });
+  app.on('window-all-closed', () => { if (!quitting && renderer.ready) app.quit(); });
   app.on('before-quit', event => {
-    clearTimeout(readyTimer); clearTimeout(recoveryTimer);
+    clearTimeout(renderer.readyTimer); clearTimeout(renderer.recoveryTimer);
     event.preventDefault();
     if (quitting) return;
     quitting = true;
     visibilityController.dispose();
     // 退出挂件时一并关闭设置窗口，不遗留第二个窗口。
-    closeSettingsWindow();
+    settings.close();
     // Do not leave an unresponsive input surface over Codex while saving state.
     try { if (window && !window.isDestroyed()) { window.setIgnoreMouseEvents(true); window.hide(); } } catch {}
     let finished = false;
     const finish = () => {
       if (finished) return; finished = true;
-      globalShortcut.unregisterAll(); tray?.destroy();
+      globalShortcut.unregisterAll(); trayController.destroy();
       // Cleanup above replaces renderer beforeunload: an unresponsive renderer
       // must not be asked to approve quitting a second time.
       app.exit(0);
@@ -597,7 +407,7 @@ else {
     const watchdog = setTimeout(finish, 6500);
     shutdownCompanion({
       readRenderer: () => window && !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.isCrashed?.()
-        ? window.webContents.executeJavaScript("window.WhaleStorageSync?.pending() || null") : null,
+        ? window.webContents.executeJavaScript("window.__whaleShutdown?.pendingStorage() || null") : null,
       saveRenderer: patch => uiStore.applyPatch(patch),
       flushState: () => uiStore.flush(),
       closeBridge: () => bridge?.close(),
@@ -610,7 +420,7 @@ else {
 
 function resetPosition() {
   if(quitting||!window||window.isDestroyed())return false;
-  if(rendererReady)window.webContents.send('whale-command','reset-position');
+  if(renderer.ready)window.webContents.send('whale-command','reset-position');
   else if(!pendingCommands.includes('reset-position'))pendingCommands.push('reset-position');
   return true;
 }
@@ -621,36 +431,4 @@ async function openDiagnosticsFolder() {
     const failure = await shell.openPath(folder);
     return !failure;
   } catch { return false; }
-}
-function recoverRenderer(reason) {
-  diagnose(reason);
-  if (quitting || recoveryTimer || recoveryAttempts >= 3 || !window || window.isDestroyed()) return;
-  recoveryAttempts++;
-  recoveryTimer = setTimeout(() => { recoveryTimer = null; if (!quitting && !rendererReady && !window.isDestroyed()) window.webContents.reload(); }, 500 * recoveryAttempts);
-}
-function setMode(mode) {
-  if(quitting || !window || window.isDestroyed())return false;
-  if (!['standalone', 'follow-codex'].includes(mode)) return false;
-  if (desktopMode === mode) { window.webContents.send(modePending ? 'whale-desktop-mode-changing' : 'whale-desktop-mode', mode); return true; }
-  window.webContents.send('whale-desktop-mode-changing', mode);
-  save(path.join(dataDir, 'follow-config.json'), { ...read(path.join(dataDir, 'follow-config.json')), mode }); desktopMode = mode; desktopBoundsApplied = false;
-  appliedBounds = ''; appliedNativeSize = '';
-  if (!isMac && !harness.enabled) {
-    // Native ownership must finish changing before Electron changes geometry.
-    modePending = true; manuallyHidden = false; visibility(); return true;
-  }
-  if (mode === 'standalone') { window.setBounds(screen.getPrimaryDisplay().workArea); window.setAlwaysOnTop(true, 'floating'); }
-  else { window.setAlwaysOnTop(isMac, 'floating'); if (lastHost) void setHost({ ...lastHost, serial: undefined }); }
-  window.webContents.send('whale-desktop-mode', mode); show(); updateTray(); return true;
-}
-function updateTray() {
-  if (!tray) return;
-  tray.setToolTip('Codex 小龙娘 · ' + (desktopMode === 'standalone' ? '独立桌面' : '跟随 Codex'));
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示 / 隐藏小龙娘', click: toggle }, { label: '恢复显示小龙娘', click: show }, { label: '移回右下角', click: () => resetPosition() },
-    { label: desktopMode === 'standalone' ? '跟随 Codex' : '常驻桌面', click: () => setMode(desktopMode === 'standalone' ? 'follow-codex' : 'standalone') },
-    { label: '刷新余额', click: () => sendCommand('balance') }, { label: '查看用量记录', click: () => sendCommand('usage') },
-    { label: '小龙娘设置…', click: () => openSettingsWindow() }, { label: '查看运行状态', click: showStatusDialog },
-    { type: 'separator' }, { label: desktopMode === 'standalone' ? '退出（手动启动后恢复）' : '本次退出（下次打开 Codex 恢复）', click: pauseAndQuit }
-  ]));
 }

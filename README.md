@@ -156,6 +156,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\rollback-packa
 
 如需了解更多信息，请参阅 [安全说明](SECURITY.md)。
 
+## 卸载
+
+1. 双击 `launchers/停用自动跟随.cmd`，停止随 Codex 启动的跟随任务。
+2. 从托盘菜单退出小龙娘（或运行 `node scripts/control.mjs stop`），确认没有残留进程。
+3. 删除插件安装目录（默认在 `%USERPROFILE%\.claude\pluginspi-balance-whale`，以你安装时的位置为准）。
+4. 如需彻底清除本地数据，删除 `%USERPROFILE%\.codex\whale-widget\`（包含账本、设置、角色与素材、日志）。
+5. 想保留数据只回退版本时，不要删除第 4 步的目录，按 [发布与回滚](docs/RELEASING.md#回滚) 操作。
+
 ## 故障排查
 
 | 问题 | 解决方法 |
@@ -207,8 +215,10 @@ tests/       单元、界面和桌面测试
 
 - [CLAUDE.md](CLAUDE.md)：架构与开发约定
 - [文档索引](docs/README.md)：全部文档
-- [验证基线](docs/BASELINE.md)：当前验证状态
-- [功能对照](docs/ORIGINAL-FEATURE-AUDIT.md)：与原版的逐项对照
+- [架构](docs/ARCHITECTURE.md)：进程、依赖规则与状态归属
+- [开发](docs/DEVELOPMENT.md)：环境、测试与调试入口
+- [发布](docs/RELEASING.md)：构建、发布前检查与回滚
+- [功能对照](docs/history/ORIGINAL-FEATURE-AUDIT.md)：与原版的逐项对照（历史）
 
 ## 致谢与许可
 

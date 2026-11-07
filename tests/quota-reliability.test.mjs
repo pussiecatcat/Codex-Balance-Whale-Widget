@@ -224,7 +224,7 @@ function frontend() {
     advance: ms => { now += ms; }, fail: flag => { failing = flag; }, setResponse: data => { response = data; } };
 }
 test('frontend prewarms while closed, retries failures, retains marked data, and clears on logout', async () => {
-  const ui = frontend(); ui.listeners['whale-account-view']({ detail: { mode: 'subscription' } }); await tick();
+  const ui = frontend(); ui.api.setSubscriptionMode('subscription'); await tick();
   assert.ok(ui.requests.includes('/api/quota?refresh=1'));
   ui.advance(31000); for (const timer of ui.intervals.values()) timer.fn(); await tick();
   assert.equal(ui.requests.filter(url => url.startsWith('/api/quota')).length, 2, 'closed bubbles still prefetch');

@@ -53,20 +53,23 @@ Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），�
 
 改代码不需要通读 `docs/`。要弄清某项行为为什么是这样，查 [`docs/README.md`](docs/README.md) 的分组索引。最常需要的是：
 
-- `docs/V0.3-PLAN-AND-PROVENANCE.md` —— 数据口径的权威定义（订阅额度 / API 余额 / 本机观测 token 的语义与边界）。
-- `docs/DASHBOARD-B.md`、`docs/OUTSIDE-CLICK-DECISION.md` —— 菜单布局与「不做空白点击关闭」的产品决定，动了会踩。
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —— 当前架构的完整规格：进程、依赖规则、状态归属、变更传播、生命周期。
+- `docs/decisions/DATA-SEMANTICS.md` —— 数据口径的权威定义（订阅额度 / API 余额 / 本机观测 token 的语义与边界）。
+- `docs/decisions/COMPACT-MENU.md`、`docs/decisions/OUTSIDE-CLICK.md` —— 菜单布局与「不做空白点击关闭」的产品决定，动了会踩。
 
-`docs/` 里另有 v0.3 的过程记录，属历史，除追溯外不必读。
+`docs/history/` 是整改前的过程记录，属历史，除追溯外不必读。
 
 ## 注意
 
 - **口径必须分开**：ChatGPT 订阅额度、API 余额、本机观测 token 是三个不同来源，代码刻意分开显示。不要把观测值当官方账单，也不要为了显示好看删掉小额精度。
 - **`assets/whale-widget.js` 现在是装配入口，不再是单体**：只占第一方源码的三成；气泡、用量、角色、音效等实现已迁到 `desktop/ui/features/**` 与 `desktop/ui/services/**`。当前行数由 `npm run check:architecture` 的预算管住，不要在这里写快照数字。文件顶部保留分段索引，先 `grep -n "==== \[" assets/whale-widget.js` 取区段行号再定点读。**改某个功能前先确认它是否已经迁出**——留在这里的多半只剩 DOM 装配和兼容适配。
 - **挂件样式在 `desktop/ui/whale-widget.css`**，由 `widget.html` 以 `<link>` 加载。改外观不必碰 whale-widget.js。
-- **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/api-models.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
+- **API 模型模板只有一份**：34 个服务商模板全部定义在 `runtime/api-models.mjs` 的 `API_TEMPLATES`，经 `/api/models` 下发给前端。`desktop/ui/features/widget/api-models/{store,editor}.js` 只渲染后端返回的数据，自身不含模板表 —— 要加服务商，只改后端那个文件。
 - **版本号只有一处真源**：`.codex-plugin/plugin.json` 的 `version`（`基础版本+构建后缀`，安装器比对的就是它）。`runtime/paths.mjs` 从它推导出 `VERSION`，不再自带字面量；`package.json` 仍留一份给 npm，由 `tests/release-version.test.mjs` 断言与真源一致。发版只改 plugin.json 一处，改了 package.json 忘了同步会被测试拦下。
-- **`main.cjs` 里不该再出现测试代码**：夹具分支都在 `desktop/test-harness.cjs`，加新的一条就加到那里。另外 `tests/desktop-mode.test.mjs` 会把 `main.cjs` 的 `setHost` / `setMode` 源码切出来在 vm 沙箱里跑，沙箱里手工列出了主进程的作用域名字（`harness`、`diagnostics`、`normalizeHostState` 等）——**改这两个函数引用到的名字，要同步改那个沙箱**，否则它会以 `ReferenceError` 红掉。
-- **渲染进程的依赖边有门禁，两套规则**：`npm run check:architecture` 拦下三件事——已迁出模块新增或加量的 `window.Whale*` 访问、跨功能导入（`features/a` 引 `features/b`）、绕过 `desktop/ui/services/request.js` 的直接 `fetch`，另加「不得新增 `window` 全局名」。存量冻结在 `scripts/refactor-metrics.mjs` 的 `MODULE_GLOBAL_READS`、`MODULE_DIRECT_REQUESTS` 和 `GLOBAL_SURFACE`（当前 11 个名字），只减不增；preload 契约 `window.whaleDesktop` 按设计放行。`assets/whale-widget.js` 与 `desktop/ui/*.js` 这些**还没拆分的文件不适用「按模块计数」**——它们各是一个文件，所以另由 `LEGACY_DIRECT_FETCH_BUDGET`（当前 29）一个总上限管住，随迁移推进逐格下降。功能迁走后要顺手删掉基线里对应的条目，否则它会在 `--json` 输出里一直报成 stale。
+- **`main.cjs` 里不该再出现测试代码**：夹具分支都在 `desktop/test-harness.cjs`，加新的一条就加到那里。`setHost` / `setMode` 在 `desktop/mode-controller.cjs`，测试直接注入桩；`main.cjs` 有 450 行上限，新职责放进 `desktop/*.cjs` 的小模块。
+- **渲染进程只有一个入口**：挂件是 `assets/whale-widget.js`，设置窗口是 `desktop/ui/settings.js`。加模块只需被入口 import；静态解析器会服务它。**不要发布业务全局名**（当前只剩 `WhaleBubbleShape` 与 `whaleToast`），**不要发跨功能 `window` 事件**。
+- **`localStorage` 只走 `services/ui-state.js`**，网络请求只走 `services/request.js`，设置写入只走 `SettingsStore` / `settings-client`。
+- **渲染进程的依赖边有门禁，两套规则**：`npm run check:architecture` 拦下三件事——已迁出模块新增或加量的 `window.Whale*` 访问、跨功能导入（`features/a` 引 `features/b`）、绕过 `desktop/ui/services/request.js` 的直接 `fetch`，另加「不得新增 `window` 全局名」。存量冻结在 `scripts/refactor-metrics.mjs` 的 `MODULE_GLOBAL_READS`、`MODULE_DIRECT_REQUESTS` 和 `GLOBAL_SURFACE`（当前 2 个名字），只减不增；preload 契约 `window.whaleDesktop` 按设计放行。`assets/whale-widget.js` 与设置窗口入口各是一个文件，不适用「按模块计数」，所以另由 `LEGACY_DIRECT_FETCH_BUDGET`（当前 0）一个总上限管住。功能迁走后要顺手删掉基线里对应的条目，否则它会在 `--json` 输出里一直报成 stale。
 - **隐私**：API 密钥、提供商名称、账号、本机路径、会话日志不得出现在公开仓库、UI 或日志里。
 - **新增根目录文件必须同步加进 `scripts/build-release.py` 的 `root_files`**，否则 `python scripts/build-release.py` 会以 `Unexpected file: <名字>` 断言失败。`.github/workflows/verify.yml` 会在 push/PR 上跑这道检查，所以忘了登记会在 CI 上直接红，不必等到打包。
 - `vendor/`（smol-toml，运行时依赖，进发布包）与 `archive/`（0.2.x 归档，不进发布包）是第三方或历史产物，一般不动。历史发布包只放 Release 页，已不再提交进仓库（`.gitignore` 含 `/packages/`）。

@@ -110,7 +110,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='新建音效组').click()");
     await wait("[...document.querySelectorAll('.dshwv-audiomask')].some(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组')", 'sound panel opens the functional audio-group editor');
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-audiomask')].filter(m=>m.style.display==='flex').map(m=>m.querySelector('.dshwv-audiotitle')?.textContent).includes('新建音效组')"), true);
-    await ev("[...document.querySelectorAll('.dshwv-audiomask')].find(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组').querySelector('.dshwv-cropbtn-no').click(); WhaleAccountView.setMode('subscription')"); await delay(100);
+    await ev("[...document.querySelectorAll('.dshwv-audiomask')].find(m=>m.style.display==='flex'&&m.querySelector('.dshwv-audiotitle')?.textContent==='新建音效组').querySelector('.dshwv-cropbtn-no').click(); __whaleAccount.setMode('subscription')"); await delay(100);
     assert.equal(await ev("[...document.querySelectorAll('.dshwv-menu button')].some(b=>b.textContent==='会员额度详情')"), false);
     await ev("[...document.querySelectorAll('.whale-sound-card button')].find(b=>b.textContent==='取消')?.click()");
     await ev(`(async()=>{const original=window.fetch;window.__quotaFetches=[];window.fetch=async input=>{
@@ -199,7 +199,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
       app.quit(); return;
     }
     await ev("window.__whaleRenderTest.close()"); await delay(320);
-    await ev("WhaleAccountView.setMode('api')");
+    await ev("__whaleAccount.setMode('api')");
     await ev("window.dispatchEvent(new CustomEvent('whale-open-editor',{detail:{editor:'workshop'}}))"); await delay(100);
     fs.writeFileSync(path.join(output, 'workshop-v3.png'), (await window.webContents.capturePage()).toPNG());
     await ev("document.querySelector('.whale-v3-dialog[open]').close(); (()=>{const s=document.getElementById('dshw-desktop-display');s.value='standalone';s.dispatchEvent(new Event('change'));})()"); await delay(150);
@@ -219,13 +219,13 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.equal(window.getBounds().width, dip.width);
     checks.push('real Electron commands switch to desktop, survive absent host and return to the follow viewport');
     const savedConfig=fs.readFileSync(path.join(dataDir,'fixture-codex','config.toml'),'utf8');
-    assert.equal(await ev("WhaleAccountView.setMode('subscription')"),true);
-    assert.equal(await ev("WhaleAccountView.mode"),'subscription');
-    await ev("WhaleAccountView.toggleBubble(document.querySelector('.dshwv-root'))");
+    assert.equal(await ev("__whaleAccount.setMode('subscription')"),true);
+    assert.equal(await ev("__whaleAccount.mode"),'subscription');
+    await ev("__whaleAccount.toggleBubble(document.querySelector('.dshwv-root'))");
     await wait("document.querySelector('.whale-account-card')?.textContent.includes('本机近 7 天')",'subscription card uses real insights route');
     assert.equal(await ev("document.querySelector('.whale-account-card').textContent.includes('不能用百分比换算剩余 token')"),true);
     fs.writeFileSync(path.join(output,'subscription-mode.png'),(await window.webContents.capturePage()).toPNG());
-    assert.equal(await ev("WhaleAccountView.setMode('api')"),true);
+    assert.equal(await ev("__whaleAccount.setMode('api')"),true);
     assert.equal(await ev("!!document.querySelector('.whale-account-card')"),false);
     assert.equal(fs.readFileSync(path.join(dataDir,'fixture-codex','config.toml'),'utf8'),savedConfig);
     await ev("document.querySelector('.dshwv-menu-btn').click(); const r=document.createRange();r.selectNodeContents(document.querySelector('.dshwv-menu'));getSelection().addRange(r); window.dispatchEvent(new Event('whale-mode-changing'));");
@@ -265,10 +265,10 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     await ev("document.querySelector('.dshwv-menu-btn').click()"); await delay(200);
     fs.writeFileSync(path.join(output,'control-panel.png'),(await window.webContents.capturePage()).toPNG());
     await ev("(()=>{const e=document.querySelector('.whale-account-switch select');e.value='subscription';e.dispatchEvent(new Event('change'));})()");
-    await wait("WhaleAccountView.mode==='subscription'",'subscription switch works through its actual selector');
+    await wait("__whaleAccount.mode==='subscription'",'subscription switch works through its actual selector');
     assert.equal(await ev("!!document.querySelector('.dshwv-menu-open')"),true,'display switch does not close the menu');
     await ev("(()=>{const e=document.querySelector('.whale-account-switch select');e.value='api';e.dispatchEvent(new Event('change'));})()");
-    await wait("WhaleAccountView.mode==='api'",'API switch works');
+    await wait("__whaleAccount.mode==='api'",'API switch works');
     assert.equal(await ev("!!document.querySelector('.dshwv-menu-open')"),true,'return to API keeps the same menu open');
     await ev("window.__shapeResizeStyle=document.createElement('style');__shapeResizeStyle.textContent='html.desktop .dshwv-menu{width:270px!important}';document.head.append(__shapeResizeStyle)");
     await wait("(()=>{const m=document.querySelector('.dshwv-menu').getBoundingClientRect();return __whaleShapeTest.status().rectangles.some(r=>r.x<=m.left&&r.y<=m.top&&r.x+r.width>=m.right&&r.y+r.height>=m.bottom)})()",'CSS-only layout changes update full native menu region');
@@ -339,7 +339,7 @@ export async function verifyDesktop({ app, window, screen, setHost, setTestCurso
     assert.ok(smallMenu.open && smallMenu.menu.left >= 0 && smallMenu.menu.top >= 0 && smallMenu.menu.right <= smallMenu.width + 1 && smallMenu.menu.bottom <= smallMenu.height + 1 && smallMenu.last && smallMenu.last.bottom <= smallMenu.menu.bottom + 1,
       'small viewport keeps the compact menu bounded and its final control reachable: ' + JSON.stringify(smallMenu));
     await setHost({hostAlive:true,hostPid:123456,window:'0',visible:true,attached:true,bounds:screen.dipToScreenRect(null,dip)});
-    await ev("WhaleAccountView.setMode('api')");
+    await ev("__whaleAccount.setMode('api')");
     checks.push('compact original-style menu retains the complete settings inventory and remains scrollable at 360x320');
     await ev("if(document.querySelector('.dshwv-menu-open'))document.querySelector('.dshwv-menu-btn').click()");
     checks.push('mode switch and details entry are discoverable; four corner menus fit and dialogs have no dimming backdrop');

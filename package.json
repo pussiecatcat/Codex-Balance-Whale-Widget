@@ -25,7 +25,7 @@
     "install:mac": "node scripts/install-macos.mjs",
     "uninstall:mac": "node scripts/uninstall-macos.mjs",
     "probe:mac": "node scripts/probe-macos.mjs",
-    "test:ui": "node --test tests/menu-layout.test.mjs tests/audio-crop-editor.test.mjs tests/sound-settings-ui.test.mjs tests/sound-settings-view.test.mjs tests/bubble-editor-view.test.mjs"
+    "test:ui": "node --test tests/menu-layout.test.mjs tests/audio-crop-editor.test.mjs tests/sound-settings-ui.test.mjs tests/sound-settings-view.test.mjs tests/bubble-editor-view.test.mjs tests/usage-navigation.test.mjs tests/account-view.test.mjs tests/wait-notice.test.mjs tests/ui-state.test.mjs tests/surface-lifecycle.test.mjs"
   },
   "devDependencies": {
     "eslint": "10.14.0",

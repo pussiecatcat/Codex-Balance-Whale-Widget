@@ -7,7 +7,7 @@ export function savedAnchor({ state, viewport, width, height, rightGap = 0 }) {
     vAnchor: top <= bottom ? 'top' : 'bottom', vDist: Math.max(0, Math.round(Math.min(top, bottom))) };
 }
 
-export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, localStorage, settingsClient,
+export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, uiState, settingsClient,
   getState, getAccountView, setNativeCurrency, onBalance, checkAlerts, requireSaved,
   onError, getSizeSettings, getPosition, timeoutMs = 25000 }) {
   let busy = false;
@@ -88,7 +88,7 @@ export function createConfigSync({ requestJson, settingsUrl, balanceUrl, root, l
         .then(result => { requireSaved(result); return result; })
         .catch(error => { onError(error); return null; })
       : updateSoundSettings(current => ({ size: { ...current.size, ...size }, usage: current.usage }));
-    try { localStorage.setItem('dshw-pos', JSON.stringify(savedAnchor(getPosition()))); }
+    try { uiState.set('dshw-pos', JSON.stringify(savedAnchor(getPosition()))); }
     catch (error) { onError(error); }
     return operation;
   }

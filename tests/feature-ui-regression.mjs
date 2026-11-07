@@ -46,7 +46,7 @@ export async function verifyFeatureUI({window,ev,wait,dispatcher,output}) {
   assert.doesNotMatch(await ev("window.__dshwRemindMask.querySelector('.dshwv-bubprev').innerText"),/\{api_/);
   await ev("window.__dshwRemindMask.querySelector('.dshwv-bubbtn-ok').click()");
   await wait("!window.__dshwRemindMask?.isConnected",'per-model reminder save');
-  await wait(`WhaleApiModels.load(true).then(data=>data.models.find(model=>model.id===${JSON.stringify(model.id)})?.bubbleSettings?.balance?.lines?.length===2)`,'per-model modules persisted');
+  await wait(`__whaleApiModels.load(true).then(data=>data.models.find(model=>model.id===${JSON.stringify(model.id)})?.bubbleSettings?.balance?.lines?.length===2)`,'per-model modules persisted');
   checks.push('each API model has reusable modular reminder layouts with resolved previews');
   await ev(`window.__whaleRenderTest.queue([{kind:'custom',modules:[{type:'quota',apiModelId:${JSON.stringify(model.id)},quotaKey:'primary',tpl:'{api_name} {quota_left_round} · {quota_reset_short}',size:4}]}]);window.__whaleRenderTest.open();`);
   await wait("document.querySelector('.dshwv-pop').innerText.includes('75%')",'custom API quota binding');

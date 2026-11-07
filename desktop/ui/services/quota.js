@@ -182,14 +182,6 @@ let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker =
   function startTicker() {
     if (!ticker && !stopped) ticker = setTimerInterval(() => { paint(); if (active || bindings.size) refresh(); }, 1000);
   }
-  win.addEventListener('whale-account-view', event => {
-    revision++; pending?.abort.abort(); pending = null; fetchedAt = 0; failures = 0; syncing = false;
-    active = event.detail?.mode === 'subscription'; subscription = null;
-    for (const timer of settledTimers) clearTimer(timer);
-    settledTimers = [];
-    if (active) { startTicker(); refresh(true); }
-    else { clearTimerInterval(ticker); ticker = null; paint(); }
-  });
   win.addEventListener('online', () => { if (active) refresh(true); });
   win.addEventListener('focus', () => { if (active) refresh(); });
   win.addEventListener('pagehide', () => {
@@ -207,7 +199,15 @@ let subscription = null, pricing = null, fetchedAt = 0, pending = null, ticker =
     return 'Codex 额度' + (at ? ' · ' + at + ' 更新' : '');
   }
   
-  return { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, text: (module, at = nowFn()) => moduleText(module, subscription, pricing, at) };
+  function setSubscriptionMode(mode) {
+    revision++; pending?.abort.abort(); pending = null; fetchedAt = 0; failures = 0; syncing = false;
+    active = mode === 'subscription'; subscription = null;
+    for (const timer of settledTimers) clearTimer(timer);
+    settledTimers = [];
+    if (active) { startTicker(); refresh(true); }
+    else { clearTimerInterval(ticker); ticker = null; paint(); }
+  }
+  return { bind, clearBindings, refresh, settled, countdown, countdownShort, resetAt, snapshotAt, quotaBar, sourceLine, setSubscriptionMode, text: (module, at = nowFn()) => moduleText(module, subscription, pricing, at) };
 }
 
 export const WhaleQuota = typeof window !== 'undefined' ? createQuotaRuntime() : null;

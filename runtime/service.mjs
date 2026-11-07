@@ -187,6 +187,7 @@ export class WhaleService {
   cancelOutcomeNotice(...args) { return this.noticePublisher.cancelOutcomeNotice(...args); }
   queueNotice(...args) { return this.noticePublisher.queueNotice(...args); }
   publishNotice(...args) { return this.noticePublisher.publishNotice(...args); }
+  subscribeNotices(...args) { return this.noticePublisher.subscribe(...args); }
   close(options) {
     this.balanceQuery.close();
     this.noticePublisher.close();

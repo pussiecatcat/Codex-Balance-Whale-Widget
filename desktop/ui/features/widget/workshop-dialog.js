@@ -1,0 +1,65 @@
+import { requestJson } from '../../services/request.js';
+
+const LIMIT = 24 * 1024 * 1024;
+
+// The workshop dialog imports and exports the local material pack. It used to
+// publish `window.WhaleWorkshopOpen`; the composition root now owns the instance.
+export function createWorkshopDialog({ document: doc, window: win, request = requestJson }) {
+  function element(tag, text) { const el = doc.createElement(tag); if (text) el.textContent = text; return el; }
+  function open() {
+    const dialog = doc.createElement('dialog'); dialog.className = 'whale-v3-dialog';
+    dialog.append(element('h2', '素材包导入/导出'), element('p', '备份或分享你导入的角色、气泡图片和音效，也可以导入别人分享的小鲸鱼素材包。全部操作只在本机完成。'));
+    const steps = element('ol');
+    for (const line of ['制作自己的包：先在菜单的角色、音效或资源管理中导入素材，再点“导出本地素材”。', '使用分享包：选择别人导出的 whale-workshop.json，确认下方清单，再点“导入所选包”。', '导入完成后点“重新加载素材列表”，到菜单的角色/音效下拉或自定义气泡图库中选择。导入不会自动替换正在使用的角色。']) steps.append(element('li', line));
+    dialog.append(steps, element('p', '仅支持小鲸鱼工坊 JSON 包（最大 24 MiB），不是 DSH 插件 ZIP 或安装程序。不会导入 API 配置、账本或聊天；重名素材使用新编号保存。'));
+    const preview = element('div'); preview.className = 'workshop-preview'; dialog.append(preview);
+    const status = element('p'); status.setAttribute('role', 'status');
+    const file = doc.createElement('input'); file.type = 'file'; file.accept = '.json,application/json'; file.setAttribute('aria-label', '选择工坊 JSON 包');
+    const importButton = element('button', '导入所选包'); importButton.disabled = true; let selected;
+    file.onchange = async () => {
+      selected = null; importButton.disabled = true;
+      const candidate = file.files?.[0]; if (!candidate) return;
+      if (candidate.size > LIMIT) { status.textContent = '包超过 24 MiB，请缩减素材后重试。'; return; }
+      try {
+        const parsed = JSON.parse(await candidate.text());
+        if (parsed.schema !== 'api-balance-whale-workshop' || parsed.version !== 1) throw Error('不是支持的工坊包');
+        selected = parsed; preview.replaceChildren();
+        status.textContent = ['roles', 'images', 'fragments', 'groups'].map((key, index) => ['角色', '图片', '音频片段', '音效组'][index] + ' ' + (Array.isArray(parsed[key]) ? parsed[key].length : 0)).join(' · ');
+        for (const [kind, label] of [['roles', '角色'], ['images', '气泡图'], ['fragments', '音频'], ['groups', '音效组']]) {
+          for (const item of (Array.isArray(parsed[kind]) ? parsed[kind] : []).slice(0, 30)) preview.append(element('p', label + '：' + String(item.name || '未命名').slice(0, 100)));
+        }
+        importButton.disabled = false;
+      } catch { status.textContent = '包格式无法识别，请选择有效的工坊 JSON。'; preview.replaceChildren(); }
+    };
+    importButton.onclick = async () => {
+      if (!selected) return;
+      importButton.disabled = true;
+      try {
+        await request('/api/workshop/import', { method: 'POST', body: selected });
+        status.textContent = '导入完成。重新加载后可在角色、音效与气泡素材列表中选择。';
+        selected = null; file.value = ''; reload.hidden = false;
+      } catch (error) { status.textContent = error.message; importButton.disabled = false; }
+    };
+    const exportButton = element('button', '导出本地素材');
+    exportButton.onclick = async () => {
+      exportButton.disabled = true;
+      try {
+        const pack = await request('/api/workshop/export');
+        const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+        if (blob.size > LIMIT) throw Error('导出包超过 24 MiB，请先减少素材。');
+        const url = URL.createObjectURL(blob), link = element('a');
+        link.href = url; link.download = 'whale-workshop.json'; doc.body.append(link); link.click(); link.remove();
+        win.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.textContent = '已生成素材包。';
+      } catch (error) { status.textContent = error.message; }
+      finally { exportButton.disabled = false; }
+    };
+    const reload = element('button', '重新加载素材列表'); reload.hidden = true; reload.onclick = () => win.location.reload();
+    const close = element('button', '关闭'); close.onclick = () => dialog.close();
+    const actions = element('div'); actions.className = 'dialog-actions';
+    actions.append(exportButton, importButton, reload, close); dialog.append(file, status, actions);
+    dialog.onclose = () => dialog.remove();
+    doc.body.append(dialog); dialog.showModal();
+  }
+  return { open };
+}
