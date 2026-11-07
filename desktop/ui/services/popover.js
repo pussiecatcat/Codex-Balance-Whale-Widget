@@ -1,5 +1,5 @@
 // One manager for the widget's own dropdowns and help popovers. This is not the
-// global blank-space close that docs/OUTSIDE-CLICK-DECISION.md rejects: the menu
+// global blank-space close that docs/decisions/OUTSIDE-CLICK.md rejects: the menu
 // and the bubble keep their current boundaries.
 export function createPopoverManager({ document, scope }) {
   const stack = [];

@@ -1,4 +1,4 @@
-> 历史上游说明：以下记录原框架，不是当前 Codex 适配的安装或费用说明。旧安装命令、峰谷功能及“精确 usage”等描述不适用于当前版本；请以[当前 README](../README.md)为准。
+> 历史上游说明：以下记录原框架，不是当前 Codex 适配的安装或费用说明。旧安装命令、峰谷功能及“精确 usage”等描述不适用于当前版本；请以[当前 README](../../README.md)为准。
 
 # DSH 小鲸鱼余额挂件（DeepSeek Balance Whale Widget）
 

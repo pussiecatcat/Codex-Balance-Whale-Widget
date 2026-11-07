@@ -456,7 +456,7 @@
 
 - **用途**：在挂件里集中调整提问、授权、每轮消耗和任务结束提示。
 - **类型**：action
-- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/sound-settings/controller.js#startSoundSettings`）
+- **默认值**：无单一默认值，见下方说明（来源 `desktop/ui/features/sound-settings/controller.js#createSoundSettingsController`）
 - **存储**：`（即时操作，不落配置）` 的 `—`
 - **读取**：`GET /api/sound-settings`
 - **修改**：`面板内保存`
@@ -1554,3 +1554,32 @@ console.log({ settings: info.settings, configured: info.configured });
 - [ ] UI 配置 ID、说明、文档覆盖对应检查和语义抽查。
 
 完成这些项后，才能将本文状态改为“完整操作手册，已验证”。
+
+## 13. 存储归属
+
+每个持久化文件只有一个写入者；渲染进程不直接写这些文件。
+
+| 文件 | 唯一写入者 | 读取方 |
+|---|---|---|
+| `.dshw-size.json` / `.dshw-usage.json` | `SettingsStore`（size/usage 域，经 SoundSettingsService 事务） | 挂件、设置窗口 |
+| `display-mode.json` | `SettingsStore`（displayMode 域）或 `/api/display-mode` 路由 | 挂件、`/api/config` |
+| `ui-state.json` | `UiStateStore`（渲染进程经 `services/ui-state.js` 推送） | 挂件、设置窗口 ui 域 |
+| `providers.json` | `ProviderStore` | `/api/models`、`/api/config` |
+| `.dshw-bubble.json` | `lib/resources/bubble-config.mjs` | 挂件 |
+| `whale-roles/`、`whale-*` 素材 | `lib/resources/*` | 挂件 |
+| 账本与会话统计 | `WhaleService` | `/api/usage-records`、`/api/insights` |
+
+## 14. 生效方式
+
+| 方式 | 范围 |
+|---|---|
+| 即时 | ui 键值（位置/角色/手感）、气泡形状、音效预览 |
+| 保存后 | size/usage/displayMode/api 域：写入成功即广播 `whale-settings-changed`，两个窗口同时更新 |
+| 重启 | 安装目录、服务启动参数、Chromium 开关、供应商密钥环境变量 |
+
+## 15. 迁移规则
+
+- 旧 `api-settings.json` / `api-models.json` 首次写入合并进 `providers.json`，并留 `providers.legacy-backup.json`；`npm run restore-providers` 从备份恢复。
+- 气泡 schema 1 由 `shared/bubble-config/migrate.js` 迁移，迁移前复制 `.dshw-bubble.schema1-backup.json`。
+- 旧 web localStorage 由 `desktop/legacy-storage-import.cjs` 一次导入，marker 为 `legacy-storage-imported.json`；失败也记录 marker，不阻塞启动。
+- 旧音效引用 `grp:` / `frag:` / `preset:` 由 `services/sound-reference.js` 解析；键名与字符串编码保持不变。
