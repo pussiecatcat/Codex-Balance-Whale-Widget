@@ -1,8 +1,17 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-36`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261107-ui-37`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
+
+## 2026-11-07 架构整改收尾
+
+- T31/T32：账户视图、API 模型、工坊、下拉增强、窗口形状和指针输入都改为工厂；音效面板与等待提示直接注入依赖，两个旧适配器和两个经典入口脚本删除。全局名从 13 个降到 2 个（`WhaleBubbleShape`、`whaleToast`）。
+- T43：新增 `services/ui-state.js`，所有挂件本地键值只有一个读写入口；删除 800 ms 全量差分轮询，远端变更走设置变更总线，退出时保留 `__whaleShutdown.pendingStorage()` 契约。
+- T50：`desktop/main.cjs` 从 656 行降到 450 行以内，模式控制、设置窗口、设置域、旧存储导入、托盘、应用动作、渲染恢复、Chromium 开关和快捷键拆成可测试模块；三个源码切片测试改为注入桩。
+- T60：任务完成与等待提示改为运行时推送；启动各取一次快照后不再轮询 `last-turn.json` / `wait.json`。
+- T70：删除无引用样式，全局表单规则收进 `dialog`，静态颜色/字号改用 class；新增静态样式门禁。
+- T80/T90：测试迁移收尾（vm 仅保留两处确实需要沙箱的用例），新增 `docs/ARCHITECTURE.md`、`docs/DEVELOPMENT.md`、`docs/RELEASING.md`，产品决定与历史文档分组。
 
 ## 2026-11-06 架构整改第二段
 

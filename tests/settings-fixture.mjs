@@ -278,7 +278,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
       }
     };
     check(await wEv('typeof window.whaleDesktop.onSettingsChanged === "function"'), '挂件 preload 暴露 onSettingsChanged');
-    check(await wEv('typeof __whaleSettingsTest.catalog.byId.get("size.scale") === "object"'), '设置目录可用');
+    check(await ev('typeof __whaleSettingsTest.catalog.byId.get("size.scale") === "object"'), '设置目录可用');
     check(await wEv('!!document.querySelector(".dshwv-bshape")'), '挂件渲染了气泡外形路径');
 
     await ev('__whaleSettingsTest.go("bubble")');
