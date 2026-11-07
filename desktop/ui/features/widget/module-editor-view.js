@@ -31,9 +31,7 @@ export function createModuleEditorView({
         inp.style.border = '1px solid rgba(32,49,112,.4)';
         inp.style.borderRadius = '6px';
         inp.style.padding = '3px 6px';
-        inp.style.fontSize = '12px';
-        inp.style.color = '#203170';
-        inp.style.background = '#fff';
+        inp.className += ' dshwv-form-inline';
         inp.value = m.tpl || '';
         function hintOf() {
           if (m.type === 'balance') return '例: {balance_api}';

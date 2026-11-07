@@ -75,8 +75,7 @@ export function createReminderEditor(deps) {
         condBox.style.alignItems = 'center';
         condBox.style.gap = '6px 14px';
         condBox.style.textAlign = 'left';
-        condBox.style.fontSize = '12px';
-        condBox.style.color = '#203170';
+        condBox.className += ' dshwv-form-inline';
         function segCond() {
           var s = document.createElement('span');
           s.style.display = 'inline-flex';
@@ -124,8 +123,7 @@ export function createReminderEditor(deps) {
         var gSec = segCond();
         gSec.appendChild(secInp);
         var lSec = qLabel('秒(0=不自动关闭)');
-        lSec.style.opacity = '.75';
-        lSec.style.fontSize = '11px';
+        lSec.className += ' dshwv-hint-dim';
         gSec.appendChild(lSec);
         condBox.appendChild(gSec);
         card.appendChild(condBox);

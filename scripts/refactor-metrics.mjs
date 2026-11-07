@@ -475,6 +475,8 @@ export function collectRefactorMetrics({ root = ROOT } = {}) {
       },
       combinedEndpointReferences: combinedEndpoint,
     },
+    staticStyleWrites: [...new Set(listJavaScript(root, 'desktop/ui/features'))].flatMap(relative => findings(relative, read(root, relative), 'static-style-write', [/\.style\.(?:color|background|backgroundColor|fontSize)\s*=\s*'[#\d]/g])),
+    displayStyleWrites: [...new Set(listJavaScript(root, 'desktop/ui/features'))].flatMap(relative => findings(relative, read(root, relative), 'display-style-write', [/\.style\.display\s*=\s*'/g])),
     dependency: collectDependencyMetrics({ root }),
     emptyCatch: emptyCatchMetrics(root),
     cssHex: cssHexMetrics(root),
@@ -494,6 +496,8 @@ export function refactorBoundaryErrors(metrics) {
   if (metrics.current.classicScriptTags > 15) errors.push(`Classic script tags must stay within the phase-4 maintenance cap of 15 (found ${metrics.current.classicScriptTags}).`);
   if (metrics.current.sourceSliceTestFileCount > 0) errors.push(`Source-slicing test files must stay at 0 (found ${metrics.current.sourceSliceTestFileCount}).`);
   if (metrics.current.mainCjsLines > 450) errors.push(`desktop/main.cjs must stay within the phase-5 cap of 450 lines (found ${metrics.current.mainCjsLines}).`);
+  if (metrics.staticStyleWrites.length) errors.push('Static color/background/fontSize writes must use a class: ' + metrics.staticStyleWrites.map(item => `${item.file}:${item.line}`).join(', '));
+  if (metrics.displayStyleWrites.length > 80) errors.push(`Literal display toggles must not grow past the frozen 80 (found ${metrics.displayStyleWrites.length}).`);
   errors.push(...dependencyErrors(metrics.dependency));
   if (metrics.emptyCatch.total > EMPTY_CATCH_BUDGET.total) {
     const perFile = Object.entries(metrics.emptyCatch.byFile).sort((a, b) => b[1] - a[1])
