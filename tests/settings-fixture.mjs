@@ -334,7 +334,7 @@ export async function verifySettingsWindow({ window, settingsWindow, openSetting
     check(await menuEv('!!document.getElementById("dshw-desktop-display")'), '显示方式有跟随/常驻切换');
     check(await menuEv('!!document.querySelector("[data-action=open-sound-settings]")'), '音效与提示有独立入口');
     check(await menuEv('!document.getElementById("dshw-click-sound") && !document.getElementById("dshw-complete-reminder")'), '详细音效开关与完成提醒由设置窗口管理');
-    const mode = await menuEv('WhaleAccountView.mode');
+    const mode = await menuEv('__whaleAccount.mode');
     const ledger = await menuEv('document.querySelector("[data-menu-id=ledger]")?.textContent || ""');
     check(mode === 'api' ? ledger.includes(LABELS.ledgerMenu) : !ledger, '记账入口仅在 API 模式挂载');
     // 挂件菜单靠真实光标悬停才展开，而测试里光标路由是被桩掉的，

@@ -1,9 +1,9 @@
 // Usage alert templates, interpolation, and presentation own their transient state.
 import { ledgerDayKey } from '../../shared/ledger-day.js';
 export function createUsageAlerts(deps) {
-  const { document, window, WhaleMoney, whaleMoneyTemplates, fmt, bubbleTokenValue,
+  const { document, WhaleMoney, whaleMoneyTemplates, fmt, bubbleTokenValue,
     whaleCurrencySymbol, getUsageSet, getLastTurnNotice, getCurrency,
-    getBubbleNoticeQueue, getAlertTtl, now = Date.now } = deps;
+    getBubbleNoticeQueue, getAlertTtl, getAccountMode = () => null, now = Date.now } = deps;
     var usageAlertBelowFired = false;
     var usageBudgetFiredKey = null;
 
@@ -54,7 +54,7 @@ export function createUsageAlerts(deps) {
     }
     function usageTurnValues(notice) {
       notice = notice || getLastTurnNotice() || ({});
-      var subscription = typeof window !== 'undefined' && window.WhaleAccountView?.mode === 'subscription';
+      var subscription = getAccountMode() === 'subscription';
       var title = subscription ? (notice.failureKind === 'high-demand' ? '本轮未完成' : notice.completionKind === 'cancelled' ? '本轮已取消' : notice.completionKind === 'failed' ? '本轮失败' : '本轮已完成') : (notice.label === '上一轮期间 API 扣费:' ? '本轮 API 消耗' : notice.label || '本轮已观测消耗');
       var cost = notice.amount == null ? (notice.costState === 'pending' ? '待记账' : '金额未知') : fmt(notice.amount, notice.currency || getCurrency());
       var primary = subscription ? (notice.tokens == null ? '用量待更新' : bubbleTokenValue(notice.tokens) + ' tokens') : cost;

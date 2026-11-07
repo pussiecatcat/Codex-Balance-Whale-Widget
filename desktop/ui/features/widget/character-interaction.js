@@ -8,7 +8,7 @@ export function createCharacterInteraction(deps) {
     clickDistanceSq, imageUrl, viewport, rightGap, clampToViewport, artCenterAt, snapZones, restoreAnchor,
     express, settle, saveConfig, refreshFlip, pressDown, pressUp, whaleClick, refresh,
     closeMenu, toggleMenu, closeRolePanel, closeAudioGroupPanel, hideBubble,
-    applyBubbleConfig, positionMenu, isMenuOpen, isMenuButtonHidden, isScrollGapEnabled,
+    applyBubbleConfig, positionMenu, isMenuOpen, isMenuButtonHidden, isScrollGapEnabled, accountView,
   } = deps;
   let drag = null;
 
@@ -172,7 +172,7 @@ export function createCharacterInteraction(deps) {
     endDrag(null, false); closeMenu(); menuHover.reset(); hideBubble(); settle();
     window.getSelection()?.removeAllRanges(); menuHover.setCursor('');
   });
-  window.addEventListener('whale-account-view', () => {
+  accountView?.subscribe(() => {
     hideBubble(); applyBubbleConfig(); refresh(true);
     window.requestAnimationFrame(() => { if (isMenuOpen()) positionMenu(); });
   });

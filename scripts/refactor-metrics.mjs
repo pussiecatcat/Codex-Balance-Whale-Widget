@@ -31,7 +31,6 @@ const SOUND_BOUNDARY_FILES = Object.freeze([
 // A name appearing that is not here is a new compatibility surface, which is
 // exactly what the dependency gate exists to stop.
 export const GLOBAL_SURFACE = Object.freeze([
-  'WhaleAccountView',
   'WhaleApiModels',
   'WhaleBubbleShape',
   'WhaleLegacySoundUi',
@@ -58,8 +57,6 @@ export const MODULE_GLOBAL_READS = Object.freeze({
   'desktop/ui/features/widget/bubble-quick-editors.js': { WhaleApiModels: 2 },
   'desktop/ui/features/widget/bubble-rows-view.js': { WhaleApiModels: 2 },
   'desktop/ui/features/widget/feedback.js': { whaleToast: 1 },
-  'desktop/ui/features/widget/turn-notice-poller.js': { WhaleAccountView: 2 },
-  'desktop/ui/features/widget/usage-alerts.js': { WhaleAccountView: 1 },
   'desktop/ui/features/widget/usage-models-view.js': { WhaleApiModels: 4 },
 });
 

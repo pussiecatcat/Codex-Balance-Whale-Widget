@@ -2,8 +2,8 @@ import DefaultFeedback from './feedback.js';
 import DefaultQuota from '../../services/quota.js';
 // Poll completed turns once, persist the cursor, and deliver fresh notices to the widget.
 export function createTurnNoticePoller(deps) {
-  const { window, localStorage, fetch: fetchImpl, WhaleTurnNotice,
-    WhaleFeedback = DefaultFeedback, WhaleQuota = DefaultQuota,
+  const { localStorage, fetch: fetchImpl, WhaleTurnNotice,
+    WhaleFeedback = DefaultFeedback, WhaleQuota = DefaultQuota, accountView = null,
     getCurrency, setLastTurnNotice, playTaskEndSound, getFeedbackVolume,
     showCostBubble, now = Date.now } = deps;
   const LAST_TURN_URL = '/dsh-whale/last-turn.json';
@@ -45,8 +45,8 @@ export function createTurnNoticePoller(deps) {
         else if ((notice.completionKind === 'cancelled' || notice.failureKind === 'high-demand') && WhaleFeedback) {
           WhaleFeedback?.play(notice.completionKind, '', getFeedbackVolume());
         }
-        if (window.WhaleAccountView?.mode === 'subscription') {
-          window.WhaleAccountView.notice(notice);
+        if (accountView?.mode === 'subscription') {
+          accountView.notice(notice);
           WhaleQuota.settled();
         }
         showCostBubble(notice.amount, notice);

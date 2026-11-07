@@ -1,12 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import vm from 'node:vm';
-import { LABELS } from '../desktop/ui/shared/labels.js';
-import { registerMenuRow } from '../desktop/ui/features/widget/menu-layout.js';
-const source = (await fs.readFile(new URL('../desktop/ui/account-view.js', import.meta.url), 'utf8')).replace(/^import .*$/gm, '');
-const exported = { module: { exports: {} }, requestJson: async () => ({}) }; vm.runInNewContext(source, exported);
-const { windowText, tokenText, noticeText, quotaLabel } = exported.module.exports;
+import { windowText, tokenText, noticeText, quotaLabel, createAccountView } from '../desktop/ui/features/widget/account-view.js';
 
 test('quota periods remain distinct regardless of incoming label',()=>{
   assert.equal(quotaLabel({windowDurationMins:300,label:'primary'}),'5 小时额度');
@@ -27,34 +21,40 @@ test('subscription failure consumption displays tokens without API money or fun 
   assert.equal(noticeText({ completionKind: 'failed', failureKind: 'high-demand' }), '挤不进去...');
   assert.equal(noticeText({ completionKind: 'completed', tokens: 10, amount: 5 }), '本轮本机已观测：10 token');
 });
-function runtime(requestJson) {
-  const storage = new Map(); const events = [];
-  const context = { LABELS, registerMenuRow, document: { documentElement: {dataset:{}}, readyState: 'loading', addEventListener() {}, querySelectorAll(){return []} }, window: { addEventListener() {}, dispatchEvent(e) { events.push(e); } }, localStorage: { getItem(k) { return storage.get(k); }, setItem(k,v) { storage.set(k,v); } }, requestJson, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } };
-  vm.runInNewContext(source, context);
-  return { api: context.window.WhaleAccountView, storage, events, window:context.window };
+function runtime(request) {
+  const storage = new Map(); const modes = []; const toasts = [];
+  const document = { documentElement: { dataset: {} }, readyState: 'loading', addEventListener() {}, querySelectorAll() { return []; } };
+  const window = { addEventListener() {} };
+  const api = createAccountView({
+    document, window, request,
+    storage: { getItem(k) { return storage.get(k); }, setItem(k, v) { storage.set(k, v); } },
+    toast: message => toasts.push(message)
+  });
+  api.subscribe(mode => modes.push(mode));
+  return { api, storage, modes, toasts };
 }
 test('subscription completion and cancellation report tokens without an open card or API money',async()=>{
   const r=runtime(async(_url,options={})=>options.body||{});
-  const messages=[];r.window.whaleToast=message=>messages.push(message);
   await r.api.setMode('api');
-  r.api.notice({completionKind:'success',tokens:12,amount:100});assert.equal(messages.length,0);
+  r.api.notice({completionKind:'success',tokens:12,amount:100});assert.equal(r.toasts.length,0);
   await r.api.setMode('subscription');
   r.api.notice({completionKind:'success',tokens:12480,amount:100,currency:'USD'});
   r.api.notice({completionKind:'cancelled',tokens:12,amount:10});
   r.api.notice({completionKind:'success',tokens:12,notify:false});
+  const messages = r.toasts;
   assert.equal(messages.length,2);assert.match(messages[0],/12,480 token/);assert.match(messages[1],/12 token/);
   assert.ok(messages.every(m=>!/[\$¥]|USD|API/.test(m)));
 });
 test('a rejected save preserves mode and does not emit false switch events', async () => {
-  for (const requestJson of [async () => ({ ok: false }), async () => ({ mode: 'subscription' }), async () => { throw Error('offline'); }]) {
-    const { api, storage, events } = runtime(requestJson);
+  for (const request of [async () => ({ ok: false }), async () => ({ mode: 'subscription' }), async () => { throw Error('offline'); }]) {
+    const { api, storage, modes } = runtime(request);
     assert.equal(await api.setMode('api'), false);
-    assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0); assert.equal(events.length, 0);
+    assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0); assert.equal(modes.length, 0);
   }
 });
 test('successful switches persist display mode only after server acknowledgement', async () => {
   let resolve; let request;
-  const { api, storage, events } = runtime((url, options) => { request = { url, options }; return new Promise(r => { resolve = r; }); });
+  const { api, storage, modes } = runtime((url, options) => { request = { url, options }; return new Promise(r => { resolve = r; }); });
   const pending = api.setMode('api');
   assert.equal(api.mode, 'subscription'); assert.equal(storage.size, 0);
   assert.equal(await api.setMode('subscription'), false);
@@ -62,5 +62,5 @@ test('successful switches persist display mode only after server acknowledgement
   assert.equal(await pending, true); assert.equal(api.mode, 'api');
   assert.equal(storage.get('dshw-account-view'), 'api');
   assert.equal(request.url, '/api/display-mode'); assert.equal(request.options.body.mode, 'api');
-  assert.equal(events[0].type, 'whale-account-view'); assert.equal(events[0].detail.mode, 'api');
+  assert.equal(modes[0], 'api');
 });
