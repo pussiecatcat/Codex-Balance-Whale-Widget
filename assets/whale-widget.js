@@ -14,12 +14,9 @@ import { openOver } from '/services/layers.js';
 import { bindAudioImport } from '/features/widget/audio-import.js';
 import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
-import '/money.js';
-import '/quota.js';
 import '/account-view.js';
 import '/workshop.js';
 import WhaleMediaGuard from '/services/media-guard.js';
-import '/audio-engine.js';
 import '/api-models.js';
 import { requestJson } from '/services/request.js';
 import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
@@ -29,7 +26,7 @@ import { createRoleManager } from '/features/widget/role-manager.js';
 
 window.whaleToast = createToast({ document: document });
 createAudioEngine({ window: window, document: document });
-if (window.whaleDesktop?.testMode) { window.WhaleRendering = WhaleRendering; window.WhaleMoney = WhaleMoney; }
+if (window.whaleDesktop?.testMode) { Object.assign(window, { WhaleRendering, WhaleMoney, WhaleQuota, WhaleFeedback, WhaleMediaGuard }); }
 
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';

@@ -1,6 +1,6 @@
 # Codex 小龙娘 v0.3.0 评审整改
 
-**构建 `0.3.0+codex.20261106-ui-34`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
+**构建 `0.3.0+codex.20261106-ui-35`。** 项目保留 [MeteorNOX](https://github.com/MeteorNOX) 上游来源、[Yang-huai406](https://github.com/Yang-huai406) 的 Codex 适配历史及 macOS 贡献者署名。
 
 本次更新围绕气泡显示、设置体验与若干稳定性问题展开。
 
@@ -8,6 +8,7 @@
 
 - T23：`lib/widget-host.mjs` 从 934 行拆成只做装配的入口和 `lib/resources/` 下的 roles、audio、bubble-images、bubble-config、static-media、records；每个资源模块自己管理路径、校验和持久化。
 - T31（第一批）：`turn-notice`、`media-guard`、`gesture`、`rendering`、`audio-engine`、`feedback`、`money`、`quota` 改为 ES module 导出；入口直接导入，不再依赖 `window.Whale*`，仅测试模式暴露必要钩子。
+- 修复内置角色回退时没有清掉失效的 `dshw-role`，以及桌面审计在子进程退出后才删除旧报告导致误报。
 
 ## 2026-11-06 架构整改
 

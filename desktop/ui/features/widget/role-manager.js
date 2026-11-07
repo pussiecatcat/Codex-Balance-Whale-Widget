@@ -126,7 +126,12 @@ export function createRoleManager(deps) {
   }
 
   function recover() {
-    if (fallbackInProgress || imageElement.complete && imageElement.naturalWidth > 0) return;
+    if (fallbackInProgress || imageElement.complete && imageElement.naturalWidth > 0) {
+      // The default art is already visible, but the saved id may still point at
+      // a missing role. Clear it so the next launch does not repeat the failure.
+      if (current.id === UI_DEFAULTS.roleId) { try { localStorage.setItem('dshw-role', UI_DEFAULTS.roleId); } catch (error) { /* storage may be unavailable */ } }
+      return;
+    }
     let failedId = current.id;
     try { failedId = localStorage.getItem('dshw-role') || failedId; } catch (error) {}
     if (failedId && failedId !== 'default') badIds[failedId] = true;

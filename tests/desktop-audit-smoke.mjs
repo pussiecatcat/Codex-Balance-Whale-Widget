@@ -56,13 +56,12 @@ const executable = electronExecutable();
 const env = { ...process.env, WHALE_DESKTOP_TEST: '1', WHALE_DESKTOP_AUDIT: '1', WHALE_DESKTOP_VERIFY_DIR: output };
 if (process.argv.includes('--quota-only')) env.WHALE_QUOTA_AUDIT = '1';
 delete env.ELECTRON_RUN_AS_NODE;
+const reportFile = path.join(output, 'desktop-audit.json');
+fs.rmSync(reportFile, { force: true });
 const child = spawn(executable, [path.join(ROOT, 'desktop/main.cjs'), '--whale-data=' + dataDir], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: process.env.WHALE_SURFACE_AUDIT !== '1' });
 let diagnostics = ''; child.stdout.resume(); child.stderr.on('data', bytes => { diagnostics = (diagnostics + bytes).slice(-3000); });
 const timeout = setTimeout(() => child.kill(), process.env.WHALE_SURFACE_AUDIT === '1' ? 60000 : 30000);
 const [code] = await once(child, 'close'); clearTimeout(timeout);
-const reportFile = path.join(output, 'desktop-audit.json');
-// Never let an earlier green run satisfy this one after Electron crashes.
-fs.rmSync(reportFile, { force: true });
 const report = fs.existsSync(reportFile) ? JSON.parse(fs.readFileSync(reportFile, 'utf8')) : { ok: false, error: diagnostics, dataDir };
 assert.equal(code, 0, JSON.stringify({ report, diagnostics })); assert.equal(report.ok, true, JSON.stringify(report));
 const shutdown = JSON.parse(fs.readFileSync(path.join(dataDir, 'desktop-shutdown.json'), 'utf8'));
