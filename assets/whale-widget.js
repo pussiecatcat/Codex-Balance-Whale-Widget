@@ -17,8 +17,8 @@ import { bubbleItemsForMode } from '/shared/bubble-config/resolve.js';
 import { createBubbleRowsView } from '/features/widget/bubble-rows-view.js';
 import { createAccountView } from '/features/widget/account-view.js';
 import '/select-enhancer.js';
-import '/wait-notice.js';
-import '/sound-settings.js';
+import { createWaitNotice } from '/features/widget/wait-notice.js';
+import { createSoundSettingsController } from '/features/sound-settings/controller.js';
 import '/shape.js';
 import '/input.js';
 import '/workshop.js';
@@ -371,13 +371,6 @@ import {
     });
     var toggleUsagePanel = usageNavigation.toggle;
     var closeUsagePanel = usageNavigation.close;
-    window.WhaleLegacyUsage = {
-      start: usageNavigation.startLegacy,
-      stop: usageNavigation.stopLegacy,
-      records: function () { openUsageRecordsWindow(); },
-      showWait: function (detail) { return showWaitBubble(detail || {}); },
-      hideWait: function (id) { hideWaitBubble(false, id); }
-    };
     function dismissLedgerWarning() {
       return requestJson('/api/usage-warning', { method: 'POST' }).catch(function () { return null; });
     }
@@ -2618,11 +2611,7 @@ import {
       if (editor === 'resources') { openResManager(); return; }
       if (editor === 'workshop' && window.WhaleWorkshopOpen) { window.WhaleWorkshopOpen(); return; }
       if (editor === 'api') { window.whaleDesktop?.openSettings?.('providers'); return; }
-      if (editor === 'sound') {
-        var soundEntry = document.querySelector('[data-action="open-sound-settings"]');
-        if (soundEntry) soundEntry.click();
-        else WhaleFeedback.open();
-      }
+      if (editor === 'sound') { soundSettings.open().catch(assetFailure); return; }
     });
     function snapCheck() {
       if (!snapConfig || snapConfig.mode === 'off') return;
@@ -2934,10 +2923,6 @@ import {
       sound.reload({ usage: settings });
       if (!turnCostOn) hideCostBubble();
     }
-    window.addEventListener('whale-sound-settings-applied', function (event) {
-      if (event.detail && event.detail.schemaVersion === 1) return;
-      applySoundSettingsSnapshot(event.detail || {});
-    });
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
         var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
@@ -2946,12 +2931,15 @@ import {
         usagePanelApi.save({ turnCost: settings.turnCost });
       });
     });
-    var legacySoundUi = Object.freeze({
-      mountMenuEntry: function (node) {
-        return compactMenu.register({ id: 'sound', element: node });
-      },
-      audioEditor: Object.freeze({ open: openAudioEditorForFeature }),
-      promptEditor: Object.freeze({
+    var waitNotice = createWaitNotice({
+      windowRef: window, request: requestJson, sound: sound,
+      bubble: { showWait: function (detail) { return showWaitBubble(detail || {}); }, hideWait: function (id) { hideWaitBubble(false, id); } }
+    });
+    var soundSettings = createSoundSettingsController({
+      windowRef: window, documentRef: document, settings: settingsClient,
+      menu: { mountMenuEntry: function (node) { return compactMenu.register({ id: 'sound', element: node }); } },
+      audioEditor: { open: openAudioEditorForFeature }, rendering: WhaleRendering, select: customSelect,
+      promptEditor: {
         open: function (options) {
           options = options || {};
           var kind = options.kind;
@@ -2964,11 +2952,12 @@ import {
             });
           });
         }
-      }),
-      applySettings: applySoundSettingsSnapshot
+      },
+      applySettings: applySoundSettingsSnapshot,
+      onApplied: function (saved) { waitNotice.applySettings(saved); if (!saved || saved.schemaVersion !== 1) applySoundSettingsSnapshot(saved || {}); }
     });
-    window.WhaleLegacySoundUi = legacySoundUi;
-    window.dispatchEvent(new CustomEvent('whale-legacy-sound-ready', { detail: legacySoundUi }));
+    soundSettings.start();
+    waitNotice.start();
     applySoundSet();
     setupHitTest(initRoleUrl);
     loadRoles();

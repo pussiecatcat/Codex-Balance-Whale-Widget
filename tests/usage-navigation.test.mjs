@@ -30,11 +30,11 @@ function fixture(t) {
   const usageArea = element();
   const usagePanel = element();
   const usageRecBtn = element();
-  const calls = { render: 0, dashboard: 0, legacyStop: 0 };
+  const calls = { render: 0, dashboard: 0, stop: 0 };
   const windowStub = {
     addEventListener() {},
     WhaleDashboard: { select() { calls.dashboard++; } },
-    WhaleLegacyUsage: { stop() { calls.legacyStop++; } },
+    
   };
   const navigation = createUsageNavigation({
     window: windowStub, menuBox, menuRootView, usageArea, usagePanel, usageRecBtn,
@@ -100,10 +100,10 @@ test('navigation never consults the withdrawn dashboard or the legacy usage pane
   navigation.hide();
   navigation.toggle();
   navigation.toggle();
-  navigation.startLegacy();
-  navigation.stopLegacy();
+  navigation.start();
+  navigation.stop();
   assert.equal(calls.dashboard, 0);
-  assert.equal(calls.legacyStop, 0);
+  assert.equal(calls.stop, 0);
 });
 
 test('the refresh interval follows the open state, and dispose stops it', t => {
@@ -116,7 +116,7 @@ test('the refresh interval follows the open state, and dispose stops it', t => {
   t.mock.timers.tick(30000);
   assert.equal(calls.render, 2, 'a closed ledger does not');
 
-  navigation.startLegacy();
+  navigation.start();
   assert.equal(navigation.isOpen(), true);
   assert.match(usagePanel.style.cssText, /position:static/);
   assert.equal(calls.render, 3);

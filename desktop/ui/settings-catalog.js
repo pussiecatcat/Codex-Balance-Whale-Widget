@@ -633,7 +633,7 @@ import { LABELS } from './shared/labels.js';
       id: 'sound.panel', page: 'sound', tier: 2, domain: 'size', type: 'action', bridged: true,
       label: '提示与音效面板', purpose: '在挂件里集中调整提问、授权、每轮消耗和任务结束提示。',
       editor: { name: 'sound', label: '打开提示与音效面板' },
-      defaultValue: null, defaultSource: 'desktop/ui/features/sound-settings/controller.js#startSoundSettings',
+      defaultValue: null, defaultSource: 'desktop/ui/features/sound-settings/controller.js#createSoundSettingsController',
       store: '（即时操作，不落配置）', key: '—', emptyValue: '—',
       read: 'GET /api/sound-settings', write: '面板内保存',
       dependsOn: [], hotReload: 'after-save',

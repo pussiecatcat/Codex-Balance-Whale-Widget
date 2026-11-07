@@ -36,7 +36,7 @@
 
 **证据：** [挂件闭包与分段索引](../assets/whale-widget.js#L30)覆盖菜单、任务音效、用量面板、资源管理、气泡默认内容、编辑器、渲染、保存与拖拽。外部模块经 `WhaleAccountView`、`WhaleFeedback`、`WhaleQuota` 等全局接口连接；[页面入口](../desktop/ui/widget.html#L5)手工维护 19 个脚本的加载顺序。
 
-更具体的问题在[音效面板初始化](../desktop/ui/sound-settings.js#L43)：代码按中文标签查找旧菜单行、隐藏这些行，再定位旧按钮；[打开音频编辑器](../desktop/ui/sound-settings.js#L288)调用旧按钮的 `.click()`，并观察旧弹层的 `style` 来判断编辑完成。更改文案、标题、DOM 层级或关闭方式都可能破坏这个连接，即使业务逻辑完全没有变化。
+更具体的问题在[音效面板初始化](../desktop/ui/features/sound-settings/controller.js)：代码按中文标签查找旧菜单行、隐藏这些行，再定位旧按钮；[打开音频编辑器](../desktop/ui/features/sound-settings/controller.js)调用旧按钮的 `.click()`，并观察旧弹层的 `style` 来判断编辑完成。更改文案、标题、DOM 层级或关闭方式都可能破坏这个连接，即使业务逻辑完全没有变化。
 
 **建议：** 功能通过 `open()`、`save()`、`subscribe()`、`dispose()` 等显式接口协作。旧闭包只通过一个临时适配器接入新模块。依次建立功能自身的状态归属，再迁出代码；不把整个闭包变量集合装进一个共享 `context` 对象后分发给所有文件。
 
@@ -46,7 +46,7 @@
 
 仓库检索只发现该路由的定义，未发现现有调用方。因此，这是**潜在的第二写入入口与后续扩展风险**，不是本次已复现的覆盖故障。localStorage、内存缓存和文件也不是天然错误的重复；需要明确谁拥有最终状态，以及何时确认保存成功。
 
-**证据二：** [音效保存](../desktop/ui/sound-settings.js#L207)同时涉及 size 配置和 usage 配置。浏览器先写一份，再写另一份，第二次失败时尝试补偿第一份。补偿发生在 renderer，窗口退出或进程中断会使恢复依赖调用时序。
+**证据二：** [音效保存](../desktop/ui/features/sound-settings/controller.js)同时涉及 size 配置和 usage 配置。浏览器先写一份，再写另一份，第二次失败时尝试补偿第一份。补偿发生在 renderer，窗口退出或进程中断会使恢复依赖调用时序。
 
 **建议：** 每类数据明确一个写入负责人。UI 偏好由主进程提供有确认结果的存储接口；音效提交交给后端应用层协调，UI 只提交一份草稿。先保留现有文件格式，增加版本检查与可恢复的多文件提交流程；随后才评估是否合并数据文件。
 
@@ -54,10 +54,10 @@
 
 | 重复位置 | 已观察到的差异 | 建议抽取的边界 |
 | --- | --- | --- |
-| [共享请求封装](../desktop/ui/services/request.js)、[API 模型请求封装](../desktop/ui/features/widget/api-models/store.js#L5)、[音效请求封装](../desktop/ui/sound-settings.js#L6) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
+| [共享请求封装](../desktop/ui/services/request.js)、[API 模型请求封装](../desktop/ui/features/widget/api-models/store.js#L5)、[音效请求封装](../desktop/ui/features/sound-settings/controller.js) | 前者只判断业务 `ok`，后两者同时判断 HTTP 状态；错误处理分散 | 一个 renderer 请求客户端，保留各功能自己的业务解释 |
 | [余额响应读取](../runtime/providers.mjs#L7)、[模型响应读取](../runtime/api-models.mjs#L132)、[汇率响应读取](../runtime/fx.mjs#L31) | 字节上限、取消方式、无流响应处理不同 | 共享受限读取与取消原语，按调用方传入限制和策略 |
 | [通用 JSON 写入](../runtime/paths.mjs#L20)、[资源写入](../lib/resource-store.mjs#L28)、[UI 状态写入](../desktop/ui-state-store.cjs#L23)、[主进程 save](../desktop/main.cjs#L53) | Windows 重试、备份、flush、串行队列、错误传播各不相同 | 统一文件替换机制，保留领域仓库的备份与事务策略 |
-| [音效地址解析](../desktop/ui/sound-settings.js#L33)、[等待提示音效解析](../desktop/ui/wait-notice.js#L12) | 存在相同的 `grp:` / `frag:` / `preset:` 解析 | 共享声音引用格式与解析函数 |
+| [音效地址解析](../desktop/ui/features/sound-settings/controller.js)、[等待提示音效解析](../desktop/ui/features/widget/wait-notice.js) | 存在相同的 `grp:` / `frag:` / `preset:` 解析 | 共享声音引用格式与解析函数 |
 
 这里应复用机制，保留策略差异。例如汇率请求不需要凭据，余额请求需要专门的认证和错误分类；不能用一个宽松封装覆盖全部情况。同步写入、异步排队和跨文件事务也不能仅靠同一个 `writeJson()` 名字替代。
 

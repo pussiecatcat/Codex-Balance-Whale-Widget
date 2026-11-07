@@ -44,7 +44,7 @@ function fixture() {
   };
   const controller = new SoundSettingsController({
     windowRef, documentRef: dom.document, sound: createSoundService(),
-    legacy: { mountMenuEntry: () => () => {}, audioEditor: {}, promptEditor: {}, applySettings: value => applied.push(value) },
+    menu: { mountMenuEntry: () => () => {} }, audioEditor: {}, promptEditor: {}, applySettings: value => applied.push(value),
     request: async (url, options = {}) => {
       if (url.endsWith('audio.json')) return { groups: [{ id: 'duck', name: '预设组' }], fragments: [] };
       if (options.method === 'PUT') { writes.push(options.body); return { ...options.body, revision: 'saved' }; }

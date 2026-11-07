@@ -199,16 +199,16 @@ export function createUsageNavigation(deps) {
     function closeUsagePanel() {
       hideUsageSub();
     }
-  function startLegacy() {
+  function start() {
     usagePanelOpen = true;
     usagePanel.style.cssText = 'display:block;position:static;width:100%;height:auto;max-height:none;overflow:visible;transform:none';
     renderUsagePanel();
     if (!usageRefreshTimer) usageRefreshTimer = setInterval(function () { if (usagePanelOpen) renderUsagePanel(); }, 10000);
   }
-  function stopLegacy() { usagePanelOpen = false; clearInterval(usageRefreshTimer); usageRefreshTimer = null; }
-  function dispose() { stopLegacy(); clearTimeout(usageHideTimer); clearTimeout(usageShowTimer); }
+  function stop() { usagePanelOpen = false; clearInterval(usageRefreshTimer); usageRefreshTimer = null; }
+  function dispose() { stop(); clearTimeout(usageHideTimer); clearTimeout(usageShowTimer); }
   window.addEventListener('beforeunload', dispose, { once: true });
   return { toggle: toggleUsagePanel, show: showUsageSub, hide: hideUsageSub,
     close: closeUsagePanel, isOpen: function () { return usagePanelOpen; },
-    startLegacy, stopLegacy, dispose };
+    start, stop, dispose };
 }
