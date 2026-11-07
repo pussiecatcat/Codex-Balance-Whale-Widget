@@ -126,8 +126,8 @@
 
 ## 安装附件
 
-- `api-balance-whale-v0.3.0.zip`：完整解压后安装的插件包。
-- `api-balance-whale-v0.3.0-source.zip`：源码、测试与文档。
+- `api-balance-whale-v0.3.1.zip`：完整解压后安装的插件包。
+- `api-balance-whale-v0.3.1-source.zip`：源码、测试与文档。
 - 两份 `.sha256` 与 `release-manifest.json`：文件校验、隐私扫描和构建摘要。
 
 Windows 完整解压后运行「launchers/安装插件.cmd」覆盖安装，原有配置与记账数据均会保留；需要 Node.js 24+（含 npm）、支持插件的 Codex 及首次下载 Electron 的网络。Mac 安装范围与未验证限制见 [平台说明](docs/MACOS.md)。本次发行以 `plugin.json` 的版本为准，标签在发版时创建。
