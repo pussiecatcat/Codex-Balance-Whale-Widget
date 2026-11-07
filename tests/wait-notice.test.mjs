@@ -93,3 +93,24 @@ test('disposing during a settings read prevents a late reload or another request
   assert.equal(service.snapshot().size.soundSet, undefined);
   assert.equal(requests, 1);
 });
+
+test('runtime wait pushes drive the bubble and clear it without polling again', async () => {
+  const windowRef = eventWindow(), shown = [], hidden = [];
+  let requests = 0, subscriber = null;
+  const feed = { subscribe(type, fn) { assert.equal(type, 'wait'); subscriber = fn; return () => { subscriber = null; }; } };
+  const controller = new WaitNoticeController({
+    windowRef, sound: createSoundService(), settings: usage(), runtimeFeed: feed,
+    bubble: { showWait: value => shown.push(value), hideWait: id => hidden.push(id) },
+    request: () => { requests++; return Promise.resolve({ pending: null }); },
+  });
+  controller.start();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(requests, 1, 'one snapshot at startup, not a poll');
+  subscriber({ ok: true, pending: { id: 'w1', kind: 'question', sessionLabel: '对话' } });
+  assert.equal(shown.length, 1);
+  subscriber({ ok: true, pending: null });
+  assert.deepEqual(hidden, ['w1']);
+  assert.equal(requests, 1);
+  controller.dispose();
+  assert.equal(subscriber, null, 'dispose unsubscribes from the runtime feed');
+});

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createTurnNoticePoller } from '../desktop/ui/features/widget/turn-notice-poller.js';
+import { createTurnNoticeFeed } from '../desktop/ui/features/widget/turn-notice-feed.js';
 import WhaleTurnNotice from '../desktop/ui/shared/turn-notice.js';
 import { SessionParser, SessionReader, SessionMonitor } from '../runtime/session-monitor.mjs';
 import { WhaleService } from '../runtime/service.mjs';
@@ -189,7 +189,7 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
   vm.createContext(sandbox);
   let lastTurnNotice = null, subscriptionNotices = 0, quotaSettles = 0;
   const accountView = { mode: 'api', notice: () => subscriptionNotices++ };
-  const turnNoticePoller = createTurnNoticePoller({
+  const turnNoticePoller = createTurnNoticeFeed({
     window: sandbox.window, fetch: sandbox.fetch, accountView,
     uiState: { get: key => sandbox.localStorage.getItem(key), set: (key, value) => sandbox.localStorage.setItem(key, value) },
     WhaleTurnNotice, CustomEvent: sandbox.CustomEvent,
@@ -200,7 +200,7 @@ test('actual frontend polling suppresses startup replay, duplicates, children an
     getFeedbackVolume: () => 1,
     showCostBubble: sandbox.showCostBubble,
   });
-  const pollLastTurn = () => turnNoticePoller.poll();
+  const pollLastTurn = () => turnNoticePoller.snapshot();
   const respond = async data => { release = pending.shift(); assert.ok(release); release({ json: async () => data }); await tick(); };
   const notice = (seq, id, extra = {}) => ({ ok: true, seq, id, turn: id, ts: Date.now() + 10, amount: 1, outcome: 'completed', notify: true, ...extra });
   pollLastTurn(); pollLastTurn(); assert.equal(fetches, 1);

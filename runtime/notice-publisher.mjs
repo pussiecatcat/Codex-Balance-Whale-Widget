@@ -6,6 +6,7 @@ import { readJson, writeJson } from './paths.mjs';
 export class NoticePublisher {
   #lastFile;
   #cancelledOutcomes = new Set();
+  #listeners = new Set();
 
   constructor({ config, ledger, balance, dataDir, noticeDelayMs = 2500, clock = Date.now }) {
     this.config = config;
@@ -20,6 +21,16 @@ export class NoticePublisher {
     this.waitRevision = 0;
     this.recoveryError = '';
     this.closed = false;
+  }
+  subscribe(fn) {
+    if (typeof fn !== 'function') return () => {};
+    this.#listeners.add(fn);
+    return () => this.#listeners.delete(fn);
+  }
+  #emit(event) {
+    for (const fn of [...this.#listeners]) {
+      try { fn(event); } catch { /* one subscriber cannot break the others */ }
+    }
   }
   started(meta) {
     const session = meta.sessionId || meta.id;
@@ -36,6 +47,7 @@ export class NoticePublisher {
       kind: meta.kind, pending: true, ts: Number(meta.ts) || this.clock(),
     });
     this.waitRevision++;
+    this.#emit({ type: 'wait', payload: this.waitStatus() });
   }
   waitStatus() {
     const pending = [...this.waits.values()].sort((a, b) => b.ts - a.ts)[0] || null;
@@ -96,7 +108,9 @@ export class NoticePublisher {
     if (!['success','cancelled','failed'].includes(event.completionKind)) return;
     const seq = Number(readJson(this.#lastFile, { seq: 0 }).seq || 0) + 1;
     this.ledger.revise(scope, id, { noticePublished: true });
-    writeJson(this.#lastFile, { ...event, seq, amount: event.cost, notificationAt: this.clock() });
+    const payload = { ...event, seq, amount: event.cost, notificationAt: this.clock() };
+    writeJson(this.#lastFile, payload);
+    this.#emit({ type: 'turn', payload });
   }
   close() {
     this.closed = true;

@@ -49,8 +49,9 @@ function resolveAssetFile(pathname) {
 export function createDispatcher(options = {}) {
   // dataDir and the service overrides ride through to createComposition, which
   // owns their defaults.
-  const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}), onChange = () => {} } = options;
+  const { onStop = () => {}, onShow = () => {}, statusInfo = () => ({}), onChange = () => {}, onRuntimeEvent = () => {} } = options;
   const app = createComposition({ ...options, onChange });
+  const unsubscribeRuntime = typeof app.whale.subscribeNotices === 'function' ? app.whale.subscribeNotices(onRuntimeEvent) : () => {};
   const faults = createFaultLog();
   const runtimeLog = createRuntimeLog({ dataDir: app.dataDir });
   const buildVersion = readJson(path.join(ROOT, '.codex-plugin', 'plugin.json'), {}).version || VERSION;
@@ -136,6 +137,7 @@ export function createDispatcher(options = {}) {
   function close() {
     if (closeJob) return closeJob;
     closing = true;
+    unsubscribeRuntime();
     closeJob = app.close();
     return closeJob;
   }

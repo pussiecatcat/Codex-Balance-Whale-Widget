@@ -23,7 +23,8 @@ import WhaleMediaGuard from '/services/media-guard.js';
 import { createApiModelsStore } from '/features/widget/api-models/store.js';
 import { createApiModelsEditor } from '/features/widget/api-models/editor.js';
 import { requestJson } from '/services/request.js';
-import { createTurnNoticePoller } from '/features/widget/turn-notice-poller.js';
+import { createTurnNoticeFeed } from '/features/widget/turn-notice-feed.js';
+import { createRuntimeFeed } from '/services/runtime-feed.js';
 import { createTaskEndSound } from '/features/widget/task-end-sound.js';
 import { createNameMarquee } from '/features/widget/name-marquee.js';
 import { createRoleManager } from '/features/widget/role-manager.js';
@@ -124,6 +125,7 @@ import {
     var assetClient = createAssetClient();
     var uiScope = createScope('widget-ui');
     var uiState = createUiState({ storage: localStorage, bridge: window.whaleDesktop, scope: uiScope });
+    var runtimeFeed = createRuntimeFeed({ bridge: window.whaleDesktop, scope: uiScope });
     window.__whaleShutdown = { pendingStorage: uiState.pending };
     var confirmDialog = createConfirmDialog({ document: document });
     var showConfirm = confirmDialog.show;
@@ -2921,7 +2923,7 @@ import {
       });
     });
     var waitNotice = createWaitNotice({
-      windowRef: window, request: requestJson, sound: sound,
+      windowRef: window, request: requestJson, sound: sound, runtimeFeed: runtimeFeed,
       bubble: { showWait: function (detail) { return showWaitBubble(detail || {}); }, hideWait: function (id) { hideWaitBubble(false, id); } }
     });
     var soundSettings = createSoundSettingsController({
@@ -2956,7 +2958,7 @@ import {
     if (window.whaleDesktop && window.whaleDesktop.testMode) {
       window.__whaleRenderTest = Object.freeze({
         refresh: refresh, usage: refreshUsageMain, next: bubbleNext, close: hideBubble,
-        poll: pollLastTurn, importRole: onRoleFileChosen, importBubble: bubbleUploadImg,
+        poll: function () { return turnNoticeFeed.snapshot(); }, importRole: onRoleFileChosen, importBubble: bubbleUploadImg,
         openHistory: openUsageRecordsWindow,
         showCost: showCostBubble,
         open: whaleClick,
@@ -3043,8 +3045,8 @@ import {
     window.addEventListener('whale-open-usage', function () {
       openUsageRecordsWindow();
     });
-    var turnNoticePoller = createTurnNoticePoller({
-      window: window, uiState: uiState, fetch: fetch,
+    var turnNoticeFeed = createTurnNoticeFeed({
+      uiState: uiState, fetch: fetch,
       WhaleTurnNotice: WhaleTurnNotice, WhaleFeedback: WhaleFeedback, WhaleQuota: WhaleQuota, accountView: accountView,
       getCurrency: function () { return state.currency; },
       setLastTurnNotice: function (notice) { lastTurnNotice = notice; },
@@ -3052,10 +3054,8 @@ import {
       getFeedbackVolume: function () { return soundOn ? soundVol : 0; },
       showCostBubble: showCostBubble
     });
-    function pollLastTurn() {
-      return turnNoticePoller.poll();
-    }
-    setInterval(pollLastTurn, 1000);
+    runtimeFeed.subscribe('turn', payload => turnNoticeFeed.process(payload, { firstPoll: false }));
+    turnNoticeFeed.snapshot();
     var workshopDialog = createWorkshopDialog({ document: document, window: window, request: requestJson });
     createWindowShape({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope }).start();
     createPointerInput({ window: window, document: document, bridge: window.whaleDesktop, rendering: WhaleRendering, scope: uiScope,
