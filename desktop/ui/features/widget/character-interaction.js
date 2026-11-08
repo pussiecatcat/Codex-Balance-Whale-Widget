@@ -1,6 +1,6 @@
 import { createMenuHover } from './menu-hover.js';
 
-const BLOCKED_SURFACES = '.dshwv-rolelist,.dshwv-audiolist,.dshwv-cropmask,.dshwv-confirmmask,.dshwv-audiomask,.dshwv-snapmask,.dshwv-bubmask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-usage-mask,.dshwv-resmask,.dshwv-custmenu,.dshwv-custbtn';
+const BLOCKED_SURFACES = '.dshwv-feed-bowl,.dshwv-rolelist,.dshwv-audiolist,.dshwv-cropmask,.dshwv-confirmmask,.dshwv-audiomask,.dshwv-snapmask,.dshwv-bubmask,.dshwv-qedit,.dshwv-usagepanel,.dshwv-usage-mask,.dshwv-resmask,.dshwv-custmenu,.dshwv-custbtn';
 
 export function createCharacterInteraction(deps) {
   const {
@@ -24,7 +24,7 @@ export function createCharacterInteraction(deps) {
   }
 
   function hit(event) {
-    return !!event && rendering.hitCache.hit(image, event.clientX, event.clientY, rendering.mirrorScale(root) < 0);
+    return !!event && !image.hidden && rendering.hitCache.hit(image, event.clientX, event.clientY, rendering.mirrorScale(root) < 0);
   }
 
   function pointerDown(event) {

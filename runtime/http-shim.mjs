@@ -21,6 +21,7 @@ export const MIME = {
 export const ASSET_MIME = Object.freeze({
   '.png': 'image/png',
   '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.mp3': 'audio/mpeg',

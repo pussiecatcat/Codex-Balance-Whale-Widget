@@ -34,6 +34,7 @@ window.whaleToast = createToast({ document: document });
 createAudioEngine({ window: window, document: document });
 if (window.whaleDesktop?.testMode) { Object.assign(window, { WhaleRendering, WhaleMoney, WhaleQuota, WhaleFeedback, WhaleMediaGuard }); }
 
+import { createFeeding } from '/features/widget/feeding.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
@@ -2875,13 +2876,16 @@ import {
       toggleAudioSlotPanel('release');
     });
 
+    var feeding = createFeeding({
+      document, window, image: img, imageUrl: IMG_URL, root, scope: uiScope.child('feeding'), rendering: WhaleRendering, uiState
+    });
     var characterInteraction = createCharacterInteraction({
       document: document, window: window, uiState: uiState, rendering: WhaleRendering,
       root: root, image: img, positioner: positioner, menuButton: menuBtn, state: state, dragStatus: drag,
       clickDistanceSq: CLICK_SQ, imageUrl: IMG_URL, viewport: viewport, rightGap: rightGap,
       clampToViewport: clampToViewport, artCenterAt: artCenterAt, snapZones: snapZones,
       restoreAnchor: restoreAnchor, express: express, settle: settle, saveConfig: saveConfig,
-      refreshFlip: refreshFlip, pressDown: pressDown, pressUp: pressUp, whaleClick: whaleClick,
+      refreshFlip: refreshFlip, pressDown: pressDown, pressUp: pressUp, whaleClick: function () { whaleClick(); feeding.noteClick(); },
       refresh: refresh, closeMenu: closeMenu, toggleMenu: toggleMenu, closeRolePanel: closeRolePanel,
       closeAudioGroupPanel: closeAudioGroupPanel, hideBubble: hideBubble,
       applyBubbleConfig: applyBubbleCfgSeq, positionMenu: positionMenu,
