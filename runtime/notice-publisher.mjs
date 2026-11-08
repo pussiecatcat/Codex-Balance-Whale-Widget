@@ -8,8 +8,9 @@ export class NoticePublisher {
   #cancelledOutcomes = new Set();
   #listeners = new Set();
 
-  constructor({ config, ledger, balance, dataDir, noticeDelayMs = 2500, clock = Date.now }) {
+  constructor({ config, ledger, balance, dataDir, context = null, noticeDelayMs = 2500, clock = Date.now }) {
     this.config = config;
+    this.context = context || (() => this.config.resolve());
     this.ledger = ledger;
     this.balance = balance;
     this.clock = clock;
@@ -55,7 +56,7 @@ export class NoticePublisher {
   }
   lastTurn() {
     const last = readJson(this.#lastFile, { ok: true, seq: 0, turn: null, amount: null, tokens: null, ts: null });
-    const c = this.config.resolve();
+    const c = this.context();
     if (last.accountId && last.accountId !== c.accountId) return { ok: true, seq: last.seq, turn: null, amount: null, tokens: null, ts: null };
     return last;
   }
@@ -103,7 +104,7 @@ export class NoticePublisher {
     const event = this.ledger.find(scope, { id });
     if (!event || event.noticePublished || !event.notify || this.closed) return;
     let config;
-    try { config = this.config.resolve(); } catch { return; }
+    try { config = this.context(); } catch { return; }
     if (config.accountId !== event.accountId) return;
     if (!['success','cancelled','failed'].includes(event.completionKind)) return;
     const seq = Number(readJson(this.#lastFile, { seq: 0 }).seq || 0) + 1;

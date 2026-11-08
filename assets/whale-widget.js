@@ -1,3 +1,4 @@
+import { createDisplayModeSelect, createVisibilityRow, createVisibilityState } from '/features/widget/visibility-controls.js';
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { mirrorSizeSettings } from '/features/widget/settings-mirror.js';
 import { createSettingsClient } from '/services/settings-client.js';
@@ -34,6 +35,7 @@ window.whaleToast = createToast({ document: document });
 createAudioEngine({ window: window, document: document });
 if (window.whaleDesktop?.testMode) { Object.assign(window, { WhaleRendering, WhaleMoney, WhaleQuota, WhaleFeedback, WhaleMediaGuard }); }
 
+import { createFeeding } from '/features/widget/feeding.js';
 import { createCharacterInteraction } from '/features/widget/character-interaction.js';
 import { createBubbleTemplateHelp } from '/features/widget/bubble-template-help.js';
 import { createConfirmDialog } from '/features/widget/confirm-dialog.js';
@@ -60,6 +62,7 @@ import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js
 import { createSnapEditor } from '/features/widget/snap-editor.js';
 import { isEditorRoute } from '/shared/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
+import { createTurnCostTemplateSaver } from '/features/widget/turn-cost-template-settings.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
 import { createBubbleSceneController } from '/features/widget/bubble-scene.js';
@@ -158,8 +161,10 @@ import {
     menuBtn.className = 'dshwv-menu-btn';
     menuBtn.title = '菜单';
     menuBtn.innerHTML = '<span></span><span></span><span></span>';
+    var visibilityState = createVisibilityState(root, menuBtn);
     menuBtn.addEventListener('click', function (e) {
       e.stopPropagation();
+      if (visibilityState.restore()) return;
       toggleMenu();
     });
     var menuBox = document.createElement('div');
@@ -308,6 +313,10 @@ import {
       getTodayKey: function () { return usageTodayKeyStr(); },
       getRecordsView: function () { return usageRecordsView; }
     });
+    var saveTurnCostTemplate = createTurnCostTemplateSaver({
+      getUsageSet: usagePanelApi.getUsageSet, requestJson: requestJson,
+      saveUsage: usagePanelApi.save, settingsUrl: SETTINGS_URL, onError: assetFailure
+    });
     var loadUsageSettings = usagePanelApi.load;
     var usageReconcileEditor = usagePanelApi.reconcile;
     var refreshUsageMain = usagePanelApi.refresh;
@@ -328,12 +337,8 @@ import {
     compactMenu.register({ id: 'bubble', element: row6 });
     var modeRow = menuRow();
     modeRow.appendChild(menuLabel(LABELS.displayMode));
-    var modeSel = document.createElement('select');
-    modeSel.id = 'dshw-desktop-display';
-    modeSel.className = 'dshwv-sound';
-    [['follow-codex', '跟随 Codex'], ['standalone', '常驻桌面']].forEach(function (entry) {
-      var option = document.createElement('option');
-      option.value = entry[0]; option.textContent = entry[1]; modeSel.appendChild(option);
+    var modeSel = createDisplayModeSelect(document, modeRow, function (mode) {
+      window.whaleDesktop.command(mode === 'standalone' ? 'desktop' : 'follow');
     });
     function syncLevel1Controls() {
       if (!window.whaleDesktop?.command) return;
@@ -341,11 +346,10 @@ import {
         if (mode) modeSel.value = mode;
       }).catch(function () { /* A disconnected desktop bridge cannot report its mode. */ });
     }
-    modeSel.addEventListener('change', function () {
-      window.whaleDesktop.command(modeSel.value === 'standalone' ? 'desktop' : 'follow');
-    });
-    modeRow.appendChild(modeSel);
     compactMenu.register({ id: 'displayMode', element: modeRow });
+    compactMenu.register({ id: 'visibility', element: createVisibilityRow({ document, row: menuRow(), hide: function () {
+      closeMenu(); hideBubble(); feeding.reset(); visibilityState.hide();
+    }, confirm: showConfirm, stop: function () { window.whaleDesktop.command('stop'); } }) });
     var footerRow = menuRow();
     footerRow.classList.add('dshwv-menu-footer');
     var advancedBtn = document.createElement('button');
@@ -511,7 +515,8 @@ import {
       bubbleRowsCanon: bubbleRowsCanon, bubblePreviewInto: function (element, modules) { return bubblePreviewInto(element, modules); }, bubbleEditTarget: bubbleEditTarget,
       usageTurnCostLines: usageTurnCostLines, usageWaitLinesOf: usageWaitLinesOf, usageRemindLinesOf: usageRemindLinesOf,
       usageTurnCostDefaultLines: usageTurnCostDefaultLines, usageWaitDefaultLines: usageWaitDefaultLines,
-      usageRemindDefaultLines: usageRemindDefaultLines, usageAlertModsResolved: usageAlertModsResolved
+      usageRemindDefaultLines: usageRemindDefaultLines, usageAlertModsResolved: usageAlertModsResolved,
+      getAccountMode: function () { return accountView.mode; }
     });
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
@@ -2585,7 +2590,10 @@ import {
       if (editor === 'bubble') { openBubbleEditor(); return; }
       if (editor === 'reminder') {
         var kind = ['turnCost', 'alert', 'budget', 'question', 'approval'].includes(args.kind) ? args.kind : 'alert';
-        usageAlertBudgetEditor(kind, function () {});
+        var templateMode = args.templateMode === 'api' || args.templateMode === 'subscription' ? args.templateMode : accountView.mode;
+        usageAlertBudgetEditor(kind, function (config) {
+          if (kind === 'turnCost') saveTurnCostTemplate(config);
+        }, kind === 'turnCost' ? { templateMode: templateMode, layoutOnly: true } : null);
         return;
       }
       if (editor === 'api-model') {
@@ -2875,13 +2883,16 @@ import {
       toggleAudioSlotPanel('release');
     });
 
+    var feeding = createFeeding({
+      document, window, image: img, imageUrl: IMG_URL, root, scope: uiScope.child('feeding'), rendering: WhaleRendering, uiState
+    });
     var characterInteraction = createCharacterInteraction({
       document: document, window: window, uiState: uiState, rendering: WhaleRendering,
       root: root, image: img, positioner: positioner, menuButton: menuBtn, state: state, dragStatus: drag,
       clickDistanceSq: CLICK_SQ, imageUrl: IMG_URL, viewport: viewport, rightGap: rightGap,
       clampToViewport: clampToViewport, artCenterAt: artCenterAt, snapZones: snapZones,
       restoreAnchor: restoreAnchor, express: express, settle: settle, saveConfig: saveConfig,
-      refreshFlip: refreshFlip, pressDown: pressDown, pressUp: pressUp, whaleClick: whaleClick,
+      refreshFlip: refreshFlip, pressDown: pressDown, pressUp: pressUp, whaleClick: function () { whaleClick(); feeding.noteClick(); },
       refresh: refresh, closeMenu: closeMenu, toggleMenu: toggleMenu, closeRolePanel: closeRolePanel,
       closeAudioGroupPanel: closeAudioGroupPanel, hideBubble: hideBubble,
       applyBubbleConfig: applyBubbleCfgSeq, positionMenu: positionMenu,
@@ -2916,11 +2927,9 @@ import {
     }
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
-        var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
-        usagePanelApi.setUsageSet(settings);
+        saveTurnCostTemplate(o);
         setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
-        usagePanelApi.save({ turnCost: settings.turnCost });
-      });
+      }, { templateMode: accountView.mode });
     });
     var waitNotice = createWaitNotice({
       windowRef: window, request: requestJson, sound: sound, runtimeFeed: runtimeFeed,
@@ -2928,6 +2937,7 @@ import {
     });
     var soundSettings = createSoundSettingsController({
       windowRef: window, documentRef: document, settings: settingsClient,
+      getAccountMode: function () { return accountView.mode; },
       menu: { mountMenuEntry: function (node) { return compactMenu.register({ id: 'sound', element: node }); } },
       audioEditor: { open: openAudioEditorForFeature }, rendering: WhaleRendering, select: customSelect,
       promptEditor: {
@@ -2938,7 +2948,7 @@ import {
           return new Promise(function (resolve) {
             usageAlertBudgetEditor(kind, function (config) {
               resolve({ status: 'saved', config: config });
-            }, options.config, function () {
+            }, Object.assign({ templateMode: kind === 'turnCost' ? accountView.mode : null, layoutOnly: kind === 'turnCost' }, options.config || {}), function () {
               resolve({ status: 'cancelled' });
             });
           });

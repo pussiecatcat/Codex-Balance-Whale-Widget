@@ -12,6 +12,7 @@ const { syncNativeViewport } = require('./native-viewport.cjs');
 const { createHeartbeatMonitor } = require('./heartbeat.cjs');
 const { registerIpcHandlers } = require('./ipc-handlers.cjs');
 const { SettingsStore, createSoundSettingsDomains } = require('./settings-store.cjs');
+const { createAgentSettings } = require('./agent-settings.cjs');
 const { createChangeBus } = require('./change-bus.cjs');
 const { createTestHarness } = require('./test-harness.cjs');
 const { validateWindowShape, EMPTY_SHAPE } = require('./window-shape.cjs');
@@ -51,7 +52,7 @@ app.setPath('userData', path.join(dataDir, 'desktop-profile'));
 const lock = app.requestSingleInstanceLock();
 let window, dispatcher, bridge, quitting = false, manuallyHidden = false;
 const renderer = { ready: false, readyTimer: null, recoveryTimer: null, attempts: 0 };
-let settingsStore = null;
+let settingsStore = null, agentSettings = null;
 let uiOrigin = 'whale://widget';
 const stateFile = path.join(dataDir, 'ui-state.json');
 const read = (f, fallback = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; } };
@@ -300,6 +301,8 @@ else {
       domains: createSettingsDomains({ dispatcher, values, uiStore, read, save, dataDir, createSoundSettingsDomains }),
       onChange: change => changeBus.publish(change),
     });
+    const { catalog: settingsCatalog } = await import(pathToFileURL(path.join(root, 'desktop', 'ui', 'settings-catalog.js')));
+    agentSettings = createAgentSettings({ catalog: settingsCatalog, settingsStore, dispatcher, resetPosition: () => resetPosition(), changeBus });
     await importLegacyStorage();
     session.defaultSession.protocol.handle('whale', async request => {
       const url = new URL(request.url);
@@ -362,7 +365,8 @@ else {
     ({ toggleRegistered: toggleShortcutRegistered, diagnosticRegistered: diagnosticShortcutRegistered } = registerShortcuts({
       globalShortcut, isMac, toggle, reportVisibility, usesWindowShape, harnessEnabled: harness.enabled, diagnose,
     }));
-    bridge = await startBridge(dispatcher, { dataDir, onHost: mode.setHost, onMode: mode.setMode, onResetPosition: resetPosition });
+    bridge = await startBridge(dispatcher, { dataDir, onHost: mode.setHost, onMode: mode.setMode, onResetPosition: resetPosition,
+      onAgentSettings: request => agentSettings?.execute(request) || { ok: false, code: 'SETTINGS_NOT_READY', error: 'Agent 设置接口尚未就绪' } });
     markStartup('bridgeReady');
     await window.loadURL(UI_ORIGIN + '/widget.html').catch(() => rendererLifecycle.recoverRenderer('initial-load-failed'));
     markStartup('pageLoaded');

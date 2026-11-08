@@ -134,6 +134,14 @@ test('editor routes are explicit and every one exists in the widget', async () =
   }
 });
 
+test('API and Codex subscription task-end templates have separate settings editors', () => {
+  const api = settingsCatalog.byId.get('usage.reminderModules');
+  const subscription = settingsCatalog.byId.get('usage.subscriptionReminderModules');
+  assert.equal(api.editor.args.templateMode, 'api');
+  assert.equal(subscription.editor.args.templateMode, 'subscription');
+  assert.notEqual(api.subFields[0].key, subscription.subFields[0].key);
+});
+
 test('default values use the type the control expects', () => {
   for (const field of loadCatalog().fields) {
     if (field.defaultValue === null || field.defaultValue === undefined) continue;

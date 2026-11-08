@@ -59,6 +59,20 @@ test('sound draft cancel is isolated and one save command preserves unknown fiel
   assert.equal(output.revision, 'rev-1');
 });
 
+test('sound settings edit the active task-end template without overwriting the other mode', () => {
+  const original = bundle();
+  original.usage.turnCost = {
+    lines: [{ type: 'text', text: 'API template' }],
+    subscriptionLines: [{ type: 'text', text: 'Subscription template' }],
+  };
+  const draft = createSoundDraft(original, catalog(), 'subscription');
+  draft.events.turnCost.subscriptionLines = [{ type: 'text', text: 'Edited subscription' }];
+  const output = buildSoundSave(original, draft);
+  assert.equal(draft.turnCostTemplateMode, 'subscription');
+  assert.deepEqual(output.usage.turnCost.lines, original.usage.turnCost.lines);
+  assert.deepEqual(output.usage.turnCost.subscriptionLines, [{ type: 'text', text: 'Edited subscription' }]);
+});
+
 test('sound controller mounts explicitly, cancel writes nothing and save performs one combined PUT', async () => {
   const calls = [], applied = [], loading = [];
   let viewOptions, unmounted = 0, destroyed = 0;

@@ -4,6 +4,24 @@ import { readJson, writeJson } from './paths.mjs';
 const countFields = ['input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens'];
 const finite = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const text = value => typeof value === 'string' ? value.slice(0, 500) : '';
+function safeQuota(value) {
+  if (!value || typeof value !== 'object') return null;
+  const result = {};
+  for (const key of ['fiveHour', 'weekly']) {
+    const usedPercent = finite(value[key]?.usedPercent), observedAt = finite(value[key]?.observedAt);
+    if (usedPercent !== null && usedPercent >= 0 && usedPercent <= 100 && observedAt !== null) result[key] = { usedPercent, observedAt };
+  }
+  return Object.keys(result).length ? result : null;
+}
+function safeQuotaConsumption(value) {
+  if (!value || typeof value !== 'object') return null;
+  const result = {};
+  for (const key of ['fiveHour', 'weekly']) {
+    const percent = finite(value[key]);
+    if (percent !== null && percent >= 0 && percent <= 100) result[key] = percent;
+  }
+  return Object.keys(result).length ? result : null;
+}
 
 export function safeUsage(value) {
   const result = {};
@@ -26,6 +44,7 @@ export function safeTurn(meta) {
     rootTurnId: text(meta.rootTurnId || meta.turnId), parentThreadId: text(meta.parentThreadId),
     sessionLabel: text(meta.sessionLabel).slice(0, 120),
     isSubagent: meta.isSubagent === true, partial: meta.partial === true, historical: meta.historical === true,
+    quotaStart: safeQuota(meta.quotaStart), quotaEnd: safeQuota(meta.quotaEnd), quotaConsumption: safeQuotaConsumption(meta.quotaConsumption),
     startedAt: finite(meta.startedAt), ts: finite(meta.ts), byModel: safeUsage(meta.byModel),
     outcome: ['completed', 'failed', 'aborted', 'superseded', 'interrupted'].includes(meta.outcome) ? meta.outcome : null,
     failureKind: meta.failureKind === 'high-demand' ? 'high-demand' : null,

@@ -14,8 +14,8 @@ function status(output) {
   return {
     ...pick(output, ['ok', 'version', 'buildVersion', 'transport', 'webpage', 'followCodex', 'desktopMode', 'rendererReady', 'platform']),
     provider: output?.provider && {
-      ...pick(output.provider, ['providerName', 'hasKey']),
-      settings: pick(output.provider.settings, ['provider', 'currency', 'monitorSessions', 'refreshSeconds']),
+      ...pick(output.provider, ['hasKey']),
+      settings: pick(output.provider.settings, ['currency', 'monitorSessions', 'refreshSeconds']),
       configured: pick(output.provider.configured, ['baseUrl', 'keyEnv']),
     },
     monitor: output?.monitor && pick(output.monitor, ['watching', 'activeTurns', 'initializing', 'catchingUp']),

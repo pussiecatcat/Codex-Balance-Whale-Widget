@@ -1,8 +1,8 @@
 # 小龙娘配置定位索引与 Agent 修改约定
 
-状态：**方案阶段的源码定位索引，尚不是已经验收的完整配置操作手册。** 日期：2026-10-03。
+状态：**第一阶段本地 Agent 设置命令已实现；完整配置操作手册仍未验收。** 日期：2026-11-09。
 
-本轮已核对下面的主要配置来源。后续实施任务 T01／T06 必须补齐每个动态子字段、运行中修改入口、热更新和实际验证案例，才满足“Agent 可直接修改所有可配置项”。不要把计划中的命令当成已经存在的功能。
+设置目录目前有 60 个条目。第一阶段命令覆盖常用偏好、声音与提醒、气泡序列和模块库；服务商、模型和素材文件仍不支持 Agent 修改。动态字段的完整契约、运行中修改入口和全量验证案例仍需补齐，不能把第一阶段支持范围说成“所有可配置项”。
 
 ## 1. 先确定要改什么
 
@@ -14,7 +14,7 @@
 | “完成提示多停留几秒” | `turnCostCloseMs` | 点击查看订阅额度时的气泡序列 |
 | “这个模型价格改成……” | 指定模型的价格 | 整个模型列表或其他服务商 |
 
-修改运行中配置应通过已支持的服务入口，回读并验证挂件实际更新。现在部分设置依赖渲染器本地状态，单独写文件或调用保存接口不一定立即刷新挂件；任务 T03 负责补全统一更新机制。
+修改运行中配置应通过已支持的服务入口，回读并验证挂件实际更新。Agent 命令只通过本地 IPC 调用第一阶段设置操作；不要直接改数据文件，也不要把内部路由全部开放。
 
 ## 0. 逐字段目录（自动生成）
 
@@ -1583,3 +1583,24 @@ console.log({ settings: info.settings, configured: info.configured });
 - 气泡 schema 1 由 `shared/bubble-config/migrate.js` 迁移，迁移前复制 `.dshw-bubble.schema1-backup.json`。
 - 旧 web localStorage 由 `desktop/legacy-storage-import.cjs` 一次导入，marker 为 `legacy-storage-imported.json`；失败也记录 marker，不阻塞启动。
 - 旧音效引用 `grp:` / `frag:` / `preset:` 由 `services/sound-reference.js` 解析；键名与字符串编码保持不变。
+
+## 16. 第一阶段 Agent 设置命令
+
+`node scripts/agent-settings.mjs` 通过已认证的本地 IPC 调用桌面宿主，不监听 HTTP 端口。设置写入仍由 Electron 主进程的 `SettingsStore` 管理；气泡写入走既有气泡资源路由，并带版本冲突检查。
+
+```text
+node scripts/agent-settings.mjs catalog
+node scripts/agent-settings.mjs get size.scale
+node scripts/agent-settings.mjs get bubble.sequences api
+node scripts/agent-settings.mjs preview   # 从标准输入读取 JSON
+node scripts/agent-settings.mjs apply     # 从标准输入读取 JSON
+node scripts/agent-settings.mjs reset ui.snap
+```
+
+对 `preview` / `apply`，标准输入的 JSON 至少包含 `settingId`、`value` 和 `expectedRevision`，命令输入上限为 48 KB。气泡序列必须指定 `mode` (`api` 或 `subscription`)；只读写该模式的序列，不覆盖另一模式。`apply` 必须带上最近一次 `get` 返回的 `revision` 作为 `expectedRevision`；冲突时重新读取，不得跳过检查。
+
+第一阶段支持 `size.*` 常用项、`ui.*` 外观/交互偏好、`usage.*` 声音/提醒设置，以及 `bubble.sequences` 和 `bubble.lib`。角色选择与音效选择仅限当前已导入的资源。`ui.pos` 仅支持读取和重置到右下角。
+
+当前不支持 `api.*` 服务商配置、`apiModels` 自定义模型、`media.*` 文件导入/删除。命令返回的目录会列出当前支持项和排除项；密钥值、服务商地址和本机路径不会通过该接口返回。保存后命令会回读目标项；气泡资源变更会通知挂件窗口刷新。
+
+该接口的字段范围、验证规则和热更新行为仍以源码与后续隔离数据案例为准。完整可配置项操作手册只有在动态字段契约和全量验收案例完成后才能标为已验收。

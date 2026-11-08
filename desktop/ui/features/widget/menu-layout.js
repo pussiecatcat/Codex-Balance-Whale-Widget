@@ -2,6 +2,7 @@
 export const MENU_LAYOUT = Object.freeze([
   { id: 'role' }, { id: 'size' }, { id: 'dataSource' },
   { id: 'displayMode' }, { id: 'sound' }, { id: 'bubble' },
+  { id: 'visibility' },
   { id: 'ledger', modes: ['api'], slot: 'navigation' },
   { id: 'advanced', slot: 'footer' },
 ]);

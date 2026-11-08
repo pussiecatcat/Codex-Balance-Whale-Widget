@@ -20,7 +20,7 @@ function normalizeCatalog(catalog = {}) {
   };
 }
 
-export function createSoundDraft(bundle, catalogInput) {
+export function createSoundDraft(bundle, catalogInput, templateMode = 'api') {
   if (!bundle || bundle.schemaVersion !== 1 || typeof bundle.revision !== 'string') {
     throw new Error('音效设置版本不受支持');
   }
@@ -57,11 +57,13 @@ export function createSoundDraft(bundle, catalogInput) {
         volSet: events.turnCost?.volSet === true,
         bubbleOn: events.turnCost?.bubbleOn !== false,
         lines: clone(Array.isArray(usage.turnCost?.lines) ? usage.turnCost.lines : []),
+        subscriptionLines: clone(Array.isArray(usage.turnCost?.subscriptionLines) ? usage.turnCost.subscriptionLines : []),
       },
       question: waitEvent(events.question, 'question'),
       approval: waitEvent(events.approval, 'approval'),
     },
     wait: { charClose: usage.wait?.charClose === true },
+    turnCostTemplateMode: templateMode === 'subscription' ? 'subscription' : 'api',
     defaults: { task: defaultTask, wait: defaultWait },
   };
 }
@@ -121,7 +123,11 @@ export function buildSoundSave(bundle, draft) {
   const usage = {
     ...clone(originalUsage), taskEnd, events,
     wait: { ...(originalUsage.wait || {}), charClose: draft.wait.charClose },
-    turnCost: { ...(originalUsage.turnCost || {}), lines: clone(draft.events.turnCost.lines) },
+    turnCost: {
+      ...(originalUsage.turnCost || {}),
+      lines: clone(draft.events.turnCost.lines),
+      subscriptionLines: clone(draft.events.turnCost.subscriptionLines),
+    },
   };
   return { schemaVersion: 1, revision: bundle.revision, size, usage };
 }

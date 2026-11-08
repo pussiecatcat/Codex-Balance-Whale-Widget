@@ -157,6 +157,28 @@ test('Codex cumulative token counters deduplicate repeated events and isolate tu
   assert.equal(ends[1].byModel.model.input_tokens, 20); assert.equal(ends[1].byModel.model.output_tokens, 10);
 });
 
+test('turn parser measures quota percentage-point deltas from the surrounding rate-limit snapshots', () => {
+  const ends = [], parser = new SessionParser({ id: 'session-quota', onEnd: value => ends.push(value) });
+  const accept = (at, payload) => parser.accept(JSON.stringify({ type: 'event_msg', timestamp: at, payload }));
+  const limits = (fiveHour, weekly) => ({ primary: { used_percent: fiveHour, window_minutes: 300 }, secondary: { used_percent: weekly, window_minutes: 10080 } });
+  accept('2026-09-14T09:59:00.000Z', { type: 'token_count', rate_limits: limits(10, 20) });
+  accept('2026-09-14T10:00:00.000Z', { type: 'task_started', turn_id: 'quota-turn' });
+  accept('2026-09-14T10:01:00.000Z', { type: 'token_count', rate_limits: limits(12, 20.4) });
+  accept('2026-09-14T10:01:01.000Z', { type: 'task_complete', turn_id: 'quota-turn' });
+  assert.deepEqual(ends[0].quotaConsumption, { fiveHour: 2, weekly: 0.4 });
+});
+
+test('quota reset or missing baseline remains unavailable instead of producing negative use', () => {
+  const ends = [], parser = new SessionParser({ id: 'session-quota', onEnd: value => ends.push(value) });
+  const accept = (at, payload) => parser.accept(JSON.stringify({ type: 'event_msg', timestamp: at, payload }));
+  const limits = (fiveHour, weekly) => ({ primary: { used_percent: fiveHour, window_minutes: 300 }, secondary: { used_percent: weekly, window_minutes: 10080 } });
+  accept('2026-09-14T09:59:00.000Z', { type: 'token_count', rate_limits: limits(90, 20) });
+  accept('2026-09-14T10:00:00.000Z', { type: 'task_started', turn_id: 'quota-turn' });
+  accept('2026-09-14T10:01:00.000Z', { type: 'token_count', rate_limits: limits(2, 20.5) });
+  accept('2026-09-14T10:01:01.000Z', { type: 'task_complete', turn_id: 'quota-turn' });
+  assert.deepEqual(ends[0].quotaConsumption, { weekly: 0.5 });
+});
+
 test('monitor bootstrap does not replay completed historical turns', () => {
   const starts = [], ends = [];
   const parser = new SessionParser({ id: 'test', defaultModel: 'model', onStart: x => starts.push(x), onEnd: x => ends.push(x) });

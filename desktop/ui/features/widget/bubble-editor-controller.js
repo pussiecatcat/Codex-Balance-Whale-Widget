@@ -15,6 +15,7 @@ export function createBubbleEditorController({
   let editingSubscription = false;
   let resetItems = null;
   let editedSinceOpen = false;
+  let editingConfig = null;
   function track(items) {
     return trackBubbleDraft(items, () => { editedSinceOpen = true; resetItems = null; });
   }
@@ -42,7 +43,9 @@ export function createBubbleEditorController({
       closeRolePanel();
       closeAudioGroupPanel();
       editingSubscription = getMode() === 'subscription';
-      const draft = draftOf(getConfig(), editingSubscription);
+      const latest = getConfig();
+      editingConfig = latest ? JSON.parse(JSON.stringify(latest)) : null;
+      const draft = draftOf(editingConfig, editingSubscription);
       state.lib = draft.library;
       state.items = track(draft.items);
       resetItems = null;
@@ -65,6 +68,7 @@ export function createBubbleEditorController({
   function close() {
     getMask().style.display = 'none';
     state.editorSnap = null;
+    editingConfig = null;
   }
 
   function reset() {
@@ -92,7 +96,7 @@ export function createBubbleEditorController({
     try {
       const doSave = () => {
         const edited = resetItems === JSON.stringify(state.items) ? false : editedSinceOpen || dirty() ? true : undefined;
-        saveConfig(draftSave(state.items, state.lib, getConfig(), editingSubscription, undefined, edited), ok => {
+        saveConfig(draftSave(state.items, state.lib, editingConfig || getConfig(), editingSubscription, undefined, edited), ok => {
           if (ok !== false) close();
         });
       };

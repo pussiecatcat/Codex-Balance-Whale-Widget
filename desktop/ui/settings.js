@@ -476,6 +476,16 @@ const pages = { renderPage, toPatch, readValue, editorFor, defaultFor };
   function render() {
     renderNav(true);
     dom.content.replaceChildren();
+    if (state.page === 'providers') {
+      const modeInfo = document.createElement('p');
+      modeInfo.className = 'set-mode-info';
+      modeInfo.textContent = '显示模式可在挂件菜单中切换。跟随 Codex：随 Codex 窗口显示，窗口最小化时隐藏；退出后下次打开 Codex 时恢复。常驻桌面：独立显示在桌面，退出后需要手动启动。两种模式分别保存位置和大小。';
+      dom.content.append(modeInfo);
+      const visibilityInfo = document.createElement('p');
+      visibilityInfo.className = 'set-mode-info';
+      visibilityInfo.textContent = '隐藏大肥鱼：收起角色、气泡和喂饭画面，程序继续运行；点击留下的三条杠即可恢复，角色和设置保持不变。关闭大肥鱼：退出挂件；常驻桌面模式可双击“启动桌面挂件”重新启动，跟随 Codex 模式下次打开 Codex 时恢复。';
+      dom.content.append(visibilityInfo);
+    }
     dom.content.append(pages.renderPage(state.page, context));
     if (state.page === 'providers') void hydrateProviders();
     updateChrome();

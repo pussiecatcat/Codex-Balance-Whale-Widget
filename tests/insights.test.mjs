@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {InsightAccumulator,quotaWindows} from '../runtime/insights-worker.mjs';
+import {createInsightsService} from '../runtime/insights.mjs';
 import {pricingSchedule} from '../runtime/pricing-schedule.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 const now=Date.parse('2026-09-28T10:00:00+08:00');
 test('DeepSeek only: official host, time zones, holidays and boundary',()=>{
   assert.equal(pricingSchedule({baseUrl:'https://example.org',model:'deepseek-flash'},now).visible,false);
@@ -33,4 +37,19 @@ test('quota-only token event is captured, inherited fork events skipped',()=>{
   assert.equal(p.quota,null);
   p.accept({type:'event_msg',timestamp:new Date(now).toISOString(),payload:{type:'token_count',rate_limits:{primary:{used_percent:20,window_minutes:300}}}});
   assert.equal(p.quota.windows.length,1);
+});
+
+test('fresh official quota snapshot is available as a turn baseline and expires after fifteen minutes',async t=>{
+  const codexHome=fs.mkdtempSync(path.join(os.tmpdir(),'whale-insights-quota-'));let now=Date.now();
+  t.after(()=>fs.rmSync(codexHome,{recursive:true,force:true}));
+  fs.writeFileSync(path.join(codexHome,'auth.json'),JSON.stringify({auth_mode:'chatgpt'}));
+  const windows=[{label:'5 小时',windowDurationMins:300,usedPercent:42,observedAt:now,stale:false},
+    {label:'周',windowDurationMins:10080,usedPercent:68,observedAt:now,stale:false}];
+  const service=createInsightsService({codexHome,resolve:()=>({accountId:'a'.repeat(24),model:'',setting:{monitorSessions:true,currency:'USD',models:{}}})},
+    {clock:()=>now,readRateLimits:async()=>({windows,observedAt:now}),collectLocal:async()=>({})});
+  t.after(()=>service.close());
+  await service.getQuota();
+  assert.deepEqual(service.currentQuotaSnapshot(),{fiveHour:{usedPercent:42,observedAt:now},weekly:{usedPercent:68,observedAt:now}});
+  now+=16*60000;
+  assert.equal(service.currentQuotaSnapshot(),null);
 });

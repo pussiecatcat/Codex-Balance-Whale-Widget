@@ -46,11 +46,11 @@ export function createWindowShape({ window: win, document: doc, bridge, renderin
     const add = (el, opening = false) => { if (!visible(el, opening)) return; const r = bounds(el); if (!r) return; const key = JSON.stringify(r); if (!seen.has(key)) { seen.add(key); result.push(r); } };
     // Drawing lifetime is separate from pointer-input's open/visible hit surfaces.
     // Keep only these bounded UI islands, never a viewport-sized input backdrop.
-    doc.querySelectorAll('.dshwv-img').forEach(e => add(e, true));
-    for (const el of doc.querySelectorAll('.dshwv-pop,.dshwv-menu-btn,.dshwv-menu')) {
+    doc.querySelectorAll('.dshwv-img,.dshwv-feed-animation,.dshwv-feed-cue,.dshwv-feed-empty-bowl,.dshwv-feed-filled-bowl').forEach(e => add(e, true));
+    for (const el of doc.querySelectorAll('.dshwv-pop,.dshwv-menu-btn,.dshwv-menu,.dshwv-feed-bowl,.dshwv-feed-rice-clump')) {
       if (!visible(el, true)) continue;
       const animations = paintingAnimations(el);
-      if (el.matches('.dshwv-pop-open,.dshwv-menu-btn-visible,.dshwv-menu-open') || animations.length) add(el, true);
+      if (el.matches('.dshwv-pop-open,.dshwv-menu-btn-visible,.dshwv-whale-hidden .dshwv-menu-btn,.dshwv-menu-open,.dshwv-feed-bowl,.dshwv-feed-rice-clump') || animations.length) add(el, true);
       // Follow moving bounds for the actual finite animation lifetime. Paused
       // animations preserve their pixels without starting an endless RAF loop.
       if (animations.some(a => a.pending || (a.playState === 'running' && a.playbackRate !== 0))) animate = true;

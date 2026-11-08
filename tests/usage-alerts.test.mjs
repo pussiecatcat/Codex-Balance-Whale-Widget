@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createUsageAlerts } from '../desktop/ui/features/widget/usage-alerts.js';
 
-function fixture() {
+function fixture(mode = 'api') {
   const queued = [];
   let settings = { alert: { on: true, below: 10 }, budget: { on: true, amount: 5 } };
   const alerts = createUsageAlerts({
-    document: {}, window: {}, getAccountMode: () => 'api',
+    document: {}, window: {}, getAccountMode: () => mode,
     WhaleMoney: { formatNumber: value => Number(value).toFixed(2), symbol: () => '$' },
     whaleMoneyTemplates: new WeakMap(), fmt: value => String(value),
     bubbleTokenValue: value => value == null ? '—' : String(value),
@@ -26,6 +26,38 @@ test('usage alert templates interpolate amounts and turn fields without shared d
   const a = alerts.usageRemindDefaultLines(true);
   a[0].text = 'changed';
   assert.match(alerts.usageRemindDefaultLines(true)[0].text, /余额/);
+});
+
+test('API and subscription task-end templates load and reset independently', () => {
+  const { alerts, setSettings } = fixture('api');
+  const apiLines = [{ type: 'text', text: 'API custom' }];
+  const subscriptionLines = [{ type: 'text', text: 'Subscription custom' }];
+  setSettings({ turnCost: { lines: apiLines, subscriptionLines } });
+  assert.equal(alerts.usageTurnCostLines('api'), apiLines);
+  assert.equal(alerts.usageTurnCostLines('subscription'), subscriptionLines);
+  assert.equal(alerts.usageTurnCostDefaultLines('api').length, 3);
+  assert.equal(alerts.usageTurnCostDefaultLines('subscription').length, 4);
+});
+
+test('subscription task-end bubble fills session, per-turn quota use, and cache hit variables', () => {
+  const { alerts } = fixture('subscription');
+  const notice = { sessionLabel: 'project', sessionId: 'session-abcdef', fiveHourQuotaPercent: 2,
+    weeklyQuotaPercent: 0.4, cacheHitPercent: 86 };
+  assert.equal(alerts.usageFillText('{turn_title}\n{turn_primary}\n{turn_quota}\n{turn_detail}', null, null, 'USD', notice),
+    'Session · project · abcdef\n本轮消耗\n5h 2% · 周 0.4%\n缓存命中 86%');
+  const lines = alerts.usageTurnCostLines('subscription');
+  assert.deepEqual(lines.map(line => line.text), ['{turn_title}', '{turn_primary}', '{turn_quota}', '{turn_detail}']);
+  assert.equal(lines[2].nowrap, true);
+});
+
+test('small quota use never rounds down to a visible zero', () => {
+  const { alerts } = fixture('subscription');
+  assert.equal(alerts.usageFillText('{turn_quota}', null, null, 'USD', {
+    fiveHourQuotaPercent: 0.04, weeklyQuotaPercent: 1.254,
+  }), '5h 0.04% · 周 1.25%');
+  assert.equal(alerts.usageFillText('{turn_quota}', null, null, 'USD', {
+    fiveHourQuotaPercent: 0.004, weeklyQuotaPercent: 0,
+  }), '5h <0.01% · 周 0%');
 });
 
 test('usage alerts dedupe a low balance and daily budget independently', () => {

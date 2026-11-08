@@ -13,6 +13,20 @@ function serviceFixture(t) {
   return { root, service: new WhaleService({ config }) };
 }
 
+test('API and subscription task-end templates have separate defaults and stored values', t => {
+  const { service } = serviceFixture(t);
+  const defaults = service.readUsageSettings();
+  assert.equal(defaults.turnCost.lines.length, 3);
+  assert.equal(defaults.turnCost.subscriptionLines.length, 4);
+  const apiLines = [{ type: 'text', text: 'API custom' }];
+  const subscriptionLines = [{ type: 'text', text: 'Subscription custom' }];
+  service.writeUsageSettings({ turnCost: { lines: apiLines, subscriptionLines } });
+  const saved = service.readUsageSettings();
+  assert.deepEqual(saved.turnCost.lines, apiLines);
+  assert.deepEqual(saved.turnCost.subscriptionLines, subscriptionLines);
+  assert.throws(() => service.writeUsageSettings({ turnCost: { subscriptionLines: 'bad' } }), /任务用量提示内容格式无效/);
+});
+
 test('usage settings read keeps a saved custom alert link and survives an unresolvable config', t => {
   const { root, service } = serviceFixture(t);
   const saved = service.readUsageSettings();

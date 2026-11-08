@@ -1,5 +1,6 @@
 import { rounded } from './paths.mjs';
 import { TurnJournal, safeSample, safeTurn, safeUsage } from './turn-journal.mjs';
+import { quotaConsumption as measureQuotaConsumption } from './session-parser.mjs';
 
 // Owns live turns, durable recovery, pending cost checks, and ledger writes.
 // BalanceQuery supplies observations; NoticePublisher owns publication.
@@ -177,9 +178,12 @@ export class TurnAccounting {
     const context = turn.context;
     let outcome = meta.outcome || 'completed';
     const ownUsage = safeUsage(meta.byModel || turn.byModel);
+    const quotaDelta = meta.quotaConsumption || turn.quotaConsumption ||
+      measureQuotaConsumption(turn.quotaStart, meta.quotaEnd || turn.quotaEnd, turn.startedAt, meta.ts || this.clock());
     const base = { id: meta.id, sessionId: meta.sessionId || turn.sessionId, turnId: meta.turnId,
       sessionLabel: String(meta.sessionLabel || turn.sessionLabel || '').slice(0, 120),
       rootTurnId: meta.rootTurnId || turn.rootTurnId || meta.turnId, ts: meta.ts || this.clock(), outcome,
+      quotaConsumption: quotaDelta,
       partial: !!turn.partial, historical: !!meta.historical, accountId: context.accountId,
       failureKind: outcome === 'failed' && meta.failureKind === 'high-demand' ? 'high-demand' : null };
     if (turn.isSubagent || meta.isSubagent) {

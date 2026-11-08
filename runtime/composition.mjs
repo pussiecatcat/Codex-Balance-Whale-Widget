@@ -74,13 +74,16 @@ export function createComposition({
     effect: effect => effects.push(effect()),
   });
 
-  const watcher = monitor ? new SessionMonitor(whale) : null;
+  const watcher = monitor ? new SessionMonitor(whale, { quotaSnapshot: () => insights.currentQuotaSnapshot?.() || null }) : null;
   watcher?.start();
 
   // Poll for a new balance only while the API surface is the one on screen.
   const timer = autoRefresh ? setInterval(() => { if (displayMode() === 'api') whale.getBalance().catch(() => {}); }, 60000) : null;
   timer?.unref();
   if (autoRefresh) {
+    // Seed a fresh official snapshot before the next turn, even when the
+    // quota card is not currently bound in the widget.
+    insights.getQuota().catch(() => {});
     if (displayMode() === 'api') whale.getBalance().catch(() => {});
     fx.start().catch(() => {});
   }

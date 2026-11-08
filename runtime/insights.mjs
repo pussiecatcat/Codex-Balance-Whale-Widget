@@ -121,7 +121,22 @@ export function createInsightsService(config, { readRateLimits, clock = Date.now
     await Promise.all([getQuota(options), scan(ctx)]);
     return snapshot(context());
   }
-  return { get, getQuota, close() {
+  function currentQuotaSnapshot() {
+    const ctx = context();
+    if (closed || !ctx.subscribed) return null;
+    const current = snapshot(ctx).subscription;
+    if (!current.available || current.stale) return null;
+    const now = clock(), result = {};
+    for (const window of current.windows) {
+      const key = window.windowDurationMins === 300 ? 'fiveHour' : window.windowDurationMins === 10080 ? 'weekly' : null;
+      const observedAt = window.observedAt || current.observedAt;
+      if (!key || window.stale || !Number.isFinite(window.usedPercent) || !Number.isFinite(observedAt) ||
+          observedAt > now || now - observedAt > 900000) continue;
+      result[key] = { usedPercent: window.usedPercent, observedAt };
+    }
+    return Object.keys(result).length ? result : null;
+  }
+  return { get, getQuota, currentQuotaSnapshot, close() {
     closed = true; epoch++; pending?.abort.abort(); client?.close();
     for (const worker of workers) void worker.terminate();
     workers.clear(); lastGood = null; local = null;

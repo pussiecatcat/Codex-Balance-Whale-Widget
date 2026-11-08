@@ -358,6 +358,7 @@ test('subscription turns stay on the identity ledger when API configuration chan
   await service.finishTurn({ ...meta, byModel: usage(10) });
   const identityScope = identity.accountId + '-USD';
   assert.ok(service.ledger.find(identityScope, meta), 'the turn is written to the identity ledger');
+  assert.equal(service.lastTurn().tokens, 10, 'the subscription turn notice is validated against the identity account');
 
   // Repairing the API config must not move or hide the subscription history.
   config.resolve = () => ({ accountId: 'a'.repeat(24), key: 'FIXTURE', model: 'model', baseUrl: 'https://api.example/v1',

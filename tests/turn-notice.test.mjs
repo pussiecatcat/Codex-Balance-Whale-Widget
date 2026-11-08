@@ -33,8 +33,8 @@ test('a queued notice captures currency, money, text and tokens once', () => {
   assert.equal(draws, 0); assert.equal(notice.label, '挤不进去...'); assert.ok(Object.isFrozen(notice));
 });
 
-test('turn snapshots retain model token breakdown for the subscription completion bubble', () => {
-  const notice = notices.snapshot(record({ byModel: {
+test('turn snapshots retain token breakdown, quota deltas, and session identity for the subscription bubble', () => {
+  const notice = notices.snapshot(record({ sessionId: 'session-abcdef', sessionLabel: 'project', quotaConsumption: { fiveHour: 0.004, weekly: 1.254 }, byModel: {
     'gpt-a': { input_tokens: 100, output_tokens: 40, cached_input_tokens: 25, reasoning_output_tokens: 9 },
     'gpt-b': { input_tokens: 20, output_tokens: 5, cached_input_tokens: 0, reasoning_output_tokens: 2 },
   } }));
@@ -42,6 +42,10 @@ test('turn snapshots retain model token breakdown for the subscription completio
   assert.equal(notice.outputTokens, 45);
   assert.equal(notice.cachedInputTokens, 25);
   assert.equal(notice.reasoningOutputTokens, 11);
+  assert.equal(notice.fiveHourQuotaPercent, 0.004);
+  assert.equal(notice.weeklyQuotaPercent, 1.254);
+  assert.equal(notice.cacheHitPercent, 20.8);
+  assert.equal(notice.sessionId, 'session-abcdef');
 });
 
 test('unknown charges never become a zero-price success and known zero estimates remain valid', () => {

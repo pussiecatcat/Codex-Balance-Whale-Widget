@@ -148,8 +148,15 @@ export function createSoundSettingsView(options) {
   const turn = entry('turnCost', '每轮消耗提示', draft.turnCostOn, value => { draft.turnCostOn = value; });
   const turnBubbleRow = row(turn.body, '冒泡提示');
   controls.turnBubble = check(turnBubbleRow, draft.events.turnCost.bubbleOn, value => { draft.events.turnCost.bubbleOn = value; });
-  edit(turnBubbleRow, 'turnCost', '编辑每轮消耗提示的泡泡内容',
-    () => ({ lines: draft.events.turnCost.lines }), result => { draft.events.turnCost.lines = structuredClone(result.lines || []); });
+  edit(turnBubbleRow, 'turnCost', '编辑当前模式的任务结束用量泡泡；API 与 Codex 订阅分别保存',
+    () => {
+      const templateMode = draft.turnCostTemplateMode === 'subscription' ? 'subscription' : 'api';
+      const key = templateMode === 'subscription' ? 'subscriptionLines' : 'lines';
+      return { lines: draft.events.turnCost[key], templateMode, layoutOnly: true };
+    }, result => {
+      const key = result.templateMode === 'subscription' ? 'subscriptionLines' : 'lines';
+      draft.events.turnCost[key] = structuredClone(result.lines || []);
+    });
   const closeRow = row(turn.body, '自动关闭', 'whale-sound-close-row');
   controls.closeOn = check(closeRow, draft.closeOn, value => { draft.closeOn = value; });
   controls.closeSec = element(documentRef, closeRow, 'input', '', 'dshwv-number');

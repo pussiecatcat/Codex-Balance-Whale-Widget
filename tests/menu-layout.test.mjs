@@ -9,7 +9,7 @@ function element() {
 test('compact menu mounts the required rows in product order regardless of registration or text', () => {
   const containers = { view: element(), navigation: element(), footer: element() };
   const controller = mountMenu(MENU_LAYOUT, new Map(), 'api', containers);
-  const ids = ['role', 'size', 'dataSource', 'displayMode', 'sound', 'bubble', 'ledger', 'advanced'];
+  const ids = ['role', 'size', 'dataSource', 'displayMode', 'sound', 'bubble', 'visibility', 'ledger', 'advanced'];
   for (const id of [...ids].reverse()) controller.register({ id, element: { ...element(), textContent: 'renamed: ' + id } });
   const mounted = () => Object.values(containers).flatMap(slot => slot.children.map(row => row.dataset.menuId));
   assert.deepEqual(mounted(), ids);

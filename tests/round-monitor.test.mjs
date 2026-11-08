@@ -179,6 +179,28 @@ test('worker starts asynchronously and reports matching main completion after ch
   await monitor.stop();
 });
 
+test('fresh official quota baseline fills a missing session baseline for the completed turn', async t => {
+  const { service, dir } = fixture(t), sessions = path.join(dir, 'sessions'); fs.mkdirSync(sessions);
+  const startedAt = Date.now();
+  const quotaStart = {
+    fiveHour: { usedPercent: 40, observedAt: startedAt - 1000 },
+    weekly: { usedPercent: 60, observedAt: startedAt - 1000 },
+  };
+  const monitor = new SessionMonitor(service, { intervalMs: 20, discoverMs: 20, quotaSnapshot: () => quotaStart });
+  t.after(() => monitor.stop()); monitor.start();
+  const waitFor = async predicate => { const end = Date.now() + 5000; while (!predicate()) { assert.ok(Date.now() < end, JSON.stringify(monitor.status())); await new Promise(r => setTimeout(r, 15)); } };
+  await waitFor(() => !monitor.status().initializing);
+  const at = (type, timestamp, extra = {}) => ({ type: 'event_msg', timestamp: new Date(timestamp).toISOString(), payload: { type, ...extra } });
+  const session = [header('quota-session'), at('task_started', startedAt, { turn_id: 'quota-turn' })];
+  const file = path.join(sessions, 'quota-session.jsonl');
+  fs.writeFileSync(file, session.map(JSON.stringify).join('\n') + '\n');
+  await waitFor(() => service.turns.has('quota-session:quota-turn'));
+  const limits = { primary: { used_percent: 41.254, window_minutes: 300 }, secondary: { used_percent: 60.004, window_minutes: 10080 } };
+  fs.appendFileSync(file, [at('token_count', startedAt + 300, { rate_limits: limits }), at('task_complete', startedAt + 400, { turn_id: 'quota-turn' })].map(JSON.stringify).join('\n') + '\n');
+  await waitFor(() => service.lastTurn()?.seq === 1);
+  assert.deepEqual(service.lastTurn().quotaConsumption, { fiveHour: 1.254, weekly: 0.004 });
+});
+
 test('actual frontend polling suppresses startup replay, duplicates, children and overlapping requests', async () => {
   const stored = new Map(); let fetches = 0, sounds = 0, bubbles = 0, release;
   const pending = [], sandbox = { state: {}, Date, Number, isFinite,

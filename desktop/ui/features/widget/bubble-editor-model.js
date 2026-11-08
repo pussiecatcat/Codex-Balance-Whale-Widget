@@ -74,6 +74,7 @@ export function saveBubbleEditorDraft(items, library, config, subscriptionMode, 
   const savedItems = items.map(saveBubbleEditorStep);
   const resolved = resolveBubbleConfig(config).config || {};
   return { v: 1, editingMode: subscriptionMode ? 'subscription' : 'api',
+    expectedRevision: config?.revision,
     items: subscriptionMode ? config?.items || bubbleDefaultQueue(false) : savedItems,
     subscriptionItems: subscriptionMode ? savedItems : config?.subscriptionItems || [],
     defaultsVersion: resolved.defaultsVersion,
