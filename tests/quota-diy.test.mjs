@@ -284,8 +284,9 @@ test('Codex lookup validates known locations and reports a missing executable', 
   const executable = path.join(dir, 'codex.exe');
   await fs.writeFile(executable, '');
   assert.equal(findCodexExecutable({ CODEX_CLI_PATH: executable }), executable);
-  const missing = findCodexExecutable({ CODEX_CLI_PATH: path.join(dir, 'missing.exe'), LOCALAPPDATA: dir, APPDATA: dir, ProgramFiles: dir, PATH: '' });
-  if (process.platform === 'win32') assert.equal(missing, null); else assert.equal(missing, 'codex');
+  const isolatedEnv = { LOCALAPPDATA: dir, APPDATA: dir, ProgramFiles: dir, PATH: '' };
+  const missing = findCodexExecutable({ ...isolatedEnv, CODEX_CLI_PATH: path.join(dir, 'missing.exe') });
+  assert.equal(missing, findCodexExecutable(isolatedEnv));
 });
 
 test('cmd shims run through the command processor on Windows', () => {

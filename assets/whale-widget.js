@@ -1,4 +1,4 @@
-import { createVisibilityRow, createVisibilityState } from '/features/widget/visibility-controls.js';
+import { createDisplayModeSelect, createVisibilityRow, createVisibilityState } from '/features/widget/visibility-controls.js';
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { mirrorSizeSettings } from '/features/widget/settings-mirror.js';
 import { createSettingsClient } from '/services/settings-client.js';
@@ -337,12 +337,8 @@ import {
     compactMenu.register({ id: 'bubble', element: row6 });
     var modeRow = menuRow();
     modeRow.appendChild(menuLabel(LABELS.displayMode));
-    var modeSel = document.createElement('select');
-    modeSel.id = 'dshw-desktop-display';
-    modeSel.className = 'dshwv-sound';
-    [['follow-codex', '跟随 Codex'], ['standalone', '常驻桌面']].forEach(function (entry) {
-      var option = document.createElement('option');
-      option.value = entry[0]; option.textContent = entry[1]; modeSel.appendChild(option);
+    var modeSel = createDisplayModeSelect(document, modeRow, function (mode) {
+      window.whaleDesktop.command(mode === 'standalone' ? 'desktop' : 'follow');
     });
     function syncLevel1Controls() {
       if (!window.whaleDesktop?.command) return;
@@ -350,17 +346,6 @@ import {
         if (mode) modeSel.value = mode;
       }).catch(function () { /* A disconnected desktop bridge cannot report its mode. */ });
     }
-    modeSel.addEventListener('change', function () {
-      window.whaleDesktop.command(modeSel.value === 'standalone' ? 'desktop' : 'follow');
-    });
-    modeRow.appendChild(modeSel);
-    var modeHelp = document.createElement('button');
-    modeHelp.type = 'button';
-    modeHelp.className = 'dshwv-fx-info-button';
-    modeHelp.textContent = '?';
-    modeHelp.title = '跟随 Codex：随 Codex 窗口显示，窗口最小化时隐藏；退出后下次打开 Codex 时恢复。\n常驻桌面：独立显示在桌面；退出后需要手动启动。两种模式分别保存位置和大小。';
-    modeHelp.setAttribute('aria-label', modeHelp.title);
-    modeRow.appendChild(modeHelp);
     compactMenu.register({ id: 'displayMode', element: modeRow });
     compactMenu.register({ id: 'visibility', element: createVisibilityRow({ document, row: menuRow(), hide: function () {
       closeMenu(); hideBubble(); feeding.reset(); visibilityState.hide();

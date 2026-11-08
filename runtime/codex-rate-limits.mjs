@@ -46,7 +46,9 @@ export function findCodexExecutable(env = process.env) {
 function locateCodex(env) {
   const candidates = [];
   const add = value => { if (value && !candidates.includes(value)) candidates.push(value); };
-  add(env.CODEX_CLI_PATH);
+  if (env.CODEX_CLI_PATH) {
+    try { if (fs.statSync(env.CODEX_CLI_PATH).isFile()) return env.CODEX_CLI_PATH; } catch { /* An unavailable override falls back to discovery. */ }
+  }
   const local = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
   const roaming = env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
   if (process.platform === 'darwin') {

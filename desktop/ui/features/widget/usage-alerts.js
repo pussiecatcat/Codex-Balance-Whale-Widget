@@ -102,12 +102,6 @@ export function createUsageAlerts(deps) {
         var raw = String(m.text != null ? m.text : '');
         var txt = usageFillText(raw, below, amount);
         var div = document.createElement('div');
-        var fontPx = usageLineFontPx(m.size);
-        if (m.nowrap && txt) {
-          var textUnits = Array.from(txt).reduce(function (sum, char) { return sum + (char.charCodeAt(0) > 255 ? 1 : 0.55); }, 0);
-          var maxWidth = Number(body.clientWidth) || (body.getBoundingClientRect && body.getBoundingClientRect().width) || 0;
-          if (maxWidth > 0 && textUnits * fontPx > maxWidth) fontPx = Math.max(8, Math.floor(maxWidth / textUnits));
-        }
         div.style.margin = m.compact ? '2px auto' : '4px auto';
         div.style.maxWidth = '100%';
         if (!txt) {
@@ -122,7 +116,8 @@ export function createUsageAlerts(deps) {
         div.style.textAlign = 'center';
         div.style.whiteSpace = m.nowrap ? 'nowrap' : 'pre-wrap';
         div.style.wordBreak = m.nowrap ? 'normal' : 'break-word';
-        div.style.fontSize = fontPx + 'px';
+        var setFontSize = value => { div.style.fontSize = value + 'px'; };
+        setFontSize(usageLineFontPx(m.size));
         div.style.lineHeight = '1.4';
         if (m.bold) div.style.fontWeight = '700';
         if (m.italic) div.style.fontStyle = 'italic';
@@ -142,7 +137,7 @@ export function createUsageAlerts(deps) {
           var fontPx = parseFloat(div.style.fontSize) || usageLineFontPx(m.size);
           while (maxWidth > 0 && div.scrollWidth > maxWidth && fontPx > 8) {
             fontPx -= 1;
-            div.style.fontSize = fontPx + 'px';
+            setFontSize(fontPx);
           }
         }
       } catch (err) {}
