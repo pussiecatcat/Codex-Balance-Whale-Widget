@@ -1,17 +1,22 @@
 const CLICK_WINDOW_MS = 60_000;
 const BOWL_LIFETIME_MS = 60_000;
-const PLAYBACK_MS = 3750; // The movie ends on the satisfied expression.
 const GUTTER = 8;
 const PARKING_KEY = 'dshw-feed-pos';
 const BASIN_ASPECT = 112 / 100;
 const CONTACT_SAMPLES = [.08, .29, .5, .71, .92];
-// The transparent bowl is cut from this rectangle of the first movie frame.
-const FRAME = {
-  width: 360, height: 480,
-  // Measure from the maid headband to the body edge, excluding the moving tuft.
-  headbandTop: 134, bodyBottom: 469,
-  bowl: { x: 0, y: 380, width: 112, height: 100 },
-};
+// Headband and body measurements exclude the tuft. Each bowl matches its movie's first frame.
+const FEEDING_VARIANTS = [
+  {
+    movie: '/assets/feeding-rice-plan-1.webp', filledBowl: '/assets/feeding-bowl-plan-1.png',
+    playbackMs: 3490, width: 285, height: 310, headbandTop: 47, bodyBottom: 300,
+    bowl: { x: 0, y: 228, width: 93, height: 79 },
+  },
+  {
+    movie: '/assets/feeding-rice.webp', filledBowl: '/assets/feeding-bowl.png',
+    playbackMs: 3750, width: 360, height: 480, headbandTop: 134, bodyBottom: 469,
+    bowl: { x: 0, y: 380, width: 112, height: 100 },
+  },
+];
 const IDLE_HEADBAND_TOP = .12;
 
 export function createFeeding({ document, window, image, imageUrl, root, scope, rendering, uiState }) {
@@ -38,7 +43,6 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
   filledBowl.className = 'dshwv-feed-filled-bowl';
   filledBowl.hidden = true;
   const filledArt = document.createElement('img');
-  filledArt.src = '/assets/feeding-bowl.png';
   filledArt.alt = '';
   const glow = document.createElement('span');
   glow.className = 'dshwv-feed-glow';
@@ -61,7 +65,7 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
 
   let clicks = [], drag = null, home = null, movie = null, preparedMovie = null, restore = false;
   let timer, prelude;
-  let sequence = 0;
+  let sequence = 0, variant;
   const defaultRole = () => image.getAttribute('src') === imageUrl;
   const flipped = () => rendering.mirrorScale(root) < 0;
 
@@ -206,11 +210,13 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
     bowl.style.setProperty('--feed-width', width + 'px');
     place(bowl, home.x, home.y);
     bowl.hidden = false;
+    variant = FEEDING_VARIANTS[Math.floor(Math.random() * FEEDING_VARIANTS.length)];
+    filledArt.src = variant.filledBowl;
     preparedMovie = document.createElement('img');
     preparedMovie.className = 'dshwv-feed-animation';
     preparedMovie.alt = '';
     preparedMovie.draggable = false;
-    preparedMovie.src = '/assets/feeding-rice.webp?play=' + ++sequence;
+    preparedMovie.src = variant.movie + '?play=' + ++sequence;
     if (!hasParking) timer = window.setTimeout(reset, BOWL_LIFETIME_MS);
   }
 
@@ -280,17 +286,17 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
 
   function feedingPlacement(rect, mirror) {
     const width = Math.min(rect.width, window.innerWidth);
-    const scaleX = width / FRAME.width;
-    const scaleY = rect.height * (1 - IDLE_HEADBAND_TOP) / (FRAME.bodyBottom - FRAME.headbandTop);
-    const height = FRAME.height * scaleY;
+    const scaleX = width / variant.width;
+    const scaleY = rect.height * (1 - IDLE_HEADBAND_TOP) / (variant.bodyBottom - variant.headbandTop);
+    const height = variant.height * scaleY;
     const left = mirror ? rect.left : rect.right - width;
     const x = Math.max(0, Math.min(left, window.innerWidth - width));
     // Keep the body aligned even when the raised tuft extends above the window.
-    const y = Math.min(rect.bottom - FRAME.bodyBottom * scaleY, window.innerHeight - height);
-    const bowlX = mirror ? FRAME.width - FRAME.bowl.x - FRAME.bowl.width : FRAME.bowl.x;
+    const y = Math.min(rect.bottom - variant.bodyBottom * scaleY, window.innerHeight - height);
+    const bowlX = mirror ? variant.width - variant.bowl.x - variant.bowl.width : variant.bowl.x;
     return { x, y, width, height, target: {
-      x: x + bowlX * scaleX, y: y + FRAME.bowl.y * scaleY,
-      width: FRAME.bowl.width * scaleX, height: FRAME.bowl.height * scaleY,
+      x: x + bowlX * scaleX, y: y + variant.bowl.y * scaleY,
+      width: variant.bowl.width * scaleX, height: variant.bowl.height * scaleY,
     } };
   }
 
@@ -338,7 +344,7 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
     filledBowl.hidden = true;
     restore = true;
     image.hidden = true;
-    timer = window.setTimeout(reset, PLAYBACK_MS);
+    timer = window.setTimeout(reset, variant.playbackMs);
   }
 
   function returnBowl() {
