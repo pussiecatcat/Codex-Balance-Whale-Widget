@@ -20,6 +20,7 @@ export class SoundSettingsController {
     this.menu = options.menu || null;
     this.audioEditor = options.audioEditor || null;
     this.promptEditor = options.promptEditor || null;
+    this.getAccountMode = options.getAccountMode || (() => 'api');
     this.applySettings = options.applySettings || (() => {});
     this.onApplied = options.onApplied || (() => {});
     this.rendering = options.rendering || { presentFor() {} };
@@ -67,7 +68,7 @@ export class SoundSettingsController {
       this.bundle = bundle;
       this.catalog = catalog;
       this.sound.reload({ ...bundle, catalog });
-      this.draft = createSoundDraft(bundle, catalog);
+      this.draft = createSoundDraft(bundle, catalog, this.getAccountMode());
       this.view = this.createView({
         documentRef: this.document,
         draft: this.draft,

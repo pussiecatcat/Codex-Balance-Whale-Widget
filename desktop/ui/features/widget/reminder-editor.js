@@ -9,13 +9,14 @@ export function createReminderEditor(deps) {
     bubblePvDropBlockEnd, bubbleRowsCanon, bubblePreviewInto, bubbleEditTarget,
     usageTurnCostLines, usageWaitLinesOf, usageRemindLinesOf,
     usageTurnCostDefaultLines, usageWaitDefaultLines, usageRemindDefaultLines,
-    usageAlertModsResolved,
+    usageAlertModsResolved, getAccountMode = () => 'api',
   } = deps;
   return function usageAlertBudgetEditor(key, onSave, customConfig, onCancel) {
       try {
         var isCost = key === 'turnCost';
         var isAlert = key === 'alert';
         var isWait = key === 'question' || key === 'approval';
+        var templateMode = isCost ? (customConfig && customConfig.templateMode || getAccountMode()) : null;
         var cfg = customConfig || (isWait ? ((usagePanelApi.getUsageSet() || {}).events || {})[key] : (usagePanelApi.getUsageSet() || ({}))[isCost ? 'turnCost' : isAlert ? 'alert' : 'budget']) || ({});
         var numDef = isAlert ? 50 : 20;
         var numInit = isAlert ? cfg.below != null ? cfg.below : numDef : cfg.amount != null ? cfg.amount : numDef;
@@ -23,7 +24,7 @@ export function createReminderEditor(deps) {
         var nativeDraft = Number(numInit);
         var step = {
           kind: 'custom',
-          modules: JSON.parse(JSON.stringify(isCost ? (customConfig && Array.isArray(customConfig.lines) ? customConfig.lines : usageTurnCostLines()) : isWait ? usageWaitLinesOf(cfg, key) : usageRemindLinesOf(cfg, isAlert)))
+          modules: JSON.parse(JSON.stringify(isCost ? (customConfig && Array.isArray(customConfig.lines) && customConfig.lines.length ? customConfig.lines : usageTurnCostLines(templateMode)) : isWait ? usageWaitLinesOf(cfg, key) : usageRemindLinesOf(cfg, isAlert)))
         };
         var bkEditItems = bubbleEditorState.items;
         var bkEditorSnap = bubbleEditorState.editorSnap;
@@ -50,7 +51,7 @@ export function createReminderEditor(deps) {
         card.style.overflow = 'hidden auto';
         var title = document.createElement('div');
         title.className = 'dshwv-bubtitle';
-        title.textContent = '编辑 ' + (isCost ? '每轮消耗' : isWait ? (key === 'approval' ? '授权' : '提问') : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
+        title.textContent = '编辑 ' + (isCost ? (templateMode === 'subscription' ? 'Codex 订阅任务用量' : 'API 任务用量') : isWait ? (key === 'approval' ? '授权' : '提问') : isAlert ? '余额预警' : '今日预算') + '提示内容(可拖动下方模块入框)';
         card.appendChild(title);
         var secCond = document.createElement('div');
         secCond.className = 'dshwv-bubsec dshwv-bubsec-first';
@@ -224,7 +225,7 @@ export function createReminderEditor(deps) {
         resBtn.textContent = '恢复默认';
         resBtn.title = '恢复为默认提醒内容(触发条件保持不变)';
         resBtn.addEventListener('click', function () {
-          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines() : isWait ? usageWaitDefaultLines(key) : usageRemindDefaultLines(isAlert)));
+          step.modules = JSON.parse(JSON.stringify(isCost ? usageTurnCostDefaultLines(templateMode) : isWait ? usageWaitDefaultLines(key) : usageRemindDefaultLines(isAlert)));
           ctx.renderPv();
         });
         btns.appendChild(resBtn);
@@ -243,6 +244,7 @@ export function createReminderEditor(deps) {
             autoClose: isCost ? Number(secInp.value) > 0 : acChk.checked,
             ttlSec: isCost && !acChk.checked ? 0 : Math.max(0, Number(secInp.value) || 0)
           };
+          if (isCost) o.templateMode = templateMode;
           if (!isCost && !isWait) { if (isAlert) o.below = nativeDraft; else o.amount = nativeDraft; }
           cleanup('saved');
           if (onSave) onSave(o);
@@ -274,7 +276,7 @@ export function createReminderEditor(deps) {
             var amount = isAlert || isCost || isWait ? null : nativeDraft;
             var previewNotice = WhaleTurnNotice.snapshot({ ok: true, amount: 0.08, costState: 'estimated', tokens: 12840, sessionLabel: '当前对话', byModel: { preview: { input_tokens: 10240, output_tokens: 2600, cached_input_tokens: 6000, reasoning_output_tokens: 800 } } }, state.currency);
             if (customConfig && customConfig.previewNotice) previewNotice = customConfig.previewNotice;
-            if (it && Array.isArray(it.modules) && bubbleEditorState.pvPrevEl) bubblePreviewInto(bubbleEditorState.pvPrevEl, usageAlertModsResolved(it.modules, below, amount, isCost || customConfig ? previewNotice : null));
+            if (it && Array.isArray(it.modules) && bubbleEditorState.pvPrevEl) bubblePreviewInto(bubbleEditorState.pvPrevEl, usageAlertModsResolved(it.modules, below, amount, isCost || customConfig ? previewNotice : null, templateMode));
           } catch (err) {}
         };
         function editNativeAmount() {

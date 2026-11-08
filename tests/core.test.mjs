@@ -168,7 +168,7 @@ test('turn parser measures quota percentage-point deltas from the surrounding ra
   assert.deepEqual(ends[0].quotaConsumption, { fiveHour: 2, weekly: 0.4 });
 });
 
-test('a reset or missing quota baseline is shown as unavailable instead of negative consumption', () => {
+test('quota reset or missing baseline remains unavailable instead of producing negative use', () => {
   const ends = [], parser = new SessionParser({ id: 'session-quota', onEnd: value => ends.push(value) });
   const accept = (at, payload) => parser.accept(JSON.stringify({ type: 'event_msg', timestamp: at, payload }));
   const limits = (fiveHour, weekly) => ({ primary: { used_percent: fiveHour, window_minutes: 300 }, secondary: { used_percent: weekly, window_minutes: 10080 } });

@@ -33,11 +33,12 @@ export function createUsagePanel({
   function save(patch) {
     try {
       if (!settingsClient) throw new Error('设置服务不可用');
-      settingsClient.write({ domain: 'usage', changes: patch || {}, force: true }).then(result => {
+      return settingsClient.write({ domain: 'usage', changes: patch || {}, force: true }).then(result => {
         if (result?.ok) { if (result.values) usageSet = result.values; }
         else assetFailure(new Error(result?.error || '保存未完成，请重试'));
+        return result;
       }).catch(assetFailure);
-    } catch (error) { assetFailure(error); }
+    } catch (error) { assetFailure(error); return Promise.resolve({ ok: false, error: error?.message || '保存未完成，请重试' }); }
   }
 
   function refresh() {

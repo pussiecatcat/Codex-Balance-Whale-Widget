@@ -330,11 +330,19 @@ export function usageDefaults() {
       ] },
     },
     wait: { charClose: false },
-    turnCost: { lines: [
-      { type: 'text', text: '{turn_title}', size: 8, bold: true },
-      { type: 'text', text: '{turn_primary}', size: 16, bold: true, rgb: 'indigo' },
-      { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' },
-    ] },
+    turnCost: {
+      lines: [
+        { type: 'text', text: '{turn_title}', size: 8, bold: true },
+        { type: 'text', text: '{turn_primary}', size: 16, bold: true, rgb: 'indigo' },
+        { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' },
+      ],
+      subscriptionLines: [
+        { type: 'text', text: '{turn_title}', size: 4, bold: true, compact: true },
+        { type: 'text', text: '{turn_primary}', size: 4, bold: true, rgb: 'indigo', compact: true },
+        { type: 'text', text: '{turn_quota}', size: 3, bold: true, rgb: 'indigo', compact: true, nowrap: true },
+        { type: 'text', text: '{turn_detail}', size: 4, color: '#5a6a92', compact: true },
+      ],
+    },
     alert: { on: true, below: 5, msg: '余额已低于 {currency}{below}', lines: [
       { type: 'text', text: '老大～你的 API 余额', size: 5, bold: true },
       { type: 'text', text: '已经不足 {currency}{below} 啦', size: 6, bold: true, rgb: 'rouge' },

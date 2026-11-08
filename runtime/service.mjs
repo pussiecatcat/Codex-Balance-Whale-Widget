@@ -129,6 +129,10 @@ export class WhaleService {
   }
   validateUsageSettings(result) {
     if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('用量设置格式无效');
+    for (const key of ['lines', 'subscriptionLines']) {
+      const lines = result.turnCost?.[key];
+      if (lines !== undefined && (!Array.isArray(lines) || lines.length > 64)) throw new Error('任务用量提示内容格式无效');
+    }
     for (const kind of ['press', 'turnCost', 'question', 'approval']) {
       const event = result.events?.[kind];
       if (!event || !Number.isFinite(Number(event.vol)) || Number(event.vol) < 0 || Number(event.vol) > 1) throw new Error('提示音量须在 0% 到 100% 之间');

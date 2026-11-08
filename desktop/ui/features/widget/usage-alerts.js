@@ -19,14 +19,15 @@ export function createUsageAlerts(deps) {
         bold: true
       }];
     }
-    function usageTurnCostDefaultLines() {
+    function usageTurnCostDefaultLines(mode) {
+      if ((mode || getAccountMode()) === 'subscription') return usageTurnCostSubscriptionDefaultLines();
       return [
         { type: 'text', text: '{turn_title}', size: 8, bold: true },
         { type: 'text', text: '{turn_primary}', size: 16, bold: true, rgb: 'indigo' },
         { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' }
       ];
     }
-    function usageTurnCostSubscriptionLines() {
+    function usageTurnCostSubscriptionDefaultLines() {
       return [
         { type: 'text', text: '{turn_title}', size: 4, bold: true, compact: true },
         { type: 'text', text: '{turn_primary}', size: 4, bold: true, rgb: 'indigo', compact: true },
@@ -43,11 +44,12 @@ export function createUsageAlerts(deps) {
     function usageWaitLinesOf(cfg, kind) {
       return cfg && Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageWaitDefaultLines(kind);
     }
-    function usageTurnCostLines() {
-      if (getAccountMode() === 'subscription') return usageTurnCostSubscriptionLines();
+    function usageTurnCostLines(mode) {
       var usageSet = getUsageSet();
       var cfg = usageSet && usageSet.turnCost || ({});
-      return Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageTurnCostDefaultLines();
+      var templateMode = mode || getAccountMode();
+      var key = templateMode === 'subscription' ? 'subscriptionLines' : 'lines';
+      return Array.isArray(cfg[key]) && cfg[key].length ? cfg[key] : usageTurnCostDefaultLines(templateMode);
     }
     function usageRemindTtlMs(cfg) {
       cfg = cfg || ({});
@@ -61,14 +63,14 @@ export function createUsageAlerts(deps) {
       if (Array.isArray(cfg.lines) && cfg.lines.length) return cfg.lines;
       return usageRemindDefaultLines(isAlert);
     }
-    function usageTurnValues(notice) {
+    function usageTurnValues(notice, mode) {
       notice = notice || getLastTurnNotice() || ({});
-      var subscription = getAccountMode() === 'subscription';
+      var subscription = (mode || getAccountMode()) === 'subscription';
       var shortSessionId = notice.sessionId ? String(notice.sessionId).slice(-6) : '';
       var sessionName = [notice.sessionLabel || '', shortSessionId].filter(Boolean).join(' · ') || '当前会话';
       var title = subscription ? 'Session · ' + sessionName : (notice.label === '上一轮期间 API 扣费:' ? '本轮 API 消耗' : notice.label || '本轮已观测消耗');
       var cost = notice.amount == null ? (notice.costState === 'pending' ? '待记账' : '金额未知') : fmt(notice.amount, notice.currency || getCurrency());
-      var pct = (value, estimate) => {
+      var pct = function (value, estimate) {
         if (value == null) return '—';
         var number = Number(value);
         if (!isFinite(number)) return '—';
@@ -84,9 +86,9 @@ export function createUsageAlerts(deps) {
         turn_cached: bubbleTokenValue(notice.cachedInputTokens), turn_reasoning: bubbleTokenValue(notice.reasoningOutputTokens), session: notice.sessionLabel || '当前对话', session_name: notice.sessionLabel || '当前会话',
         api_name: notice.apiName || 'API 模型', api_balance: notice.apiBalance || '12.00', api_cost: notice.apiCost || '0.08', api_quota_left: notice.apiQuotaLeft || '75%' };
     }
-    function usageFillText(txt, below, amount, currency, notice) {
+    function usageFillText(txt, below, amount, currency, notice, mode) {
       var text = String(txt || '').replace(/\{currency\}/g, whaleCurrencySymbol()).replace(/\{below\}/g, below != null ? WhaleMoney.formatNumber(below, currency) : '').replace(/\{amount\}/g, amount != null ? WhaleMoney.formatNumber(amount, currency) : '');
-      var map = usageTurnValues(notice), keys = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
+      var map = usageTurnValues(notice, mode), keys = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
       for (var i = 0; i < keys.length; i++) text = text.split('{' + keys[i] + '}').join(String(map[keys[i]]));
       return text;
     }
@@ -100,6 +102,12 @@ export function createUsageAlerts(deps) {
         var raw = String(m.text != null ? m.text : '');
         var txt = usageFillText(raw, below, amount);
         var div = document.createElement('div');
+        var fontPx = usageLineFontPx(m.size);
+        if (m.nowrap && txt) {
+          var textUnits = Array.from(txt).reduce(function (sum, char) { return sum + (char.charCodeAt(0) > 255 ? 1 : 0.55); }, 0);
+          var maxWidth = Number(body.clientWidth) || (body.getBoundingClientRect && body.getBoundingClientRect().width) || 0;
+          if (maxWidth > 0 && textUnits * fontPx > maxWidth) fontPx = Math.max(8, Math.floor(maxWidth / textUnits));
+        }
         div.style.margin = m.compact ? '2px auto' : '4px auto';
         div.style.maxWidth = '100%';
         if (!txt) {
@@ -114,7 +122,7 @@ export function createUsageAlerts(deps) {
         div.style.textAlign = 'center';
         div.style.whiteSpace = m.nowrap ? 'nowrap' : 'pre-wrap';
         div.style.wordBreak = m.nowrap ? 'normal' : 'break-word';
-        div.style.fontSize = usageLineFontPx(m.size) + 'px';
+        div.style.fontSize = fontPx + 'px';
         div.style.lineHeight = '1.4';
         if (m.bold) div.style.fontWeight = '700';
         if (m.italic) div.style.fontStyle = 'italic';
@@ -168,15 +176,15 @@ export function createUsageAlerts(deps) {
         }
       } catch (err) {}
     }
-    function usageAlertModsResolved(mods, below, amount, notice) {
+    function usageAlertModsResolved(mods, below, amount, notice, mode) {
       var out = [];
       try {
         for (var i = 0; i < mods.length; i++) {
           var m0 = mods[i] || ({});
           var cp = JSON.parse(JSON.stringify(m0));
           var raw = String(m0.text != null ? m0.text : '');
-          whaleMoneyTemplates.set(cp, { template: raw, below: below, amount: amount, currency: getCurrency(), notice: notice || null });
-          cp.text = raw.length ? usageFillText(raw, below, amount, getCurrency(), notice) : raw;
+          whaleMoneyTemplates.set(cp, { template: raw, below: below, amount: amount, currency: getCurrency(), notice: notice || null, mode: mode || null });
+          cp.text = raw.length ? usageFillText(raw, below, amount, getCurrency(), notice, mode) : raw;
           out.push(cp);
         }
       } catch (err) {}
@@ -248,7 +256,7 @@ export function createUsageAlerts(deps) {
         document.body.appendChild(mask);
       } catch (err) {}
     }
-  return { usageTodayKeyStr, usageRemindDefaultLines, usageTurnCostDefaultLines,
+  return { usageTodayKeyStr, usageRemindDefaultLines, usageTurnCostDefaultLines, usageTurnCostSubscriptionDefaultLines,
     usageWaitDefaultLines, usageWaitLinesOf, usageTurnCostLines, usageRemindLinesOf,
     usageFillText, usageAlertModsResolved, checkUsageAlerts, showUsagePopup };
 }

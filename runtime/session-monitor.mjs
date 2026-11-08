@@ -117,7 +117,7 @@ export class SessionMonitor {
           if (!meta.isSubagent) {
             let baseline = null;
             try { baseline = this.quotaSnapshot(meta); }
-            catch { /* The quota baseline is optional; never drop a session turn when it is unavailable. */ }
+            catch { /* Quota snapshots are optional and cannot prevent turn tracking. */ }
             if (baseline && typeof baseline === 'object') {
               const quotaStart = { ...(meta.quotaStart || {}) };
               for (const key of ['fiveHour', 'weekly']) {

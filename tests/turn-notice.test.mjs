@@ -33,7 +33,7 @@ test('a queued notice captures currency, money, text and tokens once', () => {
   assert.equal(draws, 0); assert.equal(notice.label, '挤不进去...'); assert.ok(Object.isFrozen(notice));
 });
 
-test('turn snapshots retain model token breakdown and small quota deltas for the subscription completion bubble', () => {
+test('turn snapshots retain token breakdown, quota deltas, and session identity for the subscription bubble', () => {
   const notice = notices.snapshot(record({ sessionId: 'session-abcdef', sessionLabel: 'project', quotaConsumption: { fiveHour: 0.004, weekly: 1.254 }, byModel: {
     'gpt-a': { input_tokens: 100, output_tokens: 40, cached_input_tokens: 25, reasoning_output_tokens: 9 },
     'gpt-b': { input_tokens: 20, output_tokens: 5, cached_input_tokens: 0, reasoning_output_tokens: 2 },

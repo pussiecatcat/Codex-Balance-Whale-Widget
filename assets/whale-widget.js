@@ -62,6 +62,7 @@ import { createBubbleColorSelect } from '/features/widget/bubble-color-select.js
 import { createSnapEditor } from '/features/widget/snap-editor.js';
 import { isEditorRoute } from '/shared/editor-routes.js';
 import { createUsageAlerts } from '/features/widget/usage-alerts.js';
+import { createTurnCostTemplateSaver } from '/features/widget/turn-cost-template-settings.js';
 import { createUsageRecordsView } from '/features/widget/usage-records-view.js';
 import { aggregateUsageModels, createUsageCharts } from '/features/widget/usage-charts.js';
 import { createBubbleSceneController } from '/features/widget/bubble-scene.js';
@@ -312,6 +313,10 @@ import {
       getTodayKey: function () { return usageTodayKeyStr(); },
       getRecordsView: function () { return usageRecordsView; }
     });
+    var saveTurnCostTemplate = createTurnCostTemplateSaver({
+      getUsageSet: usagePanelApi.getUsageSet, requestJson: requestJson,
+      saveUsage: usagePanelApi.save, settingsUrl: SETTINGS_URL, onError: assetFailure
+    });
     var loadUsageSettings = usagePanelApi.load;
     var usageReconcileEditor = usagePanelApi.reconcile;
     var refreshUsageMain = usagePanelApi.refresh;
@@ -525,7 +530,8 @@ import {
       bubbleRowsCanon: bubbleRowsCanon, bubblePreviewInto: function (element, modules) { return bubblePreviewInto(element, modules); }, bubbleEditTarget: bubbleEditTarget,
       usageTurnCostLines: usageTurnCostLines, usageWaitLinesOf: usageWaitLinesOf, usageRemindLinesOf: usageRemindLinesOf,
       usageTurnCostDefaultLines: usageTurnCostDefaultLines, usageWaitDefaultLines: usageWaitDefaultLines,
-      usageRemindDefaultLines: usageRemindDefaultLines, usageAlertModsResolved: usageAlertModsResolved
+      usageRemindDefaultLines: usageRemindDefaultLines, usageAlertModsResolved: usageAlertModsResolved,
+      getAccountMode: function () { return accountView.mode; }
     });
     var bubbleMoreListEl = null;
     var bubbleFirstChipEl = null;
@@ -2599,7 +2605,10 @@ import {
       if (editor === 'bubble') { openBubbleEditor(); return; }
       if (editor === 'reminder') {
         var kind = ['turnCost', 'alert', 'budget', 'question', 'approval'].includes(args.kind) ? args.kind : 'alert';
-        usageAlertBudgetEditor(kind, function () {});
+        var templateMode = args.templateMode === 'api' || args.templateMode === 'subscription' ? args.templateMode : accountView.mode;
+        usageAlertBudgetEditor(kind, function (config) {
+          if (kind === 'turnCost') saveTurnCostTemplate(config);
+        }, kind === 'turnCost' ? { templateMode: templateMode, layoutOnly: true } : null);
         return;
       }
       if (editor === 'api-model') {
@@ -2933,11 +2942,9 @@ import {
     }
     window.addEventListener('whale-edit-turn-cost', function () {
       usageAlertBudgetEditor('turnCost', function (o) {
-        var settings = usagePanelApi.getUsageSet() || ({}); settings.turnCost = { lines: o.lines };
-        usagePanelApi.setUsageSet(settings);
+        saveTurnCostTemplate(o);
         setTurnCostOn(o.on); setTurnCostClose(o.ttlSec);
-        usagePanelApi.save({ turnCost: settings.turnCost });
-      });
+      }, { templateMode: accountView.mode });
     });
     var waitNotice = createWaitNotice({
       windowRef: window, request: requestJson, sound: sound, runtimeFeed: runtimeFeed,
@@ -2945,6 +2952,7 @@ import {
     });
     var soundSettings = createSoundSettingsController({
       windowRef: window, documentRef: document, settings: settingsClient,
+      getAccountMode: function () { return accountView.mode; },
       menu: { mountMenuEntry: function (node) { return compactMenu.register({ id: 'sound', element: node }); } },
       audioEditor: { open: openAudioEditorForFeature }, rendering: WhaleRendering, select: customSelect,
       promptEditor: {
@@ -2955,7 +2963,7 @@ import {
           return new Promise(function (resolve) {
             usageAlertBudgetEditor(kind, function (config) {
               resolve({ status: 'saved', config: config });
-            }, options.config, function () {
+            }, Object.assign({ templateMode: kind === 'turnCost' ? accountView.mode : null, layoutOnly: kind === 'turnCost' }, options.config || {}), function () {
               resolve({ status: 'cancelled' });
             });
           });

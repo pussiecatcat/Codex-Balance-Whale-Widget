@@ -39,8 +39,7 @@ export class SessionParser {
   constructor({ id, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, onWait = () => {}, recoverIds = [] }) {
     this.id = id; this.model = ['__proto__', 'prototype', 'constructor'].includes(defaultModel) ? '' : defaultModel;
     this.onStart = onStart; this.onEnd = onEnd; this.onUpdate = onUpdate; this.onWait = onWait;
-    this.total = null; this.active = null; this.priming = false;
-    this.lastQuotaSnapshot = null;
+    this.total = null; this.active = null; this.priming = false; this.lastQuotaSnapshot = null;
     this.identity = null; this.skipHistory = 0; this.completed = new Set();
     this.recentEnds = new Map();
     this.waiting = new Map();
