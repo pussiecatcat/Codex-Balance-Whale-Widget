@@ -1,16 +1,16 @@
 const CLICK_WINDOW_MS = 60_000;
 const BOWL_LIFETIME_MS = 60_000;
-const PLAYBACK_MS = 3750; // The movie ends on the satisfied expression.
+const PLAYBACK_MS = 3490; // The movie ends on the satisfied expression.
 const GUTTER = 8;
 const PARKING_KEY = 'dshw-feed-pos';
 const BASIN_ASPECT = 112 / 100;
 const CONTACT_SAMPLES = [.08, .29, .5, .71, .92];
 // The transparent bowl is cut from this rectangle of the first movie frame.
 const FRAME = {
-  width: 360, height: 480,
+  width: 285, height: 310,
   // Measure from the maid headband to the body edge, excluding the moving tuft.
-  headbandTop: 134, bodyBottom: 469,
-  bowl: { x: 0, y: 380, width: 112, height: 100 },
+  headbandTop: 47, bodyBottom: 300,
+  bowl: { x: 0, y: 228, width: 93, height: 79 },
 };
 const IDLE_HEADBAND_TOP = .12;
 
@@ -38,7 +38,7 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
   filledBowl.className = 'dshwv-feed-filled-bowl';
   filledBowl.hidden = true;
   const filledArt = document.createElement('img');
-  filledArt.src = '/assets/feeding-bowl.png';
+  filledArt.src = '/assets/feeding-bowl-plan-1.png';
   filledArt.alt = '';
   const glow = document.createElement('span');
   glow.className = 'dshwv-feed-glow';
@@ -210,7 +210,7 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
     preparedMovie.className = 'dshwv-feed-animation';
     preparedMovie.alt = '';
     preparedMovie.draggable = false;
-    preparedMovie.src = '/assets/feeding-rice.webp?play=' + ++sequence;
+    preparedMovie.src = '/assets/feeding-rice-plan-1.webp?play=' + ++sequence;
     if (!hasParking) timer = window.setTimeout(reset, BOWL_LIFETIME_MS);
   }
 
