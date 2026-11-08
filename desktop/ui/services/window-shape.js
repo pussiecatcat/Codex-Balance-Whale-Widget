@@ -50,7 +50,7 @@ export function createWindowShape({ window: win, document: doc, bridge, renderin
     for (const el of doc.querySelectorAll('.dshwv-pop,.dshwv-menu-btn,.dshwv-menu,.dshwv-feed-bowl,.dshwv-feed-rice-clump')) {
       if (!visible(el, true)) continue;
       const animations = paintingAnimations(el);
-      if (el.matches('.dshwv-pop-open,.dshwv-menu-btn-visible,.dshwv-menu-open,.dshwv-feed-bowl,.dshwv-feed-rice-clump') || animations.length) add(el, true);
+      if (el.matches('.dshwv-pop-open,.dshwv-menu-btn-visible,.dshwv-whale-hidden .dshwv-menu-btn,.dshwv-menu-open,.dshwv-feed-bowl,.dshwv-feed-rice-clump') || animations.length) add(el, true);
       // Follow moving bounds for the actual finite animation lifetime. Paused
       // animations preserve their pixels without starting an endless RAF loop.
       if (animations.some(a => a.pending || (a.playState === 'running' && a.playbackRate !== 0))) animate = true;

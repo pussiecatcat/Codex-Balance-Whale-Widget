@@ -25,6 +25,12 @@ export function snapshot(record, nativeCurrency = 'USD', random = Math.random) {
       tokenParts.reasoningOutput += Number(usage.reasoning_output_tokens) || 0;
       hasParts = true;
     }
+    const quotaConsumption = {};
+    for (const [key, name] of [['fiveHour', 'fiveHourQuotaPercent'], ['weekly', 'weeklyQuotaPercent']]) {
+      const value = Number(record.quotaConsumption?.[key]);
+      quotaConsumption[name] = Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
+    }
+    const cacheHitPercent = tokenParts.input > 0 ? Math.round(Math.min(100, tokenParts.cachedInput / tokenParts.input * 100) * 10) / 10 : null;
     return Object.freeze({
       id: String(record.id || ''), completionKind,
       failureKind,
@@ -37,6 +43,11 @@ export function snapshot(record, nativeCurrency = 'USD', random = Math.random) {
       outputTokens: hasParts ? Math.floor(tokenParts.output) : null,
       cachedInputTokens: hasParts ? Math.floor(tokenParts.cachedInput) : null,
       reasoningOutputTokens: hasParts ? Math.floor(tokenParts.reasoningOutput) : null,
+      fiveHourQuotaPercent: quotaConsumption.fiveHourQuotaPercent,
+      weeklyQuotaPercent: quotaConsumption.weeklyQuotaPercent,
+      cacheHitPercent,
+      concurrent: record.concurrent === true,
+      sessionId: String(record.sessionId || ''),
       sessionLabel: String(record.sessionLabel || '').slice(0, 120),
       note: String(record.note || ''),
     });

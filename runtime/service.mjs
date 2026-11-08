@@ -20,7 +20,7 @@ export class WhaleService {
     this.usageSettingsFile = path.join(this.config.dataDir, 'usage-settings.json');
     this.balanceQuery = new BalanceQuery({ config: this.config, provider: this.provider, ledger: this.ledger, clock: this.clock });
     this.noticePublisher = new NoticePublisher({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
-      dataDir: this.config.dataDir, noticeDelayMs: options.noticeDelayMs, clock: this.clock });
+      dataDir: this.config.dataDir, context: () => this.usageContext(), noticeDelayMs: options.noticeDelayMs, clock: this.clock });
     this.turnAccounting = new TurnAccounting({ config: this.config, ledger: this.ledger, balance: this.balanceQuery,
       notice: this.noticePublisher, dataDir: this.config.dataDir, mode: this.mode, pendingCostMs: options.pendingCostMs, clock: this.clock });
     // Idempotent upgrade: old subscription turns lived under the API-key scope.

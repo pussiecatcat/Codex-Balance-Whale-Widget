@@ -7,12 +7,40 @@ const fields = SESSION_TOKEN_FIELDS;
 const normalize = value => normalizeSessionUsage(value);
 const zero = () => normalize({});
 const timestamp = sessionTimestamp;
+const QUOTA_BASELINE_MAX_AGE = 15 * 60 * 1000;
+
+function quotaSnapshot(value, at) {
+  if (!value || !Number.isFinite(at)) return null;
+  const result = {};
+  for (const [slot, minutes, key] of [['primary', 300, 'fiveHour'], ['secondary', 10080, 'weekly']]) {
+    const window = value[slot];
+    const used = window?.used_percent ?? window?.usedPercent;
+    const duration = window?.window_minutes ?? window?.window_duration_mins ?? window?.windowDurationMins;
+    if (duration !== minutes || !Number.isFinite(used) || used < 0 || used > 100) continue;
+    result[key] = { usedPercent: used, observedAt: at };
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+export function quotaConsumption(before, after, startedAt, endedAt) {
+  if (!before || !after || !Number.isFinite(startedAt) || !Number.isFinite(endedAt)) return null;
+  const result = {};
+  for (const key of ['fiveHour', 'weekly']) {
+    const start = before[key], end = after[key];
+    if (!start || !end || start.observedAt > startedAt || startedAt - start.observedAt > QUOTA_BASELINE_MAX_AGE ||
+        end.observedAt < startedAt || end.observedAt > endedAt || endedAt - end.observedAt > QUOTA_BASELINE_MAX_AGE ||
+        end.usedPercent < start.usedPercent) continue;
+    result[key] = Math.round((end.usedPercent - start.usedPercent) * 1e6) / 1e6;
+  }
+  return Object.keys(result).length ? result : null;
+}
 
 export class SessionParser {
   constructor({ id, defaultModel = '', onStart = () => {}, onEnd = () => {}, onUpdate = () => {}, onWait = () => {}, recoverIds = [] }) {
     this.id = id; this.model = ['__proto__', 'prototype', 'constructor'].includes(defaultModel) ? '' : defaultModel;
     this.onStart = onStart; this.onEnd = onEnd; this.onUpdate = onUpdate; this.onWait = onWait;
     this.total = null; this.active = null; this.priming = false;
+    this.lastQuotaSnapshot = null;
     this.identity = null; this.skipHistory = 0; this.completed = new Set();
     this.recentEnds = new Map();
     this.waiting = new Map();
@@ -96,13 +124,21 @@ export class SessionParser {
       this.active = { id: this.id + ':' + turnId, sessionId: this.id, turnId, rootTurnId: p.root_turn_id || turnId,
         isSubagent: this.identity?.isSubagent || false, parentThreadId: this.identity?.parentThreadId || null,
         sessionLabel: this.identity?.sessionLabel || '',
-        byModel: {}, startedAt: startedAt || timestamp(d.timestamp) || Date.now(), ts: timestamp(d.timestamp) || Date.now(), partial: false };
+        byModel: {}, startedAt: startedAt || timestamp(d.timestamp) || Date.now(), ts: timestamp(d.timestamp) || Date.now(), partial: false,
+        quotaStart: this.lastQuotaSnapshot && (startedAt || timestamp(d.timestamp) || Date.now()) - Math.max(...Object.values(this.lastQuotaSnapshot).map(x => x.observedAt)) <= QUOTA_BASELINE_MAX_AGE ? this.lastQuotaSnapshot : null };
       this.active.recoverable = this.recoverIds.has(this.active.id);
       if (this.active.recoverable) this.recoverySeen.add(this.active.id);
       if (!this.priming) this.onStart({ ...this.active });
       return;
     }
-    if (p.type === 'token_count' && p.info?.total_token_usage) {
+    if (p.type === 'token_count') {
+      const observedAt = timestamp(d.timestamp) || Date.now();
+      const limits = quotaSnapshot(p.rate_limits, observedAt);
+      if (limits) {
+        this.lastQuotaSnapshot = limits;
+        if (this.active) this.active.quotaEnd = limits;
+      }
+      if (!p.info?.total_token_usage) return;
       const next = normalize(p.info.total_token_usage);
       const difference = sessionCounterDifference(next, this.total, fields);
       let delta = zero();
@@ -136,7 +172,9 @@ export class SessionParser {
   end(ts, outcome) {
     if (!this.active) return;
     const endingTurnId = this.active.turnId;
-    const completed = { ...this.active, ts, outcome, historical: this.priming,
+    const active = this.active;
+    const completed = { ...active, ts, outcome, historical: this.priming,
+      quotaConsumption: quotaConsumption(active.quotaStart, active.quotaEnd, active.startedAt, ts),
       notify: !this.priming && outcome === 'completed' && !this.active.isSubagent,
       failureKind: outcome === 'failed' && this.active.failureKind === 'high-demand' ? 'high-demand' : null,
       statusNotify: !this.priming && ['aborted','failed','interrupted','superseded'].includes(outcome) && !this.active.isSubagent };

@@ -24,6 +24,7 @@ Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），�
 - `runtime/service.mjs` — WhaleService：余额、配置、账本
 - `runtime/provider-store.mjs` — Codex API 设置与 DIY 模型注册表共用的唯一存储（`providers.json`）。首次写入时从旧的 `api-settings.json` / `api-models.json` 合并，并留下 `providers.legacy-backup.json`；两边分别保存不会互相覆盖；损坏时可运行 `npm run restore-providers` 从备份恢复两部分。
 - `runtime/bridge.mjs` — 具名管道 IPC（`ALLOWED` 与 `HOST_ROUTES` 两张表合起来才是完整的外部可达路径集）
+- `desktop/agent-settings.cjs` / `scripts/agent-settings.mjs` — Agent 第一阶段个人设置命令。只接受设置目录中的稳定 ID，经宿主 `SettingsStore` 或受版本检查的气泡资源路由读写；不得把任意路由、服务商配置或素材文件开放给 Agent。
 - `runtime/process.mjs` — 拉起/探测服务（Windows schtasks，macOS launchctl）
 - `lib/atomic-write.mjs` — 全项目唯一的原子写入实现（独占临时文件 + Windows 重命名重试 + 可选 fsync）。同步 `writeFileAtomicSync` 给 runtime/lib 与 Electron 主进程用，异步 `writeFileAtomic` 给 `UiStateStore` 这类在 promise 链上的调用者用。`lib/` 是最底层，`runtime/` 与 `desktop/` 都依赖它。Electron 侧用 `require()` 加载它（Electron 44 的 Node 支持 require ESM）
 - `lib/widget-host.mjs` — 挂件资源层。用 `ctx.declareRoute({ path, methods, bodyLimit, stripRetired, handler })` 声明全部 `/dsh-whale/*` 路由并返回应答值，不再注册进一个假的 web server、也不往收集器里写
@@ -48,6 +49,7 @@ Codex 小龙娘：跟随 Codex 窗口的桌面挂件（Electron + Node.js），�
 | 挂件外观、样式 | `desktop/ui/whale-widget.css`（经 `widget.html` 的 `<link>` 加载） |
 | 窗口形状、透明度、点击穿透、跟随 | `desktop/main.cjs`、`desktop/host-state.cjs`、`desktop/WindowApi.cs`、`desktop/supervisor.ps1` |
 | 安装、回滚、发布 | `launchers/*.cmd`、`launchers/*.command`（用户双击入口）、`scripts/install-package.ps1`、`scripts/rollback-package.ps1`、`scripts/build-release.py` |
+| Agent 修改第一阶段个人设置 | `desktop/agent-settings.cjs`、`scripts/agent-settings.mjs`、`runtime/bridge.mjs`、`docs/CONFIGURATION.md` |
 
 ## 文档
 

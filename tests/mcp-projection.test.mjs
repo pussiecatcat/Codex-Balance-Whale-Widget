@@ -27,6 +27,8 @@ test('MCP status projection drops paths, faults and diagnostics', () => {
     followCodex: true, desktopMode: 'follow-codex', rendererReady: true, platform: 'win32',
   });
   assert.deepEqual(projected.provider.configured, { baseUrl: true, keyEnv: false });
+  assert.equal('providerName' in projected.provider, false);
+  assert.equal('provider' in projected.provider.settings, false);
   assert.deepEqual(projected.monitor, { watching: 2, activeTurns: 1, initializing: false, catchingUp: false });
   assert.equal('dataDir' in projected, false);
   assert.equal('faults' in projected, false);

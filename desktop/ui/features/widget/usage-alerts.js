@@ -26,6 +26,14 @@ export function createUsageAlerts(deps) {
         { type: 'text', text: '{turn_detail}', size: 2, color: '#5a6a92' }
       ];
     }
+    function usageTurnCostSubscriptionLines() {
+      return [
+        { type: 'text', text: '{turn_title}', size: 4, bold: true, compact: true },
+        { type: 'text', text: '{turn_primary}', size: 4, bold: true, rgb: 'indigo', compact: true },
+        { type: 'text', text: '{turn_quota}', size: 3, bold: true, rgb: 'indigo', compact: true, nowrap: true },
+        { type: 'text', text: '{turn_detail}', size: 4, color: '#5a6a92', compact: true }
+      ];
+    }
     function usageWaitDefaultLines(kind) {
       return [
         { type: 'text', text: kind === 'approval' ? 'Codex 正在等你授权' : 'Codex 正在等你回答', size: 6, bold: true },
@@ -36,6 +44,7 @@ export function createUsageAlerts(deps) {
       return cfg && Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageWaitDefaultLines(kind);
     }
     function usageTurnCostLines() {
+      if (getAccountMode() === 'subscription') return usageTurnCostSubscriptionLines();
       var usageSet = getUsageSet();
       var cfg = usageSet && usageSet.turnCost || ({});
       return Array.isArray(cfg.lines) && cfg.lines.length ? cfg.lines : usageTurnCostDefaultLines();
@@ -55,12 +64,22 @@ export function createUsageAlerts(deps) {
     function usageTurnValues(notice) {
       notice = notice || getLastTurnNotice() || ({});
       var subscription = getAccountMode() === 'subscription';
-      var title = subscription ? (notice.failureKind === 'high-demand' ? '本轮未完成' : notice.completionKind === 'cancelled' ? '本轮已取消' : notice.completionKind === 'failed' ? '本轮失败' : '本轮已完成') : (notice.label === '上一轮期间 API 扣费:' ? '本轮 API 消耗' : notice.label || '本轮已观测消耗');
+      var shortSessionId = notice.sessionId ? String(notice.sessionId).slice(-6) : '';
+      var sessionName = [notice.sessionLabel || '', shortSessionId].filter(Boolean).join(' · ') || '当前会话';
+      var title = subscription ? 'Session · ' + sessionName : (notice.label === '上一轮期间 API 扣费:' ? '本轮 API 消耗' : notice.label || '本轮已观测消耗');
       var cost = notice.amount == null ? (notice.costState === 'pending' ? '待记账' : '金额未知') : fmt(notice.amount, notice.currency || getCurrency());
-      var primary = subscription ? (notice.tokens == null ? '用量待更新' : bubbleTokenValue(notice.tokens) + ' tokens') : cost;
-      var detail = subscription ? (notice.inputTokens != null || notice.outputTokens != null ? '输入 ' + bubbleTokenValue(notice.inputTokens) + ' · 输出 ' + bubbleTokenValue(notice.outputTokens) + (notice.cachedInputTokens ? ' · 缓存 ' + bubbleTokenValue(notice.cachedInputTokens) : '') : '已计入本机统计') :
+      var pct = (value, estimate) => {
+        if (value == null) return '—';
+        var number = Number(value);
+        if (!isFinite(number)) return '—';
+        var formatted = number > 0 && number < 0.01 ? '<0.01' : Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+        return (estimate ? '~' : '') + formatted + '%';
+      };
+      var primary = subscription ? '本轮消耗' : cost;
+      var quota = subscription ? '5h ' + pct(notice.fiveHourQuotaPercent, notice.concurrent) + ' · 周 ' + pct(notice.weeklyQuotaPercent, notice.concurrent) : '';
+      var detail = subscription ? '缓存命中 ' + pct(notice.cacheHitPercent) :
         (notice.tokens == null ? '' : bubbleTokenValue(notice.tokens) + ' tokens · ') + (notice.costState === 'estimated' ? '配置价格估算' : notice.costState === 'pending' ? '等待账单确认' : notice.costState === 'unknown' ? '以服务商账单为准' : '同密钥区间观测');
-      return { turn_title: title, turn_primary: primary, turn_detail: detail, cost: cost,
+      return { turn_title: title, turn_primary: primary, turn_quota: quota, turn_detail: detail, cost: cost,
         turn_tokens: bubbleTokenValue(notice.tokens), turn_input: bubbleTokenValue(notice.inputTokens), turn_output: bubbleTokenValue(notice.outputTokens),
         turn_cached: bubbleTokenValue(notice.cachedInputTokens), turn_reasoning: bubbleTokenValue(notice.reasoningOutputTokens), session: notice.sessionLabel || '当前对话', session_name: notice.sessionLabel || '当前会话',
         api_name: notice.apiName || 'API 模型', api_balance: notice.apiBalance || '12.00', api_cost: notice.apiCost || '0.08', api_quota_left: notice.apiQuotaLeft || '75%' };
@@ -81,7 +100,7 @@ export function createUsageAlerts(deps) {
         var raw = String(m.text != null ? m.text : '');
         var txt = usageFillText(raw, below, amount);
         var div = document.createElement('div');
-        div.style.margin = '4px auto';
+        div.style.margin = m.compact ? '2px auto' : '4px auto';
         div.style.maxWidth = '100%';
         if (!txt) {
           div.style.height = '8px';
@@ -93,8 +112,8 @@ export function createUsageAlerts(deps) {
         WhaleMoney.bind(div, function () { return usageFillText(raw, below, amount, nativeCurrency); });
         div.style.display = 'inline-block';
         div.style.textAlign = 'center';
-        div.style.whiteSpace = 'pre-wrap';
-        div.style.wordBreak = 'break-word';
+        div.style.whiteSpace = m.nowrap ? 'nowrap' : 'pre-wrap';
+        div.style.wordBreak = m.nowrap ? 'normal' : 'break-word';
         div.style.fontSize = usageLineFontPx(m.size) + 'px';
         div.style.lineHeight = '1.4';
         if (m.bold) div.style.fontWeight = '700';
@@ -110,6 +129,14 @@ export function createUsageAlerts(deps) {
         var col = m.color ? String(m.color) : '';
         if (col && !m.rgb && !m.bgRgb) div.style.color = col;
         body.appendChild(div);
+        if (m.nowrap) {
+          var maxWidth = Number(body.clientWidth) || (body.getBoundingClientRect && body.getBoundingClientRect().width) || 0;
+          var fontPx = parseFloat(div.style.fontSize) || usageLineFontPx(m.size);
+          while (maxWidth > 0 && div.scrollWidth > maxWidth && fontPx > 8) {
+            fontPx -= 1;
+            div.style.fontSize = fontPx + 'px';
+          }
+        }
       } catch (err) {}
     }
     function checkUsageAlerts(balance, todayUsage) {

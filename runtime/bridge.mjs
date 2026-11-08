@@ -34,7 +34,7 @@ export function pipeName(dataDir = DATA_HOME) {
 export const ALLOWED = new Map([
   ['/api/status', 'GET'], ['/dsh-whale/balance.json', 'GET'], ['/dsh-whale/usage-records.json', 'GET'],
   ['/api/show', 'POST'], ['/api/stop', 'POST'],
-  ['/api/reset-position', 'POST'], ['/api/desktop-mode', 'POST'], ['/internal/host', 'POST'],
+  ['/api/reset-position', 'POST'], ['/api/desktop-mode', 'POST'], ['/api/agent-settings', 'POST'], ['/internal/host', 'POST'],
 ]);
 
 // Routes served by the desktop host rather than by the dispatcher. A missing
@@ -50,6 +50,11 @@ export const HOST_ROUTES = new Map([
     const ok = ['standalone', 'follow-codex'].includes(body?.mode) && await onMode(body.mode);
     return { status: ok ? 200 : 400, payload: { ok: !!ok } };
   }],
+  ['/api/agent-settings', async ({ body, onAgentSettings }) => {
+    if (!onAgentSettings) return { status: 403, payload: { ok: false, error: 'Agent 设置接口未就绪' } };
+    const payload = await onAgentSettings(body);
+    return { status: payload?.ok ? 200 : payload?.code === 'SETTINGS_CONFLICT' ? 409 : 400, payload: payload || { ok: false } };
+  }],
   ['/internal/host', async ({ body, onHost }) => {
     if (!onHost) return { status: 403, payload: { ok: false } };
     await onHost(body);
@@ -57,7 +62,7 @@ export const HOST_ROUTES = new Map([
   }],
 ]);
 
-export async function startBridge(dispatcher, { dataDir = DATA_HOME, onHost = null, onMode = null, onResetPosition = null } = {}) {
+export async function startBridge(dispatcher, { dataDir = DATA_HOME, onHost = null, onMode = null, onResetPosition = null, onAgentSettings = null } = {}) {
   const pipe = pipeName(dataDir), token = crypto.randomBytes(32).toString('hex'), instanceId = crypto.randomUUID();
   if (process.platform !== 'win32' && fs.existsSync(pipe)) {
     // A recycled PID or missing runtime.json must never unlink a live socket.
@@ -88,7 +93,7 @@ export async function startBridge(dispatcher, { dataDir = DATA_HOME, onHost = nu
         const url = new URL(route, 'whale://widget');
         if (ALLOWED.get(url.pathname) !== message.method) throw new Error('unsupported');
         const host = HOST_ROUTES.get(url.pathname);
-        if (host) reply = await host({ body: message.body, onHost, onMode, onResetPosition });
+        if (host) reply = await host({ body: message.body, onHost, onMode, onResetPosition, onAgentSettings });
         else {
           const result = await dispatcher.dispatch(route, { method: message.method, body: message.body });
           reply = { status: result.status, payload: JSON.parse(result.body.toString('utf8')) };

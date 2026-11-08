@@ -1,3 +1,4 @@
+import { createVisibilityRow, createVisibilityState } from '/features/widget/visibility-controls.js';
 import { createConfigSync } from '/features/widget/config-sync.js';
 import { mirrorSizeSettings } from '/features/widget/settings-mirror.js';
 import { createSettingsClient } from '/services/settings-client.js';
@@ -159,8 +160,10 @@ import {
     menuBtn.className = 'dshwv-menu-btn';
     menuBtn.title = '菜单';
     menuBtn.innerHTML = '<span></span><span></span><span></span>';
+    var visibilityState = createVisibilityState(root, menuBtn);
     menuBtn.addEventListener('click', function (e) {
       e.stopPropagation();
+      if (visibilityState.restore()) return;
       toggleMenu();
     });
     var menuBox = document.createElement('div');
@@ -346,7 +349,17 @@ import {
       window.whaleDesktop.command(modeSel.value === 'standalone' ? 'desktop' : 'follow');
     });
     modeRow.appendChild(modeSel);
+    var modeHelp = document.createElement('button');
+    modeHelp.type = 'button';
+    modeHelp.className = 'dshwv-fx-info-button';
+    modeHelp.textContent = '?';
+    modeHelp.title = '跟随 Codex：随 Codex 窗口显示，窗口最小化时隐藏；退出后下次打开 Codex 时恢复。\n常驻桌面：独立显示在桌面；退出后需要手动启动。两种模式分别保存位置和大小。';
+    modeHelp.setAttribute('aria-label', modeHelp.title);
+    modeRow.appendChild(modeHelp);
     compactMenu.register({ id: 'displayMode', element: modeRow });
+    compactMenu.register({ id: 'visibility', element: createVisibilityRow({ document, row: menuRow(), hide: function () {
+      closeMenu(); hideBubble(); feeding.reset(); visibilityState.hide();
+    }, confirm: showConfirm, stop: function () { window.whaleDesktop.command('stop'); } }) });
     var footerRow = menuRow();
     footerRow.classList.add('dshwv-menu-footer');
     var advancedBtn = document.createElement('button');

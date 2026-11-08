@@ -1,6 +1,7 @@
 // Browser-side data boundary for character, sound, and bubble assets.
 // Validation belongs here so editor views only receive recognized catalogues.
 export function createAssetClient(fetchImpl = fetch) {
+  let bubbleRevision = null;
   async function request(url, payload) {
     const response = await fetchImpl(url, payload === undefined
       ? { cache: 'no-store' }
@@ -22,9 +23,21 @@ export function createAssetClient(fetchImpl = fetch) {
     },
     async bubbleConfig() {
       const data = await request('/dsh-whale/bubble.json');
+      if (data?.ok && typeof data.revision === 'string') {
+        bubbleRevision = data.revision;
+        if (data.config) data.config = { ...data.config, revision: data.revision };
+      }
       return data?.ok ? data : null;
     },
-    saveBubbleConfig(config) { return request('/dsh-whale/bubble.json', config); },
+    async saveBubbleConfig(config) {
+      const payload = { ...config, expectedRevision: config?.expectedRevision || bubbleRevision || undefined };
+      const data = await request('/dsh-whale/bubble.json', payload);
+      if (data?.ok && typeof data.revision === 'string') {
+        bubbleRevision = data.revision;
+        if (data.config) data.config = { ...data.config, revision: data.revision };
+      }
+      return data;
+    },
     uploadBubbleImage(name, dataUrl) {
       return request('/dsh-whale/bubble-img-upload.json', { action: 'upload', name, data: dataUrl });
     },

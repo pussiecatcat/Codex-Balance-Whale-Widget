@@ -397,5 +397,5 @@ export function createFeeding({ document, window, image, imageUrl, root, scope, 
     filledBowl.remove();
     riceClump.remove();
   });
-  return { noteClick };
+  return { noteClick, reset };
 }

@@ -94,8 +94,8 @@ export class SessionReader {
 }
 
 export class SessionMonitor {
-  constructor(service, { intervalMs = 750, discoverMs = 3000 } = {}) {
-    Object.assign(this, { service, intervalMs, discoverMs });
+  constructor(service, { intervalMs = 750, discoverMs = 3000, quotaSnapshot = () => null } = {}) {
+    Object.assign(this, { service, intervalMs, discoverMs, quotaSnapshot });
     this.pending = new Set(); this.snapshot = { watching: 0, error: '', initializing: true }; this.stopped = false;
   }
   start() {
@@ -112,7 +112,24 @@ export class SessionMonitor {
       if (this.stopped) return;
       if (message.status) this.snapshot = { ...message.status, initializing: false };
       for (const item of message.events || []) {
-        if (item.type === 'start') this.service.beginTurn(item.meta);
+        if (item.type === 'start') {
+          let meta = item.meta;
+          if (!meta.isSubagent) {
+            let baseline = null;
+            try { baseline = this.quotaSnapshot(meta); }
+            catch { /* The quota baseline is optional; never drop a session turn when it is unavailable. */ }
+            if (baseline && typeof baseline === 'object') {
+              const quotaStart = { ...(meta.quotaStart || {}) };
+              for (const key of ['fiveHour', 'weekly']) {
+                const value = baseline[key], startedAt = meta.startedAt || meta.ts || Date.now();
+                if (!quotaStart[key] && Number.isFinite(value?.usedPercent) && value.usedPercent >= 0 && value.usedPercent <= 100 &&
+                    Number.isFinite(value?.observedAt) && value.observedAt <= startedAt && startedAt - value.observedAt <= 900000) quotaStart[key] = value;
+              }
+              if (Object.keys(quotaStart).length) meta = { ...meta, quotaStart };
+            }
+          }
+          this.service.beginTurn(meta);
+        }
         else if (item.type === 'update') this.service.updateTurn?.(item.meta);
         else if (item.type === 'wait') this.service.updateWait?.(item.meta);
         else this.dispatch(item.meta);

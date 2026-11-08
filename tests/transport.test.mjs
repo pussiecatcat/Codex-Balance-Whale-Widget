@@ -42,6 +42,30 @@ test('position reset is authenticated and cannot be invoked as a read', async t=
   assert.equal((await bridgeRequest('/api/reset-position',options)).ok,true);assert.equal(resets,1);
 });
 
+test('agent settings are available only through the authenticated POST IPC callback', async t => {
+  const { server, config } = await setup(t);
+  const received = [];
+  const bridge = await startBridge(server, { dataDir: config.dataDir, onAgentSettings: request => {
+    received.push(request);
+    return { ok: true, action: request.action };
+  } });
+  t.after(() => bridge.close());
+
+  const rejected = await bridgeRequest('/api/agent-settings', { method: 'POST', dataDir: config.dataDir,
+    body: { action: 'catalog' }, runtime: { ...bridge, token: 'wrong' } });
+  assert.equal(rejected.ok, false);
+  assert.equal(received.length, 0);
+
+  const accepted = await bridgeRequest('/api/agent-settings', { method: 'POST', dataDir: config.dataDir,
+    body: { action: 'catalog' } });
+  assert.deepEqual(accepted, { ok: true, action: 'catalog' });
+  assert.deepEqual(received, [{ action: 'catalog' }]);
+
+  const wrongMethod = await bridgeRequest('/api/agent-settings', { dataDir: config.dataDir });
+  assert.equal(wrongMethod.ok, false);
+  assert.equal(received.length, 1);
+});
+
 test('local IPC authenticates requests and restricts operations without a TCP port', async t => {
   const { server, request, config } = await setup(t);
   const bridge = await startBridge(server, { dataDir: config.dataDir });

@@ -89,6 +89,7 @@ button, input, select { font: inherit; }
 
 .set-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .set-content { flex: 1 1 auto; overflow-y: auto; padding: 18px 24px 24px; }
+.set-mode-info { padding: 10px 12px; border-radius: 8px; background: #f3f6fb; color: #536079; font-size: 12px; line-height: 1.7; }
 .set-content > * { max-width: 700px; margin-inline: auto; }
 .set-page-title { margin-top: 0; margin-bottom: 1px; color: var(--ink); font-size: 16px; font-weight: 700; }
 .set-page-hint { margin-top: 0; margin-bottom: 16px; color: var(--muted); font-size: 12px; }
